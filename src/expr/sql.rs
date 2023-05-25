@@ -1,0 +1,319 @@
+//! Convert Expr into ast::Expr
+use crate::{
+    expr::{self, Expr},
+    visitor::Acceptor,
+};
+use sqlparser::ast;
+use std::iter::Iterator;
+
+/// A simple Expr -> ast::Expr conversion Visitor
+pub struct FromExprVisitor;
+
+impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
+    fn column(&self, column: &'a expr::Column) -> ast::Expr {
+        if column.len() == 1 {
+            ast::Expr::Identifier(ast::Ident::new(column.head().unwrap()))
+        } else {
+            ast::Expr::CompoundIdentifier(column.iter().map(|id| ast::Ident::new(id)).collect())
+        }
+    }
+
+    fn value(&self, value: &'a expr::Value) -> ast::Expr {
+        match value {
+            crate::data_type::value::Value::Unit(_) => todo!(),
+            crate::data_type::value::Value::Boolean(_) => todo!(),
+            crate::data_type::value::Value::Integer(i) => {
+                ast::Expr::Value(ast::Value::Number(format!("{}", **i), false))
+            }
+            crate::data_type::value::Value::Enum(_) => todo!(),
+            crate::data_type::value::Value::Float(f) => {
+                ast::Expr::Value(ast::Value::Number(format!("{}", **f), false))
+            }
+            crate::data_type::value::Value::Text(_) => todo!(),
+            crate::data_type::value::Value::Bytes(_) => todo!(),
+            crate::data_type::value::Value::Struct(_) => todo!(),
+            crate::data_type::value::Value::Union(_) => todo!(),
+            crate::data_type::value::Value::Optional(_) => todo!(),
+            crate::data_type::value::Value::List(_) => todo!(),
+            crate::data_type::value::Value::Set(_) => todo!(),
+            crate::data_type::value::Value::Array(_) => todo!(),
+            crate::data_type::value::Value::Date(_) => todo!(),
+            crate::data_type::value::Value::Time(_) => todo!(),
+            crate::data_type::value::Value::DateTime(_) => todo!(),
+            crate::data_type::value::Value::Duration(_) => todo!(),
+            crate::data_type::value::Value::Id(_) => todo!(),
+            crate::data_type::value::Value::Function(_) => todo!(),
+        }
+    }
+
+    fn function(
+        &self,
+        function: &'a expr::function::Function,
+        arguments: Vec<ast::Expr>,
+    ) -> ast::Expr {
+        match function {
+            expr::function::Function::Opposite => ast::Expr::UnaryOp {
+                op: ast::UnaryOperator::Minus,
+                expr: Box::new(arguments[0].clone()),
+            },
+            expr::function::Function::Not => ast::Expr::UnaryOp {
+                op: ast::UnaryOperator::Not,
+                expr: Box::new(arguments[0].clone()),
+            },
+            expr::function::Function::Plus => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Plus,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Minus => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Minus,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Multiply => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Multiply,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Divide => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Divide,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Modulo => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Modulo,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::StringConcat => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::StringConcat,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Gt => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Gt,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Lt => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Lt,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::GtEq => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::GtEq,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::LtEq => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::LtEq,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Eq => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Eq,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::NotEq => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::NotEq,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::And => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::And,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Or => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Or,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Xor => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::Xor,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::BitwiseOr => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::BitwiseOr,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::BitwiseAnd => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::BitwiseAnd,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::BitwiseXor => ast::Expr::BinaryOp {
+                left: Box::new(arguments[0].clone()),
+                op: ast::BinaryOperator::BitwiseXor,
+                right: Box::new(arguments[1].clone()),
+            },
+            expr::function::Function::Exp
+            | expr::function::Function::Ln
+            | expr::function::Function::Log
+            | expr::function::Function::Abs
+            | expr::function::Function::Sin
+            | expr::function::Function::Cos
+            | expr::function::Function::Sqrt
+            | expr::function::Function::Pow
+            | expr::function::Function::Case => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    arguments[0].clone(),
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+        }
+    }
+    // TODO implement this properly
+    fn aggregate(
+        &self,
+        aggregate: &'a expr::aggregate::Aggregate,
+        argument: ast::Expr,
+    ) -> ast::Expr {
+        match aggregate {
+            expr::aggregate::Aggregate::Min => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("min"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+            expr::aggregate::Aggregate::Max => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("max"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+            expr::aggregate::Aggregate::Median => todo!(),
+            expr::aggregate::Aggregate::NUnique => todo!(),
+            expr::aggregate::Aggregate::First => todo!(),
+            expr::aggregate::Aggregate::Last => todo!(),
+            expr::aggregate::Aggregate::Mean => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("avg"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+            expr::aggregate::Aggregate::List => todo!(),
+            expr::aggregate::Aggregate::Count => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("count"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+            expr::aggregate::Aggregate::Quantile(_) => todo!(),
+            expr::aggregate::Aggregate::Quantiles(_) => todo!(),
+            expr::aggregate::Aggregate::Sum => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("sum"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+            expr::aggregate::Aggregate::AggGroups => todo!(),
+            expr::aggregate::Aggregate::Std => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("stddev"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+            expr::aggregate::Aggregate::Var => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("variance"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }),
+        }
+    }
+
+    fn structured(&self, _fields: Vec<(expr::identifier::Identifier, ast::Expr)>) -> ast::Expr {
+        todo!()
+    }
+}
+
+/// Based on the FromExprVisitor implement the From trait
+impl From<&Expr> for ast::Expr {
+    fn from(value: &Expr) -> Self {
+        value.accept(FromExprVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sql::parse_expr;
+    use std::convert::TryFrom;
+
+    #[test]
+    fn test_from_expr() {
+        let ast_expr: ast::Expr = parse_expr("exp(a*cos(SIN(x) + 2*a + b))").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+    }
+
+    #[test]
+    fn test_from_expr_with_var() {
+        let ast_expr: ast::Expr = parse_expr("exp(a*variance(SIN(x) + 2*a + b))").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+    }
+}

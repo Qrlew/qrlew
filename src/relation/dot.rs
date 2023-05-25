@@ -1,0 +1,325 @@
+use super::{Error, Field, Relation, Result, Variant as _, Visitor};
+use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor};
+use itertools::Itertools;
+use std::{borrow::Cow, fmt, fs::File, process::Command, str, string};
+
+impl From<string::FromUtf8Error> for Error {
+    fn from(err: string::FromUtf8Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Node<'a, T: Clone + fmt::Display>(&'a Relation, T);
+#[derive(Clone, Debug)]
+pub struct Edge<'a, T: Clone + fmt::Display>(&'a Relation, &'a Relation, T);
+#[derive(Clone, Debug)]
+pub struct VisitedRelation<'a, V>(&'a Relation, V);
+
+#[derive(Clone, Debug)]
+pub struct DotVisitor;
+
+#[derive(Clone, Debug)]
+pub struct FieldDataTypes(Vec<(Field, Expr)>);
+
+impl fmt::Display for FieldDataTypes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.0
+                .iter()
+                .map(|(field, expr)| format!(
+                    "<b>{}</b> = <i>{}</i> ∈ {}",
+                    field.name(),
+                    expr,
+                    field.data_type()
+                ))
+                .join("<br/>")
+        )
+    }
+}
+
+impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
+    fn table(&self, table: &'a super::Table) -> FieldDataTypes {
+        FieldDataTypes(
+            table
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| (field.clone(), Expr::col(field.name())))
+                .collect(),
+        )
+    }
+
+    fn map(&self, map: &'a super::Map, _input: FieldDataTypes) -> FieldDataTypes {
+        FieldDataTypes(
+            map.schema()
+                .fields()
+                .iter()
+                .zip(&map.projection)
+                .map(|(field, expr)| (field.clone(), expr.clone()))
+                .collect(),
+        )
+    }
+
+    fn reduce(&self, reduce: &'a super::Reduce, _input: FieldDataTypes) -> FieldDataTypes {
+        FieldDataTypes(
+            reduce
+                .schema()
+                .fields()
+                .iter()
+                .zip(&reduce.aggregate)
+                .map(|(field, expr)| (field.clone(), expr.clone()))
+                .collect(),
+        )
+    }
+
+    fn join(
+        &self,
+        join: &'a super::Join,
+        _left: FieldDataTypes,
+        _right: FieldDataTypes,
+    ) -> FieldDataTypes {
+        FieldDataTypes(
+            join.field_inputs()
+                .map(|(f, i)| {
+                    (
+                        join.field_from_qualified_name(&f).unwrap().clone(),
+                        Expr::from(i),
+                    )
+                })
+                .collect(),
+        )
+    }
+}
+
+#[allow(dead_code)]
+fn shorten_string(s: &str) -> Cow<str> {
+    const MAX_STR_LEN: usize = 16;
+    if s.len() > MAX_STR_LEN {
+        let mut ms: String = s.into();
+        ms.truncate(MAX_STR_LEN - 3);
+        format!("{}...", ms).into()
+    } else {
+        s.into()
+    }
+}
+
+impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, T>, Edge<'a, T>>
+    for VisitedRelation<'a, V>
+{
+    fn graph_id(&'a self) -> dot::Id<'a> {
+        dot::Id::new(namer::name_from_content("graph", self.0)).unwrap()
+    }
+
+    fn node_id(&'a self, node: &Node<'a, T>) -> dot::Id<'a> {
+        dot::Id::new(namer::name_from_content("graph", node.0)).unwrap()
+    }
+
+    fn node_label(&'a self, node: &Node<'a, T>) -> dot::LabelText<'a> {
+        dot::LabelText::html(match &node.0 {
+            Relation::Table(table) => format!(
+                "<b>{}</b> size ∈ {}<br/>{}",
+                table.name().to_uppercase(),
+                table.size(),
+                &node.1
+            ),
+            Relation::Map(map) => {
+                let filter = (map.filter.as_ref()).map_or(format!(""), |f| {
+                    format!("<br/><b>WHERE</b> {}", dot::escape_html(&f.to_string()))
+                });
+                let order_by = if map.order_by.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(
+                        "<br/><b>ORDER BY</b> ({})",
+                        dot::escape_html(
+                            &map.order_by
+                                .iter()
+                                .map(|o| format!(
+                                    "{} {}",
+                                    o.expr,
+                                    if o.asc { "ASC" } else { "DESC" }
+                                ))
+                                .join(", ")
+                        )
+                    )
+                };
+                format!(
+                    "<b>{}</b> size ∈ {}<br/>{}{filter}{order_by}",
+                    map.name().to_uppercase(),
+                    map.size(),
+                    &node.1
+                )
+            }
+            Relation::Reduce(reduce) => {
+                let group_by = if reduce.group_by.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(
+                        "<br/><b>GROUP BY</b> ({})",
+                        dot::escape_html(&reduce.group_by.iter().map(|e| e.to_string()).join(", "))
+                    )
+                };
+                format!(
+                    "<b>{}</b> size ∈ {}<br/>{}{group_by}",
+                    reduce.name().to_uppercase(),
+                    reduce.size(),
+                    &node.1
+                )
+            }
+            Relation::Join(join) => format!(
+                "<b>{}</b> size ∈ {}<br/>{}",
+                join.name().to_uppercase(),
+                join.size(),
+                &node.1
+            ),
+        })
+    }
+
+    fn node_shape(&'a self, node: &Node<'a, T>) -> Option<dot::LabelText<'a>> {
+        Some(dot::LabelText::label(match &node.0 {
+            Relation::Table(_) => format!("box"),
+            Relation::Map(_) => format!("box"),
+            Relation::Reduce(_) => format!("box"),
+            Relation::Join(_) => format!("box"),
+        }))
+    }
+
+    fn node_style(&'a self, _node: &Node<'a, T>) -> dot::Style {
+        dot::Style::Filled
+    }
+
+    fn node_color(&'a self, node: &Node<'a, T>) -> Option<dot::LabelText<'a>> {
+        Some(dot::LabelText::label(match &node.0 {
+            Relation::Table(_) => format!("aquamarine3"),
+            Relation::Map(_) => format!("cornsilk1"),
+            Relation::Reduce(_) => format!("deeppink"),
+            Relation::Join(_) => format!("goldenrod3"),
+        }))
+    }
+}
+
+impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
+    dot::GraphWalk<'a, Node<'a, T>, Edge<'a, T>> for VisitedRelation<'a, V>
+{
+    fn nodes(&'a self) -> dot::Nodes<'a, Node<'a, T>> {
+        self.0
+            .iter_with(self.1.clone())
+            .map(|(relation, t)| Node(relation, t))
+            .collect()
+    }
+
+    fn edges(&'a self) -> dot::Edges<'a, Edge<'a, T>> {
+        self.0
+            .iter_with(self.1.clone())
+            .flat_map(|(relation, t)| match relation {
+                Relation::Table(_) => Vec::new(),
+                Relation::Map(map) => vec![Edge(relation, &map.input, t)],
+                Relation::Reduce(reduce) => vec![Edge(relation, &reduce.input, t)],
+                Relation::Join(join) => vec![
+                    Edge(relation, &join.left, t.clone()),
+                    Edge(relation, &join.right, t),
+                ],
+            })
+            .collect()
+    }
+
+    fn source(&'a self, edge: &Edge<'a, T>) -> Node<'a, T> {
+        Node(edge.0, edge.2.clone())
+    }
+
+    fn target(&'a self, edge: &Edge<'a, T>) -> Node<'a, T> {
+        Node(edge.1, edge.2.clone())
+    }
+}
+
+impl Relation {
+    /// Render the Relation to dot
+    pub fn dot(&self) -> Result<String> {
+        let mut buffer: Vec<u8> = Vec::new();
+        dot::render(&VisitedRelation(self, DotVisitor), &mut buffer).unwrap();
+        Ok(String::from_utf8(buffer)?)
+    }
+}
+
+/// A simple MacOS specific function to display `Expr`s as graphs
+pub fn display(relation: &Relation) {
+    let name = namer::name_from_content("relation", &relation);
+    let mut output = File::create(format!("/tmp/{name}.dot")).unwrap();
+    dot::render(&VisitedRelation(relation, DotVisitor), &mut output).unwrap();
+    Command::new("dot")
+        .arg(format!("/tmp/{name}.dot"))
+        .arg("-Tpdf")
+        .arg("-o")
+        .arg(format!("/tmp/{name}.pdf"))
+        .output()
+        .expect("Error: you need graphviz installed (and dot on the PATH)");
+    Command::new("open")
+        .arg(format!("/tmp/{name}.pdf"))
+        .output()
+        .expect("Error: this works on MacOS only");
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        builder::{Ready, With},
+        data_type::DataType,
+        expr::Expr,
+        relation::{schema::Schema, Relation},
+    };
+
+    #[ignore]
+    #[test]
+    fn test_dot() {
+        namer::reset();
+        let schema: Schema = vec![
+            ("a", DataType::float()),
+            ("b", DataType::float_interval(-2., 2.)),
+            ("c", DataType::float()),
+            ("d", DataType::float_interval(0., 1.)),
+        ]
+        .into_iter()
+        .collect();
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(schema.clone())
+            .size(1000)
+            .build();
+        println!("table = {}", table);
+        println!("table[a] = {}", table[&"a".into()]);
+        let map: Relation = Relation::map()
+            .name("map_1")
+            .with(("exp_a", Expr::exp(Expr::col("a"))))
+            .input(table.clone())
+            .with(("alias", Expr::col("b") + Expr::col("d")))
+            .build();
+        println!("map = {}", map);
+        println!("map[0] = {}", map[0]);
+        println!("map[table.a] = {}", map[&["table", "a"].into()]);
+        let join: Relation = Relation::join()
+            .name("join")
+            .cross()
+            .left(table.clone())
+            .right(map.clone())
+            .build();
+        println!("join = {}", join);
+        let map_2: Relation = Relation::map()
+            .name("map_2")
+            .with(("a", Expr::exp(Expr::col(join[4].name()))))
+            .input(join.clone())
+            .with(Expr::col(join[0].name()) + Expr::col(join[1].name()))
+            .build();
+        println!("map_2 = {}", map_2);
+        let join_2: Relation = Relation::join()
+            .name("join_2")
+            .cross()
+            .left(join.clone())
+            .right(map_2.clone())
+            .build();
+        println!("join_2 = {}", join_2);
+        display(&join_2);
+    }
+}
