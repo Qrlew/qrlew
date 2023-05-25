@@ -4,6 +4,12 @@ name = "qrlew"
 version = "0.1.0"
 edition = "2021"
 description = "Sarus Qrlew Engine"
+documentation = "https://docs.rs/qrlew"
+readme = "README.md"
+homepage = "https://sarus.tech/"
+repository = "https://github.com/Qrlew/qrlew"
+license = "Apache-2.0"
+keywords = ["sql", "data"]
 
 [lib]
 crate-type = ["rlib", "cdylib"]
