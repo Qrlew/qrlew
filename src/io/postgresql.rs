@@ -18,7 +18,7 @@ use postgres::{
 };
 use rand::thread_rng;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
-use std::{fmt, process::Command, rc::Rc, thread, time};
+use std::{fmt, process::Command, rc::Rc, thread, time, env, str::FromStr};
 
 const DB: &str = "qrlew-test";
 const PORT: usize = 5432;
@@ -40,11 +40,30 @@ pub struct Database {
 }
 
 impl Database {
+    fn db() -> String {
+        env::var("POSTGRES_DB").unwrap_or(DB.into())
+    }
+
+    fn port() -> usize {
+        match env::var("POSTGRES_PORT") {
+            Ok(port) => usize::from_str(&port).unwrap_or(PORT),
+            Err(_) => PORT,
+        }
+    }
+
+    fn user() -> String {
+        env::var("POSTGRES_USER").unwrap_or(USER.into())
+    }
+
+    fn password() -> String {
+        env::var("POSTGRES_PASSWORD").unwrap_or(PASSWORD.into())
+    }
+
     /// A postgresql instance must exist
     /// `docker run --name qrlew-test -p 5432:5432 -e POSTGRES_PASSWORD=qrlew-test -d postgres`
     fn try_get() -> Result<Self> {
         let mut client = postgres::Client::connect(
-            &format!("host=localhost port={PORT} user={USER} password={PASSWORD}"),
+            &format!("host=localhost port={} user={} password={}", Database::port(), Database::user(), Database::password()),
             postgres::NoTls,
         )?;
         let tables: Vec<String> = client

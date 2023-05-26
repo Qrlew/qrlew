@@ -11,7 +11,7 @@ use crate::{
     hierarchy::Hierarchy,
     relation::{builder::TableBuilder, schema::Schema, Relation, Table, Variant as _},
 };
-use std::{convert::Infallible, error, fmt, io, rc::Rc, result};
+use std::{convert::Infallible, error, fmt, io, rc::Rc, result, num};
 
 // Error management
 #[derive(Debug)]
@@ -52,6 +52,11 @@ impl From<Infallible> for Error {
 }
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+impl From<num::ParseIntError> for Error {
+    fn from(err: num::ParseIntError) -> Self {
         Error::Other(err.to_string())
     }
 }
