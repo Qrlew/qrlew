@@ -14,7 +14,10 @@ pub mod sql;
 pub mod types;
 pub mod visitor;
 
-// TODO we should add and reexport all the object we want to expose to the user of the lib
-pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
+/// Expose sqlparser as part of qrlew
 pub use sqlparser;
+pub use data_type::{DataType, value::Value};
+pub use expr::Expr;
+pub use relation::Relation;
+pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
 pub use types::{And, Factor, Or, Term};
