@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- Conversion for `Case` expression
+- Conversion for `Case` expression [MR1](https://github.com/Qrlew/qrlew/pull/1)
 
 ## [0.1.0] - 2023-05-25
 
