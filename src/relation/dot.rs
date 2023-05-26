@@ -322,5 +322,4 @@ mod tests {
         println!("join_2 = {}", join_2);
         display(&join_2);
     }
-
 }

@@ -16,7 +16,7 @@ use itertools::Itertools;
 pub use super::relation::dot::display;
 use crate::{
     builder::Ready,
-    data_type::{self, intervals::Bound, DataType, DataTyped, Integer, Struct, function::Function},
+    data_type::{self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct},
     expr::{self, Expr, Identifier, Split},
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},

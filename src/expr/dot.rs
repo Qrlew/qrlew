@@ -407,14 +407,4 @@ mod tests {
         // Create an expr
         display(&expr!(case(eq(a, 5), 5, a)), data_types);
     }
-
-    #[ignore]
-    #[test]
-    fn test_dot_get() {
-        let data_types = DataType::structured([
-            ("a",DataType::float_interval(2., 18.)),
-        ]);
-        // Create an expr
-        display(&expr!(lt(a, 5)), data_types); //TODO! why this does not work ?
-    }
 }

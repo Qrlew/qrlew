@@ -506,7 +506,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::Ready, data_type::DataType, relation::dot::{VisitedRelation, display}, relation::schema::Schema, expr::dot::{DotVisitor},
+        builder::Ready, data_type::DataType, relation::dot::display, relation::schema::Schema,
     };
 
     #[test]
