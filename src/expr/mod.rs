@@ -1368,7 +1368,7 @@ mod tests {
     }
 
     #[test]
-    fn () {
+    fn test_case() {
         let expression = expr!(case(gt(x, 5), x, y));
         println!("expression = {}", expression);
         println!("expression data type = {}", expression.data_type());
