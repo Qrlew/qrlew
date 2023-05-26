@@ -1359,6 +1359,16 @@ pub fn bivariate_max() -> impl Function + Clone {
     ))
 }
 
+// String functions
+
+/// Builds the lower `Function`
+pub fn lower() -> impl Function + Clone {
+    PartitionnedMonotonic::univariate(data_type::String::default(), |x| {
+        x.lower()
+    })
+}
+
+// Case functions
 pub fn case() -> impl Function + Clone {
     Case
 }
@@ -2055,5 +2065,25 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::Any);
+    }
+
+    #[test]
+    fn test_lower() {
+        println!("Test lower");
+        let fun = lower();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        // true, int, int
+        // let set = DataType::from(Struct::from_data_types(&[
+        //     DataType::boolean_value(true),
+        //     DataType::from(data_type::Integer::from_intervals([
+        //         [0, 2],
+        //         [5, 5],
+        //         [10, 10],
+        //     ])),
+        //     DataType::integer_values(vec![10, 15, 30]),
+        // ]));
     }
 }
