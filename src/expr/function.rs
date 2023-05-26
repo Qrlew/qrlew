@@ -89,7 +89,7 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Pow=> Style::Function,
+            | Function::Pow => Style::Function,
             Function::Case => Style::Case,
         }
     }
