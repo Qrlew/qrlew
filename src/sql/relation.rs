@@ -506,7 +506,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::Ready, data_type::DataType, relation::dot::display, relation::schema::Schema,
+        builder::Ready, data_type::DataType, relation::dot::{VisitedRelation, display}, relation::schema::Schema, expr::dot::{DotVisitor},
     };
 
     #[test]
@@ -752,5 +752,33 @@ mod tests {
         let q = ast::Query::from(&relation);
         println!("query = {q}");
         display(&relation);
+    }
+
+    #[test]
+    fn test_case() {
+        let query = parse(
+            "SELECT CASE WHEN SUM(a) = 5 THEN 5 ELSE 4 * AVG(a) END FROM table_1"
+        ,
+        )
+        .unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation:#?}");
+        display(&relation);
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
     }
 }

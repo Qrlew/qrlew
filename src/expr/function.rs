@@ -47,6 +47,7 @@ pub enum Style {
     UnaryOperator,
     BinaryOperator,
     Function,
+    Case,
 }
 
 pub enum Arity {
@@ -88,8 +89,8 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Pow
-            | Function::Case => Style::Function,
+            | Function::Pow=> Style::Function,
+            Function::Case => Style::Case,
         }
     }
 

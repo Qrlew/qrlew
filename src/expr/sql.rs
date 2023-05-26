@@ -157,8 +157,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Sin
             | expr::function::Function::Cos
             | expr::function::Function::Sqrt
-            | expr::function::Function::Pow
-            | expr::function::Function::Case => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Pow=> ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
                     arguments[0].clone(),
@@ -168,6 +167,12 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 special: false,
                 order_by: vec![],
             }),
+            expr::function::Function::Case => ast::Expr::Case {
+                operand: None,
+                conditions: vec!(arguments[0].clone()),
+                results: vec!(arguments[1].clone()),
+                else_result: Some(Box::new(arguments[2].clone()))
+            },
         }
     }
     // TODO implement this properly
@@ -315,5 +320,15 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
+    }
+
+    #[test]
+    fn test_from_expr_with_case() {
+        let ast_expr: ast::Expr = parse_expr("CASE a WHEN 5 THEN 0 ELSE a END").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {}", gen_expr.to_string());
     }
 }
