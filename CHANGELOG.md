@@ -7,14 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2023-05-25
-
-### Added
-
-- First commit open source
-
-### Fixed
-
+## [0.1.1] - 2023-05-26
 ### Changed
+- Made sqlite optional
 
+## [0.1.0] - 2023-05-25
+### Added
+- First commit open source
+### Fixed
+### Changed
 ### Removed
