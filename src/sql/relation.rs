@@ -777,7 +777,7 @@ mod tests {
         ))
         .unwrap();
         println!("relation = {relation:#?}");
-        display(&relation);
+        //display(&relation);
         let q = ast::Query::from(&relation);
         println!("query = {q}");
     }
