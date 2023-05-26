@@ -32,15 +32,23 @@ pub enum Function {
     BitwiseAnd,
     BitwiseXor,
     // Functions
+    Abs,
+    Case,
+    CharLength,
+    Coalesce,
+    Concat,
+    Cos,
     Exp,
     Ln,
     Log,
-    Abs,
-    Sin,
-    Cos,
-    Sqrt,
+    Lower,
+    Position,
     Pow,
-    Case,
+    Sin,
+    Sqrt,
+    Substring,
+    Trim,
+    Upper,
 }
 
 pub enum Style {
@@ -89,7 +97,15 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Pow=> Style::Function,
+            | Function::Pow
+            | Function::CharLength
+            | Function::Coalesce
+            | Function::Lower
+            | Function::Upper
+            | Function::Concat
+            | Function::Position
+            | Function::Substring
+            | Function::Trim=> Style::Function,
             Function::Case => Style::Case,
         }
     }
@@ -125,11 +141,21 @@ impl Function {
             | Function::Abs
             | Function::Sin
             | Function::Cos
-            | Function::Sqrt => Arity::Unary,
-            // Binary Function
-            Function::Pow => Arity::Nary(2),
-            // Case Function
-            Function::Case => Arity::Nary(3),
+            | Function::Sqrt
+            | Function::CharLength
+            | Function::Lower
+            | Function::Upper => Arity::Unary,
+            // Binary Functions
+            Function::Pow
+            | Function::Position=> Arity::Nary(2),
+            // Ternary Functions
+            Function::Case
+            | Function::Substring => Arity::Nary(3),
+            // Varying Functions
+            Function::Coalesce
+            | Function::Concat
+            | Function::Trim => Arity::Varying,
+
         }
     }
 
@@ -187,9 +213,19 @@ impl fmt::Display for Function {
             Function::Sin => "SIN",
             Function::Cos => "COS",
             Function::Sqrt => "SQRT",
+            Function::CharLength => "CHAR_LENGTH",
+            Function::Lower => "LOWER",
+            Function::Upper  => "UPPER",
             // Binary Functions
             Function::Pow => "POW",
+            Function::Position => "POSITION",
+            // Ternary Functions
             Function::Case => "CASE",
+            Function::Substring => "SUBSTRING",
+            // Varying Functions
+            Function::Coalesce => "COALESCE",
+            Function::Concat => "CONCAT",
+            Function::Trim => "TRIM",
         })
     }
 }

@@ -9,7 +9,7 @@ use crate::data_type::{
 use super::{aggregate::Aggregate, function::Function};
 
 macro_rules! function_implementations {
-    ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*]) => {
+    ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], [$($varying:ident),*]) => {
         paste! {
             // A (thread local) global map
             thread_local! {
@@ -17,6 +17,7 @@ macro_rules! function_implementations {
                     $([< $unary:snake >]: Rc::new(function::[< $unary:snake >]().extend(DataType::Any)),)*
                     $([< $binary:snake >]: Rc::new(function::[< $binary:snake >]().extend(DataType::Any & DataType::Any)),)*
                     $([< $ternary:snake >]: Rc::new(function::[< $ternary:snake >]().extend(DataType::Any & DataType::Any & DataType::Any)),)*
+                    $([< $varying:snake >]: Rc::new(function::[< $varying:snake >]().extend(Vec<DataType::Any>)),)*
                 };
             }
 
@@ -25,6 +26,7 @@ macro_rules! function_implementations {
                 $(pub [< $unary:snake >]: Rc<dyn function::Function>,)*
                 $(pub [< $binary:snake >]: Rc<dyn function::Function>,)*
                 $(pub [< $ternary:snake >]: Rc<dyn function::Function>,)*
+                $(pub [< $varying:snake >]: Rc<dyn function::Function>,)*
             }
 
             /// The object to access implementations
@@ -33,18 +35,32 @@ macro_rules! function_implementations {
                     $(Function::$unary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $unary:snake >].clone()),)*
                     $(Function::$binary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $binary:snake >].clone()),)*
                     $(Function::$ternary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $ternary:snake >].clone()),)*
+                    $(Function::$varying => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $varying:snake >].clone()),)*
                 }
             }
         }
     };
 }
 
-// All functions: Opposite, Not, Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Exp, Ln, Abs, Sin, Cos
-// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos
-// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor
-// Ternary: Case
+// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, Sqrt, CharLength, Lower, Upper
+// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position
+// Ternary: Case, Substring
+// Varying: Coalesce, Concat, Trim
 function_implementations!(
-    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt],
+    [
+        Opposite,
+        Not,
+        Exp,
+        Ln,
+        Log,
+        Abs,
+        Sin,
+        Cos,
+        Sqrt,
+        CharLength,
+        Lower,
+        Upper
+    ],
     [
         Plus,
         Minus,
@@ -64,9 +80,11 @@ function_implementations!(
         BitwiseOr,
         BitwiseAnd,
         BitwiseXor,
-        Pow
+        Pow,
+        Position
     ],
-    [Case]
+    [Case, Substring],
+    [Coalesce, Concat, Trim]
 );
 
 macro_rules! aggregate_implementations {
