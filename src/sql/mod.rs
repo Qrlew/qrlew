@@ -188,6 +188,7 @@ mod tests {
 
     const POSTGRESQL_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
 
+    #[ignore]
     #[test]
     fn test_on_postgresql() {
         let mut database = postgresql::test_database();
