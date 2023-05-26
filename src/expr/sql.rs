@@ -157,7 +157,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Sin
             | expr::function::Function::Cos
             | expr::function::Function::Sqrt
-            | expr::function::Function::Pow=> ast::Expr::Function(ast::Function {
+            | expr::function::Function::Pow => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
                     arguments[0].clone(),
