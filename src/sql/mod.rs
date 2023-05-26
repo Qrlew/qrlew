@@ -111,7 +111,6 @@ mod tests {
     use colored::Colorize;
     use itertools::Itertools;
     use sqlparser::ast;
-
     #[ignore]
     #[test]
     fn test_display() {
