@@ -1363,9 +1363,33 @@ pub fn bivariate_max() -> impl Function + Clone {
 
 /// Builds the lower `Function`
 pub fn lower() -> impl Function + Clone {
-    PartitionnedMonotonic::univariate(data_type::String::default(), |x| {
-        x.lower()
+    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| {
+        x.to_lowercase()
     })
+}
+
+pub fn upper() -> impl Function + Clone {
+    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| {
+        x.to_uppercase()
+    })
+}
+
+pub fn char_length() -> impl Function + Clone {
+    Pointwise::univariate(
+        data_type::Text::default(),
+        data_type::Integer::default(),
+        |a| a.len().try_into().unwrap(),
+    )
+}
+
+pub fn position() -> impl Function + Clone {
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Text::default()),
+        DataType::optional(DataType::integer()),
+        |a,b| Value::Optional(
+            value::Optional::new(a.find(&b).map(|v| Rc::new(Value::integer(v.try_into().unwrap()))))
+        )
+    )
 }
 
 // Case functions
@@ -2075,15 +2099,62 @@ mod tests {
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
-        // true, int, int
-        // let set = DataType::from(Struct::from_data_types(&[
-        //     DataType::boolean_value(true),
-        //     DataType::from(data_type::Integer::from_intervals([
-        //         [0, 2],
-        //         [5, 5],
-        //         [10, 10],
-        //     ])),
-        //     DataType::integer_values(vec![10, 15, 30]),
-        // ]));
+        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Text(_)));
+    }
+
+    #[test]
+    fn test_upper() {
+        println!("Test uppeer");
+        let fun = upper();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Text(_)));
+    }
+
+    #[test]
+    fn test_char_length() {
+        println!("Test char_length");
+        let fun = char_length();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World!")]).into();
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Integer(_)));
+    }
+
+    #[test]
+    fn test_position() {
+        println!("Test position");
+        let fun = position();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::from(data_type::Text::from_values([String::from("Hello"), String::from("World")])),
+            DataType::from(data_type::Text::from_values([String::from("e"), String::from("z")])),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Optional(_)));
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::from(data_type::Text::from_values([String::from("Hello"), String::from("World")])),
+            DataType::from(data_type::Text::from_values([String::from("l")])),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Optional(_)));
     }
 }

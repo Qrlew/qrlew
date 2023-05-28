@@ -41,7 +41,7 @@ macro_rules! function_implementations {
 
 // Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, Sqrt, CharLength, Lower, Upper
 // Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position
-// Ternary: Case, Substring
+// Ternary: Case
 function_implementations!(
     [
         Opposite,
@@ -79,7 +79,7 @@ function_implementations!(
         Pow,
         Position
     ],
-    [Case, Substring]
+    [Case]
 );
 
 macro_rules! aggregate_implementations {

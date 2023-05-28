@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- Some string functions (`UPPER`, `LOWER`, `CONCAT`, `COALESCE`, `TRIM`, `SUBSTRING`, `POSITION`, `CHAR_LENGTH`) [MR2](https://github.com/Qrlew/qrlew/pull/2)
+- Some string functions (`UPPER`, `LOWER`, `POSITION`, `CHAR_LENGTH`) [MR2](https://github.com/Qrlew/qrlew/pull/2)
 - Conversion for `Case` expression [MR1](https://github.com/Qrlew/qrlew/pull/1)
 
 ## [0.1.0] - 2023-05-25

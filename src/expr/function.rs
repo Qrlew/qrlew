@@ -44,7 +44,6 @@ pub enum Function {
     Pow,
     Sin,
     Sqrt,
-    Substring,
     Upper,
 }
 
@@ -98,8 +97,7 @@ impl Function {
             | Function::CharLength
             | Function::Lower
             | Function::Upper
-            | Function::Position
-            | Function::Substring => Style::Function,
+            | Function::Position => Style::Function,
             Function::Case => Style::Case,
         }
     }
@@ -143,8 +141,7 @@ impl Function {
             Function::Pow
             | Function::Position=> Arity::Nary(2),
             // Ternary Functions
-            Function::Case
-            | Function::Substring => Arity::Nary(3),
+            Function::Case => Arity::Nary(3),
         }
     }
 
@@ -210,7 +207,6 @@ impl fmt::Display for Function {
             Function::Position => "POSITION",
             // Ternary Functions
             Function::Case => "CASE",
-            Function::Substring => "SUBSTRING",
         })
     }
 }
