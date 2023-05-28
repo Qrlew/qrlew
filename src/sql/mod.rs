@@ -170,6 +170,7 @@ mod tests {
         "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
         "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
         //"SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
+        "SELECT LOWER(d) FROM table_2"
     ];
 
     const SQLITE_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
