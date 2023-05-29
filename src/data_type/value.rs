@@ -485,8 +485,14 @@ impl Struct {
             .ok_or_else(|| Error::value("Invalid field"))
     }
     /// Access a field by index
-    pub fn field_from_index(&self, index: usize) -> &(String, Rc<Value>) {
-        &self.0[index]
+    pub fn field_from_index(&self, index: usize) -> Result<&(String, Rc<Value>)> {
+        if index >= self.len() {
+            Err(Error::value(
+                format!("index out of bounds: the len is {} but the index is {}", self.len(), index)
+            ))
+        } else {
+            Ok(&self.0[index])
+        }
     }
 }
 
@@ -667,7 +673,7 @@ impl Index<usize> for Struct {
     type Output = Rc<Value>;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.field_from_index(index).1
+        &self.field_from_index(index).unwrap().1
     }
 }
 
