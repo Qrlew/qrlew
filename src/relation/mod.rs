@@ -10,7 +10,7 @@ pub mod dot;
 pub mod field;
 pub mod schema;
 pub mod sql;
-pub mod transform;
+pub mod transforms;
 
 use std::{cmp, error, fmt, hash, ops::Index, rc::Rc, result};
 
@@ -20,13 +20,13 @@ use itertools::Itertools;
 pub use super::relation::dot::display;
 use crate::{
     builder::Ready,
-    data_type::{self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct},
+    data_type::{self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Variant as _},
     expr::{self, Expr, Identifier, Split},
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},
 };
 pub use builder::{
-    JoinBuilder, MapBuilder, ReduceBuilder, TableBuilder, WithInput, WithSchema, WithoutInput,
+    JoinBuilder, SetBuilder, MapBuilder, ReduceBuilder, TableBuilder, WithInput, WithSchema, WithoutInput,
     WithoutSchema,
 };
 pub use field::Field;
@@ -156,7 +156,7 @@ pub struct Table {
 
 impl Table {
     /// Main constructor
-    pub fn new(name: String, schema: Schema, size: Integer) -> Table {
+    pub fn new(name: String, schema: Schema, size: Integer) -> Self {
         Table { name, schema, size }
     }
 
@@ -254,7 +254,7 @@ impl Map {
         order_by: Vec<OrderBy>,
         limit: Option<usize>,
         input: Rc<Relation>,
-    ) -> Map {
+    ) -> Self {
         assert!(Split::from_iter(named_exprs.clone()).len() == 1);
         let (schema, exprs) = Map::schema_exprs(named_exprs, &input);
         let size = Map::size(&input);
@@ -394,7 +394,7 @@ impl Reduce {
         named_exprs: Vec<(String, Expr)>,
         group_by: Vec<Expr>,
         input: Rc<Relation>,
-    ) -> Reduce {
+    ) -> Self {
         // assert!(Split::from_iter(named_exprs.clone()).len()==1);
         let (schema, exprs) = Reduce::schema_exprs(named_exprs, &input);
         let size = Reduce::size(&input);
@@ -566,7 +566,7 @@ impl Join {
         operator: JoinOperator,
         left: Rc<Relation>,
         right: Rc<Relation>,
-    ) -> Join {
+    ) -> Self {
         let schema = Join::schema(left_names, right_names, &left, &right);
         // The size of the join can go from 0 to
         let size = Join::size(&operator, &left, &right);
@@ -724,15 +724,168 @@ impl Variant for Join {
     }
 }
 
-// Other combinators
+// Set operations
 
-#[derive(Clone, Debug, Hash, PartialEq)]
-pub struct ProtectedEntityPreserving {
-    /// The underlying `Relation`
-    /// The relation is voluntarily owned by the PEP container as it will not exist without it
-    relation: Relation,
-    /// The protected entity defined as an expression
-    protected_entity: Expr,
+/// Set op
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum SetOperator {
+    Union,
+    Except,
+    Intersect,
+}
+
+impl fmt::Display for SetOperator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                SetOperator::Union => "UNION",
+                SetOperator::Except => "EXCEPT",
+                SetOperator::Intersect => "INTERSECT",
+            }
+        )
+    }
+}
+
+/// Set quantifier
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum SetQuantifier {
+    All,
+    Distinct,
+    None,
+}
+
+impl fmt::Display for SetQuantifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                SetQuantifier::All => "ALL",
+                SetQuantifier::Distinct => "DISTINCT",
+                SetQuantifier::None => "NONE",
+            }
+        )
+    }
+}
+/// Apply a Set operation
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct Set {
+    /// The name of the output
+    pub name: String,
+    /// Set operator
+    pub operator: SetOperator,
+    /// Set quantifier
+    pub quantifier: SetQuantifier,
+    /// The schema description of the output
+    pub schema: Schema,
+    /// The size of the Set
+    pub size: Integer,
+    /// Left input
+    pub left: Rc<Relation>,
+    /// Right input
+    pub right: Rc<Relation>,
+}
+
+
+impl Set {
+    pub fn new(
+        name: String,
+        names: Vec<String>,
+        operator: SetOperator,
+        quantifier: SetQuantifier,
+        left: Rc<Relation>,
+        right: Rc<Relation>,
+    ) -> Self {
+        let schema = Set::schema(names, &operator, &quantifier, &left, &right);
+        // The size of the join can go from 0 to
+        let size = Set::size(&operator, &quantifier, &left, &right);
+        Set {
+            name,
+            operator,
+            quantifier,
+            schema,
+            size,
+            left,
+            right,
+        }
+    }
+
+    /// Compute the schema and exprs of the reduce
+    fn schema(
+        names: Vec<String>,
+        operator: &SetOperator,
+        quantifier: &SetQuantifier,
+        left: &Relation,
+        right: &Relation,
+    ) -> Schema {
+        names
+            .into_iter()
+            .zip(left.schema().iter().zip(right.schema().iter()))
+            .map(|(name, (left_field, right_field))| Field::from_name_data_type(name, match operator {
+                SetOperator::Union => left_field.data_type().super_union(&right_field.data_type()).unwrap(),
+                SetOperator::Except => left_field.data_type(),
+                SetOperator::Intersect => left_field.data_type().super_intersection(&right_field.data_type()).unwrap(),
+            }))
+            .collect()
+    }
+
+    /// Compute the size of the join
+    fn size(operator: &SetOperator, quantifier: &SetQuantifier, left: &Relation, right: &Relation) -> Integer {
+        let left_size_max = left.size().max().cloned().unwrap_or(<i64 as Bound>::max());
+        let right_size_max = right.size().max().cloned().unwrap_or(<i64 as Bound>::max());
+        // TODO Improve this
+        match operator {
+            SetOperator::Union => Integer::from_interval(left_size_max.min(right_size_max), left_size_max + right_size_max),
+            SetOperator::Except => Integer::from_interval(0, left_size_max),
+            SetOperator::Intersect => Integer::from_interval(0, left_size_max.min(right_size_max)),
+        }
+    }
+
+    pub fn builder() -> SetBuilder<WithoutInput, WithoutInput> {
+        SetBuilder::new()
+    }
+}
+
+impl fmt::Display for Set {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let operator = match self.quantifier {
+            SetQuantifier::All | SetQuantifier::Distinct => format!("{} {}", self.operator, self.quantifier),
+            SetQuantifier::None => format!("{}", self.operator),
+        };
+        write!(
+            f,
+            "{}\n{}\n{}",
+            self.left,
+            operator.bold().blue(),
+            self.right,
+        )
+    }
+}
+
+impl DataTyped for Set {
+    fn data_type(&self) -> DataType {
+        self.schema.data_type()
+    }
+}
+
+impl Variant for Set {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    fn size(&self) -> &Integer {
+        &self.size
+    }
+
+    fn inputs(&self) -> Vec<&Relation> {
+        vec![&self.left, &self.right]
+    }
 }
 
 // The Relation
@@ -746,6 +899,7 @@ pub enum Relation {
     Map(Map),
     Reduce(Reduce),
     Join(Join),
+    Set(Set),
 }
 
 impl Relation {
@@ -755,6 +909,7 @@ impl Relation {
             Relation::Table(_) => Vec::new(),
             Relation::Reduce(reduce) => vec![reduce.input.as_ref()],
             Relation::Join(join) => vec![join.left.as_ref(), join.right.as_ref()],
+            Relation::Set(set) => vec![set.left.as_ref(), set.right.as_ref()],
         }
     }
 
@@ -819,6 +974,7 @@ pub trait Visitor<'a, T: Clone> {
     fn map(&self, map: &'a Map, input: T) -> T;
     fn reduce(&self, reduce: &'a Reduce, input: T) -> T;
     fn join(&self, join: &'a Join, left: T, right: T) -> T;
+    fn set(&self, set: &'a Set, left: T, right: T) -> T;
 }
 
 /// Implement a specific visitor to dispatch the dependencies more easily
@@ -834,6 +990,11 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Relation, T> for V {
                 join,
                 dependencies.get(&join.left).clone(),
                 dependencies.get(&join.right).clone(),
+            ),
+            Relation::Set(set) => self.set(
+                set,
+                dependencies.get(&set.left).clone(),
+                dependencies.get(&set.right).clone(),
             ),
         }
     }
@@ -948,7 +1109,7 @@ macro_rules! impl_traits {
     }
 }
 
-impl_traits!(Table, Map, Reduce, Join);
+impl_traits!(Table, Map, Reduce, Join, Set);
 
 // A Relation builder
 

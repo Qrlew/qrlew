@@ -71,4 +71,8 @@ impl<'a> Visitor<'a, Result<Relation>> for Protection<'a> {
     fn join(&self, join: &'a crate::relation::Join, left: Result<Relation>, right: Result<Relation>) -> Result<Relation> {
         todo!()
     }
+
+    fn set(&self, set: &'a crate::relation::Set, left: Result<Relation>, right: Result<Relation>) -> Result<Relation> {
+        todo!()
+    }
 }

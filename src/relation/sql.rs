@@ -136,6 +136,33 @@ fn all() -> Vec<ast::SelectItem> {
     )]
 }
 
+// /// Build a set operation
+// fn set(//TODO build the set
+//     with: Vec<ast::Cte>,
+//     operator: ast::SetOperator,
+//     quantifier: ast::SetQuantifier,
+//     left: Vec<ast::Query>,
+//     right: Vec<ast::Query>,
+// ) -> ast::Query {
+//     ast::Query {
+//         with: (!with.is_empty()).then_some(ast::With {
+//             recursive: false,
+//             cte_tables: with,
+//         }),
+//         body: Box::new(ast::SetExpr::SetOperation {
+//             op: operator,
+//             set_quantifier: quantifier,
+//             left: todo!(),
+//             right: todo!(),
+//         }),
+//         order_by,
+//         limit,
+//         offset: None,
+//         fetch: None,
+//         locks: Vec::new(),
+//     }
+// }
+
 impl<'a> relation::Visitor<'a, ast::Query> for FromRelationVisitor {
     fn table(&self, table: &'a relation::Table) -> ast::Query {
         query(
@@ -285,6 +312,10 @@ impl<'a> relation::Visitor<'a, ast::Query> for FromRelationVisitor {
             Vec::new(),
             None,
         )
+    }
+
+    fn set(&self, set: &'a relation::Set, left: ast::Query, right: ast::Query) -> ast::Query {
+        todo!()
     }
 }
 

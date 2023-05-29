@@ -92,6 +92,17 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
                 .collect(),
         )
     }
+
+    fn set(&self, set: &'a super::Set, left: FieldDataTypes, right: FieldDataTypes) -> FieldDataTypes {
+        FieldDataTypes(
+            set
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| (field.clone(), Expr::col(field.name())))
+                .collect(),
+        )
+    }
 }
 
 #[allow(dead_code)]
@@ -175,6 +186,12 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 join.size(),
                 &node.1
             ),
+            Relation::Set(set) => format!(
+                "<b>{}</b> size ∈ {}<br/>{}",
+                set.name().to_uppercase(),
+                set.size(),
+                &node.1
+            ),
         })
     }
 
@@ -184,6 +201,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Map(_) => format!("box"),
             Relation::Reduce(_) => format!("box"),
             Relation::Join(_) => format!("box"),
+            Relation::Set(_) => format!("box"),
         }))
     }
 
@@ -197,6 +215,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Map(_) => format!("cornsilk1"),
             Relation::Reduce(_) => format!("deeppink"),
             Relation::Join(_) => format!("goldenrod3"),
+            Relation::Set(_) => format!("lightcoral"),
         }))
     }
 }
@@ -221,6 +240,10 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
                 Relation::Join(join) => vec![
                     Edge(relation, &join.left, t.clone()),
                     Edge(relation, &join.right, t),
+                ],
+                Relation::Set(set) => vec![
+                    Edge(relation, &set.left, t.clone()),
+                    Edge(relation, &set.right, t),
                 ],
             })
             .collect()
