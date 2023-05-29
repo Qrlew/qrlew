@@ -113,7 +113,6 @@ mod tests {
     use sqlparser::ast;
     #[cfg(feature = "sqlite")]
     use crate::io::sqlite;
-
     #[ignore]
     #[test]
     fn test_display() {
