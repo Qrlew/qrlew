@@ -105,16 +105,19 @@ mod tests {
     use super::*;
     use crate::{
         builder::With,
-        io::{postgresql, sqlite, Database},
+        io::{postgresql, Database},
         relation::{display, Relation},
     };
     use colored::Colorize;
     use itertools::Itertools;
     use sqlparser::ast;
+    #[cfg(feature = "sqlite")]
+    use crate::io::sqlite;
+
     #[ignore]
     #[test]
     fn test_display() {
-        let database = sqlite::test_database();
+        let database = postgresql::test_database();
         println!("database {} = {}", database.name(), database.relations());
         for tab in database.tables() {
             println!("schema {} = {}", tab, tab.schema);

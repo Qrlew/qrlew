@@ -4,8 +4,10 @@ use sqlparser::ast;
 use qrlew::{
     Relation, With,
     sql::parse,
-    io::{Database, sqlite, postgresql},
+    io::{Database, postgresql},
 };
+#[cfg(feature = "sqlite")]
+use qrlew::io::sqlite;
 
 pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();
@@ -69,6 +71,7 @@ const QUERIES: &[&str] = &[
 
 const SQLITE_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
 
+#[cfg(feature = "sqlite")]
 #[test]
 fn test_on_sqlite() {
     let mut database = sqlite::test_database();
