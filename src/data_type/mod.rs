@@ -1377,6 +1377,25 @@ impl From<DataType> for Optional {
     }
 }
 
+impl Or<Optional> for Optional {
+    type Sum = Optional;
+    fn or(self, other: Optional) -> Self::Sum {
+        Optional::new(Rc::new(self.data_type().clone().or(other.data_type().clone())))
+    }
+}
+
+impl Or<DataType> for Optional {
+    type Sum = Optional;
+    fn or(self, other: DataType) -> Self::Sum {
+        // Simplify in the case of Optionnal and Null
+        match other {
+            DataType::Null | DataType::Unit(_) => self,
+            DataType::Optional(opt) => self.or(opt),
+            other => Optional::new(Rc::new(self.data_type().clone().or(other)))
+        }
+    }
+}
+
 #[allow(clippy::derive_hash_xor_eq)]
 impl hash::Hash for Optional {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -2709,11 +2728,16 @@ where
 impl Or<DataType> for DataType {
     type Sum = DataType;
     fn or(self, other: DataType) -> Self::Sum {
-        // Simplify in the case of struct and Unit
-        match self {
-            DataType::Null => other,
-            DataType::Union(u) => u.or(other).into(),
-            s => Union::from_data_type(s).or(other).into(),
+        // Simplify in the case of struct
+        match (self, other) {
+            (DataType::Null, o) => o,
+            (DataType::Unit(_), o) => DataType::optional(o),
+            (s, DataType::Unit(_)) => DataType::optional(s),
+            //(DataType::Optional(s), DataType::Optional(o)) => o.or(s.data_type().clone()).into(),
+            (DataType::Optional(opt), o) => opt.or(o).into(),
+            (s, DataType::Optional(opt)) => DataType::optional(s.or(opt.data_type().clone()).into()),
+            (DataType::Union(u), o) => u.or(o).into(),
+            (s,o) => Union::from_data_type(s).or(o).into(),
         }
     }
 }
@@ -3248,6 +3272,53 @@ mod tests {
             | ("d", DataType::float());
         println!("b = {b}");
         assert_eq!(Union::try_from(b).unwrap().fields.len(), 6);
+    }
+
+    #[test]
+    fn test_union_optional() {
+        let a = DataType::unit()
+            .or(DataType::float());
+        println!("a = {}", a);
+        assert_eq!(a, DataType::optional(DataType::float()));
+
+        let b = DataType::float()
+            .or(DataType::unit());
+        println!("b = {}", b);
+        assert_eq!(b, DataType::optional(DataType::float()));
+
+        let c = DataType::optional(DataType::float())
+            .or(DataType::integer());
+        println!("c = {}", c);
+        assert_eq!(
+            c,
+            DataType::optional(Union::from_data_types(vec!(DataType::float(), DataType::integer()).as_slice()).into())
+        );
+
+        let d = DataType::integer()
+            .or(DataType::optional(DataType::float()));
+        println!("d = {}", d);
+        assert_eq!(
+            d,
+            DataType::optional(Union::from_data_types(vec!(DataType::float(), DataType::integer()).as_slice()).into())
+        );
+
+        let e = DataType::optional(DataType::float())
+            .or(DataType::optional(DataType::integer()));
+        println!("e = {}", e);
+        assert_eq!(
+            e,
+            DataType::optional(Union::from_data_types(vec!(DataType::float(), DataType::integer()).as_slice()).into())
+        );
+
+        let f = DataType::unit()
+            .or(DataType::optional(DataType::float()));
+        println!("f = {}", f);
+        assert_eq!(f, DataType::optional(DataType::float()));
+
+        let g = DataType::optional(DataType::float())
+            .or(DataType::unit());
+        println!("g = {}", g);
+        assert_eq!(g, DataType::optional(DataType::float()));
     }
 
     #[test]
