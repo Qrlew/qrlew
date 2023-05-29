@@ -1272,6 +1272,7 @@ impl Variant for Union {
         let fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.to_string()).collect();
         let other_fields: BTreeSet<String> =
             other.fields.iter().map(|(f, _)| f.to_string()).collect();
+        println!("\n{:?} {:?} \n{:?} {:?}", self, other, fields, other_fields);
         assert!(fields.is_subset(&other_fields));
         fields.is_subset(&other_fields)
             && self
@@ -2729,11 +2730,11 @@ impl Or<DataType> for DataType {
     type Sum = DataType;
     fn or(self, other: DataType) -> Self::Sum {
         // Simplify in the case of struct
+        println!("{} {}", self, other);
         match (self, other) {
             (DataType::Null, o) => o,
             (DataType::Unit(_), o) => DataType::optional(o),
             (s, DataType::Unit(_)) => DataType::optional(s),
-            //(DataType::Optional(s), DataType::Optional(o)) => o.or(s.data_type().clone()).into(),
             (DataType::Optional(opt), o) => opt.or(o).into(),
             (s, DataType::Optional(opt)) => DataType::optional(s.or(opt.data_type().clone()).into()),
             (DataType::Union(u), o) => u.or(o).into(),
@@ -3319,6 +3320,12 @@ mod tests {
             .or(DataType::unit());
         println!("g = {}", g);
         assert_eq!(g, DataType::optional(DataType::float()));
+
+
+        let e = DataType::optional(DataType::float_interval(1.2, 5.))
+            .or(DataType::optional(DataType::float_interval(4., 8.)));
+        println!("e = {:?}", e);
+        //assert_eq!(e, DataType::optional(DataType::float()));
     }
 
     #[test]
