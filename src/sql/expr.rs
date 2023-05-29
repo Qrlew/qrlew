@@ -646,7 +646,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         let then_exprs = results.into_iter().collect::<Result<Vec<Expr>>>()?;
         let mut case_expr = match else_result {
             Some(r) => r?,
-            None => Expr::Value(Value::none()),
+            None => Expr::Value(Value::unit()),
         };
         for (w,t) in when_exprs.iter().rev().zip(then_exprs.iter().rev()) {
             case_expr = Expr::case(w.clone(), t.clone(), case_expr.clone());

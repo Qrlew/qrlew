@@ -1381,6 +1381,23 @@ mod tests {
                 ]))
                 .unwrap()
         );
+
+        let expression = Expr::case(
+            Expr::gt(Expr::col(stringify!(x)), Expr::val(5)),
+            Expr::col("x"),
+            Expr::Value(Value::unit()),
+        );
+        println!("expression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([
+                    ("x", DataType::integer_values([1, 5])),
+                    ("y", DataType::float_values([-2., 0.5])),
+                ]))
+                .unwrap()
+        );
     }
 
     #[test]
