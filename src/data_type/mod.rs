@@ -2708,7 +2708,7 @@ impl And<DataType> for DataType {
         // Simplify in the case of struct and Unit
         match self {
             DataType::Null => DataType::Null,
-            //DataType::Unit(_u) => other, // TODO: reactivate ?
+            DataType::Unit(_u) => other,
             DataType::Struct(s) => s.and(other).into(),
             s => Struct::from_data_type(s).and(other).into(),
         }
