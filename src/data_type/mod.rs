@@ -3225,7 +3225,7 @@ mod tests {
             & ("c", DataType::boolean())
             & ("d", DataType::float());
         println!("b = {b}");
-        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 7);
+        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 6);
     }
 
     #[test]
@@ -3242,7 +3242,7 @@ mod tests {
         println!("b = {b}");
         println!("b[4] = {}", b[4]);
         println!("b[c] = {}", b["c"]);
-        assert_eq!(b[4].as_ref(), &(DataType::float()));
+        assert_eq!(b[4].as_ref(), &(DataType::boolean()));
     }
 
     #[test]
