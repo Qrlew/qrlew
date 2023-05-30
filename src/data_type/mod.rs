@@ -393,6 +393,16 @@ impl Variant for Unit {
     }
 }
 
+impl Or<DataType> for Unit {
+    type Sum = DataType;
+    fn or(self, other: DataType) -> Self::Sum {
+        match other {
+            DataType::Null | DataType::Unit(_) => self.into(),
+            other => DataType::optional(other),
+        }
+    }
+}
+
 impl InjectInto<DataType> for Unit {
     type Injection = Base<Self, DataType>;
     fn inject_into(&self, other: &DataType) -> injection::Result<Base<Self, DataType>> {
@@ -927,7 +937,7 @@ impl And<DataType> for Struct {
     fn and(self, other: DataType) -> Self::Product {
         // Simplify in the case of struct and Unit
         match other {
-            DataType::Unit(_u) => self,
+            //DataType::Unit(_u) => self, // TODO remove that ?
             DataType::Struct(s) => self.and(s),
             other => self.and((other,)),
         }
@@ -2312,7 +2322,8 @@ impl Variant for DataType {
                 match (self, other) {
                     // If self and other are from different variants
                     (DataType::Null, _) => true, // Any element of self is also in other
-                    (DataType::Unit(_), DataType::Unit(_)) | (DataType::Unit(_), DataType::Optional(_))=> true,
+                    (DataType::Unit(_), DataType::Unit(_))
+                    | (DataType::Unit(_), DataType::Optional(_)) => true,
                     (DataType::Bytes(_), DataType::Bytes(_)) => true,
                     (_, DataType::Any) => true,
                     (DataType::Any, _) => false,
@@ -2697,7 +2708,7 @@ impl And<DataType> for DataType {
         // Simplify in the case of struct and Unit
         match self {
             DataType::Null => DataType::Null,
-            DataType::Unit(_u) => other,
+            //DataType::Unit(_u) => other, // TODO: reactivate ?
             DataType::Struct(s) => s.and(other).into(),
             s => Struct::from_data_type(s).and(other).into(),
         }
@@ -2725,16 +2736,14 @@ where
 impl Or<DataType> for DataType {
     type Sum = DataType;
     fn or(self, other: DataType) -> Self::Sum {
-        // Simplify in the case of struct
         match (self, other) {
-            (DataType::Null, o) => o.clone(),
-            (s, DataType::Null) => s.clone(),
-            (DataType::Unit(_), DataType::Unit(_)) => DataType::from(Unit),
-            (DataType::Unit(_), o) => DataType::optional(o.clone()),
-            (s, DataType::Unit(_)) => DataType::optional(s.clone()),
+            (DataType::Null, o) => o,
+            (DataType::Unit(_), DataType::Unit(_)) => DataType::unit(),
+            (DataType::Unit(u), d) | (d, DataType::Unit(u)) => u.or(d),
             (DataType::Optional(sopt), o) => sopt.or(o).into(),
-            (s, DataType::Optional(opt)) => DataType::optional(s.or(opt.data_type().clone()).into()),
-            (DataType::Bytes(_), DataType::Bytes(_)) => DataType::from(Bytes),
+            (s, DataType::Optional(opt)) => {
+                Optional::new(s.into()).or(opt.data_type().clone()).into()
+            }
             (s, o) => Union::from_data_type(s).or(o).into(),
         }
     }
@@ -3216,7 +3225,7 @@ mod tests {
             & ("c", DataType::boolean())
             & ("d", DataType::float());
         println!("b = {b}");
-        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 6);
+        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 7);
     }
 
     #[test]
@@ -3233,7 +3242,7 @@ mod tests {
         println!("b = {b}");
         println!("b[4] = {}", b[4]);
         println!("b[c] = {}", b["c"]);
-        assert_eq!(b[4].as_ref(), &(DataType::boolean()));
+        assert_eq!(b[4].as_ref(), &(DataType::float()));
     }
 
     #[test]
@@ -3256,6 +3265,21 @@ mod tests {
         println!("{d}");
         println!("{e}");
         assert_eq!(e.fields().len(), 8);
+    }
+
+    #[test]
+    fn test_union_unit() {
+        let a = DataType::unit().or(DataType::float());
+        println!("{:?}", a);
+
+        let a = DataType::unit().and(DataType::float());
+        println!("{:?}", a);
+
+        let a = DataType::float().or(DataType::unit());
+        println!("{:?}", a);
+
+        let a = DataType::float().and(DataType::unit());
+        println!("{:?}", a);
     }
 
     #[test]
@@ -3299,29 +3323,34 @@ mod tests {
         );
 
         // unit | unit
-        assert_eq!(
-            DataType::unit() | DataType::unit(),
-            DataType::unit()
-        );
+        assert_eq!(DataType::unit() | DataType::unit(), DataType::unit());
 
         // option(float) | float
         assert_eq!(
             DataType::optional(DataType::float()) | DataType::float(),
-            DataType::optional(Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice()).into())
+            DataType::optional(
+                Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())
+                    .into()
+            )
         );
 
         // float | option(float)
         assert_eq!(
             DataType::float() | DataType::optional(DataType::float()),
-            DataType::optional(Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice()).into())
+            DataType::optional(
+                Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())
+                    .into()
+            )
         );
 
         // option(integer) | option(float)
         assert_eq!(
             DataType::optional(DataType::float()) | DataType::optional(DataType::float()),
-            DataType::optional(Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice()).into())
+            DataType::optional(
+                Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())
+                    .into()
+            )
         );
-
     }
 
     #[test]
