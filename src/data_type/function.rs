@@ -838,18 +838,16 @@ impl Function for Case {
                 if when_condition.is_empty() {
                     Ok(DataType::Null)
                 } else if when_condition == data_type::Boolean::from_value(false) {
-                    Ok(
-                        struct_data_type.field_from_index(2).1
-                            .as_ref()
-                            .clone()
-                    )
+                    Ok(struct_data_type.field_from_index(2).1.as_ref().clone())
                 } else if when_condition == data_type::Boolean::from_value(true) {
                     Ok(struct_data_type.field_from_index(1).1.as_ref().clone())
                 } else {
-                    Ok(
-                        struct_data_type.field_from_index(1).1.as_ref().clone()
-                        .super_union(&struct_data_type.field_from_index(2).1.as_ref().clone())?
-                    )
+                    Ok(struct_data_type
+                        .field_from_index(1)
+                        .1
+                        .as_ref()
+                        .clone()
+                        .super_union(&struct_data_type.field_from_index(2).1.as_ref().clone())?)
                 }
             } else {
                 Err(Error::argument_out_of_range(set, self.domain()))

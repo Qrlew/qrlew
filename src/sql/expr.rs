@@ -227,7 +227,13 @@ pub trait Visitor<'a, T: Clone> {
     fn unary_op(&self, op: &'a ast::UnaryOperator, expr: T) -> T;
     fn value(&self, value: &'a ast::Value) -> T;
     fn function(&self, function: &'a ast::Function, args: Vec<FunctionArg<T>>) -> T;
-    fn case(&self, operand: Option<T>, conditions: Vec<T>, results: Vec<T>, else_result: Option<T>) -> T;
+    fn case(
+        &self,
+        operand: Option<T>,
+        conditions: Vec<T>,
+        results: Vec<T>,
+        else_result: Option<T>,
+    ) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -372,8 +378,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 else_result,
             } => self.case(
                 operand.clone().map(|x| dependencies.get(&*x).clone()),
-                conditions.iter().map(|x| dependencies.get(x).clone()).collect(),
-                results.iter().map(|x| dependencies.get(x).clone()).collect(),
+                conditions
+                    .iter()
+                    .map(|x| dependencies.get(x).clone())
+                    .collect(),
+                results
+                    .iter()
+                    .map(|x| dependencies.get(x).clone())
+                    .collect(),
                 else_result.clone().map(|x| dependencies.get(&*x).clone()),
             ),
             ast::Expr::Exists { subquery, negated } => todo!(),
@@ -457,17 +469,27 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         )
     }
 
-    fn case(&self, operand: Option<String>, conditions: Vec<String>, results: Vec<String>, else_result: Option<String>) -> String {
+    fn case(
+        &self,
+        operand: Option<String>,
+        conditions: Vec<String>,
+        results: Vec<String>,
+        else_result: Option<String>,
+    ) -> String {
         let mut case_str = "CASE ".to_string();
-        if let Some(op) = operand {case_str.push_str(&format!("{} ", op))};
-        conditions.iter()
+        if let Some(op) = operand {
+            case_str.push_str(&format!("{} ", op))
+        };
+        conditions
+            .iter()
             .zip(results.iter())
             .for_each(|(c, r)| case_str.push_str(&format!("WHEN {} THEN {} ", c, r)));
-        if let Some(r) = else_result {case_str.push_str(&format!("ELSE {} ", r))};
+        if let Some(r) = else_result {
+            case_str.push_str(&format!("ELSE {} ", r))
+        };
         case_str.push_str("END");
         case_str
     }
-
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -634,13 +656,18 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         })
     }
 
-    fn case(&self, operand: Option<Result<Expr>>, conditions: Vec<Result<Expr>>, results: Vec<Result<Expr>>, else_result: Option<Result<Expr>>) -> Result<Expr> {
+    fn case(
+        &self,
+        operand: Option<Result<Expr>>,
+        conditions: Vec<Result<Expr>>,
+        results: Vec<Result<Expr>>,
+        else_result: Option<Result<Expr>>,
+    ) -> Result<Expr> {
         let when_exprs = match operand {
-            Some(op) => {
-                conditions.iter()
-                    .map(|x| self.binary_op(op.clone(), &ast::BinaryOperator::Eq, x.clone()))
-                    .collect::<Result<Vec<Expr>>>()?
-            },
+            Some(op) => conditions
+                .iter()
+                .map(|x| self.binary_op(op.clone(), &ast::BinaryOperator::Eq, x.clone()))
+                .collect::<Result<Vec<Expr>>>()?,
             None => conditions.into_iter().collect::<Result<Vec<Expr>>>()?,
         };
         let then_exprs = results.into_iter().collect::<Result<Vec<Expr>>>()?;
@@ -648,12 +675,11 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             Some(r) => r?,
             None => Expr::Value(Value::unit()),
         };
-        for (w,t) in when_exprs.iter().rev().zip(then_exprs.iter().rev()) {
+        for (w, t) in when_exprs.iter().rev().zip(then_exprs.iter().rev()) {
             case_expr = Expr::case(w.clone(), t.clone(), case_expr.clone());
         }
         Ok(case_expr)
     }
-
 }
 
 // A struct holding a query and a context for conversion to Relation
@@ -761,7 +787,8 @@ mod tests {
 
     #[test]
     fn test_case() {
-        let ast_expr: ast::Expr = parse_expr("CASE WHEN a > 5 THEN 5 WHEN a < 2 THEN 2 ELSE a END").unwrap();
+        let ast_expr: ast::Expr =
+            parse_expr("CASE WHEN a > 5 THEN 5 WHEN a < 2 THEN 2 ELSE a END").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
@@ -771,12 +798,14 @@ mod tests {
         let true_expr = expr!(case(gt(a, 5), 5, case(lt(a, 2), 2, a)));
         assert_eq!(true_expr.to_string(), expr.to_string());
 
-        let ast_expr: ast::Expr = parse_expr("CASE WHEN a > 5 THEN 5 WHEN a < 2 THEN 2 END").unwrap();
+        let ast_expr: ast::Expr =
+            parse_expr("CASE WHEN a > 5 THEN 5 WHEN a < 2 THEN 2 END").unwrap();
         println!("\nast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
 
-        let ast_expr: ast::Expr = parse_expr("CASE a WHEN 5 THEN a + 3 WHEN 2 THEN a -4 ELSE a END").unwrap();
+        let ast_expr: ast::Expr =
+            parse_expr("CASE a WHEN 5 THEN a + 3 WHEN 2 THEN a -4 ELSE a END").unwrap();
         println!("\nast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);

@@ -103,6 +103,8 @@ pub use relation::{parse, parse_with_dialect};
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "sqlite")]
+    use crate::io::sqlite;
     use crate::{
         builder::With,
         io::{postgresql, Database},
@@ -111,8 +113,6 @@ mod tests {
     use colored::Colorize;
     use itertools::Itertools;
     use sqlparser::ast;
-    #[cfg(feature = "sqlite")]
-    use crate::io::sqlite;
     #[ignore]
     #[test]
     fn test_display() {

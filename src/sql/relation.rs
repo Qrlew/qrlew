@@ -756,16 +756,11 @@ mod tests {
 
     #[test]
     fn test_case() {
-        let query = parse(
-            "SELECT CASE WHEN SUM(a) = 5 THEN 5 ELSE 4 * AVG(a) END FROM table_1"
-        ,
-        )
-        .unwrap();
-        let schema_1: Schema = vec![
-            ("a", DataType::float_interval(0., 10.)),
-        ]
-        .into_iter()
-        .collect();
+        let query =
+            parse("SELECT CASE WHEN SUM(a) = 5 THEN 5 ELSE 4 * AVG(a) END FROM table_1").unwrap();
+        let schema_1: Schema = vec![("a", DataType::float_interval(0., 10.))]
+            .into_iter()
+            .collect();
         let table_1 = Relation::table()
             .name("tab_1")
             .schema(schema_1.clone())

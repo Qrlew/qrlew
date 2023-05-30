@@ -401,9 +401,10 @@ mod tests {
     #[ignore]
     #[test]
     fn test_dot_case() {
-        let data_types = DataType::structured([
-            ("a", DataType::list(DataType::integer_interval(2, 18), 1, 10))
-        ]);
+        let data_types = DataType::structured([(
+            "a",
+            DataType::list(DataType::integer_interval(2, 18), 1, 10),
+        )]);
         // Create an expr
         display(&expr!(case(eq(a, 5), 5, a)), data_types);
     }

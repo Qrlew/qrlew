@@ -1,13 +1,13 @@
-use itertools::Itertools;
 use colored::Colorize;
-use sqlparser::ast;
-use qrlew::{
-    Relation, With,
-    sql::parse,
-    io::{Database, postgresql},
-};
+use itertools::Itertools;
 #[cfg(feature = "sqlite")]
 use qrlew::io::sqlite;
+use qrlew::{
+    io::{postgresql, Database},
+    sql::parse,
+    Relation, With,
+};
+use sqlparser::ast;
 
 pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();

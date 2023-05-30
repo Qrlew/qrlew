@@ -169,9 +169,9 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             }),
             expr::function::Function::Case => ast::Expr::Case {
                 operand: None,
-                conditions: vec!(arguments[0].clone()),
-                results: vec!(arguments[1].clone()),
-                else_result: Some(Box::new(arguments[2].clone()))
+                conditions: vec![arguments[0].clone()],
+                results: vec![arguments[1].clone()],
+                else_result: Some(Box::new(arguments[2].clone())),
             },
         }
     }

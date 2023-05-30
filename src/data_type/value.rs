@@ -487,9 +487,11 @@ impl Struct {
     /// Access a field by index
     pub fn field_from_index(&self, index: usize) -> Result<&(String, Rc<Value>)> {
         if index >= self.len() {
-            Err(Error::value(
-                format!("index out of bounds: the len is {} but the index is {}", self.len(), index)
-            ))
+            Err(Error::value(format!(
+                "index out of bounds: the len is {} but the index is {}",
+                self.len(),
+                index
+            )))
         } else {
             Ok(&self.0[index])
         }

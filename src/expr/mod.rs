@@ -148,7 +148,11 @@ impl fmt::Display for Function {
                     .join(", ")
             ),
             function::Style::Case => {
-                write!(f, "CASE WHEN {} THEN {} ELSE {} END", self.arguments[0], self.arguments[1], self.arguments[2])
+                write!(
+                    f,
+                    "CASE WHEN {} THEN {} ELSE {} END",
+                    self.arguments[0], self.arguments[1], self.arguments[2]
+                )
             }
         }
     }
@@ -593,7 +597,10 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
             }
             function::Style::Function => format!("{}({})", function, arguments.join(", ")),
             function::Style::Case => {
-                format!("CASE WHEN {} THEN {} ELSE {} END", arguments[0], arguments[1], arguments[2])
+                format!(
+                    "CASE WHEN {} THEN {} ELSE {} END",
+                    arguments[0], arguments[1], arguments[2]
+                )
             }
         }
     }
@@ -1376,7 +1383,10 @@ mod tests {
             ("x", DataType::float_interval(1., 10.)),
             ("y", DataType::float_values([-2., 0.5])),
         ]);
-        println!("expression super image = {}",expression.super_image(&set).unwrap());
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
 
         let expression = Expr::case(
             Expr::gt(Expr::col(stringify!(x)), Expr::val(5)),
@@ -1385,10 +1395,11 @@ mod tests {
         );
         println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
-        let set = DataType::structured([
-            ("x", DataType::float_interval(1., 10.)),
-        ]);
-        println!("expression super image = {}",expression.super_image(&set).unwrap());
+        let set = DataType::structured([("x", DataType::float_interval(1., 10.))]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
     }
 
     #[test]
