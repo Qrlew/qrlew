@@ -1183,10 +1183,12 @@ impl Injection for Base<DataType, Optional> {
             (DataType::Optional(set), DataType::Optional(domain)) => {
                 From(domain).into(self.co_domain())?.super_image(set)
             }
-            (set, _) => self.checked_image(
-                set,
-                Optional::from(set.clone().into_data_type(self.co_domain().data_type())?),
-            ),
+            (set, _) => {
+                self.checked_image(
+                    set,
+                    Optional::from(set.clone().into_data_type(self.co_domain().data_type())?),
+                )
+            }
         }
     }
     fn value(
@@ -2477,26 +2479,57 @@ mod tests {
     #[test]
     fn test_complex_injection_into_union() {
         let f = DataType::float();
-        println!("f = {f}");
-        let t = DataType::optional(DataType::float()) | DataType::float();
+        println!("\nf = {f}");
+        let t = DataType::Union(Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice()));
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(ft,  DataType::Union(Union::from_field("1", DataType::float())));
 
         let f = DataType::Any;
-        println!("f = {f}");
-        let t = DataType::optional(DataType::Any) | DataType::Any;
+        println!("\nf = {f}");
+        let t = DataType::Union(Union::from_data_types(vec!(DataType::Any, DataType::Any).as_slice()));
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(ft,  DataType::Union(Union::from_field("1", DataType::Any)));
 
         let f = DataType::list(DataType::Any, 1, 100);
-        println!("f = {f}");
+        println!("\nf = {f}");
         let t = DataType::list(DataType::optional(DataType::Any), 1, 200)
             | DataType::list(DataType::Any, 1, 200);
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(
+            &ft.to_string(),
+            "union{0: list(option(any), size ∈ int[1 100])}"
+        );
+
+        let f = DataType::float();
+        println!("\nf = {f}");
+        let t = DataType::optional(DataType::Union(Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())));
+        println!("t = {t}");
+        let ft = f.into_data_type(&t).unwrap();
+        println!("ft = {ft}");
+        assert_eq!(ft,  DataType::optional(DataType::Union(Union::from_field("1", DataType::float()))));
+
+        let f = DataType::float();
+        println!("\nf = {f}");
+        let t = DataType::optional(DataType::float()) | DataType::float();
+        println!("t = {t}");
+        let ft = f.into_data_type(&t).unwrap();
+        println!("ft = {ft}");
+        assert_eq!(ft,  DataType::optional(DataType::Union(Union::from_field("1", DataType::float()))));
+
+        let f = DataType::Any;
+        println!("\nf = {f}");
+        let t = DataType::optional(DataType::Any) | DataType::Any;
+        println!("t = {t}");
+
+        let ft = f.into_data_type(&t).unwrap();
+        println!("ft = {ft}");
+        assert_eq!(ft,  DataType::optional(DataType::Union(Union::from_field("1", DataType::Any))));
     }
 
     #[test]
@@ -2520,6 +2553,15 @@ mod tests {
             DataType::integer_values([1, 5]),
             List::from_data_type_size(DataType::float_values([1., 5.]), Integer::from_value(1)),
         );
+    }
+
+    #[test]
+    fn test_is_subset() {
+        let dom = DataType::float();
+        println!("dom = {dom}");
+        let co_dom = DataType::optional(DataType::float());
+        println!("co_dom = {co_dom}");
+        println!("dom ⊂ co_dom = {}", dom.is_subset_of(&co_dom));
     }
 
     #[test]
