@@ -1272,7 +1272,6 @@ impl Variant for Union {
         let fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.to_string()).collect();
         let other_fields: BTreeSet<String> =
             other.fields.iter().map(|(f, _)| f.to_string()).collect();
-        //assert!(fields.is_subset(&other_fields));
         fields.is_subset(&other_fields)
             && self
                 .fields
