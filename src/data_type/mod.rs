@@ -2732,7 +2732,7 @@ impl Or<DataType> for DataType {
             (DataType::Unit(_), DataType::Unit(_)) => DataType::from(Unit),
             (DataType::Unit(_), o) => DataType::optional(o.clone()),
             (s, DataType::Unit(_)) => DataType::optional(s.clone()),
-            (DataType::Optional(sopt), o) => sopt.or(o).into(), // This lines makes test test_complex_injection_into_union failed
+            (DataType::Optional(sopt), o) => sopt.or(o).into(),
             (s, DataType::Optional(opt)) => DataType::optional(s.or(opt.data_type().clone()).into()),
             (DataType::Bytes(_), DataType::Bytes(_)) => DataType::from(Bytes),
             (s, o) => Union::from_data_type(s).or(o).into(),
