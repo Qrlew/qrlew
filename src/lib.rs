@@ -14,10 +14,10 @@ pub mod sql;
 pub mod types;
 pub mod visitor;
 
-/// Expose sqlparser as part of qrlew
-pub use sqlparser;
-pub use data_type::{DataType, value::Value};
+pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
+pub use data_type::{value::Value, DataType};
 pub use expr::Expr;
 pub use relation::Relation;
-pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
+/// Expose sqlparser as part of qrlew
+pub use sqlparser;
 pub use types::{And, Factor, Or, Term};
