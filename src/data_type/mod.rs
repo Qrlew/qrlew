@@ -2972,7 +2972,6 @@ mod tests {
         );
         assert!(!(DataType::text() <= empty_interval));
         assert!(!(DataType::text() <= DataType::Null));
-
         println!(
             "{} <= {} is {}",
             DataType::float(),
@@ -2980,7 +2979,6 @@ mod tests {
             DataType::float() <= DataType::optional(DataType::float())
         );
         assert!(DataType::float() <= DataType::optional(DataType::float()));
-
         println!(
             "{} <= {} is {}",
             DataType::unit(),
