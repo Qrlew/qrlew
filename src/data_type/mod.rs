@@ -937,7 +937,7 @@ impl And<DataType> for Struct {
     fn and(self, other: DataType) -> Self::Product {
         // Simplify in the case of struct and Unit
         match other {
-            //DataType::Unit(_u) => self, // TODO remove that ?
+            DataType::Unit(_u) => self,
             DataType::Struct(s) => self.and(s),
             other => self.and((other,)),
         }
