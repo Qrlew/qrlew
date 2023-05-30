@@ -2479,47 +2479,57 @@ mod tests {
     #[test]
     fn test_complex_injection_into_union() {
         let f = DataType::float();
-        println!("f = {f}");
+        println!("\nf = {f}");
         let t = DataType::Union(Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice()));
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(ft,  DataType::Union(Union::from_field("1", DataType::float())));
 
         let f = DataType::Any;
-        println!("f = {f}");
+        println!("\nf = {f}");
         let t = DataType::Union(Union::from_data_types(vec!(DataType::Any, DataType::Any).as_slice()));
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(ft,  DataType::Union(Union::from_field("1", DataType::Any)));
 
         let f = DataType::list(DataType::Any, 1, 100);
-        println!("f = {f}");
+        println!("\nf = {f}");
         let t = DataType::list(DataType::optional(DataType::Any), 1, 200)
             | DataType::list(DataType::Any, 1, 200);
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(
+            &ft.to_string(),
+            "union{0: list(option(any), size ∈ int[1 100])}"
+        );
 
         let f = DataType::float();
-        println!("f = {f}");
+        println!("\nf = {f}");
         let t = DataType::optional(DataType::Union(Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())));
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(ft,  DataType::optional(DataType::Union(Union::from_field("1", DataType::float()))));
 
         let f = DataType::float();
-        println!("f = {f}");
+        println!("\nf = {f}");
         let t = DataType::optional(DataType::float()) | DataType::float();
         println!("t = {t}");
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(ft,  DataType::optional(DataType::Union(Union::from_field("1", DataType::float()))));
 
         let f = DataType::Any;
-        println!("f = {f}");
+        println!("\nf = {f}");
         let t = DataType::optional(DataType::Any) | DataType::Any;
         println!("t = {t}");
+
         let ft = f.into_data_type(&t).unwrap();
         println!("ft = {ft}");
+        assert_eq!(ft,  DataType::optional(DataType::Union(Union::from_field("1", DataType::Any))));
     }
 
     #[test]
