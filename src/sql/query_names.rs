@@ -120,7 +120,8 @@ impl<'a> Visitor<'a, QueryNames<'a>> for IntoQueryNamesVisitor {
                     }
                 }
             }
-            _ => todo!(), // Not implemented
+            _ => (),
+            
         }
         // Set names
         if let Some(with) = &query.with {

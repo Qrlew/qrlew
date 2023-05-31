@@ -2,17 +2,17 @@
 //! into the corresponding Qrlew Relation.
 //! Example: `Expr::try_from(sql_parser_statement)`
 
+use super::{
+    query_names::{IntoQueryNamesVisitor, QueryNames},
+    visitor::Visitor,
+    Error, Result,
+};
 use crate::{
     builder::{Ready, With},
     expr::{Expr, Identifier, Split},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
-    relation::{Join, JoinConstraint, JoinOperator, MapBuilder, Relation, Variant as _, WithInput},
-    sql::{
-        query_names::{IntoQueryNamesVisitor, QueryNames},
-        visitor::Visitor,
-        Error, Result,
-    },
+    relation::{Join, JoinConstraint, JoinOperator, Set, SetOperator, SetQuantifier, Relation,  WithInput, MapBuilder, Variant as _},
     visitor::{Acceptor, Dependencies, Visited},
 };
 use itertools::Itertools;
@@ -48,6 +48,29 @@ impl<'a> TryIntoRelationVisitor<'a> {
 }
 
 //TODO Add columns as (alias.col -> field, name.col -> field) for all fields
+
+// A few useful conversions
+
+impl From<ast::SetOperator> for SetOperator {
+    fn from(value: ast::SetOperator) -> Self {
+        match value {
+            ast::SetOperator::Union => SetOperator::Union,
+            ast::SetOperator::Except => SetOperator::Except,
+            ast::SetOperator::Intersect => SetOperator::Intersect,
+        }
+    }
+}
+
+impl From<ast::SetQuantifier> for SetQuantifier {
+    fn from(value: ast::SetQuantifier) -> Self {
+        match value {
+            ast::SetQuantifier::All => SetQuantifier::All,
+            ast::SetQuantifier::Distinct => SetQuantifier::Distinct,
+            ast::SetQuantifier::None => SetQuantifier::None,
+        }
+    }
+}
+
 // This is RelationWithColumns from_xxx method
 
 /// A struct to hold Relations with column mapping in the FROM
@@ -367,7 +390,7 @@ impl<'a> VisitedQueryRelations<'a> {
         }
     }
 
-    /// Convert a SetExpr into a Relation
+    /// Convert a Query into a Relation
     fn try_from_query(&self, query: &'a ast::Query) -> Result<Rc<Relation>> {
         let ast::Query {
             body,
@@ -411,8 +434,25 @@ impl<'a> VisitedQueryRelations<'a> {
                     // Build a relation with ORDER BY and LIMIT
                     Ok(Rc::new(relation_bulider?.try_build()?))
                 }
-            }
+            },
+            ast::SetExpr::SetOperation { op, set_quantifier, left, right } => match (left.as_ref(), right.as_ref()) {
+                (ast::SetExpr::Select(left_select), ast::SetExpr::Select(right_select)) => {
+                    let RelationWithColumns(left_relation, _left_columns) =
+                        self.try_from_select(left_select.as_ref())?;
+                    let RelationWithColumns(right_relation, _right_columns) =
+                        self.try_from_select(right_select.as_ref())?;
+                    let relation_bulider = Relation::set()
+                        .operator(op.clone().into())
+                        .quantifier(set_quantifier.clone().into())
+                        .left(left_relation)
+                        .right(right_relation);
+                    // Build a Relation from set operation
+                    Ok(Rc::new(relation_bulider.try_build()?))
+                },
+                _ => panic!("We only support set operations over SELECTs"),
+            },
             _ => todo!(),
+            
         }
     }
 }

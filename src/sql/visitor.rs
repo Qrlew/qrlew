@@ -64,6 +64,21 @@ impl<'a> TableWithJoins<'a> {
     }
 }
 
+fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> {
+    match set_expr {
+        ast::SetExpr::Select(select) => select
+            .from
+            .iter()
+            .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries()).collect(),
+        ast::SetExpr::SetOperation { left, right, .. } => {
+            let mut queries = queries_from_set_expr(left.as_ref());
+            queries.extend(queries_from_set_expr(left.as_ref()));
+            queries
+        },
+        _ => todo!(), // Not implemented
+    }
+}
+
 /// Implement the Acceptor trait
 impl<'a> Acceptor<'a> for ast::Query {
     fn dependencies(&'a self) -> Dependencies<'a, Self> {
@@ -75,13 +90,7 @@ impl<'a> Acceptor<'a> for ast::Query {
                 .flat_map(|with| with.cte_tables.iter().map(|cte| cte.query.as_ref())),
         );
         // Add subqueries from the body
-        dependencies.extend(match self.body.as_ref() {
-            ast::SetExpr::Select(select) => select
-                .from
-                .iter()
-                .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries()),
-            _ => todo!(), // Not implemented
-        });
+        dependencies.extend(queries_from_set_expr(self.body.as_ref()));
         dependencies
     }
 }

@@ -111,5 +111,8 @@ fn main() -> Result<(), &'static str> {
     // Print an AST with Insert
     print_ast("INSERT INTO person (name, data) VALUES (?1, ?2)");
 
+    // Print a UNION
+    print_ast("SELECT * FROM table_1 10 UNION SELECT * FROM table_2");
+
     Ok(())
 }

@@ -945,6 +945,11 @@ impl Relation {
     pub fn join() -> JoinBuilder<WithoutInput, WithoutInput> {
         Builder::join()
     }
+
+    /// Build a reduce
+    pub fn set() -> SetBuilder<WithoutInput, WithoutInput> {
+        Builder::set()
+    }
 }
 
 // Implements Acceptor, Visitor and derive an iterator and a few other Visitor driven functions
@@ -1131,6 +1136,10 @@ impl Builder {
     pub fn join() -> JoinBuilder<WithoutInput, WithoutInput> {
         Join::builder()
     }
+
+    pub fn set() -> SetBuilder<WithoutInput, WithoutInput> {
+        Set::builder()
+    }
 }
 
 impl Ready<Relation> for TableBuilder<WithSchema> {
@@ -1162,6 +1171,14 @@ impl Ready<Relation> for JoinBuilder<WithInput, WithInput> {
 
     fn try_build(self) -> Result<Relation> {
         Ok(Ready::<Join>::try_build(self)?.into())
+    }
+}
+
+impl Ready<Relation> for SetBuilder<WithInput, WithInput> {
+    type Error = Error;
+
+    fn try_build(self) -> Result<Relation> {
+        Ok(Ready::<Set>::try_build(self)?.into())
     }
 }
 

@@ -1,9 +1,8 @@
 //! Methods to convert Relations to ast::Query
-use super::{Error, Result, Table};
+use super::{Error, Result, Table, JoinConstraint, JoinOperator, SetOperator, SetQuantifier, OrderBy, Relation, Map, Reduce, Join, Set, Visitor, Variant as _};
 use crate::{
     data_type::{DataType, DataTyped},
     expr::identifier::Identifier,
-    relation::{self, JoinConstraint, JoinOperator, OrderBy, Relation, Variant as _},
     visitor::Acceptor,
 };
 use sqlparser::ast;
@@ -60,6 +59,27 @@ impl From<JoinOperator> for ast::JoinOperator {
         }
     }
 }
+
+impl From<SetOperator> for ast::SetOperator {
+    fn from(value: SetOperator) -> Self {
+        match value {
+            SetOperator::Union => ast::SetOperator::Union,
+            SetOperator::Except => ast::SetOperator::Except,
+            SetOperator::Intersect => ast::SetOperator::Intersect,
+        }
+    }
+}
+
+impl From<SetQuantifier> for ast::SetQuantifier {
+    fn from(value: SetQuantifier) -> Self {
+        match value {
+            SetQuantifier::All => ast::SetQuantifier::All,
+            SetQuantifier::Distinct => ast::SetQuantifier::Distinct,
+            SetQuantifier::None => ast::SetQuantifier::None,
+        }
+    }
+}
+
 
 /// Build a Query from simple elements
 /// Have a look at: https://docs.rs/sqlparser/latest/sqlparser/ast/struct.Query.html
@@ -136,35 +156,42 @@ fn all() -> Vec<ast::SelectItem> {
     )]
 }
 
-// /// Build a set operation
-// fn set(//TODO build the set
-//     with: Vec<ast::Cte>,
-//     operator: ast::SetOperator,
-//     quantifier: ast::SetQuantifier,
-//     left: Vec<ast::Query>,
-//     right: Vec<ast::Query>,
-// ) -> ast::Query {
-//     ast::Query {
-//         with: (!with.is_empty()).then_some(ast::With {
-//             recursive: false,
-//             cte_tables: with,
-//         }),
-//         body: Box::new(ast::SetExpr::SetOperation {
-//             op: operator,
-//             set_quantifier: quantifier,
-//             left: todo!(),
-//             right: todo!(),
-//         }),
-//         order_by,
-//         limit,
-//         offset: None,
-//         fetch: None,
-//         locks: Vec::new(),
-//     }
-// }
+fn select_from_query(query: ast::Query) -> ast::Select {
+    match query.body.as_ref() {
+        ast::SetExpr::Select(select) => select.as_ref().clone(),
+        _ => panic!("Non select query")// It is okay to panic as this should not happen in our context and is a private function
+    }
+}
 
-impl<'a> relation::Visitor<'a, ast::Query> for FromRelationVisitor {
-    fn table(&self, table: &'a relation::Table) -> ast::Query {
+/// Build a set operation
+fn set_operation(
+    with: Vec<ast::Cte>,
+    operator: ast::SetOperator,
+    quantifier: ast::SetQuantifier,
+    left: ast::Select,
+    right: ast::Select,
+) -> ast::Query {
+    ast::Query {
+        with: (!with.is_empty()).then_some(ast::With {
+            recursive: false,
+            cte_tables: with,
+        }),
+        body: Box::new(ast::SetExpr::SetOperation {
+            op: operator,
+            set_quantifier: quantifier,
+            left: Box::new(ast::SetExpr::Select(Box::new(left))),
+            right: Box::new(ast::SetExpr::Select(Box::new(right))),
+        }),
+        order_by: Vec::new(),
+        limit: None,
+        offset: None,
+        fetch: None,
+        locks: Vec::new(),
+    }
+}
+
+impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
+    fn table(&self, table: &'a Table) -> ast::Query {
         query(
             Vec::new(),
             vec![ast::SelectItem::Wildcard(
@@ -178,7 +205,7 @@ impl<'a> relation::Visitor<'a, ast::Query> for FromRelationVisitor {
         )
     }
 
-    fn map(&self, map: &'a relation::Map, input: ast::Query) -> ast::Query {
+    fn map(&self, map: &'a Map, input: ast::Query) -> ast::Query {
         // Pull the existing CTEs
         let mut input_ctes = ctes_from_query(input);
         // Add input query to CTEs
@@ -225,7 +252,7 @@ impl<'a> relation::Visitor<'a, ast::Query> for FromRelationVisitor {
         )
     }
 
-    fn reduce(&self, reduce: &'a relation::Reduce, input: ast::Query) -> ast::Query {
+    fn reduce(&self, reduce: &'a Reduce, input: ast::Query) -> ast::Query {
         // Pull the existing CTEs
         let mut input_ctes = ctes_from_query(input);
         // Add input query to CTEs
@@ -266,7 +293,7 @@ impl<'a> relation::Visitor<'a, ast::Query> for FromRelationVisitor {
         )
     }
 
-    fn join(&self, join: &'a relation::Join, left: ast::Query, right: ast::Query) -> ast::Query {
+    fn join(&self, join: &'a Join, left: ast::Query, right: ast::Query) -> ast::Query {
         // Pull the existing CTEs
         let mut exist: HashSet<ast::Cte> = HashSet::new();
         let mut input_ctes: Vec<ast::Cte> = Vec::new();
@@ -314,8 +341,44 @@ impl<'a> relation::Visitor<'a, ast::Query> for FromRelationVisitor {
         )
     }
 
-    fn set(&self, set: &'a relation::Set, left: ast::Query, right: ast::Query) -> ast::Query {
-        todo!()
+    fn set(&self, set: &'a Set, left: ast::Query, right: ast::Query) -> ast::Query {
+        // Pull the existing CTEs
+        let mut exist: HashSet<ast::Cte> = HashSet::new();
+        let mut input_ctes: Vec<ast::Cte> = Vec::new();
+        ctes_from_query(left.clone()).into_iter().for_each(|cte| {
+            if exist.insert(cte.clone()) {
+                input_ctes.push(cte)
+            }
+        });
+        ctes_from_query(right.clone()).into_iter().for_each(|cte| {
+            if exist.insert(cte.clone()) {
+                input_ctes.push(cte)
+            }
+        });
+        // Add input query to CTEs
+        input_ctes.push(cte(
+            set.name().into(),
+            set.schema()
+                .iter()
+                .map(|field| ast::Ident::from(field.name()))
+                .collect(),
+            set_operation(
+                Vec::new(),
+                set.operator.clone().into(),
+                set.quantifier.clone().into(),
+                select_from_query(left),
+                select_from_query(right),
+            )
+        ));
+        query(
+            input_ctes,
+            all(),
+            table_with_joins(set.name().into(), Vec::new()),
+            None,
+            Vec::new(),
+            Vec::new(),
+            None,
+        )
     }
 }
 
