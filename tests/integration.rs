@@ -66,9 +66,13 @@ const QUERIES: &[&str] = &[
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
     // Test UNION
     "SELECT a FROM table_1 UNION SELECT x FROM table_2",
-    // Test UNION with CTEs
+    // Test no UNION with CTEs
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT x,y FROM table_2)
+    SELECT * FROM t1",
+    // Test UNION with CTEs
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT x as a, 2*x as b FROM table_2)
     SELECT * FROM t1 UNION SELECT * FROM t2",
 ];
 

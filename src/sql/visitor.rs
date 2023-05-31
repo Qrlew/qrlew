@@ -1,6 +1,7 @@
 //! An Acceptor and Visitor implementation for ast::Query
 
 use crate::visitor::{self, Acceptor, Dependencies, Visited};
+use itertools::Itertools;
 use sqlparser::ast;
 use std::iter::Iterator;
 
@@ -70,10 +71,8 @@ fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> 
             .from
             .iter()
             .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries()).collect(),
-        ast::SetExpr::SetOperation { left, right, .. } => {
-            let mut queries = queries_from_set_expr(left.as_ref());
-            queries.extend(queries_from_set_expr(left.as_ref()));
-            queries
+        ast::SetExpr::SetOperation { .. } => {
+            Vec::new()
         },
         _ => todo!(), // Not implemented
     }
