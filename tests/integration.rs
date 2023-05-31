@@ -90,6 +90,7 @@ fn test_on_sqlite() {
         assert!(test_rewritten_eq(&mut database, query));
     }
 }
+// This should work: https://www.db-fiddle.com/f/ouKSHjkEk29zWY5PN2YmjZ/10
 
 const POSTGRESQL_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
 
