@@ -93,7 +93,7 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
         )
     }
 
-    fn set(&self, set: &'a super::Set, left: FieldDataTypes, right: FieldDataTypes) -> FieldDataTypes {
+    fn set(&self, set: &'a super::Set, _left: FieldDataTypes, _right: FieldDataTypes) -> FieldDataTypes {
         FieldDataTypes(
             set
                 .schema()
