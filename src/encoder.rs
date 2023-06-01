@@ -2,6 +2,7 @@
 
 pub const BASE_62: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const BASE_63: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+pub const BASE_64: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-";
 pub const BASE_36: &str = "0123456789abcdefghijklmnopqrstuvwxyz";
 pub const BASE_37: &str = "0123456789abcdefghijklmnopqrstuvwxyz_";
 

@@ -9,7 +9,7 @@ use crate::data_type::{
 use super::{aggregate::Aggregate, function::Function};
 
 macro_rules! function_implementations {
-    ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*]) => {
+    ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], $function:ident, $default:block) => {
         paste! {
             // A (thread local) global map
             thread_local! {
@@ -33,6 +33,7 @@ macro_rules! function_implementations {
                     $(Function::$unary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $unary:snake >].clone()),)*
                     $(Function::$binary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $binary:snake >].clone()),)*
                     $(Function::$ternary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $ternary:snake >].clone()),)*
+                    $function => $default
                 }
             }
         }
@@ -40,12 +41,12 @@ macro_rules! function_implementations {
 }
 
 // All functions: Opposite, Not, Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Exp, Ln, Abs, Sin, Cos
-// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos
+// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, Md5
 // Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor
 // Ternary: Case
-// Nary
+// Nary: Concat
 function_implementations!(
-    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt],
+    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5],
     [
         Plus,
         Minus,
@@ -67,7 +68,15 @@ function_implementations!(
         BitwiseXor,
         Pow
     ],
-    [Case]
+    [Case],
+    x,
+    {
+        match x {
+            Function::Concat(n) => Rc::new(function::concat(n)),
+            _ => unreachable!(),
+        }
+    }
+
 );
 
 macro_rules! aggregate_implementations {

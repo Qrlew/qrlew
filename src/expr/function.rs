@@ -41,6 +41,8 @@ pub enum Function {
     Sqrt,
     Pow,
     Case,
+    Md5,
+    Concat(usize),
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -90,8 +92,13 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
+            | Function::Md5
+            // Binary Functions
             | Function::Pow
-            | Function::Case => Style::Function,
+            // Ternary Function
+            | Function::Case
+            // Nary Function
+            | Function::Concat(_) => Style::Function,
         }
     }
 
@@ -126,11 +133,15 @@ impl Function {
             | Function::Abs
             | Function::Sin
             | Function::Cos
-            | Function::Sqrt => Arity::Unary,
+            | Function::Sqrt
+            | Function::Md5 => Arity::Unary,
             // Binary Function
             Function::Pow => Arity::Nary(2),
-            // Case Function
+            // Ternary Function
             Function::Case => Arity::Nary(3),
+            // Nary Function
+            Function::Concat(_) => Arity::Varying,
+
         }
     }
 
@@ -190,7 +201,11 @@ impl fmt::Display for Function {
             Function::Sqrt => "SQRT",
             // Binary Functions
             Function::Pow => "POW",
+            Function::Concat(_) => "CONCAT",
+            // Ternary Functions
             Function::Case => "CASE",
+            // Nary Functions
+            Function::Md5 => "MD5",
         })
     }
 }

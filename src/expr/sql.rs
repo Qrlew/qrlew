@@ -158,7 +158,9 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Cos
             | expr::function::Function::Sqrt
             | expr::function::Function::Pow
-            | expr::function::Function::Case => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Case
+            | expr::function::Function::Md5
+            | expr::function::Function::Concat(_) => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
                     arguments[0].clone(),

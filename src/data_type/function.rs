@@ -1,5 +1,4 @@
 use std::{
-    str,
     cmp,
     convert::{Infallible, TryFrom, TryInto},
     error, fmt,
@@ -21,7 +20,7 @@ use super::{
 
 use crate::{
     builder::With,
-    encoder::{Encoder, BASE_63},
+    encoder::{Encoder, BASE_64},
 };
 
 /// Inspiration from:
@@ -1120,7 +1119,7 @@ pub fn md5() -> impl Function + Clone {
     Simple::new(DataType::text(), DataType::text(), Rc::new(|v| {
         let mut s = collections::hash_map::DefaultHasher::new();
         Bound::hash((value::Text::try_from(v).unwrap()).deref(), &mut s);
-        Encoder::new(BASE_63, 16).encode(s.finish()).into()
+        Encoder::new(BASE_64, 10).encode(s.finish()).into()
     }))
 }
 
