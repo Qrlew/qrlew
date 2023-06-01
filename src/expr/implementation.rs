@@ -43,6 +43,7 @@ macro_rules! function_implementations {
 // Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos
 // Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor
 // Ternary: Case
+// Nary
 function_implementations!(
     [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt],
     [

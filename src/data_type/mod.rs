@@ -346,7 +346,7 @@ impl Composite for Array {}
 impl Composite for Function {}
 
 /// Unit variant
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct Unit;
 
 impl Default for Unit {

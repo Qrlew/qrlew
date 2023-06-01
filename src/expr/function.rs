@@ -43,12 +43,14 @@ pub enum Function {
     Case,
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Style {
     UnaryOperator,
     BinaryOperator,
     Function,
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Arity {
     Unary,
     Nary(usize),

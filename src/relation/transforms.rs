@@ -43,7 +43,6 @@ mod tests {
         io::{Database, postgresql},
     };
 
-    #[ignore]
     #[test]
     fn test_with_computed_field() {
         let mut database = postgresql::test_database();
@@ -51,10 +50,13 @@ mod tests {
         let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
         let relation = Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
         // Table
+        assert!(table.schema()[0].name()!="peid");
         let table = table.with_computed_field("peid", expr!(a+b));
+        assert!(table.schema()[0].name()=="peid");
+        // Relation
+        assert!(relation.schema()[0].name()!="peid");
         let relation = relation.with_computed_field("peid", expr!(cos(a)));
-        display(&table);
-        display(&relation);
+        assert!(relation.schema()[0].name()=="peid");
     }
 
     #[ignore]

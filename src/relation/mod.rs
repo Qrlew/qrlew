@@ -727,7 +727,7 @@ impl Variant for Join {
 // Set operations
 
 /// Set op
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum SetOperator {
     Union,
     Except,
