@@ -43,39 +43,37 @@ pub enum Strategy {
     Hard,
 }
 
-/// A wrapper to compute Relation protection
+/// A visitor to compute Relation protection
 #[derive(Clone, Debug)]
-pub struct Protection<'a> {
+pub struct ProtectVisitor<F: Fn(&Table) -> Relation> {
     /// The protected entity definition
-    protected_entity: HashMap<&'a Table, Expr>,
+    protect_tables: F,
     /// Strategy used
     strategy: Strategy,
 }
 
-impl<'a> Protection<'a> {
-    pub fn new<T: IntoIterator<Item=(&'a Table, Expr)>>(protected_entity: T, strategy: Strategy) -> Self {
-        Protection { protected_entity: HashMap::from_iter(protected_entity), strategy }
-    }
-
-    pub fn empty() -> Self {
-        Protection::new([], Strategy::default())
+impl<F: Fn(&Table) -> Relation> ProtectVisitor<F> {
+    pub fn new(protect_tables: F, strategy: Strategy) -> Self {
+        ProtectVisitor { protect_tables, strategy }
     }
 }
 
-impl<'a> With<(&'a Table, Expr)> for Protection<'a> {
-    fn with(mut self, input: (&'a Table, Expr)) -> Self {
-        self.protected_entity.insert(input.0, input.1);
-        self
+impl<'a> ProtectVisitor<Box<dyn Fn(&Table) -> Relation+'a>> {
+    pub fn from_exprs<A: AsRef<[(&'a Table, Expr)]>+'a>(protected_entity: A, strategy: Strategy) -> ProtectVisitor<Box<dyn Fn(&Table) -> Relation+'a>> {
+        ProtectVisitor::new(Box::new(move |table: &Table| {
+            match protected_entity.as_ref().iter().find_map(|(t, e)| (table==*t).then(|| e.clone())) {
+                Some(expr) => Relation::from(table.clone()).with_computed_field(PEID, expr.clone()),
+                None => table.clone().into(),
+            }
+        }), strategy)
     }
 }
 
 
-impl<'a> Visitor<'a, Result<Relation>> for Protection<'a> {
+
+impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVisitor<F> {
     fn table(&self, table: &'a Table) -> Result<Relation> {
-        match self.protected_entity.get(table) {
-            Some(expr) => Ok(Relation::from(table.clone()).with_computed_field(PEID, expr.clone())),
-            None => Ok(table.clone().into()),
-        }
+        Ok((self.protect_tables)(table))
     }
 
     fn map(&self, map: &'a crate::relation::Map, input: Result<Relation>) -> Result<Relation> {
@@ -97,13 +95,19 @@ impl<'a> Visitor<'a, Result<Relation>> for Protection<'a> {
 
 impl Relation {
     /// Add protection
-    pub fn protect<'a, T: IntoIterator<Item=(&'a Table, Expr)>+'a>(self, protected_entity: T) -> Result<Relation> {
-        self.accept(Protection::new(protected_entity, Strategy::Soft))
+    pub fn protect<F: Fn(&Table) -> Relation>(self, protect_tables: F) -> Result<Relation> {
+        self.accept(ProtectVisitor::new(protect_tables, Strategy::Soft))
+    }
+
+    /// Add protection
+    pub fn protect_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(self, protect_tables: A) -> Result<Relation> {
+        let visitor = ProtectVisitor::from_exprs(protect_tables, Strategy::Soft);
+        self.accept(visitor)
     }
 
     /// Force protection
-    pub fn force_protect<'a, T: IntoIterator<Item=(&'a Table, Expr)>+'a>(self, protected_entity: T) -> Relation {
-        self.accept(Protection::new(protected_entity, Strategy::Hard)).unwrap()
+    pub fn force_protect<F: Fn(&Table) -> Relation>(self, protect_tables: F) -> Relation {
+        self.accept(ProtectVisitor::new(protect_tables, Strategy::Hard)).unwrap()
     }
 }
 
@@ -123,7 +127,7 @@ mod tests {
         let relations = database.relations();
         let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
         // Table
-        let table = table.protect([(&database.tables()[0], expr!(a))]).unwrap();
+        let table = table.protect_from_exprs([(&database.tables()[0], expr!(md5(a)))]).unwrap();
         display(&table);
     }
 
