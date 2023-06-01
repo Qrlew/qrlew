@@ -868,6 +868,7 @@ impl Function for Case {
     }
 }
 
+
 /*
 We list here all the functions to expose
 */
@@ -1361,6 +1362,37 @@ pub fn bivariate_max() -> impl Function + Clone {
 
 pub fn case() -> impl Function + Clone {
     Case
+}
+
+/*
+Cast functions
+ */
+pub fn cast_to_boolean() -> impl Function + Clone {
+    null()
+}
+
+pub fn cast_to_integer() -> impl Function + Clone {
+    null()
+}
+
+pub fn cast_to_float() -> impl Function + Clone {
+    null()
+}
+
+pub fn cast_to_text() -> impl Function + Clone {
+    null()
+}
+
+pub fn cast_to_date() -> impl Function + Clone {
+    null()
+}
+
+pub fn cast_to_time() -> impl Function + Clone {
+    null()
+}
+
+pub fn cast_to_date_time() -> impl Function + Clone {
+    null()
 }
 
 /*

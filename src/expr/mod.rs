@@ -176,7 +176,7 @@ macro_rules! impl_unary_function_constructors {
     };
 }
 
-impl_unary_function_constructors!(Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt); // TODO Complete that
+impl_unary_function_constructors!(Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, CastToBoolean, CastToInteger, CastToFloat, CastToText, CastToDate, CastToTime, CastToDateTime); // TODO Complete that
 
 /// Implement binary function constructors
 macro_rules! impl_binary_function_constructors {

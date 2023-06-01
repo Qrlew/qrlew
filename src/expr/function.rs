@@ -41,6 +41,14 @@ pub enum Function {
     Sqrt,
     Pow,
     Case,
+    // Cast Functions
+    CastToBoolean,
+    CastToInteger,
+    CastToFloat,
+    CastToText,
+    CastToDate,
+    CastToTime,
+    CastToDateTime,
 }
 
 pub enum Style {
@@ -89,7 +97,14 @@ impl Function {
             | Function::Cos
             | Function::Sqrt
             | Function::Pow
-            | Function::Case => Style::Function,
+            | Function::Case
+            | Function::CastToBoolean
+            | Function::CastToInteger
+            | Function::CastToFloat
+            | Function::CastToText
+            | Function::CastToDate
+            | Function::CastToTime
+            | Function::CastToDateTime => Style::Function,
         }
     }
 
@@ -124,7 +139,14 @@ impl Function {
             | Function::Abs
             | Function::Sin
             | Function::Cos
-            | Function::Sqrt => Arity::Unary,
+            | Function::Sqrt
+            | Function::CastToBoolean
+            | Function::CastToInteger
+            | Function::CastToFloat
+            | Function::CastToText
+            | Function::CastToDate
+            | Function::CastToTime
+            | Function::CastToDateTime => Arity::Unary,
             // Binary Function
             Function::Pow => Arity::Nary(2),
             // Case Function
@@ -186,8 +208,16 @@ impl fmt::Display for Function {
             Function::Sin => "SIN",
             Function::Cos => "COS",
             Function::Sqrt => "SQRT",
+            Function::CastToBoolean => "CAST_TO_BOOLEAN",
+            Function::CastToInteger => "CAST_TO_INTEGER",
+            Function::CastToFloat => "CAST_TO_FLOAT",
+            Function::CastToText => "CAST_TO_TEXT",
+            Function::CastToDate => "CAST_TO_DATE",
+            Function::CastToTime => "CAST_TO_TIME",
+            Function::CastToDateTime => "CAST_TO_DATETIME",
             // Binary Functions
             Function::Pow => "POW",
+            // Ternary
             Function::Case => "CASE",
         })
     }

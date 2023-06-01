@@ -1,6 +1,7 @@
 //! Convert Expr into ast::Expr
 use crate::{
     expr::{self, Expr},
+    data_type::DataType,
     visitor::Acceptor,
 };
 use sqlparser::ast;
@@ -168,6 +169,34 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 special: false,
                 order_by: vec![],
             }),
+            expr::function::Function::CastToBoolean => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::boolean().into(),
+            },
+            expr::function::Function::CastToInteger => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::integer().into(),
+            },
+            expr::function::Function::CastToFloat => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::float().into(),
+            },
+            expr::function::Function::CastToText => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::text().into(),
+            },
+            expr::function::Function::CastToDate => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::date().into(),
+            },
+            expr::function::Function::CastToTime => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::time().into(),
+            },
+            expr::function::Function::CastToDateTime => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::date_time().into(),
+            },
         }
     }
     // TODO implement this properly
@@ -300,6 +329,16 @@ mod tests {
     #[test]
     fn test_from_expr() {
         let ast_expr: ast::Expr = parse_expr("exp(a*cos(SIN(x) + 2*a + b))").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+    }
+
+    #[test]
+    fn test_cast() {
+        let ast_expr: ast::Expr = parse_expr("cast('100' AS INTEGER)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);

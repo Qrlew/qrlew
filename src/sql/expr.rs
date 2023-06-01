@@ -560,7 +560,9 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 let x: f64 = FromStr::from_str(number)?;
                 Expr::val(x)
             }
-            ast::Value::SingleQuotedString(_) => todo!(),
+            ast::Value::SingleQuotedString(v) => {
+                Expr::val(v.to_string())
+            },
             ast::Value::EscapedStringLiteral(_) => todo!(),
             ast::Value::NationalStringLiteral(_) => todo!(),
             ast::Value::HexStringLiteral(_) => todo!(),
@@ -612,6 +614,14 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "sum" => Expr::sum(flat_args[0].clone()),
             "variance" => Expr::var(flat_args[0].clone()),
             "stddev" => Expr::std(flat_args[0].clone()),
+            // Cast functions
+            "cast_to_boolean" => Expr::cast_to_boolean(flat_args[0].clone()),
+            "cast_to_integer" => Expr::cast_to_integer(flat_args[0].clone()),
+            "cast_to_float" => Expr::cast_to_float(flat_args[0].clone()),
+            "cast_to_text" => Expr::cast_to_text(flat_args[0].clone()),
+            "cast_to_date" => Expr::cast_to_date(flat_args[0].clone()),
+            "cast_to_time" => Expr::cast_to_time(flat_args[0].clone()),
+            "cast_to_datetime" => Expr::cast_to_date_time(flat_args[0].clone()),
             _ => todo!(),
         })
     }
