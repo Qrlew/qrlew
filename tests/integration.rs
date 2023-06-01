@@ -75,6 +75,9 @@ const QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT 1*a, 1*d FROM table_1),
     t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
     SELECT * FROM t1 UNION SELECT * FROM t2",
+    // Test MD5
+    "SELECT MD5(z) FROM table_2 LIMIT 10",
+    "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
 ];
 
 #[cfg(feature = "sqlite")]

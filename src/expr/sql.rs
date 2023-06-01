@@ -162,9 +162,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Md5
             | expr::function::Function::Concat(_) => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    arguments[0].clone(),
-                ))],
+                args: arguments.into_iter().map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))).collect(),
                 over: None,
                 distinct: false,
                 special: false,
@@ -301,21 +299,34 @@ mod tests {
 
     #[test]
     fn test_from_expr() {
-        let ast_expr: ast::Expr = parse_expr("exp(a*cos(SIN(x) + 2*a + b))").unwrap();
+        let ast_expr: ast::Expr = parse_expr("EXP(a*COS(SIN(x) + 2*a + b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr)
+    }
+
+    #[test]
+    fn test_from_expr_concat() {
+        let ast_expr: ast::Expr = parse_expr("CONCAT(a, b, c)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr)
     }
 
     #[test]
     fn test_from_expr_with_var() {
-        let ast_expr: ast::Expr = parse_expr("exp(a*variance(SIN(x) + 2*a + b))").unwrap();
+        let ast_expr: ast::Expr = parse_expr("EXP(a*VARIANCE(SIN(x) + 2*a + b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr)
     }
 }
