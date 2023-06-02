@@ -29,7 +29,9 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             crate::data_type::value::Value::Float(f) => {
                 ast::Expr::Value(ast::Value::Number(format!("{}", **f), false))
             }
-            crate::data_type::value::Value::Text(_) => todo!(),
+            crate::data_type::value::Value::Text(t) => {
+                ast::Expr::Value(ast::Value::SingleQuotedString(format!("{}", **t)))
+            }
             crate::data_type::value::Value::Bytes(_) => todo!(),
             crate::data_type::value::Value::Struct(_) => todo!(),
             crate::data_type::value::Value::Union(_) => todo!(),
@@ -341,7 +343,7 @@ mod tests {
         assert_eq!(ast_expr, gen_expr);
 
         // CharLength
-        let ast_expr: ast::Expr = parse_expr("POSITION(expr1 IN expr2)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("POSITION('x' IN expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);

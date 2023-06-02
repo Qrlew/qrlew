@@ -567,7 +567,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 let x: f64 = FromStr::from_str(number)?;
                 Expr::val(x)
             }
-            ast::Value::SingleQuotedString(_) => todo!(),
+            ast::Value::SingleQuotedString(v) => Expr::val(v.to_string()),
             ast::Value::EscapedStringLiteral(_) => todo!(),
             ast::Value::NationalStringLiteral(_) => todo!(),
             ast::Value::HexStringLiteral(_) => todo!(),
