@@ -10,7 +10,7 @@ use super::{
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::Integer,
-    expr::{self, Expr, Identifier, Split},
+    expr::{self, Expr, Identifier, Split, split},
     namer::{self, FIELD, JOIN, SET, MAP, REDUCE},
     And,
 };
@@ -293,6 +293,15 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         // Group by
         let builder = group_by.into_iter().fold(builder, |b, g|b.group_by(g));
         builder
+    }
+
+    /// Add a group by column
+    pub fn with_group_by_column<S: Into<String>>(mut self, column: S) -> Self {
+        let name = column.into();
+        let expr = Expr::col(name.clone());
+        self.split = self.split.and(Split::group_by(expr.clone()).into());
+        self.split = self.split.and(split::Reduce::new(vec![(name, expr)], vec![], None).into());
+        self
     }
 }
 
@@ -670,5 +679,39 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
             self.left.0,
             self.right.0,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::DataType;
+
+    #[test]
+    fn test_map_building() {
+        let table: Relation = Relation::table().name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
+                    .with(("x", DataType::float_range(0.0..=2.0)))
+                    .with(("y", DataType::float_range(0.0..=5.0)))
+                    .with(("z", DataType::float_range(9.0..=11.)))
+                    .with(("t", DataType::float_range(0.9..=1.1)))
+                    .build(),
+            ).build();
+        println!("Table = {table}");
+        let map: Relation =  Relation::map()
+            .with(("A", Expr::col("a")))
+            .with(("B", Expr::col("b")))
+            .input(table).build();
+        println!("Map = {map}");
+        let reduce: Relation =  Relation::reduce()
+            .with(("S", Expr::sum(Expr::col("A"))))
+            .with_group_by_column("B")
+            .input(map).build();
+        println!("Reduce = {reduce}");
     }
 }

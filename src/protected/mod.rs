@@ -1,8 +1,9 @@
 use std::{fmt, error, result, collections::HashMap};
 use crate::{
     expr::Expr,
-    relation::{Table, Map, Reduce, Join, Relation, Visitor, Variant as _},
-    builder::With, visitor::Acceptor,
+    relation::{Table, Map, Reduce, Join, Set, Relation, Visitor, Variant as _},
+    builder::{With, Ready},
+    visitor::Acceptor,
 };
 
 #[derive(Debug, Clone)]
@@ -84,22 +85,41 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         Ok((self.protect_tables)(table))
     }
 
-    fn map(&self, map: &'a crate::relation::Map, input: Result<Relation>) -> Result<Relation> {
-        let Map { projection, filter, order_by, limit, size, .. } = map;
-        
-        todo!()
+    fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
+        let builder = Relation::map().with((PEID, Expr::col(PEID))).with(map.clone()).input(input?);
+        Ok(builder.build())
     }
 
-    fn reduce(&self, reduce: &'a crate::relation::Reduce, input: Result<Relation>) -> Result<Relation> {
-        todo!()
+    fn reduce(&self, reduce: &'a Reduce, input: Result<Relation>) -> Result<Relation> {
+        match self.strategy {
+            Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce)),
+            Strategy::Hard => {
+                let builder = Relation::reduce().with_group_by_column(PEID).with(reduce.clone()).group_by(Expr::col(PEID)).input(input?);
+                Ok(builder.build())
+            },
+        }
     }
 
     fn join(&self, join: &'a crate::relation::Join, left: Result<Relation>, right: Result<Relation>) -> Result<Relation> {
-        todo!()
+        match self.strategy {
+            Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
+            Strategy::Hard => {
+                let Join { name, operator, .. } = join;
+                let left = left?;
+                let right = right?;
+                let builder = Relation::join().name(name).operator(operator.clone())
+                    .on(Expr::eq(Expr::qcol(left.name(), PEID), Expr::qcol(right.name(), PEID)))
+                    .left(left)
+                    .right(right);
+                Ok(builder.build())
+            },
+        }
     }
 
     fn set(&self, set: &'a crate::relation::Set, left: Result<Relation>, right: Result<Relation>) -> Result<Relation> {
-        todo!()
+        let Set { name, operator, quantifier, .. } = set;
+        let builder = Relation::set().name(name).operator(operator.clone()).quantifier(quantifier.clone()).left(left?).right(right?);
+        Ok(builder.build())
     }
 }
 
@@ -131,7 +151,7 @@ impl Relation {
 
     /// Force protection
     pub fn force_protect_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(self, protected_entity: A) -> Relation {
-        self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft)).unwrap()
+        self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Hard)).unwrap()
     }
 
      /// Force protection
@@ -177,9 +197,10 @@ mod tests {
     fn test_relation_protection() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let relation = Relation::try_from(parse("SELECT * FROM secondary_table").unwrap().with(&relations)).unwrap();
+        let relation = Relation::try_from(parse("SELECT sum(amount) FROM secondary_table GROUP BY primary_id").unwrap().with(&relations)).unwrap();
         // Table
-        let relation = relation.protect_from_field_paths(&[&[("secondary_table", "primary_id")]]).unwrap();
+        let relation = relation.force_protect_from_field_paths(&[&[("secondary_table", "primary_id")]]);
+        display(&relation);
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID)
     }
