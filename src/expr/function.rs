@@ -41,6 +41,10 @@ pub enum Function {
     Sqrt,
     Pow,
     Case,
+    CharLength,
+    Lower,
+    Position,
+    Upper,
 }
 
 pub enum Style {
@@ -89,7 +93,11 @@ impl Function {
             | Function::Cos
             | Function::Sqrt
             | Function::Pow
-            | Function::Case => Style::Function,
+            | Function::Case
+            | Function::CharLength
+            | Function::Lower
+            | Function::Position
+            | Function::Upper => Style::Function,
         }
     }
 
@@ -124,9 +132,12 @@ impl Function {
             | Function::Abs
             | Function::Sin
             | Function::Cos
-            | Function::Sqrt => Arity::Unary,
+            | Function::Sqrt
+            | Function::CharLength
+            | Function::Lower
+            | Function::Upper  => Arity::Unary,
             // Binary Function
-            Function::Pow => Arity::Nary(2),
+            Function::Pow | Function::Position => Arity::Nary(2),
             // Case Function
             Function::Case => Arity::Nary(3),
         }
@@ -186,7 +197,11 @@ impl fmt::Display for Function {
             Function::Sin => "SIN",
             Function::Cos => "COS",
             Function::Sqrt => "SQRT",
+            Function::CharLength => "CHAR_LENGTH",
+            Function::Lower => "LOWER",
+            Function::Upper  => "UPPER",
             // Binary Functions
+            Function::Position => "POSITION",
             Function::Pow => "POW",
             Function::Case => "CASE",
         })

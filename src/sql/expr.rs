@@ -227,6 +227,7 @@ pub trait Visitor<'a, T: Clone> {
     fn unary_op(&self, op: &'a ast::UnaryOperator, expr: T) -> T;
     fn value(&self, value: &'a ast::Value) -> T;
     fn function(&self, function: &'a ast::Function, args: Vec<FunctionArg<T>>) -> T;
+    fn position(&self, expr: T, r#in: T) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -316,7 +317,9 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Extract { field, expr } => todo!(),
             ast::Expr::Ceil { expr, field } => todo!(),
             ast::Expr::Floor { expr, field } => todo!(),
-            ast::Expr::Position { expr, r#in } => todo!(),
+            ast::Expr::Position { expr, r#in } => {
+                self.position(dependencies.get(expr).clone(), dependencies.get(r#in).clone())
+            },
             ast::Expr::Substring {
                 expr,
                 substring_from,
@@ -449,6 +452,10 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
                 })
                 .join(", ")
         )
+    }
+
+    fn position(&self, expr: String, r#in: String) -> String {
+        format!("POSITION({} IN {})", expr, r#in)
     }
 }
 
@@ -604,6 +611,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "sqrt" => Expr::sqrt(flat_args[0].clone()),
             "pow" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
+            // string functions
+            "lower" => Expr::lower(flat_args[0].clone()),
+            "upper" => Expr::upper(flat_args[0].clone()),
+            "char_length" => Expr::char_length(flat_args[0].clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
@@ -614,6 +625,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "stddev" => Expr::std(flat_args[0].clone()),
             _ => todo!(),
         })
+    }
+
+    fn position(&self, expr: Result<Expr>, r#in: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::position(expr?, r#in?))
     }
 }
 
