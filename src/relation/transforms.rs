@@ -1,14 +1,25 @@
 //! A few transforms for relations
 //! 
 
-use super::{Relation, display, Field, Variant as _};
+use super::{Relation, Map, display, Variant as _};
 use crate::{
     expr::Expr,
     builder::{With, Ready, WithIterator},
 };
 
+impl Map {
+    pub fn with_field(self, name: &str, expr: Expr) -> Map {
+        Relation::map().with((name, expr)).with(self).build()
+    }
+
+    pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Map {
+        Relation::map().filter_with(self, predicate).build()
+    }
+}
+
 impl Relation {
-    pub fn with_computed_field(self, name: &str, expr: Expr) -> Relation {
+    /// Add a field that derives from existing fields
+    pub fn identity_with_field(self, name: &str, expr: Expr) -> Relation {
         Relation::map()
             .with((name, expr))
             .with_iter(self.schema().iter().map(|f| (f.name(), Expr::col(f.name()))))
@@ -16,21 +27,35 @@ impl Relation {
             .build()
     }
 
-    pub fn filter_fields<F: Fn(&Field) -> bool>(self, predicate:F) -> Relation {
-        Relation::map()
-            .with_iter(self.schema().iter().filter_map(|f| if predicate(f) {Some((f.name(), Expr::col(f.name())))} else {None}))
-            .input(self)
-            .build()
+    /// Add a field that derives from input fields
+    pub fn with_field(self, name: &str, expr: Expr) -> Relation {
+        match self {
+            // Simply add a column on Maps
+            Relation::Map(map) => map.with_field(name, expr).into(),
+            relation => relation.identity_with_field(name, expr),
+        }
+       
     }
 
-    pub fn filter_field_names<F: Fn(&str) -> bool>(self, predicate:F) -> Relation {
-        self.filter_fields(|f| predicate(f.name()))
+    pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Relation {
+        match self {
+            Relation::Map(map) => map.filter_fields(predicate).into(),
+            relation => {
+                Relation::map()
+                    .with_iter(relation.schema().iter().filter_map(|f| predicate(f.name()).then_some((f.name(), Expr::col(f.name())))))
+                    .input(relation)
+                    .build()
+            }
+        }
+        
     }
+
+    
 }
 
 impl With<(&str, Expr)> for Relation {
     fn with(self, (name, expr): (&str, Expr)) -> Self {
-        self.with_computed_field(name, expr)
+        self.identity_with_field(name, expr)
     }
 }
 
@@ -38,7 +63,6 @@ impl With<(&str, Expr)> for Relation {
 mod tests {
     use super::*;
     use crate::{
-        data_type::DataType,
         sql::parse,
         io::{Database, postgresql},
     };
@@ -51,23 +75,23 @@ mod tests {
         let relation = Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
         // Table
         assert!(table.schema()[0].name()!="peid");
-        let table = table.with_computed_field("peid", expr!(a+b));
+        let table = table.identity_with_field("peid", expr!(a+b));
         assert!(table.schema()[0].name()=="peid");
         // Relation
         assert!(relation.schema()[0].name()!="peid");
-        let relation = relation.with_computed_field("peid", expr!(cos(a)));
+        let relation = relation.identity_with_field("peid", expr!(cos(a)));
         assert!(relation.schema()[0].name()=="peid");
     }
 
     #[ignore]
     #[test]
-    fn test_filter_field_names() {
+    fn test_filter_fields() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let relation = Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
-        let relation = relation.with_computed_field("peid", expr!(cos(a)));
+        let relation = relation.with_field("peid", expr!(cos(a)));
         display(&relation);
-        let relation = relation.filter_field_names(|n| n!="peid");
+        let relation = relation.filter_fields(|n| n!="peid");
         display(&relation);
     }
 }

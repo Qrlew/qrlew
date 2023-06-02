@@ -8,7 +8,7 @@ use super::{
     Table, Variant,
 };
 use crate::{
-    builder::{Ready, With},
+    builder::{Ready, With, WithIterator},
     data_type::Integer,
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, SET, MAP, REDUCE},
@@ -142,6 +142,21 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
+    /// Initialize a builder with filtered existing map
+    pub fn filter_with<P: Fn(&str) -> bool>(self, map: Map, predicate: P) -> MapBuilder<WithInput> {
+        let Map { name, projection, filter, order_by, limit, schema, input, .. } = map;
+        let builder = self.name(name)
+            .with_iter(schema.into_iter().zip(projection).filter_map(|(field, expr)| predicate(field.name()).then_some((field.name().to_string(), expr))))
+            .input(input);
+        // Filter
+        let builder = filter.into_iter().fold(builder, |b, f|b.filter(f));
+        // Order by
+        let builder = order_by.into_iter().fold(builder, |b, o|b.order_by(o.expr, o.asc));
+        // Limit
+        let builder = limit.into_iter().fold(builder, |b, l|b.limit(l));
+        builder
+    }
+
     pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> MapBuilder<WithInput> {
         MapBuilder {
             name: self.name,
@@ -163,6 +178,22 @@ impl<RequireInput, S: Into<String>> With<(S, Expr)> for MapBuilder<RequireInput>
     fn with(mut self, (name, expr): (S, Expr)) -> Self {
         self.split = self.split.and(Split::from((name.into(), expr)));
         self
+    }
+}
+
+impl<RequireInput> With<Map, MapBuilder<WithInput>> for MapBuilder<RequireInput> {
+    fn with(self, map: Map) -> MapBuilder<WithInput> {
+        let Map { name, projection, filter, order_by, limit, schema, input, .. } = map;
+        let builder = self.name(name)
+            .with_iter(schema.into_iter().zip(projection).map(|(field, expr)| (field.name().to_string(), expr)))
+            .input(input);
+        // Filter
+        let builder = filter.into_iter().fold(builder, |b, f|b.filter(f));
+        // Order by
+        let builder = order_by.into_iter().fold(builder, |b, o|b.order_by(o.expr, o.asc));
+        // Limit
+        let builder = limit.into_iter().fold(builder, |b, l|b.limit(l));
+        builder
     }
 }
 
@@ -252,6 +283,17 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
             input: WithInput(input.into()),
         }
     }
+
+    /// Initialize a builder with filtered existing reduce
+    pub fn filter_with<P: Fn(&str) -> bool>(self, reduce: Reduce, predicate: P) -> ReduceBuilder<WithInput> {
+        let Reduce { name, aggregate, group_by, schema, input, .. } = reduce;
+        let builder = self.name(name)
+            .with_iter(schema.into_iter().zip(aggregate).filter_map(|(field, expr)| predicate(field.name()).then_some((field.name().to_string(), expr))))
+            .input(input);
+        // Group by
+        let builder = group_by.into_iter().fold(builder, |b, g|b.group_by(g));
+        builder
+    }
 }
 
 impl<RequireInput> With<Expr> for ReduceBuilder<RequireInput> {
@@ -265,6 +307,18 @@ impl<RequireInput, S: Into<String>> With<(S, Expr)> for ReduceBuilder<RequireInp
     fn with(mut self, (name, expr): (S, Expr)) -> Self {
         self.split = self.split.and(Split::from((name.into(), expr)));
         self
+    }
+}
+
+impl<RequireInput> With<Reduce, ReduceBuilder<WithInput>> for ReduceBuilder<RequireInput> {
+    fn with(self, reduce: Reduce) -> ReduceBuilder<WithInput> {
+        let Reduce { name, aggregate, group_by, schema, input, .. } = reduce;
+        let builder = self.name(name)
+            .with_iter(schema.into_iter().zip(aggregate).map(|(field, expr)| (field.name().to_string(), expr)))
+            .input(input);
+        // Group by
+        let builder = group_by.into_iter().fold(builder, |b, g|b.group_by(g));
+        builder
     }
 }
 
