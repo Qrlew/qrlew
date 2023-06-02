@@ -74,7 +74,7 @@ pub fn protect_visitor_from_field_paths<'a>(protected_entity: &'a[&'a[(&'a str, 
     ProtectVisitor::new(move |table: &Table| {
         match protected_entity.into_iter().find(|&&tabs_cols| tabs_cols.get(0).map(|(tab, _col)| table.name()==*tab).unwrap_or(false)) {
             Some([(_tab, col)]) => Relation::from(table.clone()).identity_with_field(PEID, Expr::col(*col)),
-            Some(tabs_cols) => todo!(),
+            Some(tabs_cols) => todo!(),// TODO implement this
             None => table.clone().into(),
         }
     }, strategy)
@@ -198,8 +198,9 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let relation = Relation::try_from(parse("SELECT sum(amount) FROM secondary_table GROUP BY primary_id").unwrap().with(&relations)).unwrap();
+        // let relation = Relation::try_from(parse("SELECT * FROM primary_table").unwrap().with(&relations)).unwrap();
         // Table
-        let relation = relation.force_protect_from_field_paths(&[&[("secondary_table", "primary_id")]]);
+        let relation = relation.force_protect_from_field_paths(&[&[("primary_table", "id")], &[("secondary_table", "primary_id"), ("primary_table", "id"), ("primary_table", "id")]]);
         display(&relation);
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID)
