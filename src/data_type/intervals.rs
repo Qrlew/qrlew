@@ -427,6 +427,15 @@ impl<B: Bound> Intervals<B> {
         self.intervals.iter().all(|[min, max]| min == max)
     }
 
+    /// If the interval is countable, returns all the possible values
+    pub fn possible_values(&self) -> Vec<B> {
+        if self.all_values() {
+            self.intervals.iter().map(|[min, _]| min.clone()).collect()
+        } else {
+            vec!()
+        }
+    }
+
     /// Test if the interval is a singleton
     pub fn is_value(&self) -> bool {
         self.intervals.len() == 1 && self.intervals[0][0] == self.intervals[0][1]
