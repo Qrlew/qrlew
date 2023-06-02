@@ -73,7 +73,7 @@ pub fn protect_visitor_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(protecte
 pub fn protect_visitor_from_field_paths<'a>(protected_entity: &'a[&'a[(&'a str, &'a str)]], strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation+'a> {
     ProtectVisitor::new(move |table: &Table| {
         match protected_entity.into_iter().find(|&&tabs_cols| tabs_cols.get(0).map(|(tab, _col)| table.name()==*tab).unwrap_or(false)) {
-            Some([(_tab, col)]) => Relation::from(table.clone()).identity_with_field(PEID, Expr::col(*col)),
+            Some([(_tab, col)]) => Relation::from(table.clone()).with_field(PEID, Expr::col(*col)),
             Some(tabs_cols) => todo!(),// TODO implement this
             None => table.clone().into(),
         }

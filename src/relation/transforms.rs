@@ -1,10 +1,13 @@
 //! A few transforms for relations
 //! 
 
+use itertools::Itertools;
+
 use super::{Relation, Map, display, Variant as _};
 use crate::{
     expr::Expr,
     builder::{With, Ready, WithIterator},
+    hierarchy::Hierarchy,
 };
 
 impl Map {
@@ -34,7 +37,35 @@ impl Relation {
             Relation::Map(map) => map.with_field(name, expr).into(),
             relation => relation.identity_with_field(name, expr),
         }
-       
+    }
+
+    /// Add a field designated with a foreign relation and a field
+    pub fn with_foreign_field(self, name: &str, foreign: Relation, on: (&str, &str), field: &str) -> Relation {
+        let names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let join: Relation = Relation::join().inner()
+            .on(Expr::eq(Expr::qcol(foreign.name(), on.0), Expr::qcol(self.name(), on.1)))
+            .left(foreign)
+            .right(self)
+            .build();
+        Relation::map()
+            .with_iter(join.schema().iter().zip(join.input_fields()).filter_map(|(o, i)| {
+                if names.contains(&i.name().to_string()) {
+                    Some((i.name(), Expr::col(o.name())))
+                } else if field==i.name() {
+                    Some((name, Expr::col(o.name())))
+                } else {
+                    None
+                }
+            }))
+            .input(join)
+            .build()
+    }
+
+    /// Add a field designated with a "fiald path"
+    pub fn with_field_path(self, name: &str, path: &[(&str, &str)]) -> Relation {//TODO implement this
+        let schema = self.schema().clone();
+        // path.iter().chunks(2).fold(self, ||)
+        todo!()
     }
 
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Relation {
@@ -93,5 +124,18 @@ mod tests {
         display(&relation);
         let relation = relation.filter_fields(|n| n!="peid");
         display(&relation);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_foreign_field() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let secondary = Relation::try_from(parse("SELECT * FROM secondary_table").unwrap().with(&relations)).unwrap();
+        let primary = relations.get(&["primary_table".to_string()]).unwrap().as_ref();
+        let relation = secondary.with_foreign_field("peid", primary.clone(), ("primary_id", "id"), "id");
+        assert!(relation.schema()[0].name()!="peid");
+        let relation = relation.filter_fields(|n| n!="peid");
+        assert!(relation.schema()[0].name()!="peid");
     }
 }
