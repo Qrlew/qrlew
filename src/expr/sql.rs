@@ -173,6 +173,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::boolean().into(),
             },
+            expr::function::Function::CastToBytes => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::bytes().into(),
+            },
             expr::function::Function::CastToInteger => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::integer().into(),

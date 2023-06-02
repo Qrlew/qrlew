@@ -1368,6 +1368,31 @@ pub fn case() -> impl Function + Clone {
 Cast functions
  */
 pub fn cast_to_boolean() -> impl Function + Clone {
+    Polymorphic::from((
+        PartitionnedMonotonic::univariate(
+            data_type::Integer::default(),
+            |x| if x == 0 {false} else {true}, // TODO: use conversion in value ?
+        ),
+        PartitionnedMonotonic::univariate(
+            data_type::Float::default(),
+            |x| if x == 0. {false} else {true},
+        ),
+        PartitionnedMonotonic::univariate(
+            data_type::Text::default(), // TODO: restrain the domain to valid strings ?
+            |x| {
+                if vec!["t", "true", "y", "yes", "on", "1"].contains(&&*x.to_lowercase()) {
+                    true
+                } else if vec!["f", "false", "n", "no", "off", "0"].contains(&&*x.to_lowercase()) {
+                    false
+                } else {
+                    panic!()
+                }
+            }
+        ),
+    ))
+}
+
+pub fn cast_to_bytes() -> impl Function + Clone {
     null()
 }
 
@@ -2087,5 +2112,33 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::Any);
+    }
+
+    #[test]
+    fn test_cast_to_boolean() {
+        // boolean
+        let fun = cast_to_boolean();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        // int ==> bool
+        let set = DataType::from(data_type::Integer::from_intervals([[0, 2]]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean());
+
+        let set = DataType::from(data_type::Integer::from_value(0));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean_value(false));
+
+        let set = DataType::from(data_type::Integer::from_value(1));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean_value(true));
+
+
+
     }
 }

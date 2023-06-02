@@ -8,6 +8,7 @@ use crate::{
     expr::{identifier::Identifier, Expr},
     hierarchy::{Hierarchy, Path},
     visitor::{self, Acceptor, Dependencies, Visited},
+    data_type::DataType,
 };
 use itertools::Itertools;
 use sqlparser::{
@@ -227,6 +228,7 @@ pub trait Visitor<'a, T: Clone> {
     fn unary_op(&self, op: &'a ast::UnaryOperator, expr: T) -> T;
     fn value(&self, value: &'a ast::Value) -> T;
     fn function(&self, function: &'a ast::Function, args: Vec<FunctionArg<T>>) -> T;
+    fn cast(&self, expr: T, datatype: &'a ast::DataType) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -306,7 +308,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::AnyOp(_) => todo!(),
             ast::Expr::AllOp(_) => todo!(),
             ast::Expr::UnaryOp { op, expr } => self.unary_op(op, dependencies.get(expr).clone()),
-            ast::Expr::Cast { expr, data_type } => todo!(),
+            ast::Expr::Cast { expr, data_type } => self.cast(dependencies.get(expr).clone(), data_type),
             ast::Expr::TryCast { expr, data_type } => todo!(),
             ast::Expr::SafeCast { expr, data_type } => todo!(),
             ast::Expr::AtTimeZone {
@@ -449,6 +451,10 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
                 })
                 .join(", ")
         )
+    }
+
+    fn cast(&self, expr: String, datatype: &'a ast::DataType) -> String {
+        format!("CAST({} AS {})", expr, datatype)
     }
 }
 
@@ -616,6 +622,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "stddev" => Expr::std(flat_args[0].clone()),
             // Cast functions
             "cast_to_boolean" => Expr::cast_to_boolean(flat_args[0].clone()),
+            "cast_to_bytes" => Expr::cast_to_bytes(flat_args[0].clone()),
             "cast_to_integer" => Expr::cast_to_integer(flat_args[0].clone()),
             "cast_to_float" => Expr::cast_to_float(flat_args[0].clone()),
             "cast_to_text" => Expr::cast_to_text(flat_args[0].clone()),
@@ -624,6 +631,62 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "cast_to_datetime" => Expr::cast_to_date_time(flat_args[0].clone()),
             _ => todo!(),
         })
+    }
+
+    fn cast(&self, expr: Result<Expr>, datatype: &'a ast::DataType) -> Result<Expr> {
+        Ok(
+            match datatype {
+                ast::DataType::Character(_)
+                | ast::DataType::Char(_)
+                | ast::DataType::CharacterVarying(_)
+                | ast::DataType::CharVarying(_)
+                | ast::DataType::Varchar(_)
+                | ast::DataType::Nvarchar(_)
+                | ast::DataType::CharacterLargeObject(_)
+                | ast::DataType::CharLargeObject(_)
+                | ast::DataType::Clob(_)
+                | ast::DataType::Text
+                | ast::DataType::String => Expr::cast_to_text(expr?),
+                ast::DataType::Uuid => todo!(),
+                ast::DataType::Binary(_)
+                | ast::DataType::Varbinary(_)
+                | ast::DataType::Blob(_)
+                | ast::DataType::Bytea=> Expr::cast_to_bytes(expr?),
+                ast::DataType::Numeric(_)
+                | ast::DataType::Decimal(_)
+                | ast::DataType::BigNumeric(_)
+                | ast::DataType::BigDecimal(_)
+                | ast::DataType::Dec(_)
+                | ast::DataType::Float(_)
+                | ast::DataType::Real
+                | ast::DataType::Double
+                | ast::DataType::DoublePrecision => Expr::cast_to_float(expr?),
+                ast::DataType::TinyInt(_)
+                | ast::DataType::UnsignedTinyInt(_)
+                | ast::DataType::SmallInt(_)
+                | ast::DataType::UnsignedSmallInt(_)
+                | ast::DataType::MediumInt(_)
+                | ast::DataType::UnsignedMediumInt(_)
+                | ast::DataType::Int(_)
+                | ast::DataType::Integer(_)
+                | ast::DataType::UnsignedInt(_)
+                | ast::DataType::UnsignedInteger(_)
+                | ast::DataType::BigInt(_)
+                | ast::DataType::UnsignedBigInt(_) => Expr::cast_to_integer(expr?),
+                ast::DataType::Boolean => Expr::cast_to_boolean(expr?),
+                ast::DataType::Date => Expr::cast_to_date(expr?),
+                ast::DataType::Time(_, _) => Expr::cast_to_time(expr?),
+                ast::DataType::Datetime(_) => Expr::cast_to_date_time(expr?),
+                ast::DataType::Timestamp(_, _) => Expr::cast_to_time(expr?),
+                ast::DataType::Interval => todo!(),
+                ast::DataType::JSON => todo!(),
+                ast::DataType::Regclass => todo!(),
+                ast::DataType::Custom(..) => todo!(),
+                ast::DataType::Array(_) => todo!(),
+                ast::DataType::Enum(_) => todo!(),
+                ast::DataType::Set(_) => todo!(),
+            }
+        )
     }
 }
 
@@ -674,6 +737,27 @@ mod tests {
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
+    }
+
+    #[test]
+    fn test_try_into_cast_expr() {
+        let ast_expr: ast::Expr = parse_expr("CAST('100' AS INTEGER)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        //matches!(expr, Expr::cast_to_integer(..));
+        println!("expr = {}", expr);
+
+        let ast_expr: ast::Expr = parse_expr("CAST('10.0' AS INTEGER)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+
+        let ast_expr: ast::Expr = parse_expr("CAST(100 AS STRING)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+
+        // TODO: add more types
     }
 
     #[test]

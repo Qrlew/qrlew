@@ -39,8 +39,8 @@ macro_rules! function_implementations {
     };
 }
 
-// All functions: Opposite, Not, Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Exp, Ln, Abs, Sin, Cos, CastToBoolean, CastToInteger, CastToFloat, CastToText, CastToDate, CastToTime, CastToDateTime
-// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, CastToBoolean, CastToInteger, CastToFloat, CastToText, CastToDate, CastToTime, CastToDateTime
+// All functions: Opposite, Not, Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Exp, Ln, Abs, Sin, Cos, CastToBoolean, CastToBytes, CastToInteger, CastToFloat, CastToText, CastToDate, CastToTime, CastToDateTime
+// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, CastToBoolean, CastToBytes, CastToInteger, CastToFloat, CastToText, CastToDate, CastToTime, CastToDateTime
 // Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor
 // Ternary: Case
 function_implementations!(
@@ -55,6 +55,7 @@ function_implementations!(
         Cos,
         Sqrt,
         CastToBoolean,
+        CastToBytes,
         CastToInteger,
         CastToFloat,
         CastToText,

@@ -43,6 +43,7 @@ pub enum Function {
     Case,
     // Cast Functions
     CastToBoolean,
+    CastToBytes,
     CastToInteger,
     CastToFloat,
     CastToText,
@@ -99,6 +100,7 @@ impl Function {
             | Function::Pow
             | Function::Case
             | Function::CastToBoolean
+            | Function::CastToBytes
             | Function::CastToInteger
             | Function::CastToFloat
             | Function::CastToText
@@ -141,6 +143,7 @@ impl Function {
             | Function::Cos
             | Function::Sqrt
             | Function::CastToBoolean
+            | Function::CastToBytes
             | Function::CastToInteger
             | Function::CastToFloat
             | Function::CastToText
@@ -209,6 +212,7 @@ impl fmt::Display for Function {
             Function::Cos => "COS",
             Function::Sqrt => "SQRT",
             Function::CastToBoolean => "CAST_TO_BOOLEAN",
+            Function::CastToBytes => "CAST_TO_BYTES",
             Function::CastToInteger => "CAST_TO_INTEGER",
             Function::CastToFloat => "CAST_TO_FLOAT",
             Function::CastToText => "CAST_TO_TEXT",
