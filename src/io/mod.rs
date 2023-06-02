@@ -144,6 +144,27 @@ pub trait Database: Sized {
                         .with(("z", DataType::text_values(["foo".into(), "bar".into()]))),
                 )
                 .build(),
+            TableBuilder::new()
+                .name("primary_table")
+                .size(100)
+                .schema(
+                    Schema::empty()
+                        .with(("id", DataType::integer_interval(0,100)))
+                        .with(("name", DataType::text()))
+                        .with(("age", DataType::optional(DataType::integer_interval(0,200))))
+                        .with(("city", DataType::text_values(["Paris".into(), "New-York".into()]))),
+                )
+                .build(),
+            TableBuilder::new()
+                .name("secondary_table")
+                .size(500)
+                .schema(
+                    Schema::empty()
+                        .with(("primary_id", DataType::integer_interval(0,100)))
+                        .with(("transaction_name", DataType::text()))
+                        .with(("amount", DataType::float_interval(0.,50.))),
+                )
+                .build(),
         ]
     }
     /// A basic test DB

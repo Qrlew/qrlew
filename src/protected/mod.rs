@@ -58,18 +58,25 @@ impl<F: Fn(&Table) -> Relation> ProtectVisitor<F> {
     }
 }
 
-impl<'a> ProtectVisitor<Box<dyn Fn(&Table) -> Relation+'a>> {
-    pub fn from_exprs<A: AsRef<[(&'a Table, Expr)]>+'a>(protected_entity: A, strategy: Strategy) -> ProtectVisitor<Box<dyn Fn(&Table) -> Relation+'a>> {
-        ProtectVisitor::new(Box::new(move |table: &Table| {
-            match protected_entity.as_ref().iter().find_map(|(t, e)| (table==*t).then(|| e.clone())) {
-                Some(expr) => Relation::from(table.clone()).with_computed_field(PEID, expr.clone()),
-                None => table.clone().into(),
-            }
-        }), strategy)
-    }
+/// Build a visitor from exprs
+pub fn protect_visitor_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(protected_entity: A, strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation> {
+    ProtectVisitor::new(move |table: &Table| {
+        match protected_entity.as_ref().iter().find_map(|(t, e)| (table==*t).then(|| e.clone())) {
+            Some(expr) => Relation::from(table.clone()).with_computed_field(PEID, expr.clone()),
+            None => table.clone().into(),
+        }
+    }, strategy)
 }
 
-
+// /// Build a visitor from exprs and relation
+// pub fn protect_visitor_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(protected_entity: A, strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation> {
+//     ProtectVisitor::new(move |table: &Table| {
+//         match protected_entity.as_ref().iter().find_map(|(t, e)| (table==*t).then(|| e.clone())) {
+//             Some(expr) => Relation::from(table.clone()).with_computed_field(PEID, expr.clone()),
+//             None => table.clone().into(),
+//         }
+//     }, strategy)
+// }
 
 impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVisitor<F> {
     fn table(&self, table: &'a Table) -> Result<Relation> {
@@ -100,14 +107,18 @@ impl Relation {
     }
 
     /// Add protection
-    pub fn protect_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(self, protect_tables: A) -> Result<Relation> {
-        let visitor = ProtectVisitor::from_exprs(protect_tables, Strategy::Soft);
-        self.accept(visitor)
+    pub fn protect_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(self, protected_entity: A) -> Result<Relation> {
+        self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft))
     }
 
     /// Force protection
     pub fn force_protect<F: Fn(&Table) -> Relation>(self, protect_tables: F) -> Relation {
         self.accept(ProtectVisitor::new(protect_tables, Strategy::Hard)).unwrap()
+    }
+
+    /// Force protection
+    pub fn force_protect_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(self, protected_entity: A) -> Result<Relation> {
+        self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft))
     }
 }
 

@@ -75,9 +75,8 @@ const QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT 1*a, 1*d FROM table_1),
     t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
     SELECT * FROM t1 UNION SELECT * FROM t2",
-    // Test MD5
-    "SELECT MD5(z) FROM table_2 LIMIT 10",
-    "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
+    // Some joins
+    "SELECT * FROM primary_table LEFT JOIN secondary_table on id=primary_id WHERE amount>0"
 ];
 
 #[cfg(feature = "sqlite")]
@@ -97,7 +96,12 @@ fn test_on_sqlite() {
 }
 // This should work: https://www.db-fiddle.com/f/ouKSHjkEk29zWY5PN2YmjZ/10
 
-const POSTGRESQL_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
+const POSTGRESQL_QUERIES: &[&str] = &[
+    "SELECT AVG(b) as n, count(b) as d FROM table_1",
+    // Test MD5
+    "SELECT MD5(z) FROM table_2 LIMIT 10",
+    "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
+];
 
 #[test]
 fn test_on_postgresql() {

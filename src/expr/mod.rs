@@ -1172,7 +1172,7 @@ mod tests {
         println!("{}", expr.accept(DisplayVisitor));
         assert_eq!(
             expr.accept(DisplayVisitor),
-            "EXP(SIN(a * x + b))".to_string()
+            "exp(sin(a * x + b))".to_string()
         );
     }
 

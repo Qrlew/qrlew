@@ -171,7 +171,7 @@ impl fmt::Display for Function {
         f.write_str(match self {
             // Unary Operators
             Function::Opposite => "-",
-            Function::Not => "NOT",
+            Function::Not => "not",
             // Binary Operators
             Function::Plus => "+",
             Function::Minus => "-",
@@ -185,27 +185,27 @@ impl fmt::Display for Function {
             Function::LtEq => "<=",
             Function::Eq => "=",
             Function::NotEq => "<>",
-            Function::And => "AND",
-            Function::Or => "OR",
-            Function::Xor => "XOR",
+            Function::And => "and",
+            Function::Or => "or",
+            Function::Xor => "xor",
             Function::BitwiseOr => "|",
             Function::BitwiseAnd => "&",
             Function::BitwiseXor => "^",
             // Unary Functions
-            Function::Exp => "EXP",
-            Function::Ln => "LN",
-            Function::Log => "LOG",
-            Function::Abs => "ABS",
-            Function::Sin => "SIN",
-            Function::Cos => "COS",
-            Function::Sqrt => "SQRT",
+            Function::Exp => "exp",
+            Function::Ln => "ln",
+            Function::Log => "log",
+            Function::Abs => "abs",
+            Function::Sin => "sin",
+            Function::Cos => "cos",
+            Function::Sqrt => "sqrt",
             // Binary Functions
-            Function::Pow => "POW",
-            Function::Concat(_) => "CONCAT",
+            Function::Pow => "pow",
+            Function::Concat(_) => "concat",
             // Ternary Functions
-            Function::Case => "CASE",
+            Function::Case => "case",
             // Nary Functions
-            Function::Md5 => "MD5",
+            Function::Md5 => "md5",
         })
     }
 }

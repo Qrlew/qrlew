@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_from_expr() {
-        let ast_expr: ast::Expr = parse_expr("EXP(a*COS(SIN(x) + 2*a + b))").unwrap();
+        let ast_expr: ast::Expr = parse_expr("exp(a*cos(sin(x) + 2*a + b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_from_expr_concat() {
-        let ast_expr: ast::Expr = parse_expr("CONCAT(a, b, c)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("concat(a, b, c)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_from_expr_with_var() {
-        let ast_expr: ast::Expr = parse_expr("EXP(a*VARIANCE(SIN(x) + 2*a + b))").unwrap();
+        let ast_expr: ast::Expr = parse_expr("exp(a*variance(sin(x) + 2*a + b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
