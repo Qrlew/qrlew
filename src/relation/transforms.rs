@@ -1,6 +1,10 @@
 //! A few transforms for relations
 //! 
 
+use std::{
+    rc::Rc,
+    iter::once,
+};
 use itertools::Itertools;
 
 use super::{Relation, Map, display, Variant as _};
@@ -40,32 +44,40 @@ impl Relation {
     }
 
     /// Add a field designated with a foreign relation and a field
-    pub fn with_foreign_field(self, name: &str, foreign: Relation, on: (&str, &str), field: &str) -> Relation {
+    pub fn with_foreign_field(self, name: &str, foreign: Rc<Relation>, on: (&str, &str), field: &str) -> Relation {
+        let left_size = foreign.schema().len();
         let names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
         let join: Relation = Relation::join().inner()
             .on(Expr::eq(Expr::qcol(foreign.name(), on.0), Expr::qcol(self.name(), on.1)))
             .left(foreign)
             .right(self)
             .build();
+        let left: Vec<_> = join.schema().iter().zip(join.input_fields()).take(left_size).collect();
+        let right: Vec<_> = join.schema().iter().zip(join.input_fields()).skip(left_size).collect();
         Relation::map()
-            .with_iter(join.schema().iter().zip(join.input_fields()).filter_map(|(o, i)| {
-                if names.contains(&i.name().to_string()) {
-                    Some((i.name(), Expr::col(o.name())))
-                } else if field==i.name() {
-                    Some((name, Expr::col(o.name())))
-                } else {
-                    None
-                }
+            .with_iter(left.into_iter().find_map(|(o, i)| {
+                (field==i.name()).then_some((name, Expr::col(o.name())))
             }))
+            .with_iter(right.into_iter().filter_map(|(o, i)| {
+                names.contains(&i.name().to_string()).then_some((i.name(), Expr::col(o.name())))
+            }))
+            
             .input(join)
             .build()
     }
 
     /// Add a field designated with a "fiald path"
-    pub fn with_field_path(self, name: &str, path: &[(&str, &str)]) -> Relation {//TODO implement this
-        let schema = self.schema().clone();
-        // path.iter().chunks(2).fold(self, ||)
-        todo!()
+    pub fn with_field_path(self, name: &str, relations: &Hierarchy<Rc<Relation>>, path: &[(&str, (&str, &str))], field: &str) -> Relation {//TODO implement this
+        if path.is_empty() {
+            self.identity_with_field(name, Expr::col(field))
+        } else {
+            let path: Vec<((Rc<Relation>, (&str, &str)), (&str, &str))> = path.iter()
+                .map(|(foreign_key, (primary_table, primary_key))| (relations.get(&[primary_table.to_string()]).unwrap().clone(), (*foreign_key, *primary_key)))
+                .zip(path.iter().skip(1).map(|(foreign_key, (_, primary_key))| (*foreign_key, *primary_key)).chain(once((field, name))))
+                .collect();
+            // Build the relation following the path to compute the new field
+            path.into_iter().fold(self, |relation, ((next, on), (field, name))| relation.with_foreign_field(name, next, on, field))
+        }
     }
 
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Relation {
@@ -114,28 +126,44 @@ mod tests {
         assert!(relation.schema()[0].name()=="peid");
     }
 
-    #[ignore]
     #[test]
     fn test_filter_fields() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         let relation = Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
         let relation = relation.with_field("peid", expr!(cos(a)));
-        display(&relation);
+        assert!(relation.schema()[0].name()=="peid");
         let relation = relation.filter_fields(|n| n!="peid");
-        display(&relation);
+        assert!(relation.schema()[0].name()!="peid");
+    }
+
+    #[test]
+    fn test_foreign_field() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let orders = Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations)).unwrap();
+        let user = relations.get(&["user_table".to_string()]).unwrap().as_ref();
+        let relation = orders.with_foreign_field("peid", Rc::new(user.clone()), ("user_id", "id"), "id");
+        assert!(relation.schema()[0].name()=="peid");
+        let relation = relation.filter_fields(|n| n!="peid");
+        assert!(relation.schema()[0].name()!="peid");
     }
 
     #[ignore]
     #[test]
-    fn test_foreign_field() {
-        let mut database = postgresql::test_database();
+    fn test_field_path() {
+        let database = postgresql::test_database();
         let relations = database.relations();
-        let secondary = Relation::try_from(parse("SELECT * FROM secondary_table").unwrap().with(&relations)).unwrap();
-        let primary = relations.get(&["primary_table".to_string()]).unwrap().as_ref();
-        let relation = secondary.with_foreign_field("peid", primary.clone(), ("primary_id", "id"), "id");
-        assert!(relation.schema()[0].name()!="peid");
+        // Link orders to users
+        let orders = relations.get(&["order_table".to_string()]).unwrap().as_ref();
+        let relation = orders.clone().with_field_path("peid", &relations, &[("user_id", ("user_table", "id"))], "id");
+        display(&relation);
+        // Link items to orders
+        let items = relations.get(&["item_table".to_string()]).unwrap().as_ref();
+        // let relation = items.clone().with_field_path("peid", relations, &[("order_id", ("order_table", "id")), ("user_id", ("user_table", "id"))], "id");
+        let relation = items.clone().with_field_path("peid", &relations, &[("order_id", ("order_table", "id")), ("user_id", ("user_table", "id"))], "id");
+        display(&relation);
         let relation = relation.filter_fields(|n| n!="peid");
-        assert!(relation.schema()[0].name()!="peid");
+        display(&relation);
     }
 }

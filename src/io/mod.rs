@@ -145,24 +145,38 @@ pub trait Database: Sized {
                 )
                 .build(),
             TableBuilder::new()
-                .name("primary_table")
+                .name("user_table")
                 .size(100)
                 .schema(
                     Schema::empty()
-                        .with(("id", DataType::integer_interval(0,100)))
+                        .with(("id", DataType::integer_interval(0, 100)))
                         .with(("name", DataType::text()))
-                        .with(("age", DataType::optional(DataType::integer_interval(0,200))))
+                        .with(("age", DataType::optional(DataType::float_interval(0., 200.))))
                         .with(("city", DataType::text_values(["Paris".into(), "New-York".into()]))),
                 )
                 .build(),
             TableBuilder::new()
-                .name("secondary_table")
+                .name("order_table")
                 .size(500)
                 .schema(
                     Schema::empty()
-                        .with(("primary_id", DataType::integer_interval(0,100)))
-                        .with(("transaction_name", DataType::text()))
-                        .with(("amount", DataType::float_interval(0.,50.))),
+                        .with(("id", DataType::integer_interval(0, 100)))
+                        .with(("user_id", DataType::integer_interval(0, 100)))
+                        .with(("description", DataType::text()))
+                        .with(("date", DataType::date_interval(
+                            chrono::NaiveDate::from_ymd_opt(2020, 12, 06).unwrap(),
+                            chrono::NaiveDate::from_ymd_opt(2023, 12, 06).unwrap(),
+                        ))),
+                )
+                .build(),
+            TableBuilder::new()
+                .name("item_table")
+                .size(2000)
+                .schema(
+                    Schema::empty()
+                        .with(("order_id", DataType::integer_interval(0,100)))
+                        .with(("item", DataType::text()))
+                        .with(("price", DataType::float_interval(0.,50.))),
                 )
                 .build(),
         ]
