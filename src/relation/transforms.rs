@@ -44,12 +44,12 @@ impl Relation {
     }
 
     /// Add a field designated with a foreign relation and a field
-    pub fn with_foreign_field(self, name: &str, foreign: Rc<Relation>, on: (&str, &str), field: &str) -> Relation {
-        let left_size = foreign.schema().len();
+    pub fn with_foreign_field(self, name: &str, referred_relation: Rc<Relation>, on: (&str, &str), field: &str) -> Relation {
+        let left_size = referred_relation.schema().len();
         let names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
         let join: Relation = Relation::join().inner()
-            .on(Expr::eq(Expr::qcol(self.name(), on.0), Expr::qcol(foreign.name(), on.1)))
-            .left(foreign)
+            .on(Expr::eq(Expr::qcol(self.name(), on.0), Expr::qcol(referred_relation.name(), on.1)))
+            .left(referred_relation)
             .right(self)
             .build();
         let left: Vec<_> = join.schema().iter().zip(join.input_fields()).take(left_size).collect();
@@ -71,7 +71,7 @@ impl Relation {
             self.identity_with_field(name, Expr::col(field))
         } else {
             let path: Vec<((Rc<Relation>, (&str, &str)), (&str, &str))> = path.iter()
-                .map(|(foreign_key, (primary_table, primary_key))| (relations.get(&[primary_table.to_string()]).unwrap().clone(), (*foreign_key, *primary_key)))
+                .map(|(referring_key, (referred_table, referred_key))| (relations.get(&[referred_table.to_string()]).unwrap().clone(), (*referring_key, *referred_key)))
                 .zip(path.iter().skip(1).map(|(foreign_key, _)| (*foreign_key, *foreign_key)).chain(once((field, name))))
                 .collect();
             // Build the relation following the path to compute the new field
