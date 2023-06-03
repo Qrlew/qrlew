@@ -157,11 +157,11 @@ pub trait Database: Sized {
                 .build(),
             TableBuilder::new()
                 .name("order_table")
-                .size(500)
+                .size(200)
                 .schema(
                     Schema::empty()
                         .with(("id", DataType::integer_interval(0, 100)))
-                        .with(("user_id", DataType::integer_interval(0, 100)))
+                        .with(("user_id", DataType::integer_interval(0, 101)))
                         .with(("description", DataType::text()))
                         .with(("date", DataType::date_interval(
                             chrono::NaiveDate::from_ymd_opt(2020, 12, 06).unwrap(),
@@ -171,7 +171,7 @@ pub trait Database: Sized {
                 .build(),
             TableBuilder::new()
                 .name("item_table")
-                .size(2000)
+                .size(300)
                 .schema(
                     Schema::empty()
                         .with(("order_id", DataType::integer_interval(0,100)))

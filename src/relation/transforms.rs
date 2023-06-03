@@ -48,7 +48,7 @@ impl Relation {
         let left_size = foreign.schema().len();
         let names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
         let join: Relation = Relation::join().inner()
-            .on(Expr::eq(Expr::qcol(foreign.name(), on.0), Expr::qcol(self.name(), on.1)))
+            .on(Expr::eq(Expr::qcol(self.name(), on.0), Expr::qcol(foreign.name(), on.1)))
             .left(foreign)
             .right(self)
             .build();
@@ -61,7 +61,6 @@ impl Relation {
             .with_iter(right.into_iter().filter_map(|(o, i)| {
                 names.contains(&i.name().to_string()).then_some((i.name(), Expr::col(o.name())))
             }))
-            
             .input(join)
             .build()
     }
@@ -73,7 +72,7 @@ impl Relation {
         } else {
             let path: Vec<((Rc<Relation>, (&str, &str)), (&str, &str))> = path.iter()
                 .map(|(foreign_key, (primary_table, primary_key))| (relations.get(&[primary_table.to_string()]).unwrap().clone(), (*foreign_key, *primary_key)))
-                .zip(path.iter().skip(1).map(|(foreign_key, (_, primary_key))| (*foreign_key, *primary_key)).chain(once((field, name))))
+                .zip(path.iter().skip(1).map(|(foreign_key, _)| (*foreign_key, *foreign_key)).chain(once((field, name))))
                 .collect();
             // Build the relation following the path to compute the new field
             path.into_iter().fold(self, |relation, ((next, on), (field, name))| relation.with_foreign_field(name, next, on, field))
@@ -151,7 +150,6 @@ mod tests {
         assert!(relation.schema()[0].name()!="peid");
     }
 
-    #[ignore]//TODO fix the ON in the JOIN
     #[test]
     fn test_field_path() {
         let mut database = postgresql::test_database();
@@ -165,6 +163,7 @@ mod tests {
         let relation = items.clone().with_field_path("peid", &relations, &[("order_id", ("order_table", "id")), ("user_id", ("user_table", "id"))], "id");
         assert!(relation.schema()[0].name()=="peid");
         // Produce the query
+        display(&relation);
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
         println!(
