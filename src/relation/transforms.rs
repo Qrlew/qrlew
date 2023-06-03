@@ -104,6 +104,8 @@ impl With<(&str, Expr)> for Relation {
 
 #[cfg(test)]
 mod tests {
+    use colored::Colorize;
+    use sqlparser::ast;
     use super::*;
     use crate::{
         sql::parse,
@@ -149,21 +151,33 @@ mod tests {
         assert!(relation.schema()[0].name()!="peid");
     }
 
-    #[ignore]
+    #[ignore]//TODO fix the ON in the JOIN
     #[test]
     fn test_field_path() {
-        let database = postgresql::test_database();
+        let mut database = postgresql::test_database();
         let relations = database.relations();
         // Link orders to users
         let orders = relations.get(&["order_table".to_string()]).unwrap().as_ref();
         let relation = orders.clone().with_field_path("peid", &relations, &[("user_id", ("user_table", "id"))], "id");
-        display(&relation);
+        assert!(relation.schema()[0].name()=="peid");
         // Link items to orders
         let items = relations.get(&["item_table".to_string()]).unwrap().as_ref();
-        // let relation = items.clone().with_field_path("peid", relations, &[("order_id", ("order_table", "id")), ("user_id", ("user_table", "id"))], "id");
         let relation = items.clone().with_field_path("peid", &relations, &[("order_id", ("order_table", "id")), ("user_id", ("user_table", "id"))], "id");
-        display(&relation);
+        assert!(relation.schema()[0].name()=="peid");
+        // Produce the query
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        println!(
+            "{}\n{}",
+            format!("{query}").yellow(),
+            database
+                .query(query)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
         let relation = relation.filter_fields(|n| n!="peid");
-        display(&relation);
+        assert!(relation.schema()[0].name()!="peid");
     }
 }
