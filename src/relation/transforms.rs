@@ -4,7 +4,9 @@
 use std::{
     rc::Rc,
     iter::once,
+    ops::Deref,
 };
+use env_logger::filter;
 use itertools::Itertools;
 
 use super::{Relation, Map, display, Variant as _};
@@ -21,6 +23,120 @@ impl Map {
 
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Map {
         Relation::map().filter_with(self, predicate).build()
+    }
+}
+
+// A few utility objects
+#[derive(Clone, Debug)]
+pub struct Step<'a> {
+    pub referring_id: &'a str,
+    pub referred_relation: &'a str,
+    pub referred_id: &'a str,
+}
+
+impl<'a> From<(&'a str, &'a str, &'a str)> for Step<'a> {
+    fn from((referring_id, referred_relation, referred_id): (&'a str, &'a str, &'a str)) -> Self {
+        Step {
+            referring_id,
+            referred_relation,
+            referred_id,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Path<'a>(pub Vec<Step<'a>>);
+
+impl<'a> Deref for Path<'a> {
+    type Target = Vec<Step<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> FromIterator<&'a(&'a str, &'a str, &'a str)> for Path<'a> {
+    fn from_iter<T: IntoIterator<Item = &'a (&'a str, &'a str, &'a str)>>(iter: T) -> Self {
+        Path(iter.into_iter().map(|(referring_id, referred_relation, referred_id)| Step {
+            referring_id,
+            referred_relation,
+            referred_id,
+        }).collect())
+    }
+}
+
+impl<'a> IntoIterator for Path<'a> {
+    type Item = Step<'a>;
+    type IntoIter = <Vec<Step<'a>> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+/// A link to a relation and a field to keep with a new name
+#[derive(Clone, Debug)]
+pub struct ReferredField<'a> {
+    pub referring_id: &'a str,
+    pub referred_relation: &'a str,
+    pub referred_id: &'a str,
+    pub referred_field: &'a str,
+    pub referred_field_name: &'a str,
+}
+
+#[derive(Clone, Debug)]
+pub struct FieldPath<'a>(pub Vec<ReferredField<'a>>);
+
+impl<'a> FieldPath<'a> {
+    pub fn from_path(path: Path<'a>, referred_field: &'a str, referred_field_name: &'a str) -> Self {
+        let mut field_path = FieldPath(Vec::new());
+        let mut last_step: Option<Step> = None;
+        // Fill the vec
+        for step in path {
+            if let Some(last_step) = &mut last_step {
+                field_path.0.push(ReferredField {
+                    referring_id: last_step.referring_id,
+                    referred_relation: last_step.referred_relation,
+                    referred_id: last_step.referred_id,
+                    referred_field: step.referring_id,
+                    referred_field_name,
+                });
+                *last_step = Step {
+                    referring_id: referred_field_name,
+                    referred_relation: step.referred_relation,
+                    referred_id: step.referred_id,
+                };
+            } else {
+                last_step = Some(step);
+            }
+        }
+        if let Some(last_step) = last_step {
+            field_path.0.push(ReferredField {
+                referring_id: last_step.referring_id,
+                referred_relation: last_step.referred_relation,
+                referred_id: last_step.referred_id,
+                referred_field,
+                referred_field_name,
+            });
+        }
+        field_path
+    }
+}
+
+impl<'a> Deref for FieldPath<'a> {
+    type Target = Vec<ReferredField<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> IntoIterator for FieldPath<'a> {
+    type Item = ReferredField<'a>;
+    type IntoIter = <Vec<ReferredField<'a>> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -44,11 +160,14 @@ impl Relation {
     }
 
     /// Add a field designated with a foreign relation and a field
-    pub fn with_foreign_field(self, name: &str, referred_relation: Rc<Relation>, on: (&str, &str), field: &str) -> Relation {
+    pub fn with_referred_field(self, referring_id: &str, referred_relation: Rc<Relation>, referred_id: &str, referred_field: &str, referred_field_name: &str) -> Relation {
         let left_size = referred_relation.schema().len();
-        let names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let names: Vec<String> = self.schema().iter()
+            .map(|f| f.name().to_string())
+            .filter(|name| name != referred_field_name)//TODO remove this
+            .collect();
         let join: Relation = Relation::join().inner()
-            .on(Expr::eq(Expr::qcol(self.name(), on.0), Expr::qcol(referred_relation.name(), on.1)))
+            .on(Expr::eq(Expr::qcol(self.name(), referring_id), Expr::qcol(referred_relation.name(), referred_id)))
             .left(referred_relation)
             .right(self)
             .build();
@@ -56,7 +175,7 @@ impl Relation {
         let right: Vec<_> = join.schema().iter().zip(join.input_fields()).skip(left_size).collect();
         Relation::map()
             .with_iter(left.into_iter().find_map(|(o, i)| {
-                (field==i.name()).then_some((name, Expr::col(o.name())))
+                (referred_field==i.name()).then_some((referred_field_name, Expr::col(o.name())))
             }))
             .with_iter(right.into_iter().filter_map(|(o, i)| {
                 names.contains(&i.name().to_string()).then_some((i.name(), Expr::col(o.name())))
@@ -66,16 +185,21 @@ impl Relation {
     }
 
     /// Add a field designated with a "fiald path"
-    pub fn with_field_path(self, name: &str, relations: &Hierarchy<Rc<Relation>>, path: &[(&str, (&str, &str))], field: &str) -> Relation {//TODO implement this
+    pub fn with_field_path<'a>(self, relations: &'a Hierarchy<Rc<Relation>>, path: &[(&'a str, &'a str, &'a str)], referred_field: &str, referred_field_name: &str) -> Relation {//TODO implement this
         if path.is_empty() {
-            self.identity_with_field(name, Expr::col(field))
+            self.identity_with_field(referred_field_name, Expr::col(referred_field))
         } else {
-            let path: Vec<((Rc<Relation>, (&str, &str)), (&str, &str))> = path.iter()
-                .map(|(referring_key, (referred_table, referred_key))| (relations.get(&[referred_table.to_string()]).unwrap().clone(), (*referring_key, *referred_key)))
-                .zip(path.iter().skip(1).map(|(foreign_key, _)| (*foreign_key, *foreign_key)).chain(once((field, name))))
-                .collect();
+            let path = Path::from_iter(path);
+            let field_path = FieldPath::from_path(path, referred_field, referred_field_name);
             // Build the relation following the path to compute the new field
-            path.into_iter().fold(self, |relation, ((next, on), (field, name))| relation.with_foreign_field(name, next, on, field))
+            field_path.into_iter().fold(self, |relation, ReferredField { referring_id, referred_relation, referred_id, referred_field, referred_field_name }|  {
+                relation.with_referred_field(referring_id,
+                    relations.get(&[referred_relation.to_string()]).unwrap().clone(),
+                    referred_id,
+                    referred_field,
+                    referred_field_name
+                )
+            })
         }
     }
 
@@ -144,7 +268,7 @@ mod tests {
         let relations = database.relations();
         let orders = Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations)).unwrap();
         let user = relations.get(&["user_table".to_string()]).unwrap().as_ref();
-        let relation = orders.with_foreign_field("peid", Rc::new(user.clone()), ("user_id", "id"), "id");
+        let relation = orders.with_referred_field("user_id", Rc::new(user.clone()), "id", "id", "peid");
         assert!(relation.schema()[0].name()=="peid");
         let relation = relation.filter_fields(|n| n!="peid");
         assert!(relation.schema()[0].name()!="peid");
@@ -156,11 +280,11 @@ mod tests {
         let relations = database.relations();
         // Link orders to users
         let orders = relations.get(&["order_table".to_string()]).unwrap().as_ref();
-        let relation = orders.clone().with_field_path("peid", &relations, &[("user_id", ("user_table", "id"))], "id");
+        let relation = orders.clone().with_field_path(&relations, &[("user_id", "user_table", "id")], "id", "peid");
         assert!(relation.schema()[0].name()=="peid");
         // Link items to orders
         let items = relations.get(&["item_table".to_string()]).unwrap().as_ref();
-        let relation = items.clone().with_field_path("peid", &relations, &[("order_id", ("order_table", "id")), ("user_id", ("user_table", "id"))], "id");
+        let relation = items.clone().with_field_path(&relations, &[("order_id", "order_table", "id"), ("user_id", "user_table", "id")], "name", "peid");
         assert!(relation.schema()[0].name()=="peid");
         // Produce the query
         display(&relation);
