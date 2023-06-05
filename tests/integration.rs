@@ -1,4 +1,5 @@
 use colored::Colorize;
+use itertools::Itertools;
 use sqlparser::ast;
 use qrlew::{
     Relation, With,
