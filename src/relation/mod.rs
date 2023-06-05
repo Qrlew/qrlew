@@ -1272,7 +1272,6 @@ mod tests {
         let table: Relation = Relation::table().schema(schema).build();
         let reduce: Relation = Relation::reduce()
             .with(Expr::sum(Expr::col("a")))
-            .with(Expr::col("a"))
             .group_by(Expr::col("a"))
             .input(table)
             // .with(Expr::count(Expr::col("b")))
