@@ -1,9 +1,10 @@
-use std::{fmt, error, result, collections::HashMap};
+use std::{fmt, error, result, rc::Rc};
 use crate::{
     expr::Expr,
     relation::{Table, Map, Reduce, Join, Set, Relation, Visitor, Variant as _},
     builder::{With, Ready},
     visitor::Acceptor,
+    hierarchy::Hierarchy,
 };
 
 #[derive(Debug, Clone)]
@@ -60,9 +61,9 @@ impl<F: Fn(&Table) -> Relation> ProtectVisitor<F> {
 }
 
 /// Build a visitor from exprs
-pub fn protect_visitor_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(protected_entity: A, strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation> {
+pub fn protect_visitor_from_exprs<'a>(protected_entity: &'a [(&'a Table, Expr)], strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation+'a> {
     ProtectVisitor::new(move |table: &Table| {
-        match protected_entity.as_ref().iter().find_map(|(t, e)| (table==*t).then(|| e.clone())) {
+        match protected_entity.iter().find_map(|(t, e)| (table==*t).then(|| e.clone())) {
             Some(expr) => Relation::from(table.clone()).identity_with_field(PEID, expr.clone()),
             None => table.clone().into(),
         }
@@ -70,14 +71,13 @@ pub fn protect_visitor_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(protecte
 }
 
 /// Build a visitor from exprs
-pub fn protect_visitor_from_field_paths<'a>(protected_entity: &'a[&'a[(&'a str, &'a str)]], strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation+'a> {
+pub fn protect_visitor_from_field_paths<'a>(relations: &'a Hierarchy<Rc<Relation>>, protected_entity: &'a[(&'a str, &'a[(&'a str, &'a str, &'a str)], &'a str)], strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation+'a> {
     ProtectVisitor::new(move |table: &Table| {
-        match protected_entity.into_iter().find(|&&tabs_cols| tabs_cols.get(0).map(|(tab, _col)| table.name()==*tab).unwrap_or(false)) {
-            Some([(_tab, col)]) => Relation::from(table.clone()).with_field(PEID, Expr::col(*col)),
-            Some(tabs_cols) => todo!(),// TODO implement this
+        match protected_entity.iter().find(|(tab, path, field)| table.name()==*tab) {
+            Some((tab, path, field)) => Relation::from(table.clone()).with_field_path(relations, path, field, PEID),
             None => table.clone().into(),
         }
-    }, strategy)
+    }, strategy)//TODO compute id with md5
 }
 
 impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVisitor<F> {
@@ -135,13 +135,13 @@ impl Relation {
     }
 
     /// Add protection
-    pub fn protect_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(self, protected_entity: A) -> Result<Relation> {
+    pub fn protect_from_exprs<'a>(self, protected_entity: &'a [(&'a Table, Expr)]) -> Result<Relation> {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft))
     }
 
     /// Add protection
-    pub fn protect_from_field_paths<'a>(self, protected_entity: &'a[&'a[(&'a str, &'a str)]]) -> Result<Relation> {
-        self.accept(protect_visitor_from_field_paths(protected_entity, Strategy::Soft))
+    pub fn protect_from_field_paths<'a>(self, relations: &'a Hierarchy<Rc<Relation>>, protected_entity: &'a[(&'a str, &'a[(&'a str, &'a str, &'a str)], &'a str)]) -> Result<Relation> {
+        self.accept(protect_visitor_from_field_paths(relations, protected_entity, Strategy::Soft))
     }
 
     /// Force protection
@@ -150,13 +150,13 @@ impl Relation {
     }
 
     /// Force protection
-    pub fn force_protect_from_exprs<'a, A: AsRef<[(&'a Table, Expr)]>+'a>(self, protected_entity: A) -> Relation {
+    pub fn force_protect_from_exprs<'a>(self, protected_entity: &'a [(&'a Table, Expr)]) -> Relation {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Hard)).unwrap()
     }
 
      /// Force protection
-    pub fn force_protect_from_field_paths<'a>(self, protected_entity: &'a[&'a[(&'a str, &'a str)]]) -> Relation {
-        self.accept(protect_visitor_from_field_paths(protected_entity, Strategy::Hard)).unwrap()
+    pub fn force_protect_from_field_paths<'a>(self, relations: &'a Hierarchy<Rc<Relation>>, protected_entity: &'a[(&'a str, &'a[(&'a str, &'a str, &'a str)], &'a str)]) -> Relation {
+        self.accept(protect_visitor_from_field_paths(relations, protected_entity, Strategy::Hard)).unwrap()
     }
 }
 
@@ -176,7 +176,7 @@ mod tests {
         let relations = database.relations();
         let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
         // Table
-        let table = table.protect_from_exprs([(&database.tables()[0], expr!(md5(a)))]).unwrap();
+        let table = table.protect_from_exprs(&[(&database.tables()[0], expr!(md5(a)))]).unwrap();
         println!("Schema protected = {}", table.schema());
         assert_eq!(table.schema()[0].name(), PEID)
     }
@@ -185,9 +185,9 @@ mod tests {
     fn test_table_protection_from_field_paths() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let table = relations.get(&["secondary_table".into()]).unwrap().as_ref().clone();
+        let table = relations.get(&["item_table".into()]).unwrap().as_ref().clone();
         // Table
-        let table = table.protect_from_field_paths(&[&[("secondary_table", "primary_id")]]).unwrap();
+        let table = table.protect_from_field_paths(&relations, &[("item_table", &[("order_id", "order_table", "id")], "id")]).unwrap();
         println!("Schema protected = {}", table.schema());
         assert_eq!(table.schema()[0].name(), PEID)
     }
@@ -197,10 +197,14 @@ mod tests {
     fn test_relation_protection() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let relation = Relation::try_from(parse("SELECT sum(amount) FROM secondary_table GROUP BY primary_id").unwrap().with(&relations)).unwrap();
+        let relation = Relation::try_from(parse("SELECT sum(price) FROM item_table GROUP BY order_id").unwrap().with(&relations)).unwrap();
         // let relation = Relation::try_from(parse("SELECT * FROM primary_table").unwrap().with(&relations)).unwrap();
         // Table
-        let relation = relation.force_protect_from_field_paths(&[&[("primary_table", "id")], &[("secondary_table", "primary_id"), ("primary_table", "id"), ("primary_table", "id")]]);
+        let relation = relation.force_protect_from_field_paths(&relations, &[
+            ("item_table", &[("order_id", "order_table", "id"), ("user_id", "user_table", "id")], "name"),
+            ("order_table", &[("user_id", "user_table", "id")], "name"),
+            ("user_table", &[], "name"),
+        ]);
         display(&relation);
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID)

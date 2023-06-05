@@ -3,13 +3,10 @@
 
 use std::{
     rc::Rc,
-    iter::once,
     ops::Deref,
 };
-use env_logger::filter;
-use itertools::Itertools;
 
-use super::{Relation, Map, display, Variant as _};
+use super::{Relation, Map, Variant as _};
 use crate::{
     expr::Expr,
     builder::{With, Ready, WithIterator},
@@ -160,7 +157,7 @@ impl Relation {
     }
 
     /// Add a field designated with a foreign relation and a field
-    pub fn with_referred_field(self, referring_id: &str, referred_relation: Rc<Relation>, referred_id: &str, referred_field: &str, referred_field_name: &str) -> Relation {
+    pub fn with_referred_field<'a>(self, referring_id: &'a str, referred_relation: Rc<Relation>, referred_id: &'a str, referred_field: &'a str, referred_field_name: &'a str) -> Relation {
         let left_size = referred_relation.schema().len();
         let names: Vec<String> = self.schema().iter()
             .map(|f| f.name().to_string())
@@ -185,7 +182,7 @@ impl Relation {
     }
 
     /// Add a field designated with a "fiald path"
-    pub fn with_field_path<'a>(self, relations: &'a Hierarchy<Rc<Relation>>, path: &[(&'a str, &'a str, &'a str)], referred_field: &str, referred_field_name: &str) -> Relation {//TODO implement this
+    pub fn with_field_path<'a>(self, relations: &'a Hierarchy<Rc<Relation>>, path: &'a [(&'a str, &'a str, &'a str)], referred_field: &'a str, referred_field_name: &'a str) -> Relation {
         if path.is_empty() {
             self.identity_with_field(referred_field_name, Expr::col(referred_field))
         } else {
@@ -229,8 +226,10 @@ impl With<(&str, Expr)> for Relation {
 mod tests {
     use colored::Colorize;
     use sqlparser::ast;
+    use itertools::Itertools;
     use super::*;
     use crate::{
+        relation::display,
         sql::parse,
         io::{Database, postgresql},
     };
@@ -263,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_foreign_field() {
+    fn test_referred_field() {
         let database = postgresql::test_database();
         let relations = database.relations();
         let orders = Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations)).unwrap();
@@ -287,7 +286,7 @@ mod tests {
         let relation = items.clone().with_field_path(&relations, &[("order_id", "order_table", "id"), ("user_id", "user_table", "id")], "name", "peid");
         assert!(relation.schema()[0].name()=="peid");
         // Produce the query
-        display(&relation);
+        // display(&relation);
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
         println!(
