@@ -7,6 +7,7 @@ use crate::{
     builder::{With, Ready, WithIterator},
 };
 
+
 impl Relation {
     pub fn with_computed_field(self, name: &str, expr: Expr) -> Relation {
         Relation::map()
@@ -41,21 +42,22 @@ impl Relation {
         /// For the clipping,
 
         // Build the first Reduce that sum up the coordinates according to `vector` and `bases`
+        let mut reduce_builder = Relation::reduce();
+        reduce_builder = bases.iter()
+            .fold(
+                reduce_builder,
+                |acc, b| acc.group_by(Expr::col(b.to_string()))
+            );
+        reduce_builder = reduce_builder.group_by(Expr::col(vector.to_string()));
+        reduce_builder = reduce_builder.with_iter(coordinates.iter().map(|x| Expr::sum(Expr::col(x.to_string()))));
+        let reduce1: Relation = reduce_builder.input(self).build();
+        display(&reduce1);
+        println!("SCHEMA: {:?}", reduce1.schema());
 
-        let reduce_builder = Relation::reduce();
-        for base in bases {
-            let col = Expr::col(base.to_string());
-            reduce_builder.with(col).group_by(col);
-        }
-        let vector_col = Expr::col(vector.to_string());
-        reduce_builder.with(vector_col).group_by(vector_col);
-        for coord in coordinates {
-            reduce_builder.with(Expr::col(coord.to_string()));
-        }
-        let reduce: Relation = reduce_builder.build();
-        reduce
-
-
+        let mut map_builder = Relation::map();
+        map_builder = map_builder.with_iter(reduce1.input_fields().iter().map(|f| Expr::abs(Expr::col(f.name()))));
+        let map: Relation = map_builder.input(reduce1).build();
+        map
         // let mut named_group_by: Vec<(String, Expr)> = vec![];
         // bases.iter()
         //     .for_each(|x| named_group_by.push((x.to_string(), Expr::col(x.to_string()))));
@@ -114,7 +116,7 @@ mod tests {
         data_type::DataType,
         sql::parse,
         io::{Database, postgresql},
-        relation::{Table, schema::Schema}
+        relation::{Table, schema::Schema, builder::*}
     };
 
     #[test]
@@ -156,12 +158,20 @@ mod tests {
             .as_ref()
             .clone();
         display(&table);
-        let amount_norm = table.make_l1_norm(
-            "primary_id",
-            vec!["transaction_name"],
-            vec!["amount"]
-        );
-        display(&amount_norm);
+        // let amount_norm = table.make_l1_norm(
+        //     "primary_id",
+        //     vec!["transaction_name"],
+        //     vec!["amount"]
+        // );
+        // display(&amount_norm);
+        let reduce: Relation = Relation::reduce()
+            .group_by(Expr::col("primary_id"))
+            .with(Expr::sum(Expr::col("primary_id")))
+            .with(Expr::sum(Expr::col("amount")))
+            .input(table)
+            // .with(Expr::count(Expr::col("b")))
+            .build();
+        display(&reduce);
 
         //let relation = Relation::try_from(parse("SELECT d AS peid As c, c, a FROM table_1").unwrap().with(&relations)).unwrap();
         //let relation = relation.with_computed_field("peid", expr!(cos(a)));
