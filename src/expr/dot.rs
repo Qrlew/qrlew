@@ -1,8 +1,8 @@
 //! Plot the dot graph of an expression to debug
 
-use std::{fmt, fs::File, process::Command, string};
+use std::{fmt, io, fs::File, process::Command, string};
 
-use super::{aggregate, function, Column, Error, Expr, Result, Value, Visitor};
+use super::{aggregate, function, Column, Error, Expr, Value, Visitor};
 use crate::{
     data_type::{DataType, DataTyped},
     namer,
@@ -167,10 +167,8 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 
 impl Expr {
     /// Render the Expr to dot
-    pub fn dot(&self, data_type: DataType) -> Result<String> {
-        let mut buffer: Vec<u8> = Vec::new();
-        dot::render(&VisitedExpr(self, DotVisitor(&data_type)), &mut buffer).unwrap();
-        Ok(String::from_utf8(buffer)?)
+    pub fn dot<W: io::Write>(&self, data_type: DataType, w: &mut W) -> io::Result<()> {
+        dot::render(&VisitedExpr(self, DotVisitor(&data_type)), w)
     }
 }
 

@@ -1,7 +1,7 @@
-use super::{Error, Field, Relation, Result, JoinOperator, JoinConstraint, Variant as _, Visitor};
+use super::{Error, Field, Relation, JoinOperator, JoinConstraint, Variant as _, Visitor};
 use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor};
 use itertools::Itertools;
-use std::{borrow::Cow, fmt, fs::File, process::Command, str, string};
+use std::{borrow::Cow, fmt, io, fs::File, process::Command, str, string};
 
 impl From<string::FromUtf8Error> for Error {
     fn from(err: string::FromUtf8Error) -> Self {
@@ -268,10 +268,8 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 
 impl Relation {
     /// Render the Relation to dot
-    pub fn dot(&self) -> Result<String> {
-        let mut buffer: Vec<u8> = Vec::new();
-        dot::render(&VisitedRelation(self, DotVisitor), &mut buffer).unwrap();
-        Ok(String::from_utf8(buffer)?)
+    pub fn dot<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
+        dot::render(&VisitedRelation(self, DotVisitor), w)
     }
 }
 
@@ -292,6 +290,7 @@ pub fn display(relation: &Relation) {
         .output()
         .expect("Error: this works on MacOS only");
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
