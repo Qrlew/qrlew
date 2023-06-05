@@ -361,6 +361,30 @@ impl fmt::Display for Unit {
     }
 }
 
+impl Or<DataType> for Unit {
+    type Sum = Optional;
+    fn or(self, other: DataType) -> Self::Sum {
+        match other {
+            DataType::Null | DataType::Unit(_) => Optional::from_data_type(DataType::Null),
+            DataType::Optional(o) => o,
+            o => Optional::from_data_type(o),
+        }        
+    }
+}
+
+impl InjectInto<DataType> for Unit {
+    type Injection = Base<Self, DataType>;
+    fn inject_into(&self, other: &DataType) -> injection::Result<Base<Self, DataType>> {
+        injection::From(self.clone()).into(other.clone())
+    }
+}
+
+impl From<value::Unit> for Unit {
+    fn from(_value: value::Unit) -> Self {
+        Unit
+    }
+}
+
 impl Variant for Unit {
     type Element = value::Unit;
 
@@ -390,29 +414,6 @@ impl Variant for Unit {
 
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Unit)
-    }
-}
-
-impl Or<DataType> for Unit {
-    type Sum = DataType;
-    fn or(self, other: DataType) -> Self::Sum {
-        match other {
-            DataType::Null | DataType::Unit(_) => self.into(),
-            other => DataType::optional(other),
-        }
-    }
-}
-
-impl InjectInto<DataType> for Unit {
-    type Injection = Base<Self, DataType>;
-    fn inject_into(&self, other: &DataType) -> injection::Result<Base<Self, DataType>> {
-        injection::From(self.clone()).into(other.clone())
-    }
-}
-
-impl From<value::Unit> for Unit {
-    fn from(_value: value::Unit) -> Self {
-        Unit
     }
 }
 
@@ -1197,6 +1198,20 @@ impl<T: Into<Rc<DataType>>> Or<(T,)> for Union {
     }
 }
 
+impl Or<Unit> for Union {
+    type Sum = Optional;
+    fn or(self, _other: Unit) -> Self::Sum {
+        Optional::from_data_type(DataType::from(self))
+    }
+}
+
+impl Or<Optional> for Union {
+    type Sum = Optional;
+    fn or(self, other: Optional) -> Self::Sum {
+        Optional::from_data_type(DataType::from(self.or(other.data_type().clone())))
+    }
+}
+
 impl Or<Union> for Union {
     type Sum = Union;
     fn or(self, other: Union) -> Self::Sum {
@@ -1386,24 +1401,6 @@ impl From<DataType> for Optional {
     }
 }
 
-impl Or<Optional> for Optional {
-    type Sum = Optional;
-    fn or(self, other: Optional) -> Self::Sum {
-        Optional::from_data_type(self.data_type().clone().or(other.data_type().clone()))
-    }
-}
-
-impl Or<DataType> for Optional {
-    type Sum = Optional;
-    fn or(self, other: DataType) -> Self::Sum {
-        match other {
-            DataType::Null | DataType::Unit(_) => self,
-            DataType::Optional(opt) => self.or(opt),
-            other => Optional::from_data_type(self.data_type().clone().or(other)),
-        }
-    }
-}
-
 #[allow(clippy::derive_hash_xor_eq)]
 impl hash::Hash for Optional {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -1420,6 +1417,25 @@ impl cmp::PartialOrd for Optional {
 impl fmt::Display for Optional {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "option({})", self.data_type)
+    }
+}
+
+
+impl Or<Optional> for Optional {
+    type Sum = Optional;
+    fn or(self, other: Optional) -> Self::Sum {
+        Optional::from_data_type(self.data_type().clone().or(other.data_type().clone()))
+    }
+}
+
+impl Or<DataType> for Optional {
+    type Sum = Optional;
+    fn or(self, other: DataType) -> Self::Sum {
+        match other {
+            DataType::Null | DataType::Unit(_) => self,
+            DataType::Optional(o) => self.or(o),
+            o => Optional::from_data_type(self.data_type().clone().or(o)),
+        }
     }
 }
 
@@ -2737,13 +2753,10 @@ impl Or<DataType> for DataType {
     type Sum = DataType;
     fn or(self, other: DataType) -> Self::Sum {
         match (self, other) {
-            (DataType::Null, o) => o,
+            (DataType::Null, d) => d,
             (DataType::Unit(_), DataType::Unit(_)) => DataType::unit(),
-            (DataType::Unit(u), d) | (d, DataType::Unit(u)) => u.or(d),
-            (DataType::Optional(sopt), o) => sopt.or(o).into(),
-            (s, DataType::Optional(opt)) => {
-                Optional::new(s.into()).or(opt.data_type().clone()).into()
-            }
+            (DataType::Unit(u), d) | (d, DataType::Unit(u)) => u.or(d).into(),
+            (DataType::Optional(o), d) | (d, DataType::Optional(o)) => o.or(d).into(),
             (s, o) => Union::from_data_type(s).or(o).into(),
         }
     }
