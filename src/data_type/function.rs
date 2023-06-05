@@ -1391,8 +1391,7 @@ pub fn position() -> impl Function + Clone {
         DataType::optional(DataType::integer()),
         |a,b| Value::Optional(
             value::Optional::new(
-                //b.find(&a).map(|v| Rc::new(Value::integer(v.try_into().unwrap()
-                Rc::new(Value::integer(1)).into()
+                b.find(&a).map(|v| Rc::new(Value::integer(v.try_into().unwrap())))
             )
         )
     )
@@ -2170,6 +2169,16 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Optional(_)));
+
+        assert_eq!(
+            Value::some(Value::integer(0)),
+            fun.value(&Value::structured_from_values([Value::text("a"), Value::text("aba")])).unwrap()
+        );
+
+        assert_eq!(
+            Value::none(),
+            fun.value(&Value::structured_from_values([Value::text("z"), Value::text("aba")])).unwrap()
+        );
     }
 
 }
