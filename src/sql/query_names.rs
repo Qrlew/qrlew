@@ -100,6 +100,18 @@ impl<'a> fmt::Display for QueryNames<'a> {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct IntoQueryNamesVisitor;
 
+fn names_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::ObjectName> {
+    match set_expr {
+        ast::SetExpr::Select(select) => {
+            select.from.iter().flat_map(|table_with_joins| TableWithJoins::new(table_with_joins).names()).collect()
+        }
+        ast::SetExpr::SetOperation { left, right , .. } => {
+            names_from_set_expr(left.as_ref()).into_iter().chain(names_from_set_expr(right.as_ref())).collect()
+        },
+        _ => todo!(),
+    }
+}
+
 impl<'a> Visitor<'a, QueryNames<'a>> for IntoQueryNamesVisitor {
     fn query(
         &self,
@@ -112,15 +124,8 @@ impl<'a> Visitor<'a, QueryNames<'a>> for IntoQueryNamesVisitor {
             query_names.extend(dependency);
         }
         // Add reference elements from current query
-        match query.body.as_ref() {
-            ast::SetExpr::Select(select) => {
-                for table_with_joins in select.from.iter() {
-                    for name in TableWithJoins::new(table_with_joins).names() {
-                        query_names.insert((query, name.clone()), None);
-                    }
-                }
-            }
-            _ => todo!(), // Not implemented
+        for name  in names_from_set_expr(query.body.as_ref()) {
+            query_names.insert((query, name.clone()), None);
         }
         // Set names
         if let Some(with) = &query.with {

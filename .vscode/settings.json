@@ -1,0 +1,8 @@
+{
+    "rust-analyzer.check.features": [
+        "sqlite"
+    ],
+    "rust-analyzer.cargo.features": [
+        "sqlite"
+    ],
+}

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - String functions `POSITION`, `LOWER`, `UPPER` and `CHAR_LENGTH` [PR9](https://github.com/Qrlew/qrlew/pull/9)
 
+## [0.1.2] - 2023-06-01
+### Added
+- Md5 and Concat functions
+- Protection operation
+- Set operations support
+
+### Fixed
 ## [0.1.1] - 2023-05-26
 ### Changed
 - Made sqlite optional
@@ -16,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2023-05-25
 ### Added
 - First commit open source
+
 ### Fixed
 ### Changed
 ### Removed

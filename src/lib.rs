@@ -13,6 +13,7 @@ pub mod relation;
 pub mod sql;
 pub mod types;
 pub mod visitor;
+pub mod protected;
 
 /// Expose sqlparser as part of qrlew
 pub use sqlparser;

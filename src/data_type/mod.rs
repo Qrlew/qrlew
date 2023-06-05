@@ -346,7 +346,7 @@ impl Composite for Array {}
 impl Composite for Function {}
 
 /// Unit variant
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct Unit;
 
 impl Default for Unit {
@@ -1543,7 +1543,6 @@ impl Variant for List {
 impl InjectInto<DataType> for List {
     type Injection = Base<Self, DataType>;
     fn inject_into(&self, other: &DataType) -> injection::Result<Base<Self, DataType>> {
-        println!("DEBUG {self} into {other}");
         injection::From(self.clone()).into(other.clone())
     }
 }
