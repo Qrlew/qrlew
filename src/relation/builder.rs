@@ -157,6 +157,21 @@ impl<RequireInput> MapBuilder<RequireInput> {
         builder
     }
 
+    /// Initialize a builder with filtered existing map
+    pub fn map_with<F: Fn(&str, Expr) -> Expr>(self, map: Map, f: F) -> MapBuilder<WithInput> {
+        let Map { name, projection, filter, order_by, limit, schema, input, .. } = map;
+        let builder = self.name(name)
+            .with_iter(schema.into_iter().zip(projection).map(|(field, expr)| (field.name().to_string(), f(field.name(), expr))))
+            .input(input);
+        // Filter
+        let builder = filter.into_iter().fold(builder, |b, f|b.filter(f));
+        // Order by
+        let builder = order_by.into_iter().fold(builder, |b, o|b.order_by(o.expr, o.asc));
+        // Limit
+        let builder = limit.into_iter().fold(builder, |b, l|b.limit(l));
+        builder
+    }
+
     pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> MapBuilder<WithInput> {
         MapBuilder {
             name: self.name,

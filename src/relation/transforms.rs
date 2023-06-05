@@ -21,6 +21,10 @@ impl Map {
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Map {
         Relation::map().filter_with(self, predicate).build()
     }
+
+    pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Map {
+        Relation::map().map_with(self, f).build()
+    }
 }
 
 // A few utility objects
@@ -161,7 +165,7 @@ impl Relation {
         let left_size = referred_relation.schema().len();
         let names: Vec<String> = self.schema().iter()
             .map(|f| f.name().to_string())
-            .filter(|name| name != referred_field_name)//TODO remove this
+            .filter(|name| name != referred_field_name)
             .collect();
         let join: Relation = Relation::join().inner()
             .on(Expr::eq(Expr::qcol(self.name(), referring_id), Expr::qcol(referred_relation.name(), referred_id)))
@@ -210,7 +214,18 @@ impl Relation {
                     .build()
             }
         }
-        
+    }
+
+    pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Relation {
+        match self {
+            Relation::Map(map) => map.map_fields(f).into(),
+            relation => {
+                Relation::map()
+                    .with_iter(relation.schema().iter().map(|field| (field.name(), f(field.name(), Expr::col(field.name())))))
+                    .input(relation)
+                    .build()
+            }
+        }
     }
 
     

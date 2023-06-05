@@ -74,10 +74,14 @@ pub fn protect_visitor_from_exprs<'a>(protected_entity: &'a [(&'a Table, Expr)],
 pub fn protect_visitor_from_field_paths<'a>(relations: &'a Hierarchy<Rc<Relation>>, protected_entity: &'a[(&'a str, &'a[(&'a str, &'a str, &'a str)], &'a str)], strategy: Strategy) -> ProtectVisitor<impl Fn(&Table) -> Relation+'a> {
     ProtectVisitor::new(move |table: &Table| {
         match protected_entity.iter().find(|(tab, path, field)| table.name()==*tab) {
-            Some((tab, path, field)) => Relation::from(table.clone()).with_field_path(relations, path, field, PEID),
+            Some((tab, path, field)) => Relation::from(table.clone()).with_field_path(relations, path, field, PEID).map_fields(|n, e| if n==PEID {
+                Expr::md5(e)
+            } else {
+                e
+            }),
             None => table.clone().into(),
         }
-    }, strategy)//TODO compute id with md5
+    }, strategy)
 }
 
 impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVisitor<F> {
@@ -192,7 +196,7 @@ mod tests {
         assert_eq!(table.schema()[0].name(), PEID)
     }
 
-    #[ignore]
+    // #[ignore]
     #[test]
     fn test_relation_protection() {
         let mut database = postgresql::test_database();
@@ -205,24 +209,8 @@ mod tests {
             ("order_table", &[("user_id", "user_table", "id")], "name"),
             ("user_table", &[], "name"),
         ]);
-        display(&relation);
+        // display(&relation);
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID)
     }
-
-    // #[ignore]
-    // #[test]
-    // fn test_relation_protection() {
-    //     let mut database = postgresql::test_database();
-    //     let relations = database.relations();
-    //     let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
-    //     let relation = Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
-    //     // Table
-    //     let table = table.with_computed_field("peid", expr!(a+b));
-    //     let relation = relation.with_computed_field("peid", expr!(cos(a)));
-    //     // Print a few rows
-    //     for row in database.query(&ast::Query::from(&relation).to_string()).unwrap() {
-    //         println!("{row}");
-    //     }
-    // }
 }
