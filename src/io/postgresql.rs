@@ -315,7 +315,13 @@ impl<'a> FromSql<'a> for SqlValue {
     ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
         match ty {
             &Type::BOOL => bool::from_sql(ty, raw).map(|b| SqlValue::Boolean(b.into())),
-            &Type::INT4 | &Type::INT8 => {
+            // &Type::INT4 | &Type::INT8 => {
+            //     i64::from_sql(ty, raw).map(|i| SqlValue::Integer(i.into()))
+            // }
+            &Type::INT4 => {
+                i32::from_sql(ty, raw).map(|i| SqlValue::Integer((i as i64).into()))
+            }
+            &Type::INT8 => {
                 i64::from_sql(ty, raw).map(|i| SqlValue::Integer(i.into()))
             }
             &Type::FLOAT4 | &Type::FLOAT8 => {

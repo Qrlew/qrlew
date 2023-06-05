@@ -43,6 +43,10 @@ pub enum Function {
     Case,
     Md5,
     Concat(usize),
+    CharLength,
+    Lower,
+    Position,
+    Upper,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -93,8 +97,12 @@ impl Function {
             | Function::Cos
             | Function::Sqrt
             | Function::Md5
+            | Function::Lower
+            | Function::Upper
             // Binary Functions
             | Function::Pow
+            | Function::CharLength
+            | Function::Position
             // Ternary Function
             | Function::Case
             // Nary Function
@@ -134,9 +142,12 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Md5 => Arity::Unary,
+            | Function::Md5
+            | Function::CharLength
+            | Function::Lower
+            | Function::Upper => Arity::Unary,
             // Binary Function
-            Function::Pow => Arity::Nary(2),
+            Function::Pow | Function::Position => Arity::Nary(2),
             // Ternary Function
             Function::Case => Arity::Nary(3),
             // Nary Function
@@ -199,9 +210,13 @@ impl fmt::Display for Function {
             Function::Sin => "sin",
             Function::Cos => "cos",
             Function::Sqrt => "sqrt",
+            Function::CharLength => "char_length",
+            Function::Lower => "lower",
+            Function::Upper  => "upper",
             // Binary Functions
             Function::Pow => "pow",
             Function::Concat(_) => "concat",
+            Function::Position => "position",
             // Ternary Functions
             Function::Case => "case",
             // Nary Functions

@@ -76,7 +76,11 @@ const QUERIES: &[&str] = &[
     t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
     SELECT * FROM t1 UNION SELECT * FROM t2",
     // Some joins
-    "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10"
+    "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
+    "SELECT UPPER(z) FROM table_2 LIMIT 5",
+    "SELECT LOWER(z) FROM table_2 LIMIT 5",
+    "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
+    "SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
 ];
 
 #[cfg(feature = "sqlite")]

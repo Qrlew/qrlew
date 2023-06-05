@@ -176,7 +176,7 @@ macro_rules! impl_unary_function_constructors {
     };
 }
 
-impl_unary_function_constructors!(Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5); // TODO Complete that
+impl_unary_function_constructors!(Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength); // TODO Complete that
 
 /// Implement binary function constructors
 macro_rules! impl_binary_function_constructors {
@@ -222,7 +222,8 @@ impl_binary_function_constructors!(
     BitwiseOr,
     BitwiseAnd,
     BitwiseXor,
-    Pow
+    Pow,
+    Position
 );
 
 /// Implement ternary function constructors

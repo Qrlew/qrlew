@@ -29,7 +29,9 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             crate::data_type::value::Value::Float(f) => {
                 ast::Expr::Value(ast::Value::Number(format!("{}", **f), false))
             }
-            crate::data_type::value::Value::Text(_) => todo!(),
+            crate::data_type::value::Value::Text(t) => {
+                ast::Expr::Value(ast::Value::SingleQuotedString(format!("{}", **t)))
+            }
             crate::data_type::value::Value::Bytes(_) => todo!(),
             crate::data_type::value::Value::Struct(_) => todo!(),
             crate::data_type::value::Value::Union(_) => todo!(),
@@ -160,7 +162,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Pow
             | expr::function::Function::Case
             | expr::function::Function::Md5
-            | expr::function::Function::Concat(_) => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Concat(_)
+            | expr::function::Function::CharLength
+            | expr::function::Function::Lower
+            | expr::function::Function::Upper => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments.into_iter().map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))).collect(),
                 over: None,
@@ -168,6 +173,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 special: false,
                 order_by: vec![],
             }),
+            expr::function::Function::Position => ast::Expr::Position {
+                expr: arguments[0].clone().into(),
+                r#in: arguments[1].clone().into()
+            }
         }
     }
     // TODO implement this properly
@@ -317,6 +326,41 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr)
+    }
+
+    #[test]
+    fn test_string_functions() {
+        // Lower
+        let ast_expr: ast::Expr = parse_expr("LOWER(my_expr)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // Upper
+        let ast_expr: ast::Expr = parse_expr("UPPER(my_expr)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // CharLength
+        let ast_expr: ast::Expr = parse_expr("CHAR_LENGTH(my_expr)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // CharLength
+        let ast_expr: ast::Expr = parse_expr("POSITION('x' IN expr)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
     }
 
     #[test]
