@@ -141,7 +141,7 @@ pub trait Database: Sized {
                     Schema::empty()
                         .with(("x", DataType::integer_interval(0, 100)))
                         .with(("y", DataType::optional(DataType::text())))
-                        .with(("z", DataType::text_values(["foo".into(), "bar".into()]))),
+                        .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))),
                 )
                 .build(),
         ]
