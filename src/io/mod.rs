@@ -12,7 +12,7 @@ use crate::{
     hierarchy::Hierarchy,
     relation::{builder::TableBuilder, schema::Schema, Relation, Table, Variant as _},
 };
-use std::{convert::Infallible, error, fmt, io, rc::Rc, result, num};
+use std::{convert::Infallible, error, fmt, io, num, rc::Rc, result};
 
 // Error management
 #[derive(Debug)]

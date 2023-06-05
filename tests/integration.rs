@@ -1,5 +1,5 @@
-use itertools::Itertools;
 use colored::Colorize;
+use itertools::Itertools;
 use sqlparser::ast;
 use qrlew::{
     Relation, With,
@@ -9,6 +9,7 @@ use qrlew::{
 };
 #[cfg(feature = "sqlite")]
 use qrlew::io::sqlite;
+
 
 pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();
