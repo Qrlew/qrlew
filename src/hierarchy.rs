@@ -308,7 +308,7 @@ mod tests {
         let values = Hierarchy::from([
             (["table_1", "a"], ["t1", "a"]),
             (["table_1", "b"], ["t1", "b"]),
-            (["", "u"], ["t2", "a"]),
+            (["table_2", "u"], ["t2", "a"]),
             (["table_2", "v"], ["t2", "c"]),
         ]);
         let map = Hierarchy::from([
