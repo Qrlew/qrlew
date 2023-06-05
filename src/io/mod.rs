@@ -181,11 +181,16 @@ pub trait Database: Sized {
                 .build(),
         ]
     }
+
+    /// Add a vec of tables
+    fn with_tables(self, tables: Vec<Table>) -> Result<Self> {
+        tables.into_iter()
+            .fold(Ok(self), |db, t| db?.with(t))
+    }
+
     /// A basic test DB
     fn with_test_tables(self) -> Result<Self> {
-        Self::test_tables()
-            .into_iter()
-            .fold(Ok(self), |db, t| db?.with(t))
+        self.with_tables(Self::test_tables())
     }
 }
 
