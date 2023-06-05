@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn test_string_functions() {
         // Lower
-        let ast_expr: ast::Expr = parse_expr("LOWER(my_expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("lower(my_expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -339,7 +339,7 @@ mod tests {
         assert_eq!(ast_expr, gen_expr);
 
         // Upper
-        let ast_expr: ast::Expr = parse_expr("UPPER(my_expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("upper(my_expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -347,7 +347,7 @@ mod tests {
         assert_eq!(ast_expr, gen_expr);
 
         // CharLength
-        let ast_expr: ast::Expr = parse_expr("CHAR_LENGTH(my_expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("char_length(my_expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -355,7 +355,7 @@ mod tests {
         assert_eq!(ast_expr, gen_expr);
 
         // CharLength
-        let ast_expr: ast::Expr = parse_expr("POSITION('x' IN expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("position('x' in expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
