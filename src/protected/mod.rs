@@ -209,7 +209,7 @@ mod tests {
             ("order_table", &[("user_id", "user_table", "id")], "name"),
             ("user_table", &[], "name"),
         ]);
-        //display(&relation);
+        // display(&relation);
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID);
     }
