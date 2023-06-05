@@ -15,6 +15,7 @@ pub const TABLE: &str = "table";
 pub const MAP: &str = "map";
 pub const REDUCE: &str = "reduce";
 pub const JOIN: &str = "join";
+pub const SET: &str = "set";
 pub const RELATION: &str = "relation";
 
 /// A global shared counter

@@ -4,6 +4,7 @@ use std::{
     error, fmt,
     rc::Rc,
     result,
+    collections, hash::Hasher, ops::Deref,
 };
 
 use itertools::Itertools;
@@ -17,7 +18,10 @@ use super::{
     DataType, DataTyped, Integer, List, Variant,
 };
 
-use crate::builder::With;
+use crate::{
+    builder::With,
+    encoder::{Encoder, BASE_64},
+};
 
 /// Inspiration from:
 /// - https://www.postgresql.org/docs/9.1/functions-math.html
@@ -142,7 +146,54 @@ where
     }
 }
 
+/// A function defined by its type signature and indicative value function without any other particular properties
+/// In particular, no range computation is done
+#[derive(Clone)]
+pub struct Simple {
+    domain: DataType,
+    co_domain: DataType,
+    value: Rc<dyn Fn(Value) -> Value>,
+}
+
+impl Simple {
+    /// Constructor for Generic
+    pub fn new(domain: DataType, co_domain: DataType, value: Rc<dyn Fn(Value) -> Value>) -> Self {
+        Simple {
+            domain,
+            co_domain,
+            value
+        }
+    }
+}
+
+impl fmt::Debug for Simple {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
+    }
+}
+
+impl fmt::Display for Simple {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
+    }
+}
+
+impl Function for Simple {
+    fn domain(&self) -> DataType {
+        self.domain.clone()
+    }
+
+    fn super_image(&self, _set: &DataType) -> Result<DataType> {
+        Ok(self.co_domain.clone())
+    }
+
+    fn value(&self, arg: &Value) -> Result<Value> {
+        Ok((*self.value)(arg.clone()))
+    }
+}
+
 /// A function defined pointwise without any other particular properties
+/// Range computation is done on finite ranges
 #[derive(Clone)]
 pub struct Pointwise {
     domain: DataType,
@@ -206,6 +257,31 @@ impl Pointwise {
                 let b = <B::Element as value::Variant>::Wrapped::try_from(ab[1].as_ref().clone())
                     .unwrap();
                 value(a, b).into()
+            }),
+        )
+    }
+    /// Build variadic pointwise function
+    pub fn variadic<D: Variant, C: Variant>(
+        domain: Vec<D>,
+        co_domain: C,
+        value: impl Fn(
+                Vec<<D::Element as value::Variant>::Wrapped>,
+            ) -> <C::Element as value::Variant>::Wrapped
+            + 'static,
+    ) -> Self
+    where
+        <D::Element as value::Variant>::Wrapped: TryFrom<Value>,
+        <<D::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        <C::Element as value::Variant>::Wrapped: Into<Value>,
+    {
+        let domain = data_type::Struct::from_data_types(&domain.iter());
+        Self::new(
+            domain.into(),
+            co_domain.into(),
+            Rc::new(move |v| {
+                let v = value::Struct::try_from(v).unwrap();
+                let v: Vec<<D::Element as value::Variant>::Wrapped> = v.into_iter().map(|(_n, v)| v.as_ref().clone().try_into().unwrap()).collect();
+                value(v).into()
             }),
         )
     }
@@ -1035,6 +1111,18 @@ pub fn string_concat() -> impl Function + Clone {
     )
 }
 
+pub fn concat(n: usize) -> impl Function + Clone {
+    Pointwise::variadic(vec![DataType::Any; n], data_type::Text::default(), |v| v.into_iter().map(|v| v.to_string()).join(""))
+}
+
+pub fn md5() -> impl Function + Clone {
+    Simple::new(DataType::text(), DataType::text(), Rc::new(|v| {
+        let mut s = collections::hash_map::DefaultHasher::new();
+        Bound::hash((value::Text::try_from(v).unwrap()).deref(), &mut s);
+        Encoder::new(BASE_64, 10).encode(s.finish()).into()
+    }))
+}
+
 pub fn gt() -> impl Function + Clone {
     Polymorphic::default()
         .with(Pointwise::bivariate(
@@ -1359,6 +1447,43 @@ pub fn bivariate_max() -> impl Function + Clone {
     ))
 }
 
+// String functions
+
+/// Builds the lower `Function`
+pub fn lower() -> impl Function + Clone {
+    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| {
+        x.to_lowercase()
+    })
+}
+
+/// Builds the upper `Function`
+pub fn upper() -> impl Function + Clone {
+    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| {
+        x.to_uppercase()
+    })
+}
+
+/// Builds the char_length `Function`
+pub fn char_length() -> impl Function + Clone {
+    Pointwise::univariate(
+        data_type::Text::default(),
+        data_type::Integer::default(),
+        |a| a.len().try_into().unwrap(),
+    )
+}
+
+/// Builds the position `Function`
+pub fn position() -> impl Function + Clone {
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Text::default()),
+        DataType::optional(DataType::integer()),
+        |a,b| Value::Optional(
+            value::Optional::new(a.find(&b).map(|v| Rc::new(Value::integer(v.try_into().unwrap()))))
+        )
+    )
+}
+
+// Case function
 pub fn case() -> impl Function + Clone {
     Case
 }
@@ -1786,6 +1911,54 @@ mod tests {
     }
 
     #[test]
+    fn test_concat() {
+        println!("Test concat");
+        // Test a bivariate monotonic function
+        let cc = concat(3);
+        println!("concat = {}", cc);
+        println!(
+            "concat(set) = {}",
+            concat(3)
+                .super_image(
+                    &(DataType::float_values([0.0, 0.1]) & DataType::float_values([0.0, 0.1]) & DataType::float_values([0.0, 0.1]))
+                )
+                .unwrap()
+        );
+        println!(
+            r#"concat(5, "hello", 12.5) = {}"#,
+            concat(3)
+                .value(
+                    &Value::structured_from_values(&[5.into(), "hello".to_string().into(), 12.5.into()])
+                )
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_md5() {
+        println!("Test md5");
+        // Test a bivariate monotonic function
+        let m = md5();
+        println!("md5 = {}", m);
+        println!(
+            "md5(set) = {}",
+            md5()
+                .super_image(
+                    &DataType::structured_from_data_types([DataType::text_values(["hello".into(), "world".into()])])
+                )
+                .unwrap()
+        );
+        println!(
+            r#"md5("hello") = {}"#,
+            md5()
+                .value(
+                    &Value::text("hello")
+                )
+                .unwrap()
+        );
+    }
+
+    #[test]
     fn test_extended() {
         println!("Test extended");
         let extended_cos = cos().extend(DataType::Any);
@@ -2056,4 +2229,72 @@ mod tests {
         println!("im({}) = {}", set, im);
         assert!(im == DataType::Any);
     }
+
+        #[test]
+    fn test_lower() {
+        println!("Test lower");
+        let fun = lower();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Text(_)));
+    }
+
+    #[test]
+    fn test_upper() {
+        println!("Test uppeer");
+        let fun = upper();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Text(_)));
+    }
+
+    #[test]
+    fn test_char_length() {
+        println!("Test char_length");
+        let fun = char_length();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World!")]).into();
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Integer(_)));
+    }
+
+    #[test]
+    fn test_position() {
+        println!("Test position");
+        let fun = position();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::from(data_type::Text::from_values([String::from("Hello"), String::from("World")])),
+            DataType::from(data_type::Text::from_values([String::from("e"), String::from("z")])),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Optional(_)));
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::from(data_type::Text::from_values([String::from("Hello"), String::from("World")])),
+            DataType::from(data_type::Text::from_values([String::from("l")])),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Optional(_)));
+    }
+
 }

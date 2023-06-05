@@ -1,4 +1,4 @@
-use super::{Error, Field, Relation, Result, Variant as _, Visitor};
+use super::{Error, Field, Relation, Result, JoinOperator, JoinConstraint, Variant as _, Visitor};
 use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor};
 use itertools::Itertools;
 use std::{borrow::Cow, fmt, fs::File, process::Command, str, string};
@@ -92,6 +92,17 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
                 .collect(),
         )
     }
+
+    fn set(&self, set: &'a super::Set, _left: FieldDataTypes, _right: FieldDataTypes) -> FieldDataTypes {
+        FieldDataTypes(
+            set
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| (field.clone(), Expr::col(field.name())))
+                .collect(),
+        )
+    }
 }
 
 #[allow(dead_code)]
@@ -169,10 +180,24 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     &node.1
                 )
             }
-            Relation::Join(join) => format!(
+            Relation::Join(join) => {
+                let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator {
+                    format!("<br/><b>ON</b> {}", expr)
+                } else {
+                    "".to_string()
+                };
+                format!(
+                    "<b>{}</b> size ∈ {}<br/>{}{}",
+                    join.name().to_uppercase(),
+                    join.size(),
+                    &node.1,
+                    operator,
+                )
+            },
+            Relation::Set(set) => format!(
                 "<b>{}</b> size ∈ {}<br/>{}",
-                join.name().to_uppercase(),
-                join.size(),
+                set.name().to_uppercase(),
+                set.size(),
                 &node.1
             ),
         })
@@ -184,6 +209,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Map(_) => format!("box"),
             Relation::Reduce(_) => format!("box"),
             Relation::Join(_) => format!("box"),
+            Relation::Set(_) => format!("box"),
         }))
     }
 
@@ -197,6 +223,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Map(_) => format!("cornsilk1"),
             Relation::Reduce(_) => format!("deeppink"),
             Relation::Join(_) => format!("goldenrod3"),
+            Relation::Set(_) => format!("lightcoral"),
         }))
     }
 }
@@ -221,6 +248,10 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
                 Relation::Join(join) => vec![
                     Edge(relation, &join.left, t.clone()),
                     Edge(relation, &join.right, t),
+                ],
+                Relation::Set(set) => vec![
+                    Edge(relation, &set.left, t.clone()),
+                    Edge(relation, &set.right, t),
                 ],
             })
             .collect()

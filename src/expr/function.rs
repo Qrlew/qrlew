@@ -41,14 +41,22 @@ pub enum Function {
     Sqrt,
     Pow,
     Case,
+    Md5,
+    Concat(usize),
+    CharLength,
+    Lower,
+    Position,
+    Upper,
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Style {
     UnaryOperator,
     BinaryOperator,
     Function,
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Arity {
     Unary,
     Nary(usize),
@@ -88,8 +96,17 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
+            | Function::Md5
+            | Function::Lower
+            | Function::Upper
+            // Binary Functions
             | Function::Pow
-            | Function::Case => Style::Function,
+            | Function::CharLength
+            | Function::Position
+            // Ternary Function
+            | Function::Case
+            // Nary Function
+            | Function::Concat(_) => Style::Function,
         }
     }
 
@@ -124,11 +141,18 @@ impl Function {
             | Function::Abs
             | Function::Sin
             | Function::Cos
-            | Function::Sqrt => Arity::Unary,
+            | Function::Sqrt
+            | Function::Md5
+            | Function::CharLength
+            | Function::Lower
+            | Function::Upper => Arity::Unary,
             // Binary Function
-            Function::Pow => Arity::Nary(2),
-            // Case Function
+            Function::Pow | Function::Position => Arity::Nary(2),
+            // Ternary Function
             Function::Case => Arity::Nary(3),
+            // Nary Function
+            Function::Concat(_) => Arity::Varying,
+
         }
     }
 
@@ -158,7 +182,7 @@ impl fmt::Display for Function {
         f.write_str(match self {
             // Unary Operators
             Function::Opposite => "-",
-            Function::Not => "NOT",
+            Function::Not => "not",
             // Binary Operators
             Function::Plus => "+",
             Function::Minus => "-",
@@ -172,23 +196,31 @@ impl fmt::Display for Function {
             Function::LtEq => "<=",
             Function::Eq => "=",
             Function::NotEq => "<>",
-            Function::And => "AND",
-            Function::Or => "OR",
-            Function::Xor => "XOR",
+            Function::And => "and",
+            Function::Or => "or",
+            Function::Xor => "xor",
             Function::BitwiseOr => "|",
             Function::BitwiseAnd => "&",
             Function::BitwiseXor => "^",
             // Unary Functions
-            Function::Exp => "EXP",
-            Function::Ln => "LN",
-            Function::Log => "LOG",
-            Function::Abs => "ABS",
-            Function::Sin => "SIN",
-            Function::Cos => "COS",
-            Function::Sqrt => "SQRT",
+            Function::Exp => "exp",
+            Function::Ln => "ln",
+            Function::Log => "log",
+            Function::Abs => "abs",
+            Function::Sin => "sin",
+            Function::Cos => "cos",
+            Function::Sqrt => "sqrt",
+            Function::CharLength => "char_length",
+            Function::Lower => "lower",
+            Function::Upper  => "upper",
             // Binary Functions
-            Function::Pow => "POW",
-            Function::Case => "CASE",
+            Function::Pow => "pow",
+            Function::Concat(_) => "concat",
+            Function::Position => "position",
+            // Ternary Functions
+            Function::Case => "case",
+            // Nary Functions
+            Function::Md5 => "md5",
         })
     }
 }

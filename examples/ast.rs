@@ -97,19 +97,22 @@ fn print_ast(query: &str) -> Result<(), &'static str> {
 }
 
 fn main() -> Result<(), &'static str> {
-    // build_ast()?;
+    build_ast()?;
 
     // Print an AST with a subquery
     // print_ast("select * from (select count(a) as c from sch.tbl)");
 
     // Print an AST with a JOIN
-    print_ast("select * from sch.tbl1 LEFT OUTER JOIN sch.tbl2 ON tbl1.id = tbl2.id LIMIT 100");
+    print_ast("select * from sch.tbl1 LEFT OUTER JOIN sch.tbl2 ON tbl1.id = tbl2.id LIMIT 100")?;
 
     // Print an AST with CTEs
     // print_ast("WITH cte_tbl AS (select a, b FROM sch.tbl1) select * from cte_tbl");
 
     // Print an AST with Insert
-    print_ast("INSERT INTO person (name, data) VALUES (?1, ?2)");
+    print_ast("INSERT INTO person (name, data) VALUES (?1, ?2)")?;
+
+    // Print a UNION
+    print_ast("SELECT * FROM table_1 10 UNION SELECT * FROM table_2")?;
 
     Ok(())
 }
