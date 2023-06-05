@@ -611,10 +611,12 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "sqrt" => Expr::sqrt(flat_args[0].clone()),
             "pow" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
+            "md5" => Expr::md5(flat_args[0].clone()),
             // string functions
             "lower" => Expr::lower(flat_args[0].clone()),
             "upper" => Expr::upper(flat_args[0].clone()),
             "char_length" => Expr::char_length(flat_args[0].clone()),
+            "concat" => Expr::concat(flat_args.clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),

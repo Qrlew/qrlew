@@ -346,7 +346,7 @@ impl Composite for Array {}
 impl Composite for Function {}
 
 /// Unit variant
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct Unit;
 
 impl Default for Unit {
@@ -358,6 +358,30 @@ impl Default for Unit {
 impl fmt::Display for Unit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "()")
+    }
+}
+
+impl Or<DataType> for Unit {
+    type Sum = Optional;
+    fn or(self, other: DataType) -> Self::Sum {
+        match other {
+            DataType::Null | DataType::Unit(_) => Optional::from_data_type(DataType::Null),
+            DataType::Optional(o) => o,
+            o => Optional::from_data_type(o),
+        }        
+    }
+}
+
+impl InjectInto<DataType> for Unit {
+    type Injection = Base<Self, DataType>;
+    fn inject_into(&self, other: &DataType) -> injection::Result<Base<Self, DataType>> {
+        injection::From(self.clone()).into(other.clone())
+    }
+}
+
+impl From<value::Unit> for Unit {
+    fn from(_value: value::Unit) -> Self {
+        Unit
     }
 }
 
@@ -390,19 +414,6 @@ impl Variant for Unit {
 
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Unit)
-    }
-}
-
-impl InjectInto<DataType> for Unit {
-    type Injection = Base<Self, DataType>;
-    fn inject_into(&self, other: &DataType) -> injection::Result<Base<Self, DataType>> {
-        injection::From(self.clone()).into(other.clone())
-    }
-}
-
-impl From<value::Unit> for Unit {
-    fn from(_value: value::Unit) -> Self {
-        Unit
     }
 }
 
@@ -1187,6 +1198,20 @@ impl<T: Into<Rc<DataType>>> Or<(T,)> for Union {
     }
 }
 
+impl Or<Unit> for Union {
+    type Sum = Optional;
+    fn or(self, _other: Unit) -> Self::Sum {
+        Optional::from_data_type(DataType::from(self))
+    }
+}
+
+impl Or<Optional> for Union {
+    type Sum = Optional;
+    fn or(self, other: Optional) -> Self::Sum {
+        Optional::from_data_type(DataType::from(self.or(other.data_type().clone())))
+    }
+}
+
 impl Or<Union> for Union {
     type Sum = Union;
     fn or(self, other: Union) -> Self::Sum {
@@ -1272,7 +1297,6 @@ impl Variant for Union {
         let fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.to_string()).collect();
         let other_fields: BTreeSet<String> =
             other.fields.iter().map(|(f, _)| f.to_string()).collect();
-        assert!(fields.is_subset(&other_fields));
         fields.is_subset(&other_fields)
             && self
                 .fields
@@ -1393,6 +1417,25 @@ impl cmp::PartialOrd for Optional {
 impl fmt::Display for Optional {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "option({})", self.data_type)
+    }
+}
+
+
+impl Or<Optional> for Optional {
+    type Sum = Optional;
+    fn or(self, other: Optional) -> Self::Sum {
+        Optional::from_data_type(self.data_type().clone().or(other.data_type().clone()))
+    }
+}
+
+impl Or<DataType> for Optional {
+    type Sum = Optional;
+    fn or(self, other: DataType) -> Self::Sum {
+        match other {
+            DataType::Null | DataType::Unit(_) => self,
+            DataType::Optional(o) => self.or(o),
+            o => Optional::from_data_type(self.data_type().clone().or(o)),
+        }
     }
 }
 
@@ -1543,7 +1586,6 @@ impl Variant for List {
 impl InjectInto<DataType> for List {
     type Injection = Base<Self, DataType>;
     fn inject_into(&self, other: &DataType) -> injection::Result<Base<Self, DataType>> {
-        println!("DEBUG {self} into {other}");
         injection::From(self.clone()).into(other.clone())
     }
 }
@@ -2296,7 +2338,8 @@ impl Variant for DataType {
                 match (self, other) {
                     // If self and other are from different variants
                     (DataType::Null, _) => true, // Any element of self is also in other
-                    (DataType::Unit(_), DataType::Unit(_)) => true,
+                    (DataType::Unit(_), DataType::Unit(_))
+                    | (DataType::Unit(_), DataType::Optional(_)) => true,
                     (DataType::Bytes(_), DataType::Bytes(_)) => true,
                     (_, DataType::Any) => true,
                     (DataType::Any, _) => false,
@@ -2709,11 +2752,12 @@ where
 impl Or<DataType> for DataType {
     type Sum = DataType;
     fn or(self, other: DataType) -> Self::Sum {
-        // Simplify in the case of struct and Unit
-        match self {
-            DataType::Null => other,
-            DataType::Union(u) => u.or(other).into(),
-            s => Union::from_data_type(s).or(other).into(),
+        match (self, other) {
+            (DataType::Null, d) => d,
+            (DataType::Unit(_), DataType::Unit(_)) => DataType::unit(),
+            (DataType::Unit(u), d) | (d, DataType::Unit(u)) => u.or(d).into(),
+            (DataType::Optional(o), d) | (d, DataType::Optional(o)) => o.or(d).into(),
+            (s, o) => Union::from_data_type(s).or(o).into(),
         }
     }
 }
@@ -2950,6 +2994,20 @@ mod tests {
         );
         assert!(!(DataType::text() <= empty_interval));
         assert!(!(DataType::text() <= DataType::Null));
+        println!(
+            "{} <= {} is {}",
+            DataType::float(),
+            DataType::optional(DataType::float()),
+            DataType::float() <= DataType::optional(DataType::float())
+        );
+        assert!(DataType::float() <= DataType::optional(DataType::float()));
+        println!(
+            "{} <= {} is {}",
+            DataType::unit(),
+            DataType::optional(DataType::float()),
+            DataType::unit() <= DataType::optional(DataType::float())
+        );
+        assert!(DataType::unit() <= DataType::optional(DataType::float()));
     }
 
     #[test]
@@ -3223,6 +3281,21 @@ mod tests {
     }
 
     #[test]
+    fn test_union_unit() {
+        let a = DataType::unit().or(DataType::float());
+        println!("{:?}", a);
+
+        let a = DataType::unit().and(DataType::float());
+        println!("{:?}", a);
+
+        let a = DataType::float().or(DataType::unit());
+        println!("{:?}", a);
+
+        let a = DataType::float().and(DataType::unit());
+        println!("{:?}", a);
+    }
+
+    #[test]
     fn test_union_inclusion() {
         let type_a = DataType::float() & DataType::float();
         let type_b = DataType::integer() & DataType::integer();
@@ -3241,6 +3314,7 @@ mod tests {
             .or(DataType::boolean())
             .or(DataType::float());
         println!("a = {}", &a);
+
         let b = DataType::Null
             | ("a", DataType::boolean())
             | a
@@ -3248,6 +3322,48 @@ mod tests {
             | ("d", DataType::float());
         println!("b = {b}");
         assert_eq!(Union::try_from(b).unwrap().fields.len(), 6);
+
+        // unit | float
+        assert_eq!(
+            DataType::unit() | DataType::float(),
+            DataType::optional(DataType::float())
+        );
+
+        // float | unit
+        assert_eq!(
+            DataType::float() | DataType::unit(),
+            DataType::optional(DataType::float())
+        );
+
+        // unit | unit
+        assert_eq!(DataType::unit() | DataType::unit(), DataType::unit());
+
+        // option(float) | float
+        assert_eq!(
+            DataType::optional(DataType::float()) | DataType::float(),
+            DataType::optional(
+                Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())
+                    .into()
+            )
+        );
+
+        // float | option(float)
+        assert_eq!(
+            DataType::float() | DataType::optional(DataType::float()),
+            DataType::optional(
+                Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())
+                    .into()
+            )
+        );
+
+        // option(integer) | option(float)
+        assert_eq!(
+            DataType::optional(DataType::float()) | DataType::optional(DataType::float()),
+            DataType::optional(
+                Union::from_data_types(vec!(DataType::float(), DataType::float()).as_slice())
+                    .into()
+            )
+        );
     }
 
     #[test]

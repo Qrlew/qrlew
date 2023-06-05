@@ -161,13 +161,13 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Sqrt
             | expr::function::Function::Pow
             | expr::function::Function::Case
+            | expr::function::Function::Md5
+            | expr::function::Function::Concat(_)
             | expr::function::Function::CharLength
             | expr::function::Function::Lower
             | expr::function::Function::Upper => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    arguments[0].clone(),
-                ))],
+                args: arguments.into_iter().map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))).collect(),
                 over: None,
                 distinct: false,
                 special: false,
@@ -308,18 +308,30 @@ mod tests {
 
     #[test]
     fn test_from_expr() {
-        let ast_expr: ast::Expr = parse_expr("exp(a*cos(SIN(x) + 2*a + b))").unwrap();
+        let ast_expr: ast::Expr = parse_expr("exp(a*cos(sin(x) + 2*a + b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr)
+    }
+
+    #[test]
+    fn test_from_expr_concat() {
+        let ast_expr: ast::Expr = parse_expr("concat(a, b, c)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr)
     }
 
     #[test]
     fn test_string_functions() {
         // Lower
-        let ast_expr: ast::Expr = parse_expr("LOWER(my_expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("lower(my_expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -327,7 +339,7 @@ mod tests {
         assert_eq!(ast_expr, gen_expr);
 
         // Upper
-        let ast_expr: ast::Expr = parse_expr("UPPER(my_expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("upper(my_expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -335,7 +347,7 @@ mod tests {
         assert_eq!(ast_expr, gen_expr);
 
         // CharLength
-        let ast_expr: ast::Expr = parse_expr("CHAR_LENGTH(my_expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("char_length(my_expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -343,7 +355,7 @@ mod tests {
         assert_eq!(ast_expr, gen_expr);
 
         // CharLength
-        let ast_expr: ast::Expr = parse_expr("POSITION('x' IN expr)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("position('x' in expr)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -353,11 +365,12 @@ mod tests {
 
     #[test]
     fn test_from_expr_with_var() {
-        let ast_expr: ast::Expr = parse_expr("exp(a*variance(SIN(x) + 2*a + b))").unwrap();
+        let ast_expr: ast::Expr = parse_expr("exp(a*variance(sin(x) + 2*a + b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr)
     }
 }

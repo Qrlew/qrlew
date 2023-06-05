@@ -93,10 +93,10 @@ impl Bound for chrono::NaiveDate {
         "date".to_string()
     }
     fn min() -> Self {
-        chrono::naive::MIN_DATE
+        chrono::naive::NaiveDate::MIN
     }
     fn max() -> Self {
-        chrono::naive::MAX_DATE
+        chrono::naive::NaiveDate::MAX
     }
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         hash::Hash::hash(self, state)
@@ -125,10 +125,10 @@ impl Bound for chrono::NaiveDateTime {
         "datetime".to_string()
     }
     fn min() -> Self {
-        chrono::naive::MIN_DATETIME
+        chrono::naive::NaiveDateTime::MIN
     }
     fn max() -> Self {
-        chrono::naive::MAX_DATETIME
+        chrono::naive::NaiveDateTime::MAX
     }
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         hash::Hash::hash(self, state)
