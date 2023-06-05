@@ -183,7 +183,7 @@ macro_rules! impl_unary_function_constructors {
     };
 }
 
-impl_unary_function_constructors!(Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt); // TODO Complete that
+impl_unary_function_constructors!(Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength); // TODO Complete that
 
 /// Implement binary function constructors
 macro_rules! impl_binary_function_constructors {
@@ -229,7 +229,8 @@ impl_binary_function_constructors!(
     BitwiseOr,
     BitwiseAnd,
     BitwiseXor,
-    Pow
+    Pow,
+    Position
 );
 
 /// Implement ternary function constructors
@@ -258,6 +259,33 @@ macro_rules! impl_ternary_function_constructors {
 }
 
 impl_ternary_function_constructors!(Case);
+
+/// Implement nary function constructors
+macro_rules! impl_nary_function_constructors {
+    ($( $Function:ident ),*) => {
+        impl Function {
+            paste! {
+                $(
+                    pub fn [<$Function:snake>]<E: Into<Expr>>(args: Vec<E>) -> Function {
+                        Function::new(function::Function::$Function(args.len()), args.into_iter().map(|e| Rc::new(e.into())).collect())
+                    }
+                )*
+            }
+        }
+
+        impl Expr {
+            paste! {
+                $(
+                    pub fn [<$Function:snake>]<E: Into<Expr>>(args: Vec<E>) -> Expr {
+                        Expr::from(Function::[<$Function:snake>](args))
+                    }
+                )*
+            }
+        }
+    };
+}
+
+impl_nary_function_constructors!(Concat);
 
 /// An aggregate function expression
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -1158,7 +1186,7 @@ mod tests {
         println!("{}", expr.accept(DisplayVisitor));
         assert_eq!(
             expr.accept(DisplayVisitor),
-            "EXP(SIN(a * x + b))".to_string()
+            "exp(sin(a * x + b))".to_string()
         );
     }
 
@@ -1413,6 +1441,62 @@ mod tests {
                 .super_image(&DataType::structured([(
                     "x",
                     DataType::list(DataType::float_interval(-1., 10.), 1, 50)
+                ),]))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_md5() {
+        let expression = expr!(md5(x));
+        println!("expression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::text_values(["foo".into(), "bar".into()])
+                ),]))
+                .unwrap()
+        );
+        println!(
+            "expression value = {}",
+            expression
+                .value(&Value::structured([(
+                    "x",
+                    Value::text("foo")
+                ),]))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_concat() {
+        let expression = Expr::concat(vec![Expr::col("x"), Expr::col("y"), Expr::col("x")]);
+        println!("expression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::text_values(["foo".into(), "bar".into()])
+                ),(
+                    "y",
+                    DataType::text_values(["hello".into(), "world".into()])
+                )]))
+                .unwrap()
+        );
+        println!(
+            "expression value = {}",
+            expression
+                .value(&Value::structured([(
+                    "x",
+                    Value::text("foo")
+                ),(
+                    "y",
+                    Value::float(0.5432)
                 ),]))
                 .unwrap()
         );

@@ -13,6 +13,7 @@ pub mod relation;
 pub mod sql;
 pub mod types;
 pub mod visitor;
+pub mod protected;
 
 pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
 pub use data_type::{value::Value, DataType};
