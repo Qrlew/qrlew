@@ -1,4 +1,4 @@
-use super::{Error, Field, Relation, Result, Variant as _, Visitor};
+use super::{Error, Field, Relation, Result, JoinOperator, JoinConstraint, Variant as _, Visitor};
 use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor};
 use itertools::Itertools;
 use std::{borrow::Cow, fmt, fs::File, process::Command, str, string};
@@ -180,12 +180,20 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     &node.1
                 )
             }
-            Relation::Join(join) => format!(
-                "<b>{}</b> size ∈ {}<br/>{}",
-                join.name().to_uppercase(),
-                join.size(),
-                &node.1
-            ),
+            Relation::Join(join) => {
+                let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator {
+                    format!("<br/><b>ON</b> {}", expr)
+                } else {
+                    "".to_string()
+                };
+                format!(
+                    "<b>{}</b> size ∈ {}<br/>{}{}",
+                    join.name().to_uppercase(),
+                    join.size(),
+                    &node.1,
+                    operator,
+                )
+            },
             Relation::Set(set) => format!(
                 "<b>{}</b> size ∈ {}<br/>{}",
                 set.name().to_uppercase(),

@@ -40,10 +40,10 @@ macro_rules! function_implementations {
     };
 }
 
-// All functions: Opposite, Not, Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Exp, Ln, Abs, Sin, Cos
-// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, Md5
-// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor
-// Ternary: Case
+// All functions: Opposite, Not, Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Exp, Ln, Abs, Sin, Cos, CharLength, Lower, Upper, Position, Md5, Concat
+// Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, CharLength, Lower, Upper, Md5
+// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position, Concat
+// Ternary: Case, Position
 // Nary: Concat
 function_implementations!(
     [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5],
@@ -66,9 +66,12 @@ function_implementations!(
         BitwiseOr,
         BitwiseAnd,
         BitwiseXor,
-        Pow
+        Pow,
+        CharLength,
+        Lower,
+        Upper
     ],
-    [Case],
+    [Case, Position],
     x,
     {
         match x {
@@ -76,7 +79,6 @@ function_implementations!(
             _ => unreachable!(),
         }
     }
-
 );
 
 macro_rules! aggregate_implementations {
