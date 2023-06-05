@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 ### Added
 - Computation of the norm
-- Optional handling in or [PR6](https://github.com/Qrlew/qrlew/pull/6)
 
 ## [0.1.2] - 2023-06-01
 ### Added
@@ -18,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Protection operation
 - Set operations support
 - String functions `POSITION`, `LOWER`, `UPPER` and `CHAR_LENGTH` [PR9](https://github.com/Qrlew/qrlew/pull/9)
+- Optional handling in or [PR6](https://github.com/Qrlew/qrlew/pull/6)
 
 ### Fixed
 ## [0.1.1] - 2023-05-26
