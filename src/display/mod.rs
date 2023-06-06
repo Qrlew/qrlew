@@ -1,4 +1,5 @@
 pub mod graphviz;
+pub mod colors;
 
 use std::{
     io::{Result, Write},
@@ -24,6 +25,17 @@ impl Dot for Relation {
         output.write(r##"<!DOCTYPE html>
         <!-- Inspired from https://gist.github.com/magjac/a23d1f1405c2334f288a9cca4c0ef05b -->
         <meta charset="utf-8">
+        <style>
+        #graph {
+            background: white;
+            height: 100%;
+            width: 100%;
+        }
+        #graph svg {
+            height: 100%;
+            width: 100%;
+        }
+        </style>
         <body>
         <script src="https://d3js.org/d3.v5.min.js"></script>
         <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
@@ -51,6 +63,17 @@ impl Dot for WithContext<&Expr, DataType> {
         output.write(r##"<!DOCTYPE html>
         <!-- Inspired from https://gist.github.com/magjac/a23d1f1405c2334f288a9cca4c0ef05b -->
         <meta charset="utf-8">
+        <style>
+        #graph {
+            background: white;
+            height: 100%;
+            width: 100%;
+        }
+        #graph svg {
+            height: 100%;
+            width: 100%;
+        }
+        </style>
         <body>
         <script src="https://d3js.org/d3.v5.min.js"></script>
         <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>

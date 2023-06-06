@@ -1,5 +1,5 @@
 use super::{Error, Field, Relation, JoinOperator, JoinConstraint, Variant as _, Visitor};
-use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor, display};
+use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor, display::{self, colors}};
 use itertools::Itertools;
 use std::{borrow::Cow, fmt, io, fs::File, process::Command, str, string};
 
@@ -203,33 +203,15 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
         })
     }
 
-    fn node_shape(&'a self, node: &Node<'a, T>) -> Option<dot::LabelText<'a>> {
-        Some(dot::LabelText::label(match &node.0 {
-            Relation::Table(_) => format!("box"),
-            Relation::Map(_) => format!("box"),
-            Relation::Reduce(_) => format!("box"),
-            Relation::Join(_) => format!("box"),
-            Relation::Set(_) => format!("box"),
-        }))
-    }
-
-    fn node_style(&'a self, _node: &Node<'a, T>) -> dot::Style {
-        dot::Style::Filled
-    }
-
     fn node_color(&'a self, node: &Node<'a, T>) -> Option<dot::LabelText<'a>> {
         Some(dot::LabelText::label(match &node.0 {
-            Relation::Table(_) => format!("aquamarine3"),
-            Relation::Map(_) => format!("cornsilk1"),
-            Relation::Reduce(_) => format!("deeppink"),
-            Relation::Join(_) => format!("goldenrod3"),
-            Relation::Set(_) => format!("lightcoral"),
+            Relation::Table(_) => colors::MEDIUM_RED,
+            Relation::Map(_) => colors::LIGHT_GREEN,
+            Relation::Reduce(_) => colors::DARK_GREEN,
+            Relation::Join(_) => colors::LIGHT_RED,
+            Relation::Set(_) => colors::LIGHTER_GREEN,
         }))
     }
-
-    // fn edge_style(&'a self, _edge: &Edge<'a, T>) -> dot::Style {
-    //     dot::Style::Rounded
-    // }
 }
 
 impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>

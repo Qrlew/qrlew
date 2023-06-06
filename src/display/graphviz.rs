@@ -1,5 +1,6 @@
 use std::{io::{self, Write}};
 use dot::{Labeller, GraphWalk, Style};
+use super::colors::*;
 
 /// Renders graph `g` into the writer `w` in DOT syntax.
 /// (Main entry point for the library.)
@@ -23,6 +24,19 @@ pub fn render<'a,
     }
 
     writeln(w, &["digraph ", g.graph_id().as_slice(), " {"])?;
+    // Add base Styling
+    writeln(w, &[r##"
+        rankdir="TB";
+        splines=true;
+        overlap=false;
+        nodesep="0.2";
+        ranksep="0.4";
+        labelloc="t";
+        fontname="Red Hat Text";
+        bgcolor="#00000000"
+        node [ shape="box" style="filled, rounded" fontname="Red Hat Text" margin=0.2 ]
+        edge [ fontname="Red Hat Text" color="#2B303A" ]
+        "##])?;
     for n in g.nodes().iter() {
         let mut colorstring;
 
@@ -42,7 +56,7 @@ pub fn render<'a,
         if style != Style::None {
             text.push("[style=\"");
             text.push(style.as_slice());
-            text.push(", rounded\"]");
+            text.push("\"]");
         }
         // Add node color
         let color = g.node_color(n);
