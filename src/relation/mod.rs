@@ -17,7 +17,6 @@ use std::{cmp, error, fmt, hash, ops::Index, rc::Rc, result};
 use colored::Colorize;
 use itertools::Itertools;
 
-pub use super::relation::dot::display;
 use crate::{
     builder::Ready,
     data_type::{self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Variant as _},

@@ -546,7 +546,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::Ready, data_type::DataType, relation::dot::display, relation::schema::Schema,
+        builder::Ready, data_type::DataType, display::Dot, relation::schema::Schema,
     };
 
     #[test]
@@ -676,7 +676,7 @@ mod tests {
         println!("relation = {relation}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        display(&relation);
+        relation.display_dot();
     }
 
     #[ignore]
@@ -726,7 +726,7 @@ mod tests {
         println!("relation = {relation}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        display(&relation);
+        relation.display_dot();
     }
 
     #[test]
@@ -791,6 +791,6 @@ mod tests {
         println!("relation = {relation:#?}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        display(&relation);
+        relation.display_dot();
     }
 }

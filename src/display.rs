@@ -10,11 +10,11 @@ use crate::{
 };
 
 pub trait Dot {
-    fn display(&self) -> Result<()>;
+    fn display_dot(&self) -> Result<()>;
 }
 
 impl Dot for Relation {
-    fn display(&self) -> Result<()> {
+    fn display_dot(&self) -> Result<()> {
         let name = namer::name_from_content("relation", self);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(r##"<!DOCTYPE html>
@@ -41,7 +41,7 @@ impl Dot for Relation {
 }
 
 impl Dot for WithContext<&Expr, DataType> {
-    fn display(&self) -> Result<()> {
+    fn display_dot(&self) -> Result<()> {
         let name = namer::name_from_content("relation", &self.object);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(r##"<!DOCTYPE html>
@@ -64,6 +64,27 @@ impl Dot for WithContext<&Expr, DataType> {
             .output()
             .expect("Error: this works on MacOS");
         Ok(())
+    }
+}
+
+pub mod macos {
+    use super::*;
+    /// A simple MacOS specific function to display `Expr`s as graphs
+    pub fn relation_display_dot(relation: &Relation) {
+        let name = namer::name_from_content("relation", &relation);
+        let mut output = File::create(format!("/tmp/{name}.dot")).unwrap();
+        relation.dot(&mut output).unwrap();
+        Command::new("dot")
+            .arg(format!("/tmp/{name}.dot"))
+            .arg("-Tpdf")
+            .arg("-o")
+            .arg(format!("/tmp/{name}.pdf"))
+            .output()
+            .expect("Error: you need graphviz installed (and dot on the PATH)");
+        Command::new("open")
+            .arg(format!("/tmp/{name}.pdf"))
+            .output()
+            .expect("Error: this works on MacOS only");
     }
 }
 
@@ -126,7 +147,7 @@ mod tests {
             .right(map_2.clone())
             .build();
         println!("join_2 = {}", join_2);
-        join_2.display().unwrap();
+        join_2.display_dot().unwrap();
     }
 
     #[ignore]
@@ -152,6 +173,6 @@ mod tests {
         let expr = expr!(
             exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
         );
-        expr.with(rel.as_ref().data_type().clone()).display().unwrap();
+        expr.with(rel.as_ref().data_type().clone()).display_dot().unwrap();
     }
 }

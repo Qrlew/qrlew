@@ -273,24 +273,6 @@ impl Relation {
     }
 }
 
-/// A simple MacOS specific function to display `Expr`s as graphs
-pub fn display(relation: &Relation) {
-    let name = namer::name_from_content("relation", &relation);
-    let mut output = File::create(format!("/tmp/{name}.dot")).unwrap();
-    dot::render(&VisitedRelation(relation, DotVisitor), &mut output).unwrap();
-    Command::new("dot")
-        .arg(format!("/tmp/{name}.dot"))
-        .arg("-Tpdf")
-        .arg("-o")
-        .arg(format!("/tmp/{name}.pdf"))
-        .output()
-        .expect("Error: you need graphviz installed (and dot on the PATH)");
-    Command::new("open")
-        .arg(format!("/tmp/{name}.pdf"))
-        .output()
-        .expect("Error: this works on MacOS only");
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,6 +281,7 @@ mod tests {
         data_type::DataType,
         expr::Expr,
         relation::{schema::Schema, Relation},
+        display::Dot,
     };
 
     #[ignore]
@@ -350,6 +333,6 @@ mod tests {
             .right(map_2.clone())
             .build();
         println!("join_2 = {}", join_2);
-        display(&join_2);
+        join_2.display_dot();
     }
 }

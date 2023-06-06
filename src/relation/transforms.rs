@@ -244,9 +244,9 @@ mod tests {
     use itertools::Itertools;
     use super::*;
     use crate::{
-        relation::display,
         sql::parse,
         io::{Database, postgresql},
+        display::Dot,
     };
 
     #[test]
@@ -301,7 +301,7 @@ mod tests {
         let relation = items.clone().with_field_path(&relations, &[("order_id", "order_table", "id"), ("user_id", "user_table", "id")], "name", "peid");
         assert!(relation.schema()[0].name()=="peid");
         // Produce the query
-        // display(&relation);
+        relation.display_dot();
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
         println!(
