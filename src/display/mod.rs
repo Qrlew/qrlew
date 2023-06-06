@@ -1,3 +1,5 @@
+pub mod graphviz;
+
 use std::{
     io::{Result, Write},
     fs::File,
@@ -8,6 +10,8 @@ use crate::{
     Relation, Expr, DataType, data_type::DataTyped,
     namer, builder::{WithContext, WithoutContext},
 };
+
+
 
 pub trait Dot {
     fn display_dot(&self) -> Result<()>;

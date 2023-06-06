@@ -7,6 +7,7 @@ use crate::{
     data_type::{DataType, DataTyped},
     namer,
     visitor::Acceptor,
+    display,
 };
 
 impl From<string::FromUtf8Error> for Error {
@@ -168,7 +169,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 impl Expr {
     /// Render the Expr to dot
     pub fn dot<W: io::Write>(&self, data_type: DataType, w: &mut W) -> io::Result<()> {
-        dot::render(&VisitedExpr(self, DotVisitor(&data_type)), w)
+        display::graphviz::render(&VisitedExpr(self, DotVisitor(&data_type)), w)
     }
 }
 

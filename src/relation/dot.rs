@@ -1,5 +1,5 @@
 use super::{Error, Field, Relation, JoinOperator, JoinConstraint, Variant as _, Visitor};
-use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor};
+use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor, display};
 use itertools::Itertools;
 use std::{borrow::Cow, fmt, io, fs::File, process::Command, str, string};
 
@@ -226,6 +226,10 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Set(_) => format!("lightcoral"),
         }))
     }
+
+    // fn edge_style(&'a self, _edge: &Edge<'a, T>) -> dot::Style {
+    //     dot::Style::Rounded
+    // }
 }
 
 impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
@@ -269,7 +273,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 impl Relation {
     /// Render the Relation to dot
     pub fn dot<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
-        dot::render(&VisitedRelation(self, DotVisitor), w)
+        display::graphviz::render(&VisitedRelation(self, DotVisitor), w)
     }
 }
 
@@ -284,7 +288,6 @@ mod tests {
         display::Dot,
     };
 
-    #[ignore]
     #[test]
     fn test_dot() {
         namer::reset();
