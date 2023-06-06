@@ -679,7 +679,6 @@ mod tests {
         relation.display_dot();
     }
 
-    #[ignore]
     #[test]
     fn test_try_from_simple_query() {
         let query = parse(
@@ -758,10 +757,9 @@ mod tests {
         println!("relation = {relation}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        // display(&relation);
+        relation.display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_where() {
         let query = parse(
@@ -791,6 +789,6 @@ mod tests {
         println!("relation = {relation:#?}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        relation.display_dot();
+        relation.display_dot().unwrap();
     }
 }
