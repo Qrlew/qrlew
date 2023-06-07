@@ -377,7 +377,7 @@ mod tests {
             vec!["item"],
             vec!["price"]
         );
-        //display(&amount_norm);
+        amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         //println!("Query = {}", query);
         let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
@@ -391,7 +391,7 @@ mod tests {
             vec!["item"],
             vec!["price"]
         );
-        //display(&amount_norm);
+        amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query = "SELECT item, SQRT(SUM(sum_by_peid)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
         assert_eq!(

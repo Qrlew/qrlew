@@ -156,12 +156,12 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 impl Expr {
     /// Render the Expr to dot
     pub fn dot<W: io::Write>(&self, data_type: DataType, w: &mut W) -> io::Result<()> {
-        display::graphviz::render(&VisitedExpr(self, DotVisitor(&data_type)), w)
+        display::dot::render(&VisitedExpr(self, DotVisitor(&data_type)), w)
     }
 
     /// Render the Expr to dot
     pub fn dot_value<W: io::Write>(&self, val: Value, w: &mut W) -> io::Result<()> {
-        display::graphviz::render(&VisitedExpr(self, DotValueVisitor(&val)), w)
+        display::dot::render(&VisitedExpr(self, DotValueVisitor(&val)), w)
     }
 }
 

@@ -199,7 +199,6 @@ mod tests {
         assert_eq!(table.schema()[0].name(), PEID)
     }
 
-    // #[ignore]
     #[test]
     fn test_relation_protection() {
         let mut database = postgresql::test_database();

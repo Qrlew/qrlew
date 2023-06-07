@@ -35,7 +35,7 @@ pub fn render<'a,
         fontname="Ovo,Red Hat Text";
         fontsize="11pt"
         bgcolor="#00000000"
-        node [ shape="box" style="filled, rounded" margin=0.2, fontname="Red Hat Display,sans-serif", fontsize="11pt" ]
+        node [ shape="box" style="filled,rounded" margin=0.2, fontname="Red Hat Display,sans-serif", fontsize="11pt", color="#00000055" ]
         edge [ fontname="Red Hat Text" color="#2B303A" ]
         "##])?;
     for n in g.nodes().iter() {
@@ -63,7 +63,7 @@ pub fn render<'a,
         let color = g.node_color(n);
         if let Some(c) = color {
             colorstring = c.to_dot_string();
-            text.push("[color=");
+            text.push("[fillcolor=");
             text.push(&colorstring);
             text.push("]");
         }
