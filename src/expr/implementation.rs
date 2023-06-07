@@ -46,7 +46,7 @@ macro_rules! function_implementations {
 // Ternary: Case, Position
 // Nary: Concat
 function_implementations!(
-    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5],
+    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, CharLength, Upper, Lower],
     [
         Plus,
         Minus,
@@ -67,11 +67,9 @@ function_implementations!(
         BitwiseAnd,
         BitwiseXor,
         Pow,
-        CharLength,
-        Lower,
-        Upper
+        Position
     ],
-    [Case, Position],
+    [Case],
     x,
     {
         match x {
@@ -136,5 +134,40 @@ mod tests {
         );
         println!("count = {}", aggregate(Aggregate::Count));
         println!("quantile = {}", aggregate(Aggregate::Quantile(5.0)));
+    }
+
+    #[test]
+    fn test_string_functions_implementations() {
+        println!("lower = {}", function(Function::Lower));
+        assert_eq!(
+            function(Function::Lower)
+                .super_image(&DataType::text_values(["AA".into(), "Aa".into(), "aa".into()]))
+                .unwrap(),
+            DataType::text_value("aa".into())
+        );
+
+        println!("upper = {}", function(Function::Upper));
+        assert_eq!(
+            function(Function::Upper)
+                .super_image(&DataType::text_values(["AA".into(), "Aa".into(), "aa".into()]))
+                .unwrap(),
+            DataType::text_value("AA".into())
+        );
+
+        println!("position = {}", function(Function::Position));
+        assert_eq!(
+            function(Function::Position)
+                .super_image(&(DataType::text_values(["a".into(), "A".into()]) & DataType::text_values(["aba".into(), "zaa".into(), "abr".into()])))
+                .unwrap(),
+            DataType::optional(DataType::integer())
+        );
+
+        println!("char_length = {}", function(Function::CharLength));
+        assert_eq!(
+            function(Function::CharLength)
+                .super_image(& DataType::text_values(["aba".into(), "za".into(), "abraaa".into()]))
+                .unwrap(),
+            DataType::integer_values([2, 3, 6])
+        );
     }
 }
