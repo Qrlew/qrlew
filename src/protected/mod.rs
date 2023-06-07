@@ -245,7 +245,7 @@ mod tests {
         let vector = PEID.clone();
         let base = vec!["item"];
         let coordinates = vec!["price"];
-        let norm = relation.compute_norm::<2>(vector, base, coordinates);
+        let norm = relation.l2_norm(vector, base, coordinates);
         norm.display_dot().unwrap();
         // Print query
         let query: &str = &ast::Query::from(&norm).to_string();

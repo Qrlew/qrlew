@@ -228,10 +228,7 @@ impl Relation {
         }
     }
 
-    pub fn compute_norm<const N: usize>(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self{
-        if (N != 1) && (N != 2) {
-            panic!("Only L1 and L2 norms are implemented")
-        }
+    pub fn l1_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
         // group by base, coordinates
         let mut reduce= Relation::reduce().input(self.clone());
         reduce = reduce.with_group_by_column(vector);
@@ -248,29 +245,44 @@ impl Relation {
             reduce2 = reduce2.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
         }
         for i in (1+base.len())..(1+base.len()+coordinates.len()) {
-            let agg = if N == 1 {
-                Expr::abs(Expr::col(reduce_rel.field_from_index(i).unwrap().name()))
-            } else {
-                Expr::pow(Expr::col(reduce_rel.field_from_index(i).unwrap().name()), Expr::val(2))
-            };
+            let agg = Expr::abs(Expr::col(reduce_rel.field_from_index(i).unwrap().name()));
             reduce2 = reduce2.with(Expr::sum(agg));
         }
-        let reduce_rel2: Relation = reduce2.build();
+        reduce2.build()
+    }
 
-        if N == 1 {
-            reduce_rel2
-        } else {
-            // sqrt
-            let mut map = Relation::map().input(reduce_rel2.clone());
-            for i in 0..(base.len()) {
-                map = map.with(Expr::col(reduce_rel2.field_from_index(i).unwrap().name()));
-            }
-            for i in base.len()..(base.len()+coordinates.len()) {
-                map = map.with(Expr::sqrt(Expr::col(reduce_rel2.field_from_index(i).unwrap().name())));
-            }
-            let map_rel: Relation = map.build();
-            map_rel
+    pub fn l2_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self{
+        // group by base, coordinates
+        let mut reduce= Relation::reduce().input(self.clone());
+        reduce = reduce.with_group_by_column(vector);
+        reduce = base.iter()
+            .fold(reduce,
+                |acc, s| acc.with_group_by_column(s.to_string())
+            );
+        reduce = reduce.with_iter(coordinates.iter().map(|c| Expr::sum(Expr::col(c.to_string()))));
+        let reduce_rel: Relation = reduce.build();
+
+        // group by base
+        let mut reduce = Relation::reduce().input(reduce_rel.clone());
+        for i in 1..(1+base.len()) {
+            reduce = reduce.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
         }
+        for i in (1+base.len())..(1+base.len()+coordinates.len()) {
+            let agg = Expr::pow(Expr::col(reduce_rel.field_from_index(i).unwrap().name()), Expr::val(2));
+            reduce = reduce.with(Expr::sum(agg));
+        }
+        let reduce_rel2: Relation = reduce.build();
+        
+        // sqrt
+        let mut map = Relation::map().input(reduce_rel2.clone());
+        for i in 0..(base.len()) {
+            map = map.with(Expr::col(reduce_rel2.field_from_index(i).unwrap().name()));
+        }
+        for i in base.len()..(base.len()+coordinates.len()) {
+            map = map.with(Expr::sqrt(Expr::col(reduce_rel2.field_from_index(i).unwrap().name())));
+        }
+        let map_rel: Relation = map.build();
+        map_rel
     }
 }
 
@@ -372,7 +384,7 @@ mod tests {
             .as_ref()
             .clone();
         // L1 Norm
-        let amount_norm = table.clone().compute_norm::<1>(
+        let amount_norm = table.clone().l1_norm(
             "order_id",
             vec!["item"],
             vec!["price"]
@@ -386,7 +398,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let amount_norm = table.compute_norm::<2>(
+        let amount_norm = table.l2_norm(
             "order_id",
             vec!["item"],
             vec!["price"]
@@ -408,14 +420,14 @@ mod tests {
         let relation = Relation::try_from(parse("SELECT price - 25 AS std_price, * FROM item_table")
             .unwrap()
             .with(&relations)).unwrap();
-        //display(&relation);
+        relation.display_dot().unwrap();
         // L1 Norm
-        let relation_norm = relation.clone().compute_norm::<1>(
+        let relation_norm = relation.clone().l1_norm(
             "order_id",
             vec!["item"],
             vec!["price", "std_price"]
         );
-        //display(&amount_norm);
+        relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         //println!("Query = {}", query);
         let valid_query = "SELECT item, SUM(sum_1), SUM(sum_2) FROM (SELECT order_id, item, ABS(SUM(price)) AS sum_1, ABS(SUM(std_price)) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY item";
@@ -424,12 +436,12 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.compute_norm::<2>(
+        let relation_norm = relation.l2_norm(
             "order_id",
             vec!["item"],
             vec!["price", "std_price"]
         );
-        //display(&amount_norm);
+        relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT item, SQRT(SUM(sum_1)), SQRT(SUM(sum_2)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY item";
         assert_eq!(
@@ -459,7 +471,7 @@ mod tests {
                 Expr::qcol("order_table", "id"),
             ))
             .build();
-        //display(&relation);
+        relation.display_dot().unwrap();
         let schema = relation.schema().clone();
         let item = schema.field_from_index(1).unwrap().name();
         let price = schema.field_from_index(2).unwrap().name();
@@ -467,7 +479,7 @@ mod tests {
         let date = schema.field_from_index(6).unwrap().name();
 
         // L1 Norm
-        let relation_norm = relation.clone().compute_norm::<1>(
+        let relation_norm = relation.clone().l1_norm(
             user_id,
             vec![item, date],
             vec![price]
@@ -482,7 +494,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.compute_norm::<2>(
+        let relation_norm = relation.l2_norm(
             user_id,
             vec![item, date],
             vec![price]
