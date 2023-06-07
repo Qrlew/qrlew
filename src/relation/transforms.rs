@@ -1,5 +1,5 @@
 //! A few transforms for relations
-//! 
+//!
 
 use std::{
     rc::Rc,
@@ -228,7 +228,50 @@ impl Relation {
         }
     }
 
-    
+    pub fn compute_norm<const N: usize>(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self{
+        if (N != 1) && (N != 2) {
+            panic!("Only L1 and L2 norms are implemented")
+        }
+        // group by base, coordinates
+        let mut reduce= Relation::reduce().input(self.clone());
+        reduce = reduce.with_group_by_column(vector);
+        reduce = base.iter()
+            .fold(reduce,
+                |acc, s| acc.with_group_by_column(s.to_string())
+            );
+        reduce = reduce.with_iter(coordinates.iter().map(|c| Expr::sum(Expr::col(c.to_string()))));
+        let reduce_rel: Relation = reduce.build();
+
+        // group by base
+        let mut reduce2 = Relation::reduce().input(reduce_rel.clone());
+        for i in 1..(1+base.len()) {
+            reduce2 = reduce2.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
+        }
+        for i in (1+base.len())..(1+base.len()+coordinates.len()) {
+            let agg = if N == 1 {
+                Expr::abs(Expr::col(reduce_rel.field_from_index(i).unwrap().name()))
+            } else {
+                Expr::pow(Expr::col(reduce_rel.field_from_index(i).unwrap().name()), Expr::val(2))
+            };
+            reduce2 = reduce2.with(Expr::sum(agg));
+        }
+        let reduce_rel2: Relation = reduce2.build();
+
+        if N == 1 {
+            reduce_rel2
+        } else {
+            // sqrt
+            let mut map = Relation::map().input(reduce_rel2.clone());
+            for i in 0..(base.len()) {
+                map = map.with(Expr::col(reduce_rel2.field_from_index(i).unwrap().name()));
+            }
+            for i in base.len()..(base.len()+coordinates.len()) {
+                map = map.with(Expr::sqrt(Expr::col(reduce_rel2.field_from_index(i).unwrap().name())));
+            }
+            let map_rel: Relation = map.build();
+            map_rel
+        }
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -246,6 +289,7 @@ mod tests {
     use crate::{
         sql::parse,
         io::{Database, postgresql},
+        relation::{Table, schema::Schema, builder::*},
         display::Dot,
     };
 
@@ -317,4 +361,139 @@ mod tests {
         let relation = relation.filter_fields(|n| n!="peid");
         assert!(relation.schema()[0].name()!="peid");
     }
+
+    #[test]
+    fn test_compute_norm_for_table() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations.get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        // L1 Norm
+        let amount_norm = table.clone().compute_norm::<1>(
+            "order_id",
+            vec!["item"],
+            vec!["price"]
+        );
+        //display(&amount_norm);
+        let query: &str = &ast::Query::from(&amount_norm).to_string();
+        //println!("Query = {}", query);
+        let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+        // L2 Norm
+        let amount_norm = table.compute_norm::<2>(
+            "order_id",
+            vec!["item"],
+            vec!["price"]
+        );
+        //display(&amount_norm);
+        let query: &str = &ast::Query::from(&amount_norm).to_string();
+        let valid_query = "SELECT item, SQRT(SUM(sum_by_peid)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_compute_norm_for_map() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation = Relation::try_from(parse("SELECT price - 25 AS std_price, * FROM item_table")
+            .unwrap()
+            .with(&relations)).unwrap();
+        //display(&relation);
+        // L1 Norm
+        let relation_norm = relation.clone().compute_norm::<1>(
+            "order_id",
+            vec!["item"],
+            vec!["price", "std_price"]
+        );
+        //display(&amount_norm);
+        let query: &str = &ast::Query::from(&relation_norm).to_string();
+        //println!("Query = {}", query);
+        let valid_query = "SELECT item, SUM(sum_1), SUM(sum_2) FROM (SELECT order_id, item, ABS(SUM(price)) AS sum_1, ABS(SUM(std_price)) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+        // L2 Norm
+        let relation_norm = relation.compute_norm::<2>(
+            "order_id",
+            vec!["item"],
+            vec!["price", "std_price"]
+        );
+        //display(&amount_norm);
+        let query: &str = &ast::Query::from(&relation_norm).to_string();
+        let valid_query = "SELECT item, SQRT(SUM(sum_1)), SQRT(SUM(sum_2)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_compute_norm_for_join() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let left: Relation = relations.get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let right: Relation = relations.get(&["order_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let relation: Relation = Relation::join()
+            .left(left)
+            .right(right)
+            .on(Expr::eq(
+                Expr::qcol("item_table", "order_id"),
+                Expr::qcol("order_table", "id"),
+            ))
+            .build();
+        //display(&relation);
+        let schema = relation.schema().clone();
+        let item = schema.field_from_index(1).unwrap().name();
+        let price = schema.field_from_index(2).unwrap().name();
+        let user_id = schema.field_from_index(4).unwrap().name();
+        let date = schema.field_from_index(6).unwrap().name();
+
+        // L1 Norm
+        let relation_norm = relation.clone().compute_norm::<1>(
+            user_id,
+            vec![item, date],
+            vec![price]
+        );
+        //display(&amount_norm);
+        let query: &str = &ast::Query::from(&relation_norm).to_string();
+        println!("Query = {}", query);
+
+        let valid_query = "SELECT item, date, SUM(sum_1) FROM (SELECT user_id, item, date, ABS(SUM(price)) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY item, date";
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+        // L2 Norm
+        let relation_norm = relation.compute_norm::<2>(
+            user_id,
+            vec![item, date],
+            vec![price]
+        );
+        //display(&amount_norm);
+        let query: &str = &ast::Query::from(&relation_norm).to_string();
+        let valid_query = "SELECT item, date, SQRT(SUM(sum_1)) FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY item, date";
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+    }
+
 }
