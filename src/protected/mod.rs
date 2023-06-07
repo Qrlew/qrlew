@@ -212,7 +212,7 @@ mod tests {
             ("order_table", &[("user_id", "user_table", "id")], "name"),
             ("user_table", &[], "name"),
         ]);
-        relation.display_dot();
+        relation.display_dot().unwrap();
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID);
         // Print query
@@ -247,9 +247,9 @@ mod tests {
         let base = vec!["item"];
         let coordinates = vec!["price"];
         let norm = relation.compute_norm::<2>(vector, base, coordinates);
-        //display(&norm);
+        norm.display_dot().unwrap();
         // Print query
-        let query: &str = &ast::Query::from(&relation).to_string();
+        let query: &str = &ast::Query::from(&norm).to_string();
         println!(
             "{}\n{}",
             format!("{query}").yellow(),
