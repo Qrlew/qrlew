@@ -1,4 +1,4 @@
-pub mod graphviz;
+pub mod dot;
 pub mod colors;
 
 use std::{
@@ -23,7 +23,6 @@ const HTML_HEADER: &str = r##"<!DOCTYPE html>
 <meta charset="utf-8">
 <style>
 #graph {
-    background: white;
     height: 100%;
     width: 100%;
 }
