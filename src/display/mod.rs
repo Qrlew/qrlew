@@ -62,7 +62,7 @@ impl Dot for Relation {
 
 impl Dot for WithContext<&Expr, DataType> {
     fn display_dot(&self) -> Result<()> {
-        let name = namer::name_from_content("relation", &self.object);
+        let name = namer::name_from_content("expr", &self.object);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
         self.dot(self.context.clone(), &mut output)?;
@@ -77,7 +77,7 @@ impl Dot for WithContext<&Expr, DataType> {
 
 impl Dot for WithContext<&Expr, Value> {
     fn display_dot(&self) -> Result<()> {
-        let name = namer::name_from_content("relation", &self.object);
+        let name = namer::name_from_content("expr_value", &self.object);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
         self.dot_value(self.context.clone(), &mut output)?;
