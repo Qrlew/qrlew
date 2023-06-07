@@ -672,7 +672,7 @@ impl<'a> TryFrom<&'a ast::Expr> for Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataType, expr::dot::display};
+    use crate::{data_type::DataType, builder::WithContext, display::Dot};
     use std::convert::TryFrom;
 
     #[test]
@@ -707,7 +707,6 @@ mod tests {
         }
     }
 
-    #[ignore]
     #[test]
     fn test_try_into_expr_dot() {
         let ast_expr: ast::Expr = parse_expr("exp(a*cos(SIN(x) + 2*a + b))/count(c)").unwrap();
@@ -720,7 +719,7 @@ mod tests {
             ("x", DataType::float()),
             ("c", DataType::list(DataType::Any, 1, 10)),
         ]);
-        display(&expr, data_type);
+        WithContext { object: &expr, context: data_type }.display_dot().unwrap();
     }
 
     #[test]

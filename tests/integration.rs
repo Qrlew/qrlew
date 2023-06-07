@@ -3,7 +3,7 @@ use itertools::Itertools;
 use sqlparser::ast;
 use qrlew::{
     Relation, With,
-    relation::display,
+    display::Dot,
     sql::parse,
     io::{Database, postgresql},
 };
@@ -16,7 +16,7 @@ pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
     let rewriten_query: &str = &ast::Query::from(&relation).to_string();
     // DEBUG
-    // display(&relation);
+    relation.display_dot();
     // Displaying the test for DEBUG purpose
     println!(
         "{}\n{}",
