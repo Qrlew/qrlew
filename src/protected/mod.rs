@@ -173,6 +173,8 @@ mod tests {
         io::{Database, postgresql},
     };
     use sqlparser::ast;
+    use itertools::Itertools;
+    use colored::Colorize;
 
     #[test]
     fn test_table_protection() {
@@ -209,9 +211,21 @@ mod tests {
             ("order_table", &[("user_id", "user_table", "id")], "name"),
             ("user_table", &[], "name"),
         ]);
-        // display(&relation);
+        // relation.
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID);
+        // Print query
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!(
+            "{}\n{}",
+            format!("{query}").yellow(),
+            database
+                .query(query)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
 
     #[test]
@@ -233,5 +247,17 @@ mod tests {
         let coordinates = vec!["price"];
         let norm = relation.compute_norm::<2>(vector, base, coordinates);
         //display(&norm);
+        // Print query
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!(
+            "{}\n{}",
+            format!("{query}").yellow(),
+            database
+                .query(query)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
 }

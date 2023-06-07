@@ -18,7 +18,7 @@ use postgres::{
 };
 use rand::thread_rng;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
-use std::{env, fmt, process::Command, rc::Rc, str::FromStr, thread, time};
+use std::{fmt, process::Command, rc::Rc, thread, time, env, str::FromStr, sync::Mutex};
 
 const DB: &str = "qrlew-test";
 const PORT: usize = 5432;
@@ -38,6 +38,9 @@ pub struct Database {
     client: postgres::Client,
     drop: bool,
 }
+
+/// Only one thread start a container
+pub static POSTGRES_CONTAINER: Mutex<bool> = Mutex::new(false);
 
 impl Database {
     fn db() -> String {
@@ -61,7 +64,7 @@ impl Database {
 
     /// A postgresql instance must exist
     /// `docker run --name qrlew-test -p 5432:5432 -e POSTGRES_PASSWORD=qrlew-test -d postgres`
-    fn try_get() -> Result<Self> {
+    fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
         let mut client = postgres::Client::connect(
             &format!(
                 "host=localhost port={} user={} password={}",
@@ -71,7 +74,7 @@ impl Database {
             ),
             postgres::NoTls,
         )?;
-        let tables: Vec<String> = client
+        let table_names: Vec<String> = client
             .query(
                 "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='public'",
                 &[],
@@ -79,21 +82,81 @@ impl Database {
             .into_iter()
             .map(|row| row.get("tablename"))
             .collect();
-        if tables.is_empty() {
+        if table_names.is_empty() {
             Database {
-                name: DB.into(),
+                name,
                 tables: vec![],
                 client,
                 drop: false,
-            }
-            .with_test_tables()
+            }.with_tables(tables)
         } else {
             Ok(Database {
-                name: DB.into(),
-                tables: Database::test_tables(),
+                name,
+                tables,
                 client,
                 drop: false,
             })
+        }
+    }
+
+    /// Get a Database from a container
+    fn try_get_container(name: String, tables: Vec<Table>) -> Result<Self> {
+        let mut postgres_container = POSTGRES_CONTAINER.lock().unwrap();
+        if *postgres_container==false {
+            // A new container will be started
+            *postgres_container = true;
+            // Other threads will wait for this to be ready
+            let name = namer::new_name(name);
+            let port = PORT + namer::new_id("pg-port");
+            // Test the connexion and launch a test instance if necessary
+            if !Command::new("docker")
+                .arg("start")
+                .arg(&name)
+                .status()?
+                .success()
+            {
+                log::debug!("Starting the DB");
+                // If the container does not exist
+                // Start a new container
+                // Run: `docker run --name test-db -e POSTGRES_PASSWORD=test -d postgres`
+                let output = Command::new("docker")
+                    .arg("run")
+                    .arg("--name")
+                    .arg(&name)
+                    .arg("-d")
+                    .arg("--rm")
+                    .arg("-e")
+                    .arg(format!("POSTGRES_PASSWORD={PASSWORD}"))
+                    .arg("-p")
+                    .arg(format!("{}:5432", port))
+                    .arg("postgres")
+                    .output()?;
+                log::info!("{:?}", output);
+                log::info!("Waiting for the DB to start");
+                while !Command::new("docker")
+                    .arg("exec")
+                    .arg(&name)
+                    .arg("pg_isready")
+                    .status()?
+                    .success()
+                {
+                    thread::sleep(time::Duration::from_millis(200));
+                    log::info!("Waiting...");
+                }
+                log::info!("{}", "DB ready".red());
+            }
+            let client = postgres::Client::connect(
+                &format!("host=localhost port={port} user={USER} password={PASSWORD}"),
+                postgres::NoTls,
+            )?;
+            Ok(Database {
+                name,
+                tables: vec![],
+                client,
+                drop: false,
+            }.with_tables(tables)?)
+        } else {
+            Database::try_get_existing(name, tables)
         }
     }
 }
@@ -109,60 +172,7 @@ impl fmt::Debug for Database {
 
 impl DatabaseTrait for Database {
     fn new(name: String, tables: Vec<Table>) -> Result<Self> {
-        let name = namer::new_name(name);
-        let port = PORT + namer::new_id("pg-port");
-        // Test the connexion and launch a test instance if necessary
-        if !Command::new("docker")
-            .arg("start")
-            .arg(&name)
-            .status()?
-            .success()
-        {
-            log::debug!("Starting the DB");
-            // If the container does not exist
-            // Start a new container
-            // Run: `docker run --name test-db -e POSTGRES_PASSWORD=test -d postgres`
-            let output = Command::new("docker")
-                .arg("run")
-                .arg("--name")
-                .arg(&name)
-                .arg("-d")
-                .arg("--rm")
-                .arg("-e")
-                .arg(format!("POSTGRES_PASSWORD={PASSWORD}"))
-                .arg("-p")
-                .arg(format!("{}:5432", port))
-                .arg("postgres")
-                .output()?;
-            log::info!("{:?}", output);
-            log::info!("Waiting for the DB to start");
-            while !Command::new("docker")
-                .arg("exec")
-                .arg(&name)
-                .arg("pg_isready")
-                .status()?
-                .success()
-            {
-                thread::sleep(time::Duration::from_millis(200));
-                log::info!("Waiting...");
-            }
-            log::info!("{}", "DB ready".red());
-        }
-        let client = postgres::Client::connect(
-            &format!("host=localhost port={port} user={USER} password={PASSWORD}"),
-            postgres::NoTls,
-        )?;
-        let mut database = Database {
-            name,
-            tables,
-            client,
-            drop: true,
-        };
-        for table in database.tables.clone() {
-            database.create_table(&table)?;
-            database.insert_data(&table)?;
-        }
-        Ok(database)
+        Database::try_get_existing(name.clone(), tables.clone()).or_else(|_| Database::try_get_container(name, tables))
     }
 
     fn name(&self) -> &str {
@@ -359,9 +369,7 @@ impl<'a> FromSql<'a> for SqlValue {
 
 pub fn test_database() -> Database {
     // Database::test()
-    Database::try_get()
-        .or_else(|_| Database::empty(DB.into())?.with_test_tables())
-        .expect("Database")
+    Database::new(DB.into(), Database::test_tables()).expect("Database")
 }
 
 #[cfg(test)]
