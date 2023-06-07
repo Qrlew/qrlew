@@ -472,7 +472,7 @@ mod tests {
             vec![item, date],
             vec![price]
         );
-        //display(&amount_norm);
+        relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         println!("Query = {}", query);
 
@@ -487,7 +487,7 @@ mod tests {
             vec![item, date],
             vec![price]
         );
-        //display(&amount_norm);
+        relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT item, date, SQRT(SUM(sum_1)) FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY item, date";
         assert_eq!(
