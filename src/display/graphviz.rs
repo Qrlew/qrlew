@@ -33,8 +33,9 @@ pub fn render<'a,
         ranksep="0.4";
         labelloc="t";
         fontname="Red Hat Text";
+        fontsize="11pt"
         bgcolor="#00000000"
-        node [ shape="box" style="filled, rounded" fontname="Red Hat Text" margin=0.2 ]
+        node [ shape="box" style="filled, rounded" margin=0.2, fontname="Red Hat Text", fontsize="11pt" ]
         edge [ fontname="Red Hat Text" color="#2B303A" ]
         "##])?;
     for n in g.nodes().iter() {
