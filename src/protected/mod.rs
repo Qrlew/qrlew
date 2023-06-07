@@ -168,9 +168,10 @@ impl Relation {
 mod tests {
     use super::*;
     use crate::{
-        relation::{display, Variant},
+        relation::Variant,
         sql::parse,
         io::{Database, postgresql},
+        display::Dot,
     };
     use sqlparser::ast;
     use itertools::Itertools;
@@ -211,7 +212,7 @@ mod tests {
             ("order_table", &[("user_id", "user_table", "id")], "name"),
             ("user_table", &[], "name"),
         ]);
-        // relation.
+        relation.display_dot();
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PEID);
         // Print query

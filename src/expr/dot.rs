@@ -1,12 +1,14 @@
 //! Plot the dot graph of an expression to debug
 
-use std::{fmt, fs::File, process::Command, string};
+use std::{fmt, io, fs::File, process::Command, string};
 
-use super::{aggregate, function, Column, Error, Expr, Result, Value, Visitor};
+use super::{aggregate, function, Column, Error, Expr, Value, Visitor};
 use crate::{
     data_type::{DataType, DataTyped},
     namer,
     visitor::Acceptor,
+    builder::{WithContext, WithoutContext},
+    display::{self, colors},
 };
 
 impl From<string::FromUtf8Error> for Error {
@@ -101,27 +103,13 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
         })
     }
 
-    fn node_shape(&'a self, node: &Node<'a, T>) -> Option<dot::LabelText<'a>> {
-        Some(dot::LabelText::label(match &node.0 {
-            Expr::Column(_) => format!("box"),
-            Expr::Value(_) => format!("box"),
-            Expr::Function(_) => format!("box"),
-            Expr::Aggregate(_) => format!("box"),
-            Expr::Struct(_) => format!("box"),
-        }))
-    }
-
-    fn node_style(&'a self, _node: &Node<'a, T>) -> dot::Style {
-        dot::Style::Filled
-    }
-
     fn node_color(&'a self, node: &Node<'a, T>) -> Option<dot::LabelText<'a>> {
         Some(dot::LabelText::label(match &node.0 {
-            Expr::Column(_) => format!("aquamarine3"),
-            Expr::Value(_) => format!("goldenrod3"),
-            Expr::Function(_) => format!("cornsilk1"),
-            Expr::Aggregate(_) => format!("deeppink"),
-            Expr::Struct(_) => format!("darkslategray2"),
+            Expr::Column(_) => colors::MEDIUM_RED,
+            Expr::Value(_) => colors::LIGHT_RED,
+            Expr::Function(_) => colors::LIGHT_GREEN,
+            Expr::Aggregate(_) => colors::DARK_GREEN,
+            Expr::Struct(_) => colors::LIGHTER_GREEN,
         }))
     }
 }
@@ -167,59 +155,23 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 
 impl Expr {
     /// Render the Expr to dot
-    pub fn dot(&self, data_type: DataType) -> Result<String> {
-        let mut buffer: Vec<u8> = Vec::new();
-        dot::render(&VisitedExpr(self, DotVisitor(&data_type)), &mut buffer).unwrap();
-        Ok(String::from_utf8(buffer)?)
+    pub fn dot<W: io::Write>(&self, data_type: DataType, w: &mut W) -> io::Result<()> {
+        display::graphviz::render(&VisitedExpr(self, DotVisitor(&data_type)), w)
+    }
+
+    /// Render the Expr to dot
+    pub fn dot_value<W: io::Write>(&self, val: Value, w: &mut W) -> io::Result<()> {
+        display::graphviz::render(&VisitedExpr(self, DotValueVisitor(&val)), w)
     }
 }
 
-/// A simple MacOS specific function to display `Expr`s as graphs
-pub fn display(expr: &Expr, data_type: DataType) {
-    let name = namer::name_from_content("expr", expr);
-    let dot_path = &format!("/tmp/{name}.dot");
-    let pdf_path = &format!("/tmp/{name}.pdf");
-    let mut output = File::create(dot_path).unwrap();
-    dot::render(&VisitedExpr(expr, DotVisitor(&data_type)), &mut output).unwrap();
-    Command::new("dot")
-        .arg(dot_path)
-        .arg("-Tpdf")
-        .arg("-o")
-        .arg(pdf_path)
-        .output()
-        .expect("Error: you need graphviz installed (and dot on the PATH)");
-    Command::new("open")
-        .arg(pdf_path)
-        .output()
-        .expect("Error: this works on MacOS only");
-}
-
-/// A simple MacOS specific function to display `Expr`s as graphs
-pub fn display_value(expr: &Expr, val: Value) {
-    let name = namer::name_from_content("expr", &(expr, &val));
-    let dot_path = &format!("/tmp/{name}.dot");
-    let pdf_path = &format!("/tmp/{name}.pdf");
-    let mut output = File::create(dot_path).unwrap();
-    dot::render(&VisitedExpr(expr, DotValueVisitor(&val)), &mut output).unwrap();
-    Command::new("dot")
-        .arg(dot_path)
-        .arg("-Tpdf")
-        .arg("-o")
-        .arg(pdf_path)
-        .output()
-        .expect("Error: you need graphviz installed (and dot on the PATH)");
-    Command::new("open")
-        .arg(pdf_path)
-        .output()
-        .expect("Error: this works on MacOS only");
-}
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
         data_type::DataType,
-        relation::{schema::Schema, Relation},
+        relation::{schema::Schema, Relation}, display::Dot,
     };
     use std::rc::Rc;
 
@@ -231,7 +183,7 @@ mod tests {
         let b = Expr::col("b");
         let x = Expr::col("x");
         let expr = Expr::exp(Expr::sin(Expr::plus(Expr::multiply(a, x), b)));
-        display(&expr, DataType::Any);
+        expr.with(DataType::Any).display_dot().unwrap();
     }
 
     #[ignore]
@@ -254,12 +206,9 @@ mod tests {
                 .build(),
         );
         // Create an expr
-        display(
-            &expr!(
-                exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
-            ),
-            rel.data_type(),
-        );
+        expr!(
+            exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
+        ).with(rel.data_type()).display_dot().unwrap();
     }
 
     #[ignore]
@@ -271,9 +220,9 @@ mod tests {
             ("c", Value::float(3.)),
             ("d", Value::integer(4)),
         ]);
-        display_value(&expr! { a*b+d }, val.clone());
-        display_value(&expr! { d+a*b }, val.clone());
-        display_value(&expr! { (a*b+d) }, val);
+        &expr! { a*b+d }.with(val.clone()).display_dot().unwrap();
+        &expr! { d+a*b }.with(val.clone()).display_dot().unwrap();
+        &expr! { (a*b+d) }.with(val).display_dot().unwrap();
     }
 
     #[ignore]
@@ -285,7 +234,7 @@ mod tests {
             ("c", Value::float(3.)),
             ("d", Value::integer(4)),
         ]);
-        display_value(&expr! { a+b-c+d }, val);
+        expr! { a+b-c+d }.with(val).display_dot().unwrap();
     }
 
     #[ignore]
@@ -300,7 +249,7 @@ mod tests {
             ("c", Value::float(0.0)),
             ("x", Value::float(0.0)),
         ]);
-        display_value(&expr! { exp(a*b + cos(2*z)*d - 2*z + t*sin(c+3*x)) }, val);
+        expr! { exp(a*b + cos(2*z)*d - 2*z + t*sin(c+3*x)) }.with(val).display_dot().unwrap();
     }
 
     #[ignore]
@@ -317,12 +266,9 @@ mod tests {
             ("t", Value::float(0.0)),
         ]);
         // Create an expr
-        display_value(
-            &expr!(
-                exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
-            ),
-            val,
-        );
+       expr!(
+            exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
+        ).with(val).display_dot().unwrap();
     }
 
     #[ignore]
@@ -345,7 +291,7 @@ mod tests {
         }
         println!("END ITER");
         // Create an expr
-        display(&x, data_types);
+        x.with(data_types).display_dot().unwrap();
     }
 
     #[ignore]
@@ -361,7 +307,7 @@ mod tests {
             ("d", DataType::Any),
         ]);
         // Create an expr
-        display(&expr!(sum(sum(a) + count(b)) * count(c)), data_types);
+        expr!(sum(sum(a) + count(b)) * count(c)).with(data_types).display_dot().unwrap();
     }
 
     #[ignore]
@@ -384,17 +330,14 @@ mod tests {
                 .build(),
         );
         // Create an expr
-        display(
-            &Expr::structured([
-                ("a", Rc::new(expr!(exp(a * b)))),
-                (
-                    "b",
-                    Rc::new(expr!(
-                        cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
-                    )),
-                ),
-            ]),
-            rel.data_type(),
-        );
+        Expr::structured([
+            ("a", Rc::new(expr!(exp(a * b)))),
+            (
+                "b",
+                Rc::new(expr!(
+                    cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
+                )),
+            ),
+        ]).with(rel.data_type()).display_dot().unwrap();
     }
 }
