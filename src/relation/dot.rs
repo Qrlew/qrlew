@@ -30,7 +30,7 @@ impl fmt::Display for FieldDataTypes {
             self.0
                 .iter()
                 .map(|(field, expr)| format!(
-                    "<b>{}</b> = <i>{}</i> ∈ {}",
+                    "{} = {} ∈ {}",
                     field.name(),
                     expr,
                     field.data_type()
@@ -131,20 +131,20 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
     fn node_label(&'a self, node: &Node<'a, T>) -> dot::LabelText<'a> {
         dot::LabelText::html(match &node.0 {
             Relation::Table(table) => format!(
-                "<b>{}</b> size ∈ {}<br/>{}",
+                "<b>{} size ∈ {}</b><br/>{}",
                 table.name().to_uppercase(),
                 table.size(),
                 &node.1
             ),
             Relation::Map(map) => {
                 let filter = (map.filter.as_ref()).map_or(format!(""), |f| {
-                    format!("<br/><b>WHERE</b> {}", dot::escape_html(&f.to_string()))
+                    format!("<br/>WHERE {}", dot::escape_html(&f.to_string()))
                 });
                 let order_by = if map.order_by.is_empty() {
                     "".to_string()
                 } else {
                     format!(
-                        "<br/><b>ORDER BY</b> ({})",
+                        "<br/>ORDER BY ({})",
                         dot::escape_html(
                             &map.order_by
                                 .iter()
@@ -158,7 +158,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     )
                 };
                 format!(
-                    "<b>{}</b> size ∈ {}<br/>{}{filter}{order_by}",
+                    "<b>{} size ∈ {}</b><br/>{}{filter}{order_by}",
                     map.name().to_uppercase(),
                     map.size(),
                     &node.1
@@ -169,12 +169,12 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     "".to_string()
                 } else {
                     format!(
-                        "<br/><b>GROUP BY</b> ({})",
+                        "<br/>GROUP BY ({})",
                         dot::escape_html(&reduce.group_by.iter().map(|e| e.to_string()).join(", "))
                     )
                 };
                 format!(
-                    "<b>{}</b> size ∈ {}<br/>{}{group_by}",
+                    "<b>{} size ∈ {}</b><br/>{}{group_by}",
                     reduce.name().to_uppercase(),
                     reduce.size(),
                     &node.1
@@ -182,12 +182,12 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             }
             Relation::Join(join) => {
                 let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator {
-                    format!("<br/><b>ON</b> {}", expr)
+                    format!("<br/>ON {}", expr)
                 } else {
                     "".to_string()
                 };
                 format!(
-                    "<b>{}</b> size ∈ {}<br/>{}{}",
+                    "<b>{} size ∈ {}</b><br/>{}{}",
                     join.name().to_uppercase(),
                     join.size(),
                     &node.1,
@@ -195,7 +195,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 )
             },
             Relation::Set(set) => format!(
-                "<b>{}</b> size ∈ {}<br/>{}",
+                "<b>{} size ∈ {}</b><br/>{}",
                 set.name().to_uppercase(),
                 set.size(),
                 &node.1

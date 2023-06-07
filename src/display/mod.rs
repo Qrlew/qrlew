@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
 };
 use crate::{
-    Relation, Expr, DataType, data_type::DataTyped,
+    Relation, Expr, DataType, Value, data_type::DataTyped,
     namer, builder::{WithContext, WithoutContext},
 };
 
@@ -18,36 +18,40 @@ pub trait Dot {
     fn display_dot(&self) -> Result<()>;
 }
 
+const HTML_HEADER: &str = r##"<!DOCTYPE html>
+<!-- Inspired from https://gist.github.com/magjac/a23d1f1405c2334f288a9cca4c0ef05b -->
+<meta charset="utf-8">
+<style>
+#graph {
+    background: white;
+    height: 100%;
+    width: 100%;
+}
+#graph svg {
+    height: 100%;
+    width: 100%;
+}
+</style>
+<body>
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
+<script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
+<div id="graph" style="text-align: center; display: block; position: absolute;"></div>
+<script>
+d3.select("#graph").graphviz()
+.renderDot(`"##;
+
+const HTML_FOOTER: &str = r##"`);
+</script>
+"##;
+
 impl Dot for Relation {
     fn display_dot(&self) -> Result<()> {
         let name = namer::name_from_content("relation", self);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
-        output.write(r##"<!DOCTYPE html>
-        <!-- Inspired from https://gist.github.com/magjac/a23d1f1405c2334f288a9cca4c0ef05b -->
-        <meta charset="utf-8">
-        <style>
-        #graph {
-            background: white;
-            height: 100%;
-            width: 100%;
-        }
-        #graph svg {
-            height: 100%;
-            width: 100%;
-        }
-        </style>
-        <body>
-        <script src="https://d3js.org/d3.v5.min.js"></script>
-        <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
-        <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
-        <div id="graph" style="text-align: center;"></div>
-        <script>
-        d3.select("#graph").graphviz()
-        .renderDot(`"##.as_bytes())?;
+        output.write(HTML_HEADER.as_bytes())?;
         self.dot(&mut output)?;
-        output.write(r##"`);
-        </script>
-        "##.as_bytes())?;
+        output.write(HTML_FOOTER.as_bytes())?;
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
@@ -60,32 +64,24 @@ impl Dot for WithContext<&Expr, DataType> {
     fn display_dot(&self) -> Result<()> {
         let name = namer::name_from_content("relation", &self.object);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
-        output.write(r##"<!DOCTYPE html>
-        <!-- Inspired from https://gist.github.com/magjac/a23d1f1405c2334f288a9cca4c0ef05b -->
-        <meta charset="utf-8">
-        <style>
-        #graph {
-            background: white;
-            height: 100%;
-            width: 100%;
-        }
-        #graph svg {
-            height: 100%;
-            width: 100%;
-        }
-        </style>
-        <body>
-        <script src="https://d3js.org/d3.v5.min.js"></script>
-        <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
-        <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
-        <div id="graph" style="text-align: center;"></div>
-        <script>
-        d3.select("#graph").graphviz()
-        .renderDot(`"##.as_bytes())?;
-        self.object.dot(self.context.clone(), &mut output)?;
-        output.write(r##"`);
-        </script>
-        "##.as_bytes())?;
+        output.write(HTML_HEADER.as_bytes())?;
+        self.dot(self.context.clone(), &mut output)?;
+        output.write(HTML_FOOTER.as_bytes())?;
+        Command::new("open")
+            .arg(format!("/tmp/{name}.html"))
+            .output()
+            .expect("Error: this works on MacOS");
+        Ok(())
+    }
+}
+
+impl Dot for WithContext<&Expr, Value> {
+    fn display_dot(&self) -> Result<()> {
+        let name = namer::name_from_content("relation", &self.object);
+        let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
+        output.write(HTML_HEADER.as_bytes())?;
+        self.dot_value(self.context.clone(), &mut output)?;
+        output.write(HTML_FOOTER.as_bytes())?;
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()

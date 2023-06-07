@@ -32,10 +32,10 @@ pub fn render<'a,
         nodesep="0.2";
         ranksep="0.4";
         labelloc="t";
-        fontname="Red Hat Text";
+        fontname="Ovo,Red Hat Text";
         fontsize="11pt"
         bgcolor="#00000000"
-        node [ shape="box" style="filled, rounded" margin=0.2, fontname="Red Hat Text", fontsize="11pt" ]
+        node [ shape="box" style="filled, rounded" margin=0.2, fontname="Red Hat Display,sans-serif", fontsize="11pt" ]
         edge [ fontname="Red Hat Text" color="#2B303A" ]
         "##])?;
     for n in g.nodes().iter() {
@@ -66,6 +66,16 @@ pub fn render<'a,
             text.push("[color=");
             text.push(&colorstring);
             text.push("]");
+        }
+        let color = g.node_color(n);
+        if let Some(dot::LabelText::LabelStr(c)) = color {
+            text.push("[fontcolor=\"");
+            match c.as_ref().to_lowercase().as_str() {
+                DARK_GREEN | MEDIUM_GREEN | MEDIUM_RED | DARK_RED => text.push("#ffffffbb"),
+                LIGHT_GREEN | LIGHTER_GREEN | LIGHT_RED => text.push("#000000bb"),
+                _ => text.push("black"),
+            }
+            text.push("\"]");
         }
         // Add node shape
         if let Some(s) = g.node_shape(n) {
