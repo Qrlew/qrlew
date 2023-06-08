@@ -287,72 +287,36 @@ impl Relation {
         }
     }
 
-    pub fn l1_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        // group by base, coordinates
+    pub fn sum_by(self, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
-        reduce = reduce.with_group_by_column(vector);
         reduce = base
             .iter()
             .fold(reduce, |acc, s| acc.with_group_by_column(s.to_string()));
         reduce = reduce.with_iter(
             coordinates
                 .iter()
-                .map(|c| Expr::sum(Expr::col(c.to_string()))),
+                .map(|c| (*c, Expr::sum(Expr::col(c.to_string())))),
         );
-        let reduce_rel: Relation = reduce.build();
+        reduce.build()
+    }
 
-        // group by base
-        let mut reduce2 = Relation::reduce().input(reduce_rel.clone());
-        for i in 1..(1 + base.len()) {
-            reduce2 = reduce2.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
-        }
-        for i in (1 + base.len())..(1 + base.len() + coordinates.len()) {
-            let agg = Expr::abs(Expr::col(reduce_rel.field_from_index(i).unwrap().name()));
-            reduce2 = reduce2.with(Expr::sum(agg));
-        }
-        reduce2.build()
+    pub fn l1_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+        let mut vectors_base = vec!(vector);
+        vectors_base.extend(base.clone());
+
+        let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
+        let map_rel = reduce_rel.map_fields(|n, e| if coordinates.contains(&n) { Expr::abs(e) } else { e });
+        map_rel.sum_by(base, coordinates)
     }
 
     pub fn l2_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        // group by base, coordinates
-        let mut reduce = Relation::reduce().input(self.clone());
-        reduce = reduce.with_group_by_column(vector);
-        reduce = base
-            .iter()
-            .fold(reduce, |acc, s| acc.with_group_by_column(s.to_string()));
-        reduce = reduce.with_iter(
-            coordinates
-                .iter()
-                .map(|c| Expr::sum(Expr::col(c.to_string()))),
-        );
-        let reduce_rel: Relation = reduce.build();
+        let mut vectors_base = vec!(vector);
+        vectors_base.extend(base.clone());
 
-        // group by base
-        let mut reduce = Relation::reduce().input(reduce_rel.clone());
-        for i in 1..(1 + base.len()) {
-            reduce = reduce.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
-        }
-        for i in (1 + base.len())..(1 + base.len() + coordinates.len()) {
-            let agg = Expr::pow(
-                Expr::col(reduce_rel.field_from_index(i).unwrap().name()),
-                Expr::val(2),
-            );
-            reduce = reduce.with(Expr::sum(agg));
-        }
-        let reduce_rel2: Relation = reduce.build();
-
-        // sqrt
-        let mut map = Relation::map().input(reduce_rel2.clone());
-        for i in 0..(base.len()) {
-            map = map.with(Expr::col(reduce_rel2.field_from_index(i).unwrap().name()));
-        }
-        for i in base.len()..(base.len() + coordinates.len()) {
-            map = map.with(Expr::sqrt(Expr::col(
-                reduce_rel2.field_from_index(i).unwrap().name(),
-            )));
-        }
-        let map_rel: Relation = map.build();
-        map_rel
+        let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
+        let map_rel = reduce_rel.map_fields(|n, e| if coordinates.contains(&n) { Expr::pow(e, Expr::val(2)) } else { e });
+        let reduce_rel2  = map_rel.sum_by(base, coordinates.clone());
+        reduce_rel2.map_fields(|n, e| if coordinates.contains(&n) { Expr::sqrt(e) } else { e })
     }
 }
 
