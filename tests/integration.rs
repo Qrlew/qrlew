@@ -27,9 +27,9 @@ pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
             .map(ToString::to_string)
             .join("\n")
     );
+    println!("{}", format!("{rewriten_query}").yellow());
     println!(
-        "{}\n{}",
-        format!("{rewriten_query}").yellow(),
+        "{}",
         database
             .query(rewriten_query)
             .unwrap()
@@ -64,7 +64,7 @@ const QUERIES: &[&str] = &[
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
     "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
     "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
-    //"SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
+    "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
     // Test UNION
     "SELECT 1*a FROM table_1 UNION SELECT 1*x FROM table_2",
     // Test no UNION with CTEs

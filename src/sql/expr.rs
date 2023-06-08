@@ -818,7 +818,6 @@ mod tests {
         }
         let true_expr = expr!(case(gt(a, 5), 5, case(lt(a, 2), 2, a)));
         assert_eq!(true_expr.to_string(), expr.to_string());
-        //true_expr.display_dot();
         assert_eq!(
             expr.to_string(),
             String::from("CASE WHEN (a > 5) THEN 5 ELSE CASE WHEN (a < 2) THEN 2 ELSE a END END")
@@ -839,5 +838,9 @@ mod tests {
         println!("\nast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
+        assert_eq!(
+            expr.to_string(),
+            String::from("CASE WHEN (a = 5) THEN (a + 3) ELSE CASE WHEN (a = 2) THEN (a - 4) ELSE a END END")
+        );
     }
 }
