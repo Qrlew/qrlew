@@ -1,15 +1,12 @@
 //! A few transforms for relations
 //!
 
-use std::{
-    rc::Rc,
-    ops::Deref,
-};
+use std::{ops::Deref, rc::Rc};
 
-use super::{Relation, Map, Variant as _};
+use super::{Map, Relation, Variant as _};
 use crate::{
+    builder::{Ready, With, WithIterator},
     expr::Expr,
-    builder::{With, Ready, WithIterator},
     hierarchy::Hierarchy,
 };
 
@@ -56,13 +53,17 @@ impl<'a> Deref for Path<'a> {
     }
 }
 
-impl<'a> FromIterator<&'a(&'a str, &'a str, &'a str)> for Path<'a> {
+impl<'a> FromIterator<&'a (&'a str, &'a str, &'a str)> for Path<'a> {
     fn from_iter<T: IntoIterator<Item = &'a (&'a str, &'a str, &'a str)>>(iter: T) -> Self {
-        Path(iter.into_iter().map(|(referring_id, referred_relation, referred_id)| Step {
-            referring_id,
-            referred_relation,
-            referred_id,
-        }).collect())
+        Path(
+            iter.into_iter()
+                .map(|(referring_id, referred_relation, referred_id)| Step {
+                    referring_id,
+                    referred_relation,
+                    referred_id,
+                })
+                .collect(),
+        )
     }
 }
 
@@ -89,7 +90,11 @@ pub struct ReferredField<'a> {
 pub struct FieldPath<'a>(pub Vec<ReferredField<'a>>);
 
 impl<'a> FieldPath<'a> {
-    pub fn from_path(path: Path<'a>, referred_field: &'a str, referred_field_name: &'a str) -> Self {
+    pub fn from_path(
+        path: Path<'a>,
+        referred_field: &'a str,
+        referred_field_name: &'a str,
+    ) -> Self {
         let mut field_path = FieldPath(Vec::new());
         let mut last_step: Option<Step> = None;
         // Fill the vec
@@ -146,7 +151,11 @@ impl Relation {
     pub fn identity_with_field(self, name: &str, expr: Expr) -> Relation {
         Relation::map()
             .with((name, expr))
-            .with_iter(self.schema().iter().map(|f| (f.name(), Expr::col(f.name()))))
+            .with_iter(
+                self.schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
             .input(self)
             .build()
     }
@@ -161,46 +170,91 @@ impl Relation {
     }
 
     /// Add a field designated with a foreign relation and a field
-    pub fn with_referred_field<'a>(self, referring_id: &'a str, referred_relation: Rc<Relation>, referred_id: &'a str, referred_field: &'a str, referred_field_name: &'a str) -> Relation {
+    pub fn with_referred_field<'a>(
+        self,
+        referring_id: &'a str,
+        referred_relation: Rc<Relation>,
+        referred_id: &'a str,
+        referred_field: &'a str,
+        referred_field_name: &'a str,
+    ) -> Relation {
         let left_size = referred_relation.schema().len();
-        let names: Vec<String> = self.schema().iter()
+        let names: Vec<String> = self
+            .schema()
+            .iter()
             .map(|f| f.name().to_string())
             .filter(|name| name != referred_field_name)
             .collect();
-        let join: Relation = Relation::join().inner()
-            .on(Expr::eq(Expr::qcol(self.name(), referring_id), Expr::qcol(referred_relation.name(), referred_id)))
+        let join: Relation = Relation::join()
+            .inner()
+            .on(Expr::eq(
+                Expr::qcol(self.name(), referring_id),
+                Expr::qcol(referred_relation.name(), referred_id),
+            ))
             .left(referred_relation)
             .right(self)
             .build();
-        let left: Vec<_> = join.schema().iter().zip(join.input_fields()).take(left_size).collect();
-        let right: Vec<_> = join.schema().iter().zip(join.input_fields()).skip(left_size).collect();
+        let left: Vec<_> = join
+            .schema()
+            .iter()
+            .zip(join.input_fields())
+            .take(left_size)
+            .collect();
+        let right: Vec<_> = join
+            .schema()
+            .iter()
+            .zip(join.input_fields())
+            .skip(left_size)
+            .collect();
         Relation::map()
             .with_iter(left.into_iter().find_map(|(o, i)| {
-                (referred_field==i.name()).then_some((referred_field_name, Expr::col(o.name())))
+                (referred_field == i.name()).then_some((referred_field_name, Expr::col(o.name())))
             }))
             .with_iter(right.into_iter().filter_map(|(o, i)| {
-                names.contains(&i.name().to_string()).then_some((i.name(), Expr::col(o.name())))
+                names
+                    .contains(&i.name().to_string())
+                    .then_some((i.name(), Expr::col(o.name())))
             }))
             .input(join)
             .build()
     }
 
     /// Add a field designated with a "fiald path"
-    pub fn with_field_path<'a>(self, relations: &'a Hierarchy<Rc<Relation>>, path: &'a [(&'a str, &'a str, &'a str)], referred_field: &'a str, referred_field_name: &'a str) -> Relation {
+    pub fn with_field_path<'a>(
+        self,
+        relations: &'a Hierarchy<Rc<Relation>>,
+        path: &'a [(&'a str, &'a str, &'a str)],
+        referred_field: &'a str,
+        referred_field_name: &'a str,
+    ) -> Relation {
         if path.is_empty() {
             self.identity_with_field(referred_field_name, Expr::col(referred_field))
         } else {
             let path = Path::from_iter(path);
             let field_path = FieldPath::from_path(path, referred_field, referred_field_name);
             // Build the relation following the path to compute the new field
-            field_path.into_iter().fold(self, |relation, ReferredField { referring_id, referred_relation, referred_id, referred_field, referred_field_name }|  {
-                relation.with_referred_field(referring_id,
-                    relations.get(&[referred_relation.to_string()]).unwrap().clone(),
-                    referred_id,
-                    referred_field,
-                    referred_field_name
-                )
-            })
+            field_path.into_iter().fold(
+                self,
+                |relation,
+                 ReferredField {
+                     referring_id,
+                     referred_relation,
+                     referred_id,
+                     referred_field,
+                     referred_field_name,
+                 }| {
+                    relation.with_referred_field(
+                        referring_id,
+                        relations
+                            .get(&[referred_relation.to_string()])
+                            .unwrap()
+                            .clone(),
+                        referred_id,
+                        referred_field,
+                        referred_field_name,
+                    )
+                },
+            )
         }
     }
 
@@ -209,7 +263,9 @@ impl Relation {
             Relation::Map(map) => map.filter_fields(predicate).into(),
             relation => {
                 Relation::map()
-                    .with_iter(relation.schema().iter().filter_map(|f| predicate(f.name()).then_some((f.name(), Expr::col(f.name())))))
+                    .with_iter(relation.schema().iter().filter_map(|f| {
+                        predicate(f.name()).then_some((f.name(), Expr::col(f.name())))
+                    }))
                     .input(relation)
                     .build()
             }
@@ -219,56 +275,68 @@ impl Relation {
     pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Relation {
         match self {
             Relation::Map(map) => map.map_fields(f).into(),
-            relation => {
-                Relation::map()
-                    .with_iter(relation.schema().iter().map(|field| (field.name(), f(field.name(), Expr::col(field.name())))))
-                    .input(relation)
-                    .build()
-            }
+            relation => Relation::map()
+                .with_iter(
+                    relation
+                        .schema()
+                        .iter()
+                        .map(|field| (field.name(), f(field.name(), Expr::col(field.name())))),
+                )
+                .input(relation)
+                .build(),
         }
     }
 
     pub fn l1_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
         // group by base, coordinates
-        let mut reduce= Relation::reduce().input(self.clone());
+        let mut reduce = Relation::reduce().input(self.clone());
         reduce = reduce.with_group_by_column(vector);
-        reduce = base.iter()
-            .fold(reduce,
-                |acc, s| acc.with_group_by_column(s.to_string())
-            );
-        reduce = reduce.with_iter(coordinates.iter().map(|c| Expr::sum(Expr::col(c.to_string()))));
+        reduce = base
+            .iter()
+            .fold(reduce, |acc, s| acc.with_group_by_column(s.to_string()));
+        reduce = reduce.with_iter(
+            coordinates
+                .iter()
+                .map(|c| Expr::sum(Expr::col(c.to_string()))),
+        );
         let reduce_rel: Relation = reduce.build();
 
         // group by base
         let mut reduce2 = Relation::reduce().input(reduce_rel.clone());
-        for i in 1..(1+base.len()) {
+        for i in 1..(1 + base.len()) {
             reduce2 = reduce2.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
         }
-        for i in (1+base.len())..(1+base.len()+coordinates.len()) {
+        for i in (1 + base.len())..(1 + base.len() + coordinates.len()) {
             let agg = Expr::abs(Expr::col(reduce_rel.field_from_index(i).unwrap().name()));
             reduce2 = reduce2.with(Expr::sum(agg));
         }
         reduce2.build()
     }
 
-    pub fn l2_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self{
+    pub fn l2_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
         // group by base, coordinates
-        let mut reduce= Relation::reduce().input(self.clone());
+        let mut reduce = Relation::reduce().input(self.clone());
         reduce = reduce.with_group_by_column(vector);
-        reduce = base.iter()
-            .fold(reduce,
-                |acc, s| acc.with_group_by_column(s.to_string())
-            );
-        reduce = reduce.with_iter(coordinates.iter().map(|c| Expr::sum(Expr::col(c.to_string()))));
+        reduce = base
+            .iter()
+            .fold(reduce, |acc, s| acc.with_group_by_column(s.to_string()));
+        reduce = reduce.with_iter(
+            coordinates
+                .iter()
+                .map(|c| Expr::sum(Expr::col(c.to_string()))),
+        );
         let reduce_rel: Relation = reduce.build();
 
         // group by base
         let mut reduce = Relation::reduce().input(reduce_rel.clone());
-        for i in 1..(1+base.len()) {
+        for i in 1..(1 + base.len()) {
             reduce = reduce.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
         }
-        for i in (1+base.len())..(1+base.len()+coordinates.len()) {
-            let agg = Expr::pow(Expr::col(reduce_rel.field_from_index(i).unwrap().name()), Expr::val(2));
+        for i in (1 + base.len())..(1 + base.len() + coordinates.len()) {
+            let agg = Expr::pow(
+                Expr::col(reduce_rel.field_from_index(i).unwrap().name()),
+                Expr::val(2),
+            );
             reduce = reduce.with(Expr::sum(agg));
         }
         let reduce_rel2: Relation = reduce.build();
@@ -278,8 +346,10 @@ impl Relation {
         for i in 0..(base.len()) {
             map = map.with(Expr::col(reduce_rel2.field_from_index(i).unwrap().name()));
         }
-        for i in base.len()..(base.len()+coordinates.len()) {
-            map = map.with(Expr::sqrt(Expr::col(reduce_rel2.field_from_index(i).unwrap().name())));
+        for i in base.len()..(base.len() + coordinates.len()) {
+            map = map.with(Expr::sqrt(Expr::col(
+                reduce_rel2.field_from_index(i).unwrap().name(),
+            )));
         }
         let map_rel: Relation = map.build();
         map_rel
@@ -294,54 +364,59 @@ impl With<(&str, Expr)> for Relation {
 
 #[cfg(test)]
 mod tests {
-    use colored::Colorize;
-    use sqlparser::ast;
-    use itertools::Itertools;
     use super::*;
     use crate::{
-        sql::parse,
-        io::{Database, postgresql},
-        relation::{Table, schema::Schema, builder::*},
         display::Dot,
+        io::{postgresql, Database},
+        relation::{builder::*, schema::Schema, Table},
+        sql::parse,
     };
+    use colored::Colorize;
+    use itertools::Itertools;
+    use sqlparser::ast;
 
     #[test]
     fn test_with_computed_field() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
-        let relation = Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
+        let relation =
+            Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
         // Table
-        assert!(table.schema()[0].name()!="peid");
-        let table = table.identity_with_field("peid", expr!(a+b));
-        assert!(table.schema()[0].name()=="peid");
+        assert!(table.schema()[0].name() != "peid");
+        let table = table.identity_with_field("peid", expr!(a + b));
+        assert!(table.schema()[0].name() == "peid");
         // Relation
-        assert!(relation.schema()[0].name()!="peid");
+        assert!(relation.schema()[0].name() != "peid");
         let relation = relation.identity_with_field("peid", expr!(cos(a)));
-        assert!(relation.schema()[0].name()=="peid");
+        assert!(relation.schema()[0].name() == "peid");
     }
 
     #[test]
     fn test_filter_fields() {
         let database = postgresql::test_database();
         let relations = database.relations();
-        let relation = Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
+        let relation =
+            Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
         let relation = relation.with_field("peid", expr!(cos(a)));
-        assert!(relation.schema()[0].name()=="peid");
-        let relation = relation.filter_fields(|n| n!="peid");
-        assert!(relation.schema()[0].name()!="peid");
+        assert!(relation.schema()[0].name() == "peid");
+        let relation = relation.filter_fields(|n| n != "peid");
+        assert!(relation.schema()[0].name() != "peid");
     }
 
     #[test]
     fn test_referred_field() {
         let database = postgresql::test_database();
         let relations = database.relations();
-        let orders = Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations)).unwrap();
+        let orders =
+            Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations))
+                .unwrap();
         let user = relations.get(&["user_table".to_string()]).unwrap().as_ref();
-        let relation = orders.with_referred_field("user_id", Rc::new(user.clone()), "id", "id", "peid");
-        assert!(relation.schema()[0].name()=="peid");
-        let relation = relation.filter_fields(|n| n!="peid");
-        assert!(relation.schema()[0].name()!="peid");
+        let relation =
+            orders.with_referred_field("user_id", Rc::new(user.clone()), "id", "id", "peid");
+        assert!(relation.schema()[0].name() == "peid");
+        let relation = relation.filter_fields(|n| n != "peid");
+        assert!(relation.schema()[0].name() != "peid");
     }
 
     #[test]
@@ -349,13 +424,29 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         // Link orders to users
-        let orders = relations.get(&["order_table".to_string()]).unwrap().as_ref();
-        let relation = orders.clone().with_field_path(&relations, &[("user_id", "user_table", "id")], "id", "peid");
-        assert!(relation.schema()[0].name()=="peid");
+        let orders = relations
+            .get(&["order_table".to_string()])
+            .unwrap()
+            .as_ref();
+        let relation = orders.clone().with_field_path(
+            &relations,
+            &[("user_id", "user_table", "id")],
+            "id",
+            "peid",
+        );
+        assert!(relation.schema()[0].name() == "peid");
         // Link items to orders
         let items = relations.get(&["item_table".to_string()]).unwrap().as_ref();
-        let relation = items.clone().with_field_path(&relations, &[("order_id", "order_table", "id"), ("user_id", "user_table", "id")], "name", "peid");
-        assert!(relation.schema()[0].name()=="peid");
+        let relation = items.clone().with_field_path(
+            &relations,
+            &[
+                ("order_id", "order_table", "id"),
+                ("user_id", "user_table", "id"),
+            ],
+            "name",
+            "peid",
+        );
+        assert!(relation.schema()[0].name() == "peid");
         // Produce the query
         relation.display_dot();
         let query: &str = &ast::Query::from(&relation).to_string();
@@ -370,8 +461,8 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
-        let relation = relation.filter_fields(|n| n!="peid");
-        assert!(relation.schema()[0].name()!="peid");
+        let relation = relation.filter_fields(|n| n != "peid");
+        assert!(relation.schema()[0].name() != "peid");
     }
 
     #[test]
@@ -379,16 +470,15 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let table = relations.get(&["item_table".into()])
+        let table = relations
+            .get(&["item_table".into()])
             .unwrap()
             .as_ref()
             .clone();
         // L1 Norm
-        let amount_norm = table.clone().l1_norm(
-            "order_id",
-            vec!["item"],
-            vec!["price"]
-        );
+        let amount_norm = table
+            .clone()
+            .l1_norm("order_id", vec!["item"], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         //println!("Query = {}", query);
@@ -398,11 +488,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let amount_norm = table.l2_norm(
-            "order_id",
-            vec!["item"],
-            vec!["price"]
-        );
+        let amount_norm = table.l2_norm("order_id", vec!["item"], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query = "SELECT item, SQRT(SUM(sum_by_peid)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
@@ -417,16 +503,18 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let relation = Relation::try_from(parse("SELECT price - 25 AS std_price, * FROM item_table")
-            .unwrap()
-            .with(&relations)).unwrap();
+        let relation = Relation::try_from(
+            parse("SELECT price - 25 AS std_price, * FROM item_table")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
         relation.display_dot().unwrap();
         // L1 Norm
-        let relation_norm = relation.clone().l1_norm(
-            "order_id",
-            vec!["item"],
-            vec!["price", "std_price"]
-        );
+        let relation_norm =
+            relation
+                .clone()
+                .l1_norm("order_id", vec!["item"], vec!["price", "std_price"]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         //println!("Query = {}", query);
@@ -436,11 +524,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.l2_norm(
-            "order_id",
-            vec!["item"],
-            vec!["price", "std_price"]
-        );
+        let relation_norm = relation.l2_norm("order_id", vec!["item"], vec!["price", "std_price"]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT item, SQRT(SUM(sum_1)), SQRT(SUM(sum_2)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY item";
@@ -455,11 +539,13 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let left: Relation = relations.get(&["item_table".into()])
+        let left: Relation = relations
+            .get(&["item_table".into()])
             .unwrap()
             .as_ref()
             .clone();
-        let right: Relation = relations.get(&["order_table".into()])
+        let right: Relation = relations
+            .get(&["order_table".into()])
             .unwrap()
             .as_ref()
             .clone();
@@ -479,11 +565,9 @@ mod tests {
         let date = schema.field_from_index(6).unwrap().name();
 
         // L1 Norm
-        let relation_norm = relation.clone().l1_norm(
-            user_id,
-            vec![item, date],
-            vec![price]
-        );
+        let relation_norm = relation
+            .clone()
+            .l1_norm(user_id, vec![item, date], vec![price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         println!("Query = {}", query);
@@ -494,11 +578,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.l2_norm(
-            user_id,
-            vec![item, date],
-            vec![price]
-        );
+        let relation_norm = relation.l2_norm(user_id, vec![item, date], vec![price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT item, date, SQRT(SUM(sum_1)) FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY item, date";
@@ -507,5 +587,4 @@ mod tests {
             database.query(valid_query).unwrap()
         );
     }
-
 }

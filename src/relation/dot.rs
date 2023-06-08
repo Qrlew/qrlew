@@ -1,7 +1,13 @@
-use super::{Error, Field, Relation, JoinOperator, JoinConstraint, Variant as _, Visitor};
-use crate::{data_type::DataTyped, expr::Expr, namer, visitor::Acceptor, display::{self, colors}};
+use super::{Error, Field, JoinConstraint, JoinOperator, Relation, Variant as _, Visitor};
+use crate::{
+    data_type::DataTyped,
+    display::{self, colors},
+    expr::Expr,
+    namer,
+    visitor::Acceptor,
+};
 use itertools::Itertools;
-use std::{borrow::Cow, fmt, io, fs::File, process::Command, str, string};
+use std::{borrow::Cow, fmt, fs::File, io, process::Command, str, string};
 
 impl From<string::FromUtf8Error> for Error {
     fn from(err: string::FromUtf8Error) -> Self {
@@ -29,12 +35,7 @@ impl fmt::Display for FieldDataTypes {
             "{}",
             self.0
                 .iter()
-                .map(|(field, expr)| format!(
-                    "{} = {} ∈ {}",
-                    field.name(),
-                    expr,
-                    field.data_type()
-                ))
+                .map(|(field, expr)| format!("{} = {} ∈ {}", field.name(), expr, field.data_type()))
                 .join("<br/>")
         )
     }
@@ -93,10 +94,14 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
         )
     }
 
-    fn set(&self, set: &'a super::Set, _left: FieldDataTypes, _right: FieldDataTypes) -> FieldDataTypes {
+    fn set(
+        &self,
+        set: &'a super::Set,
+        _left: FieldDataTypes,
+        _right: FieldDataTypes,
+    ) -> FieldDataTypes {
         FieldDataTypes(
-            set
-                .schema()
+            set.schema()
                 .fields()
                 .iter()
                 .map(|field| (field.clone(), Expr::col(field.name())))
@@ -181,7 +186,8 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 )
             }
             Relation::Join(join) => {
-                let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator {
+                let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator
+                {
                     format!("<br/>ON {}", expr)
                 } else {
                     "".to_string()
@@ -193,7 +199,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     &node.1,
                     operator,
                 )
-            },
+            }
             Relation::Set(set) => format!(
                 "<b>{} size ∈ {}</b><br/>{}",
                 set.name().to_uppercase(),
@@ -265,9 +271,9 @@ mod tests {
     use crate::{
         builder::{Ready, With},
         data_type::DataType,
+        display::Dot,
         expr::Expr,
         relation::{schema::Schema, Relation},
-        display::Dot,
     };
 
     #[test]

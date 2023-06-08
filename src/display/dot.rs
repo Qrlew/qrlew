@@ -1,17 +1,19 @@
-use std::{io::{self, Write}};
-use dot::{Labeller, GraphWalk, Style};
 use super::colors::*;
+use dot::{GraphWalk, Labeller, Style};
+use std::io::{self, Write};
 
 /// Renders graph `g` into the writer `w` in DOT syntax.
 /// (Main entry point for the library.)
-pub fn render<'a,
-                   N: Clone + 'a,
-                   E: Clone + 'a,
-                   G: Labeller<'a, N, E> + GraphWalk<'a, N, E>,
-                   W: Write>
-    (g: &'a G,
-     w: &mut W)
-     -> io::Result<()> {
+pub fn render<
+    'a,
+    N: Clone + 'a,
+    E: Clone + 'a,
+    G: Labeller<'a, N, E> + GraphWalk<'a, N, E>,
+    W: Write,
+>(
+    g: &'a G,
+    w: &mut W,
+) -> io::Result<()> {
     fn writeln<W: Write>(w: &mut W, arg: &[&str]) -> io::Result<()> {
         for &s in arg {
             w.write_all(s.as_bytes())?;
@@ -25,7 +27,9 @@ pub fn render<'a,
 
     writeln(w, &["digraph ", g.graph_id().as_slice(), " {"])?;
     // Add base Styling
-    writeln(w, &[r##"
+    writeln(
+        w,
+        &[r##"
         rankdir="TB";
         splines=true;
         overlap=false;
@@ -37,7 +41,8 @@ pub fn render<'a,
         bgcolor="#00000000"
         node [ shape="box" style="filled,rounded" margin=0.2, fontname="Red Hat Display,sans-serif", fontsize="11pt", color="#00000055" ]
         edge [ fontname="Red Hat Text" color="#2B303A" ]
-        "##])?;
+        "##],
+    )?;
     for n in g.nodes().iter() {
         let mut colorstring;
 

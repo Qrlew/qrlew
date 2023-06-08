@@ -1,18 +1,17 @@
-pub mod dot;
 pub mod colors;
+pub mod dot;
 
+use crate::{
+    builder::{WithContext, WithoutContext},
+    data_type::DataTyped,
+    namer, DataType, Expr, Relation, Value,
+};
 use std::{
-    io::{Result, Write},
     fs::File,
+    io::{Result, Write},
     process::Command,
     rc::Rc,
 };
-use crate::{
-    Relation, Expr, DataType, Value, data_type::DataTyped,
-    namer, builder::{WithContext, WithoutContext},
-};
-
-
 
 pub trait Dot {
     fn display_dot(&self) -> Result<()>;
@@ -195,6 +194,8 @@ mod tests {
         let expr = expr!(
             exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
         );
-        expr.with(rel.as_ref().data_type().clone()).display_dot().unwrap();
+        expr.with(rel.as_ref().data_type().clone())
+            .display_dot()
+            .unwrap();
     }
 }

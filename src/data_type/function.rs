@@ -1,10 +1,11 @@
 use std::{
-    cmp,
+    cmp, collections,
     convert::{Infallible, TryFrom, TryInto},
     error, fmt,
+    hash::Hasher,
+    ops::Deref,
     rc::Rc,
     result,
-    collections, hash::Hasher, ops::Deref,
 };
 
 use itertools::Itertools;
@@ -161,7 +162,7 @@ impl Simple {
         Simple {
             domain,
             co_domain,
-            value
+            value,
         }
     }
 }
@@ -280,7 +281,10 @@ impl Pointwise {
             co_domain.into(),
             Rc::new(move |v| {
                 let v = value::Struct::try_from(v).unwrap();
-                let v: Vec<<D::Element as value::Variant>::Wrapped> = v.into_iter().map(|(_n, v)| v.as_ref().clone().try_into().unwrap()).collect();
+                let v: Vec<<D::Element as value::Variant>::Wrapped> = v
+                    .into_iter()
+                    .map(|(_n, v)| v.as_ref().clone().try_into().unwrap())
+                    .collect();
                 value(v).into()
             }),
         )
@@ -1112,15 +1116,21 @@ pub fn string_concat() -> impl Function + Clone {
 }
 
 pub fn concat(n: usize) -> impl Function + Clone {
-    Pointwise::variadic(vec![DataType::Any; n], data_type::Text::default(), |v| v.into_iter().map(|v| v.to_string()).join(""))
+    Pointwise::variadic(vec![DataType::Any; n], data_type::Text::default(), |v| {
+        v.into_iter().map(|v| v.to_string()).join("")
+    })
 }
 
 pub fn md5() -> impl Function + Clone {
-    Simple::new(DataType::text(), DataType::text(), Rc::new(|v| {
-        let mut s = collections::hash_map::DefaultHasher::new();
-        Bound::hash((value::Text::try_from(v).unwrap()).deref(), &mut s);
-        Encoder::new(BASE_64, 10).encode(s.finish()).into()
-    }))
+    Simple::new(
+        DataType::text(),
+        DataType::text(),
+        Rc::new(|v| {
+            let mut s = collections::hash_map::DefaultHasher::new();
+            Bound::hash((value::Text::try_from(v).unwrap()).deref(), &mut s);
+            Encoder::new(BASE_64, 10).encode(s.finish()).into()
+        }),
+    )
 }
 
 pub fn gt() -> impl Function + Clone {
@@ -1451,16 +1461,12 @@ pub fn bivariate_max() -> impl Function + Clone {
 
 /// Builds the lower `Function`
 pub fn lower() -> impl Function + Clone {
-    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| {
-        x.to_lowercase()
-    })
+    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| x.to_lowercase())
 }
 
 /// Builds the upper `Function`
 pub fn upper() -> impl Function + Clone {
-    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| {
-        x.to_uppercase()
-    })
+    PartitionnedMonotonic::univariate(data_type::Text::default(), |x| x.to_uppercase())
 }
 
 /// Builds the char_length `Function`
@@ -1477,9 +1483,12 @@ pub fn position() -> impl Function + Clone {
     Pointwise::bivariate(
         (data_type::Text::default(), data_type::Text::default()),
         DataType::optional(DataType::integer()),
-        |a,b| Value::Optional(
-            value::Optional::new(a.find(&b).map(|v| Rc::new(Value::integer(v.try_into().unwrap()))))
-        )
+        |a, b| {
+            Value::Optional(value::Optional::new(
+                a.find(&b)
+                    .map(|v| Rc::new(Value::integer(v.try_into().unwrap()))),
+            ))
+        },
     )
 }
 
@@ -1920,16 +1929,20 @@ mod tests {
             "concat(set) = {}",
             concat(3)
                 .super_image(
-                    &(DataType::float_values([0.0, 0.1]) & DataType::float_values([0.0, 0.1]) & DataType::float_values([0.0, 0.1]))
+                    &(DataType::float_values([0.0, 0.1])
+                        & DataType::float_values([0.0, 0.1])
+                        & DataType::float_values([0.0, 0.1]))
                 )
                 .unwrap()
         );
         println!(
             r#"concat(5, "hello", 12.5) = {}"#,
             concat(3)
-                .value(
-                    &Value::structured_from_values(&[5.into(), "hello".to_string().into(), 12.5.into()])
-                )
+                .value(&Value::structured_from_values(&[
+                    5.into(),
+                    "hello".to_string().into(),
+                    12.5.into()
+                ]))
                 .unwrap()
         );
     }
@@ -1943,18 +1956,14 @@ mod tests {
         println!(
             "md5(set) = {}",
             md5()
-                .super_image(
-                    &DataType::structured_from_data_types([DataType::text_values(["hello".into(), "world".into()])])
-                )
+                .super_image(&DataType::structured_from_data_types([
+                    DataType::text_values(["hello".into(), "world".into()])
+                ]))
                 .unwrap()
         );
         println!(
             r#"md5("hello") = {}"#,
-            md5()
-                .value(
-                    &Value::text("hello")
-                )
-                .unwrap()
+            md5().value(&Value::text("hello")).unwrap()
         );
     }
 
@@ -2230,7 +2239,7 @@ mod tests {
         assert!(im == DataType::Any);
     }
 
-        #[test]
+    #[test]
     fn test_lower() {
         println!("Test lower");
         let fun = lower();
@@ -2238,7 +2247,8 @@ mod tests {
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
-        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
+        let set: DataType =
+            data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Text(_)));
@@ -2252,7 +2262,8 @@ mod tests {
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
-        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
+        let set: DataType =
+            data_type::Text::from_values([String::from("Hello"), String::from("World")]).into();
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Text(_)));
@@ -2266,7 +2277,8 @@ mod tests {
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
-        let set: DataType = data_type::Text::from_values([String::from("Hello"), String::from("World!")]).into();
+        let set: DataType =
+            data_type::Text::from_values([String::from("Hello"), String::from("World!")]).into();
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Integer(_)));
@@ -2281,20 +2293,28 @@ mod tests {
         println!("co_domain = {}", fun.co_domain());
 
         let set = DataType::from(Struct::from_data_types(&[
-            DataType::from(data_type::Text::from_values([String::from("Hello"), String::from("World")])),
-            DataType::from(data_type::Text::from_values([String::from("e"), String::from("z")])),
+            DataType::from(data_type::Text::from_values([
+                String::from("Hello"),
+                String::from("World"),
+            ])),
+            DataType::from(data_type::Text::from_values([
+                String::from("e"),
+                String::from("z"),
+            ])),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Optional(_)));
 
         let set = DataType::from(Struct::from_data_types(&[
-            DataType::from(data_type::Text::from_values([String::from("Hello"), String::from("World")])),
+            DataType::from(data_type::Text::from_values([
+                String::from("Hello"),
+                String::from("World"),
+            ])),
             DataType::from(data_type::Text::from_values([String::from("l")])),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Optional(_)));
     }
-
 }

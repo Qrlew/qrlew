@@ -70,10 +70,9 @@ fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> 
         ast::SetExpr::Select(select) => select
             .from
             .iter()
-            .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries()).collect(),
-        ast::SetExpr::SetOperation { .. } => {
-            Vec::new()
-        },
+            .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries())
+            .collect(),
+        ast::SetExpr::SetOperation { .. } => Vec::new(),
         _ => todo!(), // Not implemented
     }
 }

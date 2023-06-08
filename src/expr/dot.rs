@@ -1,14 +1,14 @@
 //! Plot the dot graph of an expression to debug
 
-use std::{fmt, io, fs::File, process::Command, string};
+use std::{fmt, fs::File, io, process::Command, string};
 
 use super::{aggregate, function, Column, Error, Expr, Value, Visitor};
 use crate::{
+    builder::{WithContext, WithoutContext},
     data_type::{DataType, DataTyped},
+    display::{self, colors},
     namer,
     visitor::Acceptor,
-    builder::{WithContext, WithoutContext},
-    display::{self, colors},
 };
 
 impl From<string::FromUtf8Error> for Error {
@@ -171,7 +171,8 @@ mod tests {
     use crate::{
         builder::{Ready, With},
         data_type::DataType,
-        relation::{schema::Schema, Relation}, display::Dot,
+        display::Dot,
+        relation::{schema::Schema, Relation},
     };
     use std::rc::Rc;
 
@@ -206,9 +207,10 @@ mod tests {
                 .build(),
         );
         // Create an expr
-        expr!(
-            exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
-        ).with(rel.data_type()).display_dot().unwrap();
+        expr!(exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x)))
+            .with(rel.data_type())
+            .display_dot()
+            .unwrap();
     }
 
     #[ignore]
@@ -249,7 +251,10 @@ mod tests {
             ("c", Value::float(0.0)),
             ("x", Value::float(0.0)),
         ]);
-        expr! { exp(a*b + cos(2*z)*d - 2*z + t*sin(c+3*x)) }.with(val).display_dot().unwrap();
+        expr! { exp(a*b + cos(2*z)*d - 2*z + t*sin(c+3*x)) }
+            .with(val)
+            .display_dot()
+            .unwrap();
     }
 
     #[ignore]
@@ -266,9 +271,10 @@ mod tests {
             ("t", Value::float(0.0)),
         ]);
         // Create an expr
-       expr!(
-            exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
-        ).with(val).display_dot().unwrap();
+        expr!(exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x)))
+            .with(val)
+            .display_dot()
+            .unwrap();
     }
 
     #[ignore]
@@ -307,7 +313,10 @@ mod tests {
             ("d", DataType::Any),
         ]);
         // Create an expr
-        expr!(sum(sum(a) + count(b)) * count(c)).with(data_types).display_dot().unwrap();
+        expr!(sum(sum(a) + count(b)) * count(c))
+            .with(data_types)
+            .display_dot()
+            .unwrap();
     }
 
     #[ignore]
@@ -338,6 +347,9 @@ mod tests {
                     cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
                 )),
             ),
-        ]).with(rel.data_type()).display_dot().unwrap();
+        ])
+        .with(rel.data_type())
+        .display_dot()
+        .unwrap();
     }
 }

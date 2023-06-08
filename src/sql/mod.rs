@@ -107,9 +107,9 @@ mod tests {
     use crate::io::sqlite;
     use crate::{
         builder::With,
+        display::Dot,
         io::{postgresql, Database},
         relation::Relation,
-        display::Dot,
     };
     use colored::Colorize;
     use itertools::Itertools;
