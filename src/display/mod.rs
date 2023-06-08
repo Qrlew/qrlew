@@ -20,7 +20,8 @@ pub trait Dot {
 const HTML_HEADER: &str = r##"<!DOCTYPE html>
 <!-- Inspired from https://gist.github.com/magjac/a23d1f1405c2334f288a9cca4c0ef05b -->
 <meta charset="utf-8">
-<style>
+"##;
+const HTML_STYLE: &str = r##"<style>
 #graph {
     height: 100%;
     width: 100%;
@@ -30,7 +31,20 @@ const HTML_HEADER: &str = r##"<!DOCTYPE html>
     width: 100%;
 }
 </style>
-<body>
+"##;
+const HTML_DARK_STYLE: &str = r##"<style>
+#graph {
+    background-color: #2b303a;
+    height: 100%;
+    width: 100%;
+}
+#graph svg {
+    height: 100%;
+    width: 100%;
+}
+</style>
+"##;
+const HTML_BODY: &str = r##"<body>
 <script src="https://d3js.org/d3.v5.min.js"></script>
 <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
 <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
@@ -48,7 +62,9 @@ impl Dot for Relation {
         let name = namer::name_from_content("relation", self);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
-        self.dot(&mut output)?;
+        output.write(HTML_DARK_STYLE.as_bytes())?;
+        output.write(HTML_BODY.as_bytes())?;
+        self.dot(&mut output, &["dark"])?;
         output.write(HTML_FOOTER.as_bytes())?;
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
@@ -63,7 +79,9 @@ impl Dot for WithContext<&Expr, DataType> {
         let name = namer::name_from_content("expr", &self.object);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
-        self.dot(self.context.clone(), &mut output)?;
+        output.write(HTML_STYLE.as_bytes())?;
+        output.write(HTML_BODY.as_bytes())?;
+        self.dot(self.context.clone(), &mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
@@ -78,7 +96,10 @@ impl Dot for WithContext<&Expr, Value> {
         let name = namer::name_from_content("expr_value", &self.object);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
-        self.dot_value(self.context.clone(), &mut output)?;
+        output.write(HTML_HEADER.as_bytes())?;
+        output.write(HTML_STYLE.as_bytes())?;
+        output.write(HTML_BODY.as_bytes())?;
+        self.dot_value(self.context.clone(), &mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
@@ -94,7 +115,7 @@ pub mod macos {
     pub fn relation_display_dot(relation: &Relation) {
         let name = namer::name_from_content("relation", &relation);
         let mut output = File::create(format!("/tmp/{name}.dot")).unwrap();
-        relation.dot(&mut output).unwrap();
+        relation.dot(&mut output, &[]).unwrap();
         Command::new("dot")
             .arg(format!("/tmp/{name}.dot"))
             .arg("-Tpdf")

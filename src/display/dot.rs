@@ -13,6 +13,7 @@ pub fn render<
 >(
     g: &'a G,
     w: &mut W,
+    opts: &[&str],
 ) -> io::Result<()> {
     fn writeln<W: Write>(w: &mut W, arg: &[&str]) -> io::Result<()> {
         for &s in arg {
@@ -38,11 +39,25 @@ pub fn render<
         labelloc="t";
         fontname="Ovo,Red Hat Text";
         fontsize="11pt"
-        bgcolor="#00000000"
-        node [ shape="box" style="filled,rounded" margin=0.2, fontname="Red Hat Display,sans-serif", fontsize="11pt", color="#00000055" ]
-        edge [ fontname="Red Hat Text" color="#2B303A" ]
-        "##],
+        bgcolor="#00000000""##],
     )?;
+    if opts.contains(&"dark") {
+        writeln(
+            w,
+            &[r##"
+            node [ shape="box" style="filled,rounded" margin=0.2, fontname="Red Hat Display,sans-serif", fontsize="11pt", color="#ffffffbb" ]
+            edge [ fontname="Red Hat Text" color="#ffffffbb" ]
+            "##],
+        )?;
+    } else {
+        writeln(
+            w,
+            &[r##"
+            node [ shape="box" style="filled,rounded" margin=0.2, fontname="Red Hat Display,sans-serif", fontsize="11pt", color="#00000055" ]
+            edge [ fontname="Red Hat Text" color="#2B303A" ]
+            "##],
+        )?;
+    }
     for n in g.nodes().iter() {
         let mut colorstring;
 
