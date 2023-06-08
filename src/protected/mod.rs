@@ -105,12 +105,14 @@ pub fn protect_visitor_from_field_paths<'a>(
 
 impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVisitor<F> {
     fn table(&self, table: &'a Table) -> Result<Relation> {
-        Ok((self.protect_tables)(table))
+        Ok((self.protect_tables)(table)
+            .insert_field(1, PE_WEIGHT, Expr::val(1)))
     }
 
     fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
         let builder = Relation::map()
             .with((PEID, Expr::col(PEID)))
+            .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
             .with(map.clone())
             .input(input?);
         Ok(builder.build())
@@ -122,8 +124,8 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
             Strategy::Hard => {
                 let builder = Relation::reduce()
                     .with_group_by_column(PEID)
+                    .with((PE_WEIGHT, Expr::sum(Expr::col(PE_WEIGHT))))
                     .with(reduce.clone())
-                    .group_by(Expr::col(PEID))
                     .input(input?);
                 Ok(builder.build())
             }
