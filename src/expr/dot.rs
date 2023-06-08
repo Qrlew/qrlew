@@ -176,7 +176,6 @@ mod tests {
     };
     use std::rc::Rc;
 
-    #[ignore]
     #[test]
     fn test_dot() {
         // Create an expr
@@ -187,7 +186,6 @@ mod tests {
         expr.with(DataType::Any).display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_dsl() {
         let rel: Rc<Relation> = Rc::new(
@@ -209,6 +207,32 @@ mod tests {
         // Create an expr
         expr!(exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x)))
             .with(rel.data_type())
+            .display_dot()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_dot_dsl_squared() {
+        let rel: Rc<Relation> = Rc::new(
+            Relation::table()
+                .schema(
+                    Schema::builder()
+                        .with(("a", DataType::float_range(1.0..=1.1)))
+                        .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                        .with(("c", DataType::float_range(0.0..=5.0)))
+                        .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
+                        .with(("x", DataType::float_range(0.0..=2.0)))
+                        .with(("y", DataType::float_range(0.0..=5.0)))
+                        .with(("z", DataType::float_range(9.0..=11.)))
+                        .with(("t", DataType::float_range(0.9..=1.1)))
+                        .build(),
+                )
+                .build(),
+        );
+        // Create an expr
+        let e = expr!(exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x)));
+        let e = Expr::multiply(e.clone(), e);
+        e.with(rel.data_type())
             .display_dot()
             .unwrap();
     }

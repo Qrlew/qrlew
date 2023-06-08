@@ -8,6 +8,7 @@ use crate::{
     builder::{Ready, With, WithIterator},
     expr::Expr,
     hierarchy::Hierarchy,
+    DataType,
 };
 
 impl Map {
@@ -333,14 +334,11 @@ impl Relation {
             reduce = reduce.with_group_by_column(reduce_rel.field_from_index(i).unwrap().name())
         }
         for i in (1 + base.len())..(1 + base.len() + coordinates.len()) {
-            let agg = Expr::pow(
-                Expr::col(reduce_rel.field_from_index(i).unwrap().name()),
-                Expr::val(2),
-            );
-            reduce = reduce.with(Expr::sum(agg));
+            let agg = Expr::col(reduce_rel.field_from_index(i).unwrap().name());
+            let sqr = Expr::multiply(agg.clone(), agg);
+            reduce = reduce.with(Expr::sum(sqr));
         }
         let reduce_rel2: Relation = reduce.build();
-
         // sqrt
         let mut map = Relation::map().input(reduce_rel2.clone());
         for i in 0..(base.len()) {
@@ -479,7 +477,7 @@ mod tests {
         let amount_norm = table
             .clone()
             .l1_norm("order_id", vec!["item"], vec!["price"]);
-        amount_norm.display_dot().unwrap();
+        // amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         //println!("Query = {}", query);
         let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";

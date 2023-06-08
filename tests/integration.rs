@@ -14,9 +14,7 @@ pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();
     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
     let rewriten_query: &str = &ast::Query::from(&relation).to_string();
-    // DEBUG
-    relation.display_dot();
-    // Displaying the test for DEBUG purpose
+    relation.display_dot().unwrap();
     println!(
         "{}\n{}",
         format!("{query}").red(),
