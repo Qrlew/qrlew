@@ -492,6 +492,7 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         };
         case_str.push_str("END");
         case_str
+    }
     fn position(&self, expr: String, r#in: String) -> String {
         format!("POSITION({} IN {})", expr, r#in)
     }
@@ -690,6 +691,8 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             case_expr = Expr::case(w.clone(), t.clone(), case_expr.clone());
         }
         Ok(case_expr)
+    }
+
     fn position(&self, expr: Result<Expr>, r#in: Result<Expr>) -> Result<Expr> {
         Ok(Expr::position(expr?, r#in?))
     }

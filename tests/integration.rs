@@ -1,13 +1,14 @@
+use colored::Colorize;
 use itertools::Itertools;
 use sqlparser::ast;
 use qrlew::{
     Relation, With,
     relation::display,
     sql::parse,
-    Relation, With,
+    io::{Database, postgresql},
 };
-use sqlparser::ast;
-
+#[cfg(feature = "sqlite")]
+use qrlew::io::sqlite;
 
 pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();
@@ -48,15 +49,12 @@ const QUERIES: &[&str] = &[
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
     "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
     "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
-
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
-
     "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
     t2 AS (SELECT * FROM table_2)
     SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
-
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
