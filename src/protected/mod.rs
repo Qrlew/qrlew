@@ -142,6 +142,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
                 let Join { name, operator, .. } = join;
+                let names = join.names();
                 let left = left?;
                 let right = right?;
                 let builder = Relation::join()
@@ -150,10 +151,17 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     .on(Expr::eq(
                         Expr::qcol(left.name(), PEID),
                         Expr::qcol(right.name(), PEID),
-                    ))
-                    .left(left)
-                    .right(right);
-                println!("DEBUG {:?}", builder);//TODO we need to enable access by qcol
+                    ).rename(&names))
+                    .left(left.clone())
+                    .right(right.clone());//TODO DEBUG remove clone
+                //DEBUG
+                let debug = Expr::eq(
+                    Expr::qcol(left.name(), PEID),
+                    Expr::qcol(right.name(), PEID),
+                );
+                println!("DEBUG names = {}", names);//TODO we need to enable access by qcol
+                println!("DEBUG debug = {debug}");//TODO we need to enable access by qcol
+                println!("DEBUG debug renamed = {}", debug.rename(&names));//TODO we need to enable access by qcol
                 Ok(builder.build())
             }
         }

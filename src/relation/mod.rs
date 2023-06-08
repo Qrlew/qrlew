@@ -25,7 +25,7 @@ use crate::{
     },
     expr::{self, Expr, Identifier, Split},
     namer,
-    visitor::{self, Acceptor, Dependencies, Visited},
+    visitor::{self, Acceptor, Dependencies, Visited}, hierarchy::Hierarchy,
 };
 pub use builder::{
     JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, WithInput, WithSchema,
@@ -617,11 +617,11 @@ impl Join {
     }
 
     /// Iterate over fields and input names
-    pub fn field_inputs<'a>(&'a self) -> impl Iterator<Item = (Identifier, Identifier)> + 'a {
+    pub fn field_inputs<'a>(&'a self) -> impl Iterator<Item = (String, Identifier)> + 'a {
         let field_identifiers = self
             .schema()
             .iter()
-            .map(|f| Identifier::from_qualified_name(self.name(), f.name()));
+            .map(|f| f.name().to_string());
         let left_identifiers = self
             .left
             .schema()
@@ -635,6 +635,10 @@ impl Join {
         field_identifiers
             .zip(left_identifiers.chain(right_identifiers))
             .map(|(f, i)| (f, i))
+    }
+
+    pub fn names(&self) -> Hierarchy<String> {
+        Hierarchy::from_iter(self.field_inputs().map(|(n, i)|(i, n)))
     }
 
     pub fn builder() -> JoinBuilder<WithoutInput, WithoutInput> {

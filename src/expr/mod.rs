@@ -24,6 +24,7 @@ use crate::{
     data_type::{self, value, DataType, DataTyped},
     namer::{self, FIELD},
     visitor::{self, Acceptor},
+    hierarchy::Hierarchy,
 };
 
 pub use identifier::Identifier;
@@ -856,71 +857,50 @@ impl Expr {
 
 /// Rename the columns with the namer
 #[derive(Clone, Debug)]
-pub struct RenameColumnVisitor;
+pub struct RenameVisitor<'a>(&'a Hierarchy<String>);
 
-impl<'a> Visitor<'a, (Expr, Vec<(String, Column)>)> for RenameColumnVisitor {
-    fn column(&self, column: &'a Column) -> (Expr, Vec<(String, Column)>) {
-        // The naming should be based on an expr
-        let expr = Expr::Column(column.clone());
-        let alias = namer::name_from_content(FIELD, &expr);
-        (Expr::col(alias.clone()), vec![(alias, column.clone())])
+impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
+    fn column(&self, column: &'a Column) -> Expr {
+        self.0.get(column).map(|name| Expr::col(name.clone()))
+            .unwrap_or_else(|| Expr::Column(column.clone()))
     }
 
-    fn value(&self, value: &'a Value) -> (Expr, Vec<(String, Column)>) {
-        (Expr::Value(value.clone()), vec![])
+    fn value(&self, value: &'a Value) -> Expr {
+        Expr::Value(value.clone())
     }
 
     fn function(
         &self,
         function: &'a function::Function,
-        arguments: Vec<(Expr, Vec<(String, Column)>)>,
-    ) -> (Expr, Vec<(String, Column)>) {
-        let (arguments, renamed): (Vec<Rc<Expr>>, Vec<Vec<(String, Column)>>) =
-            arguments.into_iter().map(|(a, r)| (Rc::new(a), r)).unzip();
-        (
-            Expr::Function(Function::new(function.clone(), arguments)),
-            renamed
-                .into_iter()
-                .flat_map(IntoIterator::into_iter)
-                .unique()
-                .collect(),
-        )
+        arguments: Vec<Expr>,
+    ) -> Expr {
+        let arguments: Vec<Rc<Expr>> = arguments.into_iter().map(|a| Rc::new(a)).collect();
+        Expr::Function(Function::new(function.clone(), arguments))
     }
 
     fn aggregate(
         &self,
         aggregate: &'a aggregate::Aggregate,
-        argument: (Expr, Vec<(String, Column)>),
-    ) -> (Expr, Vec<(String, Column)>) {
-        let (argument, renamed) = argument;
-        (
-            Expr::Aggregate(Aggregate::new(aggregate.clone(), Rc::new(argument))),
-            renamed,
-        )
+        argument: Expr,
+    ) -> Expr {
+        Expr::Aggregate(Aggregate::new(aggregate.clone(), Rc::new(argument)))
     }
 
     fn structured(
         &self,
-        fields: Vec<(Identifier, (Expr, Vec<(String, Column)>))>,
-    ) -> (Expr, Vec<(String, Column)>) {
-        let (fields, renamed): (Vec<(Identifier, Rc<Expr>)>, Vec<Vec<(String, Column)>>) = fields
+        fields: Vec<(Identifier, Expr)>,
+    ) -> Expr {
+        let fields: Vec<(Identifier, Rc<Expr>)> = fields
             .into_iter()
-            .map(|(i, (e, r))| ((i, Rc::new(e)), r))
-            .unzip();
-        (
-            Expr::Struct(Struct::from_iter(fields)),
-            renamed
-                .into_iter()
-                .flat_map(IntoIterator::into_iter)
-                .unique()
-                .collect(),
-        )
+            .map(|(i, e)| (i, Rc::new(e)))
+            .collect();
+        Expr::Struct(Struct::from_iter(fields))
     }
 }
 
 impl Expr {
-    pub fn rename_columns(&self) -> (Expr, Vec<(String, Column)>) {
-        self.accept(RenameColumnVisitor)
+    pub fn rename<'a>(&'a self, names: &'a Hierarchy<String>) -> Expr {
+        self.accept(RenameVisitor(names))
     }
 }
 
@@ -1348,14 +1328,11 @@ mod tests {
     fn test_rename() {
         let x = expr!(exp(a * b + cos(2 * z) * d - 2 * z + t * sin(c + 3 * x)));
         println!("x = {x}");
-        let (renamed, columns) = x.rename_columns();
-        println!(
-            "renamed x = {renamed} ({})",
-            columns
-                .into_iter()
-                .map(|(s, c)| format!("{s} -> {c}"))
-                .join(", ")
-        );
+        let names = Hierarchy::from([
+            (["a"], format!("A")),
+        ]);
+        let renamed = x.rename(&names);
+        println!("renamed x = {renamed} ({names})");
     }
 
     #[test]

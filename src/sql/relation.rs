@@ -283,7 +283,7 @@ impl<'a> VisitedQueryRelations<'a> {
                     .build();
                 // We collect column mapping inputs should map to new names (hence the inversion)
                 let new_columns: Hierarchy<Identifier> =
-                    join.field_inputs().map(|(f, i)| (i, f)).collect();
+                    join.field_inputs().map(|(f, i)| (i, f.into())).collect();
                 let composed_columns = all_columns.and_then(new_columns);
                 let relation = Rc::new(Relation::from(join));
                 // We should compose hierarchies
