@@ -217,8 +217,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             }),
             expr::aggregate::Aggregate::Median => todo!(),
             expr::aggregate::Aggregate::NUnique => todo!(),
-            expr::aggregate::Aggregate::First => todo!(),
-            expr::aggregate::Aggregate::Last => todo!(),
+            // TODO this is a very simple implementation. It will break in non obvious cases. We should fix it.
+            expr::aggregate::Aggregate::First => argument,
+            // TODO this is a very simple implementation. It will break in non obvious cases. We should fix it.
+            expr::aggregate::Aggregate::Last => argument,
             expr::aggregate::Aggregate::Mean => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident {
                     value: String::from("avg"),

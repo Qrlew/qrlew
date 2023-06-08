@@ -332,7 +332,7 @@ macro_rules! impl_aggregation_constructors {
     };
 }
 
-impl_aggregation_constructors!(Min, Max, Count, Mean, Sum, Var, Std);
+impl_aggregation_constructors!(First, Last, Min, Max, Count, Mean, Sum, Var, Std);
 
 /// An aggregate function expression
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

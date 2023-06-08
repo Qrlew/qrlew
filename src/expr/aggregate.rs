@@ -64,25 +64,25 @@ impl Aggregate {
 impl fmt::Display for Aggregate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Aggregate::Min => write!(f, "MIN"),
-            Aggregate::Max => write!(f, "MAX"),
-            Aggregate::Median => write!(f, "MEDIAN"),
-            Aggregate::NUnique => write!(f, "NUNIQUE"),
-            Aggregate::First => write!(f, "FIRST"),
-            Aggregate::Last => write!(f, "LAST"),
-            Aggregate::Mean => write!(f, "MEAN"),
-            Aggregate::List => write!(f, "LIST"),
-            Aggregate::Count => write!(f, "COUNT"),
-            Aggregate::Quantile(q) => write!(f, "QUANTILE<{q}>"),
+            Aggregate::Min => write!(f, "min"),
+            Aggregate::Max => write!(f, "max"),
+            Aggregate::Median => write!(f, "median"),
+            Aggregate::NUnique => write!(f, "n_unique"),
+            Aggregate::First => write!(f, "first"),
+            Aggregate::Last => write!(f, "last"),
+            Aggregate::Mean => write!(f, "mean"),
+            Aggregate::List => write!(f, "list"),
+            Aggregate::Count => write!(f, "count"),
+            Aggregate::Quantile(q) => write!(f, "quantile<{q}>"),
             Aggregate::Quantiles(v) => write!(
                 f,
-                "QUANTILES<{}>",
+                "quantiles<{}>",
                 v.iter().map(|q| format!("{q}")).join(", ")
             ),
-            Aggregate::Sum => write!(f, "SUM"),
-            Aggregate::AggGroups => write!(f, "AGG GROUPS"),
-            Aggregate::Std => write!(f, "STD"),
-            Aggregate::Var => write!(f, "VAR"),
+            Aggregate::Sum => write!(f, "sum"),
+            Aggregate::AggGroups => write!(f, "agg_groups"),
+            Aggregate::Std => write!(f, "std"),
+            Aggregate::Var => write!(f, "var"),
         }
     }
 }
