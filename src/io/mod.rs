@@ -14,6 +14,8 @@ use crate::{
 };
 use std::{convert::Infallible, error, fmt, io, num, rc::Rc, result};
 
+const DATA_GENERATION_SEED: u64 = 1234;
+
 // Error management
 #[derive(Debug)]
 pub enum Error {

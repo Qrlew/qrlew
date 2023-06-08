@@ -1,4 +1,4 @@
-use super::{Database as DatabaseTrait, Error, Result};
+use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 use crate::{
     data_type::{
         generator::Generator,
@@ -64,8 +64,7 @@ impl DatabaseTrait for Database {
     }
 
     fn insert_data(&mut self, table: &Table) -> Result<()> {
-        let seed: u64 = 1234;
-        let mut rng = StdRng::seed_from_u64(seed);
+        let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
         let mut statement = self.connection.prepare(&table.insert('?').to_string())?;
         for _ in 0..size {
