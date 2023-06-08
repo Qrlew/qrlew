@@ -7,7 +7,7 @@ use crate::{
     },
     relation::{Table, Variant as _},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, SeedableRng};
 use rusqlite::{
     self, params_from_iter,
     types::{FromSql, FromSqlResult, Null, ToSql, ToSqlOutput},
@@ -64,7 +64,6 @@ impl DatabaseTrait for Database {
     }
 
     fn insert_data(&mut self, table: &Table) -> Result<()> {
-        //let mut rng = thread_rng();
         let seed: u64 = 1234;
         let mut rng = StdRng::seed_from_u64(seed);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
