@@ -77,8 +77,6 @@ const QUERIES: &[&str] = &[
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
     "SELECT UPPER(z) FROM table_2 LIMIT 5",
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
-    "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
-    "SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
 ];
 
 #[cfg(feature = "sqlite")]
@@ -103,6 +101,9 @@ const POSTGRESQL_QUERIES: &[&str] = &[
     // Test MD5
     "SELECT MD5(z) FROM table_2 LIMIT 10",
     "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
+    // Some joins
+    "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
+    "SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
 ];
 
 #[test]
