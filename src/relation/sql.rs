@@ -1,5 +1,8 @@
 //! Methods to convert Relations to ast::Query
-use super::{Error, Result, Table, JoinConstraint, JoinOperator, SetOperator, SetQuantifier, OrderBy, Relation, Map, Reduce, Join, Set, Visitor, Variant as _};
+use super::{
+    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
+    SetOperator, SetQuantifier, Table, Variant as _, Visitor,
+};
 use crate::{
     data_type::{DataType, DataTyped},
     expr::identifier::Identifier,
@@ -80,7 +83,6 @@ impl From<SetQuantifier> for ast::SetQuantifier {
     }
 }
 
-
 /// Build a Query from simple elements
 /// Have a look at: https://docs.rs/sqlparser/latest/sqlparser/ast/struct.Query.html
 /// Also this can help: https://www.postgresql.org/docs/current/sql-select.html
@@ -159,7 +161,7 @@ fn all() -> Vec<ast::SelectItem> {
 fn select_from_query(query: ast::Query) -> ast::Select {
     match query.body.as_ref() {
         ast::SetExpr::Select(select) => select.as_ref().clone(),
-        _ => panic!("Non select query")// It is okay to panic as this should not happen in our context and is a private function
+        _ => panic!("Non select query"), // It is okay to panic as this should not happen in our context and is a private function
     }
 }
 
@@ -368,7 +370,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 set.quantifier.clone().into(),
                 select_from_query(left),
                 select_from_query(right),
-            )
+            ),
         ));
         query(
             input_ctes,

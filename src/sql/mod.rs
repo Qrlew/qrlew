@@ -107,8 +107,9 @@ mod tests {
     use crate::io::sqlite;
     use crate::{
         builder::With,
+        display::Dot,
         io::{postgresql, Database},
-        relation::{display, Relation},
+        relation::Relation,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -133,7 +134,7 @@ mod tests {
             SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a LIMIT 10",
         ] {
             let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
-            display(&relation);
+            relation.display_dot();
         }
     }
 }

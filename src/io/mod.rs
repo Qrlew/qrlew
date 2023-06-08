@@ -151,8 +151,14 @@ pub trait Database: Sized {
                     Schema::empty()
                         .with(("id", DataType::integer_interval(0, 100)))
                         .with(("name", DataType::text()))
-                        .with(("age", DataType::optional(DataType::float_interval(0., 200.))))
-                        .with(("city", DataType::text_values(["Paris".into(), "New-York".into()]))),
+                        .with((
+                            "age",
+                            DataType::optional(DataType::float_interval(0., 200.)),
+                        ))
+                        .with((
+                            "city",
+                            DataType::text_values(["Paris".into(), "New-York".into()]),
+                        )),
                 )
                 .build(),
             TableBuilder::new()
@@ -163,10 +169,13 @@ pub trait Database: Sized {
                         .with(("id", DataType::integer_interval(0, 100)))
                         .with(("user_id", DataType::integer_interval(0, 101)))
                         .with(("description", DataType::text()))
-                        .with(("date", DataType::date_interval(
-                            chrono::NaiveDate::from_ymd_opt(2020, 12, 06).unwrap(),
-                            chrono::NaiveDate::from_ymd_opt(2023, 12, 06).unwrap(),
-                        ))),
+                        .with((
+                            "date",
+                            DataType::date_interval(
+                                chrono::NaiveDate::from_ymd_opt(2020, 12, 06).unwrap(),
+                                chrono::NaiveDate::from_ymd_opt(2023, 12, 06).unwrap(),
+                            ),
+                        )),
                 )
                 .build(),
             TableBuilder::new()
@@ -174,18 +183,22 @@ pub trait Database: Sized {
                 .size(300)
                 .schema(
                     Schema::empty()
-                        .with(("order_id", DataType::integer_interval(0,100)))
+                        .with(("order_id", DataType::integer_interval(0, 100)))
                         .with(("item", DataType::text()))
-                        .with(("price", DataType::float_interval(0.,50.))),
+                        .with(("price", DataType::float_interval(0., 50.))),
                 )
                 .build(),
         ]
     }
+
+    /// Add a vec of tables
+    fn with_tables(self, tables: Vec<Table>) -> Result<Self> {
+        tables.into_iter().fold(Ok(self), |db, t| db?.with(t))
+    }
+
     /// A basic test DB
     fn with_test_tables(self) -> Result<Self> {
-        Self::test_tables()
-            .into_iter()
-            .fold(Ok(self), |db, t| db?.with(t))
+        self.with_tables(Self::test_tables())
     }
 }
 

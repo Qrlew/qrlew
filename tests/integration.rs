@@ -1,21 +1,21 @@
 use colored::Colorize;
 use itertools::Itertools;
-use sqlparser::ast;
-use qrlew::{
-    Relation, With,
-    relation::display,
-    sql::parse,
-    io::{Database, postgresql},
-};
 #[cfg(feature = "sqlite")]
 use qrlew::io::sqlite;
+use qrlew::{
+    display::Dot,
+    io::{postgresql, Database},
+    sql::parse,
+    Relation, With,
+};
+use sqlparser::ast;
 
 pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();
     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
     let rewriten_query: &str = &ast::Query::from(&relation).to_string();
     // DEBUG
-    // display(&relation);
+    relation.display_dot();
     // Displaying the test for DEBUG purpose
     println!(
         "{}\n{}",

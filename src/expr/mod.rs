@@ -183,7 +183,9 @@ macro_rules! impl_unary_function_constructors {
     };
 }
 
-impl_unary_function_constructors!(Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength); // TODO Complete that
+impl_unary_function_constructors!(
+    Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength
+); // TODO Complete that
 
 /// Implement binary function constructors
 macro_rules! impl_binary_function_constructors {
@@ -1463,10 +1465,7 @@ mod tests {
         println!(
             "expression value = {}",
             expression
-                .value(&Value::structured([(
-                    "x",
-                    Value::text("foo")
-                ),]))
+                .value(&Value::structured([("x", Value::text("foo")),]))
                 .unwrap()
         );
     }
@@ -1479,25 +1478,19 @@ mod tests {
         println!(
             "expression super image = {}",
             expression
-                .super_image(&DataType::structured([(
-                    "x",
-                    DataType::text_values(["foo".into(), "bar".into()])
-                ),(
-                    "y",
-                    DataType::text_values(["hello".into(), "world".into()])
-                )]))
+                .super_image(&DataType::structured([
+                    ("x", DataType::text_values(["foo".into(), "bar".into()])),
+                    ("y", DataType::text_values(["hello".into(), "world".into()]))
+                ]))
                 .unwrap()
         );
         println!(
             "expression value = {}",
             expression
-                .value(&Value::structured([(
-                    "x",
-                    Value::text("foo")
-                ),(
-                    "y",
-                    Value::float(0.5432)
-                ),]))
+                .value(&Value::structured([
+                    ("x", Value::text("foo")),
+                    ("y", Value::float(0.5432)),
+                ]))
                 .unwrap()
         );
     }

@@ -324,9 +324,10 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Extract { field, expr } => todo!(),
             ast::Expr::Ceil { expr, field } => todo!(),
             ast::Expr::Floor { expr, field } => todo!(),
-            ast::Expr::Position { expr, r#in } => {
-                self.position(dependencies.get(expr).clone(), dependencies.get(r#in).clone())
-            },
+            ast::Expr::Position { expr, r#in } => self.position(
+                dependencies.get(expr).clone(),
+                dependencies.get(r#in).clone(),
+            ),
             ast::Expr::Substring {
                 expr,
                 substring_from,
@@ -736,7 +737,7 @@ impl<'a> TryFrom<&'a ast::Expr> for Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataType, expr::dot::display};
+    use crate::{builder::WithContext, data_type::DataType, display::Dot};
     use std::convert::TryFrom;
 
     #[test]
@@ -771,7 +772,6 @@ mod tests {
         }
     }
 
-    #[ignore]
     #[test]
     fn test_try_into_expr_dot() {
         let ast_expr: ast::Expr = parse_expr("exp(a*cos(SIN(x) + 2*a + b))/count(c)").unwrap();
@@ -784,7 +784,12 @@ mod tests {
             ("x", DataType::float()),
             ("c", DataType::list(DataType::Any, 1, 10)),
         ]);
-        display(&expr, data_type);
+        WithContext {
+            object: &expr,
+            context: data_type,
+        }
+        .display_dot()
+        .unwrap();
     }
 
     #[test]

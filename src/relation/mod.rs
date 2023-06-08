@@ -1,9 +1,9 @@
 //! This module defines the `Relation` struct
 //! A `Relation` is the lazy representation of a computation that can be compiled into DP
 //! It is rather close to similar lazy computation representations designed for a different purpose: https://pola-rs.github.io/polars/polars_lazy/prelude/enum.LogicalPlan.html#
-//! 
+//!
 //! Nice ideas about extensibility can be taken from: https://github.com/dcreager/expression-problem-rust
-//! 
+//!
 
 pub mod builder;
 pub mod dot;
@@ -17,17 +17,19 @@ use std::{cmp, error, fmt, hash, ops::Index, rc::Rc, result};
 use colored::Colorize;
 use itertools::Itertools;
 
-pub use super::relation::dot::display;
 use crate::{
     builder::Ready,
-    data_type::{self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Variant as _},
+    data_type::{
+        self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct,
+        Variant as _,
+    },
     expr::{self, Expr, Identifier, Split},
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},
 };
 pub use builder::{
-    JoinBuilder, SetBuilder, MapBuilder, ReduceBuilder, TableBuilder, WithInput, WithSchema, WithoutInput,
-    WithoutSchema,
+    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, WithInput, WithSchema,
+    WithoutInput, WithoutSchema,
 };
 pub use field::Field;
 pub use schema::Schema;
@@ -788,7 +790,6 @@ pub struct Set {
     pub right: Rc<Relation>,
 }
 
-
 impl Set {
     pub fn new(
         name: String,
@@ -823,21 +824,40 @@ impl Set {
         names
             .into_iter()
             .zip(left.schema().iter().zip(right.schema().iter()))
-            .map(|(name, (left_field, right_field))| Field::from_name_data_type(name, match operator {
-                SetOperator::Union => left_field.data_type().super_union(&right_field.data_type()).unwrap(),
-                SetOperator::Except => left_field.data_type(),
-                SetOperator::Intersect => left_field.data_type().super_intersection(&right_field.data_type()).unwrap(),
-            }))
+            .map(|(name, (left_field, right_field))| {
+                Field::from_name_data_type(
+                    name,
+                    match operator {
+                        SetOperator::Union => left_field
+                            .data_type()
+                            .super_union(&right_field.data_type())
+                            .unwrap(),
+                        SetOperator::Except => left_field.data_type(),
+                        SetOperator::Intersect => left_field
+                            .data_type()
+                            .super_intersection(&right_field.data_type())
+                            .unwrap(),
+                    },
+                )
+            })
             .collect()
     }
 
     /// Compute the size of the join
-    fn size(operator: &SetOperator, quantifier: &SetQuantifier, left: &Relation, right: &Relation) -> Integer {
+    fn size(
+        operator: &SetOperator,
+        quantifier: &SetQuantifier,
+        left: &Relation,
+        right: &Relation,
+    ) -> Integer {
         let left_size_max = left.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         let right_size_max = right.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         // TODO Improve this
         match operator {
-            SetOperator::Union => Integer::from_interval(left_size_max.min(right_size_max), left_size_max + right_size_max),
+            SetOperator::Union => Integer::from_interval(
+                left_size_max.min(right_size_max),
+                left_size_max + right_size_max,
+            ),
             SetOperator::Except => Integer::from_interval(0, left_size_max),
             SetOperator::Intersect => Integer::from_interval(0, left_size_max.min(right_size_max)),
         }
@@ -851,7 +871,9 @@ impl Set {
 impl fmt::Display for Set {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let operator = match self.quantifier {
-            SetQuantifier::All | SetQuantifier::Distinct => format!("{} {}", self.operator, self.quantifier),
+            SetQuantifier::All | SetQuantifier::Distinct => {
+                format!("{} {}", self.operator, self.quantifier)
+            }
             SetQuantifier::None => format!("{}", self.operator),
         };
         write!(

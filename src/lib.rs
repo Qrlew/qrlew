@@ -5,15 +5,16 @@ pub mod setup;
 pub mod expr;
 pub mod builder;
 pub mod debug;
+pub mod display;
 pub mod encoder;
 pub mod hierarchy;
 pub mod io;
 pub mod namer;
+pub mod protected;
 pub mod relation;
 pub mod sql;
 pub mod types;
 pub mod visitor;
-pub mod protected;
 
 pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
 pub use data_type::{value::Value, DataType};

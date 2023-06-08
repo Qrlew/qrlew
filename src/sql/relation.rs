@@ -12,7 +12,10 @@ use crate::{
     expr::{Expr, Identifier, Split},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
-    relation::{Join, JoinConstraint, JoinOperator, Set, SetOperator, SetQuantifier, Relation,  WithInput, MapBuilder, Variant as _},
+    relation::{
+        Join, JoinConstraint, JoinOperator, MapBuilder, Relation, Set, SetOperator, SetQuantifier,
+        Variant as _, WithInput,
+    },
     visitor::{Acceptor, Dependencies, Visited},
 };
 use itertools::Itertools;
@@ -24,10 +27,11 @@ use sqlparser::{
 };
 use std::{
     convert::TryFrom,
+    fmt::format,
     iter::{once, Iterator},
     rc::Rc,
     result,
-    str::FromStr, fmt::format,
+    str::FromStr,
 };
 
 /*
@@ -434,8 +438,13 @@ impl<'a> VisitedQueryRelations<'a> {
                     // Build a relation with ORDER BY and LIMIT
                     Ok(Rc::new(relation_bulider?.try_build()?))
                 }
-            },
-            ast::SetExpr::SetOperation { op, set_quantifier, left, right } => match (left.as_ref(), right.as_ref()) {
+            }
+            ast::SetExpr::SetOperation {
+                op,
+                set_quantifier,
+                left,
+                right,
+            } => match (left.as_ref(), right.as_ref()) {
                 (ast::SetExpr::Select(left_select), ast::SetExpr::Select(right_select)) => {
                     let RelationWithColumns(left_relation, _left_columns) =
                         self.try_from_select(left_select.as_ref())?;
@@ -448,11 +457,10 @@ impl<'a> VisitedQueryRelations<'a> {
                         .right(right_relation);
                     // Build a Relation from set operation
                     Ok(Rc::new(relation_bulider.try_build()?))
-                },
+                }
                 _ => panic!("We only support set operations over SELECTs"),
             },
             _ => todo!(),
-
         }
     }
 }
@@ -545,9 +553,7 @@ mod tests {
     use colored::Colorize;
 
     use super::*;
-    use crate::{
-        builder::Ready, data_type::DataType, relation::dot::display, relation::schema::Schema,
-    };
+    use crate::{builder::Ready, data_type::DataType, display::Dot, relation::schema::Schema};
 
     #[test]
     fn test_map_from_query() {
@@ -676,10 +682,9 @@ mod tests {
         println!("relation = {relation}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        display(&relation);
+        relation.display_dot();
     }
 
-    #[ignore]
     #[test]
     fn test_try_from_simple_query() {
         let query = parse(
@@ -726,7 +731,7 @@ mod tests {
         println!("relation = {relation}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        display(&relation);
+        relation.display_dot().unwrap();
     }
 
     #[test]
@@ -758,10 +763,9 @@ mod tests {
         println!("relation = {relation}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        // display(&relation);
+        relation.display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_where() {
         let query = parse(
@@ -791,7 +795,7 @@ mod tests {
         println!("relation = {relation:#?}");
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        display(&relation);
+        relation.display_dot().unwrap();
     }
 
     #[test]

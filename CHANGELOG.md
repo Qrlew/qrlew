@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Conversion for `Case` expression [MR1](https://github.com/Qrlew/qrlew/pull/1)
+- Computation of the norm
 
 ## [0.1.2] - 2023-06-01
 ### Added

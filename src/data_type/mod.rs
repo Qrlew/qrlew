@@ -1420,7 +1420,6 @@ impl fmt::Display for Optional {
     }
 }
 
-
 impl Or<Optional> for Optional {
     type Sum = Optional;
     fn or(self, other: Optional) -> Self::Sum {
