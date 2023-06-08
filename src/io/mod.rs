@@ -14,7 +14,7 @@ use crate::{
 };
 use std::{convert::Infallible, error, fmt, io, num, rc::Rc, result};
 
-const DATA_GENERATION_SEED: u64 = 1234;
+const DATA_GENERATION_SEED: u64 = 0;
 
 // Error management
 #[derive(Debug)]

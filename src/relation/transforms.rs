@@ -584,5 +584,9 @@ mod tests {
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
         );
+        // DEBUG
+        for row in database.query(query).unwrap() {
+            println!("{row}")
+        }
     }
 }
