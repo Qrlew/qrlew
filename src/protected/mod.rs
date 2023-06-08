@@ -153,6 +153,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     ))
                     .left(left)
                     .right(right);
+                println!("DEBUG {:?}", builder);//TODO we need to enable access by qcol
                 Ok(builder.build())
             }
         }
@@ -368,6 +369,50 @@ mod tests {
         norm.display_dot().unwrap();
         // Print query
         let query: &str = &ast::Query::from(&norm).to_string();
+        println!(
+            "{}\n{}",
+            format!("{query}").yellow(),
+            database
+                .query(query)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
+    }
+
+    #[test]
+    fn test_relation_protection_weights() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let relation = Relation::try_from(
+            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        // let relation = Relation::try_from(parse("SELECT * FROM primary_table").unwrap().with(&relations)).unwrap();
+        // Table
+        let relation = relation.force_protect_from_field_paths(
+            &relations,
+            &[
+                (
+                    "item_table",
+                    &[
+                        ("order_id", "order_table", "id"),
+                        ("user_id", "user_table", "id"),
+                    ],
+                    "name",
+                ),
+                ("order_table", &[("user_id", "user_table", "id")], "name"),
+                ("user_table", &[], "name"),
+            ],
+        );
+        relation.display_dot().unwrap();
+        println!("Schema protected = {}", relation.schema());
+        assert_eq!(relation.schema()[0].name(), PEID);
+        // Print query
+        let query: &str = &ast::Query::from(&relation).to_string();
         println!(
             "{}\n{}",
             format!("{query}").yellow(),
