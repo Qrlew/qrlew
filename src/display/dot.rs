@@ -124,7 +124,7 @@ pub fn render<'a,
             text.push("]");
         }
 
-        if (!start_arrow.arrows.is_empty() || !end_arrow.arrows.is_empty()) {
+        if !start_arrow.arrows.is_empty() || !end_arrow.arrows.is_empty() {
             text.push("[");
             if !end_arrow.arrows.is_empty() {
                 text.push("arrowhead=\"");
