@@ -7,7 +7,7 @@ use crate::{
     },
     relation::{Table, Variant as _},
 };
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use rusqlite::{
     self, params_from_iter,
     types::{FromSql, FromSqlResult, Null, ToSql, ToSqlOutput},
