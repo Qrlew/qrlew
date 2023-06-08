@@ -830,7 +830,9 @@ mod tests {
         println!("expr = {}", expr);
         assert_eq!(
             expr.to_string(),
-            String::from("CASE WHEN (a > 5) THEN 5 ELSE CASE WHEN (a < 2) THEN 2 ELSE NULL END END")
+            String::from(
+                "CASE WHEN (a > 5) THEN 5 ELSE CASE WHEN (a < 2) THEN 2 ELSE NULL END END"
+            )
         );
 
         let ast_expr: ast::Expr =
@@ -840,7 +842,9 @@ mod tests {
         println!("expr = {}", expr);
         assert_eq!(
             expr.to_string(),
-            String::from("CASE WHEN (a = 5) THEN (a + 3) ELSE CASE WHEN (a = 2) THEN (a - 4) ELSE a END END")
+            String::from(
+                "CASE WHEN (a = 5) THEN (a + 3) ELSE CASE WHEN (a = 2) THEN (a - 4) ELSE a END END"
+            )
         );
     }
 }

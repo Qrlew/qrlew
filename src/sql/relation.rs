@@ -819,5 +819,5 @@ mod tests {
         //display(&relation);
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-        }
+    }
 }

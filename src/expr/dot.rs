@@ -361,7 +361,8 @@ mod tests {
             DataType::list(DataType::integer_interval(2, 18), 1, 10),
         )]);
         // Create an expr
-        expr!(case(eq(a, 5), 5, a)).with(data_types)
+        expr!(case(eq(a, 5), 5, a))
+            .with(data_types)
             .display_dot()
             .unwrap();
     }

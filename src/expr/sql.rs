@@ -387,16 +387,10 @@ mod tests {
         let str_expr = "CASE a WHEN 5 THEN 0 ELSE a END";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         println!("ast::expr = {ast_expr}");
-        assert_eq!(
-            ast_expr.to_string(),
-            str_expr.to_string(),
-        );
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
-        assert_eq!(
-            ast_expr.to_string(),
-            str_expr.to_string(),
-        );
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {}", gen_expr.to_string());
         assert_eq!(
