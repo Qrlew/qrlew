@@ -626,7 +626,7 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
             function::Style::Function => format!("{}({})", function, arguments.join(", ")),
             function::Style::Case => {
                 format!(
-                    "CASE WHEN {} THEN {} ELSE {} END",
+                    "( CASE WHEN {} THEN {} ELSE {} END )",
                     arguments[0], arguments[1], arguments[2]
                 )
             }

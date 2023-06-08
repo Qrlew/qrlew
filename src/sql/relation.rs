@@ -452,7 +452,7 @@ impl<'a> VisitedQueryRelations<'a> {
                 _ => panic!("We only support set operations over SELECTs"),
             },
             _ => todo!(),
-            
+
         }
     }
 }
@@ -815,5 +815,5 @@ mod tests {
         //display(&relation);
         let q = ast::Query::from(&relation);
         println!("query = {q}");
-    }
+        }
 }

@@ -923,7 +923,7 @@ impl Function for Case {
                         .1
                         .as_ref()
                         .clone()
-                        .super_union(&struct_data_type.field_from_index(2).1.as_ref().clone())?)
+                        .super_union(struct_data_type.field_from_index(2).1.as_ref())?)
                 }
             } else {
                 Err(Error::argument_out_of_range(set, self.domain()))
@@ -933,10 +933,10 @@ impl Function for Case {
 
     fn value(&self, arg: &Value) -> Result<Value> {
         if let Value::Struct(struct_values) = arg {
-            if struct_values.field_from_index(0)?.1 == Rc::new(Value::boolean(true)) {
-                Ok(struct_values.field_from_index(1)?.1.as_ref().clone())
+            if struct_values.field_from_index(0).1 == Rc::new(Value::boolean(true)) {
+                Ok(struct_values.field_from_index(1).1.as_ref().clone())
             } else {
-                Ok(struct_values.field_from_index(2)?.1.as_ref().clone())
+                Ok(struct_values.field_from_index(2).1.as_ref().clone())
             }
         } else {
             Err(Error::argument_out_of_range(arg, self.domain()))
