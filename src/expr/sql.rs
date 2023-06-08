@@ -167,7 +167,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Lower
             | expr::function::Function::Upper => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
-                args: arguments.into_iter().map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))).collect(),
+                args: arguments
+                    .into_iter()
+                    .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                    .collect(),
                 over: None,
                 distinct: false,
                 special: false,
@@ -175,8 +178,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             }),
             expr::function::Function::Position => ast::Expr::Position {
                 expr: arguments[0].clone().into(),
-                r#in: arguments[1].clone().into()
-            }
+                r#in: arguments[1].clone().into(),
+            },
         }
     }
     // TODO implement this properly

@@ -152,7 +152,6 @@ impl Function {
             Function::Case => Arity::Nary(3),
             // Nary Function
             Function::Concat(_) => Arity::Varying,
-
         }
     }
 
@@ -212,7 +211,7 @@ impl fmt::Display for Function {
             Function::Sqrt => "sqrt",
             Function::CharLength => "char_length",
             Function::Lower => "lower",
-            Function::Upper  => "upper",
+            Function::Upper => "upper",
             // Binary Functions
             Function::Pow => "pow",
             Function::Concat(_) => "concat",

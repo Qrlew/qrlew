@@ -368,7 +368,7 @@ impl Or<DataType> for Unit {
             DataType::Null | DataType::Unit(_) => Optional::from_data_type(DataType::Null),
             DataType::Optional(o) => o,
             o => Optional::from_data_type(o),
-        }        
+        }
     }
 }
 
@@ -1419,7 +1419,6 @@ impl fmt::Display for Optional {
         write!(f, "option({})", self.data_type)
     }
 }
-
 
 impl Or<Optional> for Optional {
     type Sum = Optional;

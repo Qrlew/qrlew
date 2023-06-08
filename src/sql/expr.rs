@@ -317,9 +317,10 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Extract { field, expr } => todo!(),
             ast::Expr::Ceil { expr, field } => todo!(),
             ast::Expr::Floor { expr, field } => todo!(),
-            ast::Expr::Position { expr, r#in } => {
-                self.position(dependencies.get(expr).clone(), dependencies.get(r#in).clone())
-            },
+            ast::Expr::Position { expr, r#in } => self.position(
+                dependencies.get(expr).clone(),
+                dependencies.get(r#in).clone(),
+            ),
             ast::Expr::Substring {
                 expr,
                 substring_from,
@@ -672,7 +673,7 @@ impl<'a> TryFrom<&'a ast::Expr> for Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataType, builder::WithContext, display::Dot};
+    use crate::{builder::WithContext, data_type::DataType, display::Dot};
     use std::convert::TryFrom;
 
     #[test]
@@ -719,7 +720,12 @@ mod tests {
             ("x", DataType::float()),
             ("c", DataType::list(DataType::Any, 1, 10)),
         ]);
-        WithContext { object: &expr, context: data_type }.display_dot().unwrap();
+        WithContext {
+            object: &expr,
+            context: data_type,
+        }
+        .display_dot()
+        .unwrap();
     }
 
     #[test]

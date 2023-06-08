@@ -18,7 +18,7 @@ use postgres::{
 };
 use rand::thread_rng;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
-use std::{fmt, process::Command, rc::Rc, thread, time, env, str::FromStr, sync::Mutex};
+use std::{env, fmt, process::Command, rc::Rc, str::FromStr, sync::Mutex, thread, time};
 
 const DB: &str = "qrlew-test";
 const PORT: usize = 5432;
@@ -88,7 +88,8 @@ impl Database {
                 tables: vec![],
                 client,
                 drop: false,
-            }.with_tables(tables)
+            }
+            .with_tables(tables)
         } else {
             Ok(Database {
                 name,
@@ -102,7 +103,7 @@ impl Database {
     /// Get a Database from a container
     fn try_get_container(name: String, tables: Vec<Table>) -> Result<Self> {
         let mut postgres_container = POSTGRES_CONTAINER.lock().unwrap();
-        if *postgres_container==false {
+        if *postgres_container == false {
             // A new container will be started
             *postgres_container = true;
             // Other threads will wait for this to be ready
@@ -154,7 +155,8 @@ impl Database {
                 tables: vec![],
                 client,
                 drop: false,
-            }.with_tables(tables)?)
+            }
+            .with_tables(tables)?)
         } else {
             Database::try_get_existing(name, tables)
         }
@@ -172,7 +174,8 @@ impl fmt::Debug for Database {
 
 impl DatabaseTrait for Database {
     fn new(name: String, tables: Vec<Table>) -> Result<Self> {
-        Database::try_get_existing(name.clone(), tables.clone()).or_else(|_| Database::try_get_container(name, tables))
+        Database::try_get_existing(name.clone(), tables.clone())
+            .or_else(|_| Database::try_get_container(name, tables))
     }
 
     fn name(&self) -> &str {
@@ -333,12 +336,8 @@ impl<'a> FromSql<'a> for SqlValue {
             // &Type::INT4 | &Type::INT8 => {
             //     i64::from_sql(ty, raw).map(|i| SqlValue::Integer(i.into()))
             // }
-            &Type::INT4 => {
-                i32::from_sql(ty, raw).map(|i| SqlValue::Integer((i as i64).into()))
-            }
-            &Type::INT8 => {
-                i64::from_sql(ty, raw).map(|i| SqlValue::Integer(i.into()))
-            }
+            &Type::INT4 => i32::from_sql(ty, raw).map(|i| SqlValue::Integer((i as i64).into())),
+            &Type::INT8 => i64::from_sql(ty, raw).map(|i| SqlValue::Integer(i.into())),
             &Type::FLOAT4 | &Type::FLOAT8 => {
                 f64::from_sql(ty, raw).map(|f| SqlValue::Float(f.into()))
             }

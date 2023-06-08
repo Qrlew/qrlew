@@ -8,9 +8,3 @@ pub const DARK_RED: &str = "#c4001d";
 pub const MEDIUM_RED: &str = "#ff1744";
 pub const LIGHT_RED: &str = "#ff616f";
 pub const COLD_GREY: &str = "#2b303a";
-
-
-
-
-
-
