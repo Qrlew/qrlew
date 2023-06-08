@@ -54,6 +54,7 @@ pub enum Style {
     UnaryOperator,
     BinaryOperator,
     Function,
+    Case,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -103,10 +104,10 @@ impl Function {
             | Function::Pow
             | Function::CharLength
             | Function::Position
-            // Ternary Function
-            | Function::Case
             // Nary Function
             | Function::Concat(_) => Style::Function,
+            // Case Function
+            Function::Case => Style::Case,
         }
     }
 

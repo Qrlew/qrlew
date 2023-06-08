@@ -376,4 +376,18 @@ mod tests {
         .display_dot()
         .unwrap();
     }
+
+    #[ignore]
+    #[test]
+    fn test_dot_case() {
+        let data_types = DataType::structured([(
+            "a",
+            DataType::list(DataType::integer_interval(2, 18), 1, 10),
+        )]);
+        // Create an expr
+        expr!(case(eq(a, 5), 5, a))
+            .with(data_types)
+            .display_dot()
+            .unwrap();
+    }
 }

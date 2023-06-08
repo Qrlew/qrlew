@@ -938,7 +938,7 @@ impl And<DataType> for Struct {
     fn and(self, other: DataType) -> Self::Product {
         // Simplify in the case of struct and Unit
         match other {
-            DataType::Unit(_u) => self,
+            //DataType::Unit(_u) => self, // TODO remove that ?
             DataType::Struct(s) => self.and(s),
             other => self.and((other,)),
         }
@@ -2723,7 +2723,7 @@ impl And<DataType> for DataType {
         // Simplify in the case of struct and Unit
         match self {
             DataType::Null => DataType::Null,
-            DataType::Unit(_u) => other,
+            //DataType::Unit(_u) => other, // TODO: reactivate ?
             DataType::Struct(s) => s.and(other).into(),
             s => Struct::from_data_type(s).and(other).into(),
         }
@@ -3237,7 +3237,7 @@ mod tests {
             & ("c", DataType::boolean())
             & ("d", DataType::float());
         println!("b = {b}");
-        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 6);
+        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 7);
     }
 
     #[test]
@@ -3254,7 +3254,7 @@ mod tests {
         println!("b = {b}");
         println!("b[4] = {}", b[4]);
         println!("b[c] = {}", b["c"]);
-        assert_eq!(b[4].as_ref(), &(DataType::boolean()));
+        assert_eq!(b[4].as_ref(), &(DataType::float()));
     }
 
     #[test]
