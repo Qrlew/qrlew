@@ -1501,18 +1501,40 @@ pub fn case() -> impl Function + Clone {
 Aggregation functions
  */
 
+/// Median aggregation
 pub fn median() -> impl Function + Clone {
     null()
 }
+
 pub fn n_unique() -> impl Function + Clone {
     null()
 }
+
+/// First element in group
 pub fn first() -> impl Function + Clone {
-    null()
+    Aggregate::from(
+        DataType::Any,
+        |values| values.first().unwrap().clone(),
+        |(dt, _size)| match dt {
+            DataType::List(list) => Ok(list.data_type().clone()),
+            dt => Ok(dt),
+        },
+    )
 }
+
+/// Last element in group
 pub fn last() -> impl Function + Clone {
-    null()
+    Aggregate::from(
+        DataType::Any,
+        |values| values.last().unwrap().clone(),
+        |(dt, _size)| match dt {
+            DataType::List(list) => Ok(list.data_type().clone()),
+            dt => Ok(dt),
+        },
+    )
 }
+
+/// Mean aggregation
 pub fn mean() -> impl Function + Clone {
     // Only works on types that can be converted to floats
     Aggregate::from(
@@ -1526,9 +1548,13 @@ pub fn mean() -> impl Function + Clone {
         |(intervals, _size)| Ok(intervals.into_interval()),
     )
 }
+
+/// Aggregate as a list
 pub fn list() -> impl Function + Clone {
     null()
 }
+
+/// Count aggregation
 pub fn count() -> impl Function + Clone {
     Polymorphic::from((
         // Any implementation
@@ -1551,6 +1577,8 @@ pub fn count() -> impl Function + Clone {
         ),
     ))
 }
+
+/// Min aggregation
 pub fn min() -> impl Function + Clone {
     Polymorphic::from((
         // Integer implementation
@@ -1582,6 +1610,7 @@ pub fn min() -> impl Function + Clone {
     ))
 }
 
+/// Max aggregation
 pub fn max() -> impl Function + Clone {
     Polymorphic::from((
         // Integer implementation
@@ -1613,12 +1642,17 @@ pub fn max() -> impl Function + Clone {
     ))
 }
 
+/// Quantile aggregation
 pub fn quantile(_p: f64) -> impl Function + Clone {
     null()
 }
+
+/// Multi-quantileq aggregation
 pub fn quantiles(_p: Vec<f64>) -> impl Function + Clone {
     null()
 }
+
+/// Sum aggregation
 pub fn sum() -> impl Function + Clone {
     Polymorphic::from((
         // Integer implementation
@@ -1643,9 +1677,13 @@ pub fn sum() -> impl Function + Clone {
         ),
     ))
 }
+
+/// Agg groups aggregation
 pub fn agg_groups() -> impl Function + Clone {
     null()
 }
+
+/// Standard deviation aggregation
 pub fn std() -> impl Function + Clone {
     // Only works on types that can be converted to floats
     Aggregate::from(
@@ -1670,6 +1708,8 @@ pub fn std() -> impl Function + Clone {
         },
     )
 }
+
+/// Variance aggregation
 pub fn var() -> impl Function + Clone {
     // Only works on types that can be converted to floats
     Aggregate::from(

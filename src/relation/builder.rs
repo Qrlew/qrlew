@@ -383,10 +383,8 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     pub fn with_group_by_column<S: Into<String>>(mut self, column: S) -> Self {
         let name = column.into();
         let expr = Expr::col(name.clone());
-        self.split = self.split.and(Split::group_by(expr.clone()).into());
-        self.split = self
-            .split
-            .and(split::Reduce::new(vec![(name, expr)], vec![], None).into());
+        self = self.group_by(expr.clone());
+        self = self.with((name, Expr::first(expr)));
         self
     }
 }

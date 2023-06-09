@@ -218,7 +218,7 @@ impl Deref for Unit {
 
 impl fmt::Display for Unit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "()")
+        write!(f, "NULL")
     }
 }
 

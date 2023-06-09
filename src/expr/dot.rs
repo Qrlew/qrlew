@@ -177,13 +177,18 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 
 impl Expr {
     /// Render the Expr to dot
-    pub fn dot<W: io::Write>(&self, data_type: DataType, w: &mut W) -> io::Result<()> {
-        display::dot::render(&VisitedExpr(self, DotVisitor(&data_type)), w)
+    pub fn dot<W: io::Write>(
+        &self,
+        data_type: DataType,
+        w: &mut W,
+        opts: &[&str],
+    ) -> io::Result<()> {
+        display::dot::render(&VisitedExpr(self, DotVisitor(&data_type)), w, opts)
     }
 
     /// Render the Expr to dot
-    pub fn dot_value<W: io::Write>(&self, val: Value, w: &mut W) -> io::Result<()> {
-        display::dot::render(&VisitedExpr(self, DotValueVisitor(&val)), w)
+    pub fn dot_value<W: io::Write>(&self, val: Value, w: &mut W, opts: &[&str]) -> io::Result<()> {
+        display::dot::render(&VisitedExpr(self, DotValueVisitor(&val)), w, opts)
     }
 }
 
@@ -198,7 +203,6 @@ mod tests {
     };
     use std::rc::Rc;
 
-    #[ignore]
     #[test]
     fn test_dot() {
         // Create an expr
@@ -209,7 +213,6 @@ mod tests {
         expr.with(DataType::Any).display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_dsl() {
         let rel: Rc<Relation> = Rc::new(
@@ -233,6 +236,32 @@ mod tests {
             .with(rel.data_type())
             .display_dot()
             .unwrap();
+    }
+
+    #[test]
+    fn test_dot_dsl_squared() {
+        let rel: Rc<Relation> = Rc::new(
+            Relation::table()
+                .schema(
+                    Schema::builder()
+                        .with(("a", DataType::float_range(1.0..=1.1)))
+                        .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                        .with(("c", DataType::float_range(0.0..=5.0)))
+                        .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
+                        .with(("x", DataType::float_range(0.0..=2.0)))
+                        .with(("y", DataType::float_range(0.0..=5.0)))
+                        .with(("z", DataType::float_range(9.0..=11.)))
+                        .with(("t", DataType::float_range(0.9..=1.1)))
+                        .build(),
+                )
+                .build(),
+        );
+        // Create an expr
+        let e = expr!(
+            exp(a * b) + cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
+        );
+        let e = Expr::multiply(e.clone(), e);
+        e.with(rel.data_type()).display_dot().unwrap();
     }
 
     #[ignore]
@@ -402,5 +431,19 @@ mod tests {
         .with(rel.data_type())
         .display_dot()
         .unwrap();
+    }
+
+    #[ignore]
+    #[test]
+    fn test_dot_case() {
+        let data_types = DataType::structured([(
+            "a",
+            DataType::list(DataType::integer_interval(2, 18), 1, 10),
+        )]);
+        // Create an expr
+        expr!(case(eq(a, 5), 5, a))
+            .with(data_types)
+            .display_dot()
+            .unwrap();
     }
 }

@@ -20,7 +20,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
 
     fn value(&self, value: &'a expr::Value) -> ast::Expr {
         match value {
-            crate::data_type::value::Value::Unit(_) => todo!(),
+            crate::data_type::value::Value::Unit(_) => ast::Expr::Value(ast::Value::Null),
             crate::data_type::value::Value::Boolean(b) => {
                 ast::Expr::Value(ast::Value::Boolean(**b))
             }
@@ -162,7 +162,6 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Cos
             | expr::function::Function::Sqrt
             | expr::function::Function::Pow
-            | expr::function::Function::Case
             | expr::function::Function::Md5
             | expr::function::Function::Concat(_)
             | expr::function::Function::CharLength
@@ -178,6 +177,12 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 special: false,
                 order_by: vec![],
             }),
+            expr::function::Function::Case => ast::Expr::Case {
+                operand: None,
+                conditions: vec![arguments[0].clone()],
+                results: vec![arguments[1].clone()],
+                else_result: Some(Box::new(arguments[2].clone())),
+            },
             expr::function::Function::Position => ast::Expr::Position {
                 expr: arguments[0].clone().into(),
                 r#in: arguments[1].clone().into(),
@@ -219,8 +224,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             }),
             expr::aggregate::Aggregate::Median => todo!(),
             expr::aggregate::Aggregate::NUnique => todo!(),
-            expr::aggregate::Aggregate::First => todo!(),
-            expr::aggregate::Aggregate::Last => todo!(),
+            // TODO this is a very simple implementation. It will break in non obvious cases. We should fix it.
+            expr::aggregate::Aggregate::First => argument,
+            // TODO this is a very simple implementation. It will break in non obvious cases. We should fix it.
+            expr::aggregate::Aggregate::Last => argument,
             expr::aggregate::Aggregate::Mean => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident {
                     value: String::from("avg"),
@@ -381,5 +388,22 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr)
+    }
+
+    #[test]
+    fn test_case() {
+        let str_expr = "CASE a WHEN 5 THEN 0 ELSE a END";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("ast::expr = {ast_expr}");
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {}", gen_expr.to_string());
+        assert_eq!(
+            gen_expr.to_string(),
+            "CASE WHEN a = 5 THEN 0 ELSE a END".to_string(),
+        );
     }
 }

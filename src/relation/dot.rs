@@ -286,8 +286,8 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
 
 impl Relation {
     /// Render the Relation to dot
-    pub fn dot<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
-        display::dot::render(&VisitedRelation(self, DotVisitor), w)
+    pub fn dot<W: io::Write>(&self, w: &mut W, opts: &[&str]) -> io::Result<()> {
+        display::dot::render(&VisitedRelation(self, DotVisitor), w, opts)
     }
 }
 

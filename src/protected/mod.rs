@@ -35,6 +35,7 @@ impl error::Error for Error {}
 pub type Result<T> = result::Result<T, Error>;
 
 pub const PEID: &str = "_PROTECTED_ENTITY_ID_";
+pub const PE_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
 pub enum Strategy {

@@ -114,7 +114,7 @@ pub struct Function {
     /// Operator
     function: function::Function,
     /// Argumants
-    arguments: Vec<Rc<Expr>>,
+    pub arguments: Vec<Rc<Expr>>,
 }
 
 impl Function {
@@ -147,6 +147,13 @@ impl fmt::Display for Function {
                     .map(|expr| expr.to_string())
                     .join(", ")
             ),
+            function::Style::Case => {
+                write!(
+                    f,
+                    "CASE WHEN {} THEN {} ELSE {} END",
+                    self.arguments[0], self.arguments[1], self.arguments[2]
+                )
+            }
         }
     }
 }
@@ -332,7 +339,7 @@ macro_rules! impl_aggregation_constructors {
     };
 }
 
-impl_aggregation_constructors!(Min, Max, Count, Mean, Sum, Var, Std);
+impl_aggregation_constructors!(First, Last, Min, Max, Count, Mean, Sum, Var, Std);
 
 /// An aggregate function expression
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -637,6 +644,12 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
                 format!("{} {} {}", arguments[0], function, arguments[1])
             }
             function::Style::Function => format!("{}({})", function, arguments.join(", ")),
+            function::Style::Case => {
+                format!(
+                    "( CASE WHEN {} THEN {} ELSE {} END )",
+                    arguments[0], arguments[1], arguments[2]
+                )
+            }
         }
     }
 
@@ -1414,14 +1427,26 @@ mod tests {
         let expression = expr!(case(gt(x, 5), x, y));
         println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("x", DataType::float_interval(1., 10.)),
+            ("y", DataType::float_values([-2., 0.5])),
+        ]);
         println!(
             "expression super image = {}",
-            expression
-                .super_image(&DataType::structured([
-                    ("x", DataType::float_interval(1., 10.)),
-                    ("y", DataType::float_values([-2., 0.5])),
-                ]))
-                .unwrap()
+            expression.super_image(&set).unwrap()
+        );
+
+        let expression = Expr::case(
+            Expr::gt(Expr::col(stringify!(x)), Expr::val(5)),
+            Expr::col("x"),
+            Expr::Value(Value::unit()),
+        );
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([("x", DataType::float_interval(1., 10.))]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
         );
 
         let expression = expr!(case(gt(x, 1), x, 1));

@@ -9,6 +9,7 @@ use crate::{
     builder::{Ready, With, WithIterator},
     expr::Expr,
     hierarchy::Hierarchy,
+    DataType,
 };
 
 impl Map {
@@ -559,7 +560,7 @@ mod tests {
         let amount_norm = table
             .clone()
             .l1_norm("order_id", vec!["item"], vec!["price"]);
-        amount_norm.display_dot().unwrap();
+        // amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         println!("Query = {}", query);
         let valid_query = "SELECT order_id, SUM(sum_by_group) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_group FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
@@ -666,6 +667,10 @@ mod tests {
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
         );
+        // DEBUG
+        for row in database.query(query).unwrap() {
+            println!("{row}")
+        }
     }
 
     #[test]
