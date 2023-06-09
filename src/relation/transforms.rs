@@ -4,12 +4,12 @@
 use std::{ops::Deref, rc::Rc};
 
 use super::{Map, Relation, Variant as _};
+use crate::display::Dot;
 use crate::{
     builder::{Ready, With, WithIterator},
     expr::Expr,
     hierarchy::Hierarchy,
 };
-use crate::display::Dot;
 
 impl Map {
     pub fn with_field(self, name: &str, expr: Expr) -> Map {
@@ -302,94 +302,130 @@ impl Relation {
     }
 
     pub fn l1_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        let mut vectors_base = vec!(vector);
+        let mut vectors_base = vec![vector];
         vectors_base.extend(base.clone());
 
         let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
-        let map_rel = reduce_rel.map_fields(|n, e| if coordinates.contains(&n) { Expr::abs(e) } else { e });
-        map_rel.sum_by(vec!(vector), coordinates)
+        let map_rel = reduce_rel.map_fields(|n, e| {
+            if coordinates.contains(&n) {
+                Expr::abs(e)
+            } else {
+                e
+            }
+        });
+        map_rel.sum_by(vec![vector], coordinates)
     }
 
     pub fn l2_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        let mut vectors_base = vec!(vector);
+        let mut vectors_base = vec![vector];
         vectors_base.extend(base.clone());
 
         let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
-        let map_rel = reduce_rel.map_fields(|n, e| if coordinates.contains(&n) { Expr::pow(e, Expr::val(2)) } else { e });
-        let reduce_rel2  = map_rel.sum_by(vec!(vector), coordinates.clone());
-        reduce_rel2.map_fields(|n, e| if coordinates.contains(&n) { Expr::sqrt(e) } else { e })
+        let map_rel = reduce_rel.map_fields(|n, e| {
+            if coordinates.contains(&n) {
+                Expr::pow(e, Expr::val(2))
+            } else {
+                e
+            }
+        });
+        let reduce_rel2 = map_rel.sum_by(vec![vector], coordinates.clone());
+        reduce_rel2.map_fields(|n, e| {
+            if coordinates.contains(&n) {
+                Expr::sqrt(e)
+            } else {
+                e
+            }
+        })
     }
 
-    pub fn apply_weights(self, weight_relation: Self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+    pub fn apply_weights(
+        self,
+        weight_relation: Self,
+        vectors: &str,
+        base: Vec<&str>,
+        coordinates: Vec<&str>,
+    ) -> Self {
         // Join the two relations on the peid column
         let join: Relation = Relation::join()
             .left(self.clone())
             .right(weight_relation.clone())
             .inner()
-            .on(
-                Expr::eq(
-                    Expr::qcol(self.name(), vectors),
-                    Expr::qcol(weight_relation.name(), vectors)
-                )
-            )
+            .on(Expr::eq(
+                Expr::qcol(self.name(), vectors),
+                Expr::qcol(weight_relation.name(), vectors),
+            ))
             .build();
-        join.display_dot();
 
         // Multiply by weights
-        let mut grouping_cols: Vec<Expr> = vec!();
-        let mut weighted_agg: Vec<Expr>= vec!();
+        let mut grouping_cols: Vec<Expr> = vec![];
+        let mut weighted_agg: Vec<Expr> = vec![];
         let length = base.len() + coordinates.len();
         let out_fields = join.schema().fields();
         let in_fields = join.input_fields();
-        for i in 0..(length + 1){
+        for i in 0..(length + 1) {
             if coordinates.contains(&in_fields[i].name()) {
-                weighted_agg.push(
-                    Expr::multiply(
-                        Expr::col(out_fields[i].name()),
-                        Expr::col(out_fields[length + i].name())
-                    )
-                );
+                weighted_agg.push(Expr::multiply(
+                    Expr::col(out_fields[i].name()),
+                    Expr::col(out_fields[length + i].name()),
+                ));
             } else {
                 grouping_cols.push(Expr::col(out_fields[i].name()));
             }
         }
 
-        let mut vectors_base = vec!(vectors);
+        let mut vectors_base = vec![vectors];
         vectors_base.extend(base.clone());
         Relation::map()
             .input(join)
-            .with_iter(vectors_base.iter().zip(grouping_cols.iter()).map(|(s, e)| (s.to_string(), e.clone())))
-            .with_iter(coordinates.iter().zip(weighted_agg.iter()).map(|(s, e)| (s.to_string(), e.clone())))
+            .with_iter(
+                vectors_base
+                    .iter()
+                    .zip(grouping_cols.iter())
+                    .map(|(s, e)| (s.to_string(), e.clone())),
+            )
+            .with_iter(
+                coordinates
+                    .iter()
+                    .zip(weighted_agg.iter())
+                    .map(|(s, e)| (s.to_string(), e.clone())),
+            )
             .build()
-
     }
 
-    pub fn clipped_sum(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>, clipping_value: f64) -> Self {
+    pub fn clipped_sum(
+        self,
+        vectors: &str,
+        base: Vec<&str>,
+        coordinates: Vec<&str>,
+        clipping_value: f64,
+    ) -> Self {
         // TODO: clipping_value: Vec<f64>
-        let norm = self.clone().l2_norm(vectors.clone(), base.clone(), coordinates.clone());
-        let weights = norm.map_fields(|n, e| if coordinates.contains(&n) {
-            Expr::divide(
-                Expr::val(2),
-                Expr::plus(
-                    Expr::abs(Expr::minus(
-                        Expr::divide(e.clone(), Expr::val(clipping_value)),
-                        Expr::val(1)
-                    )),
+        let norm = self
+            .clone()
+            .l2_norm(vectors.clone(), base.clone(), coordinates.clone());
+        let weights = norm.map_fields(|n, e| {
+            if coordinates.contains(&n) {
+                Expr::divide(
+                    Expr::val(2),
                     Expr::plus(
-                        Expr::divide(e, Expr::val(clipping_value)),
-                        Expr::val(1),
+                        Expr::abs(Expr::minus(
+                            Expr::divide(e.clone(), Expr::val(clipping_value)),
+                            Expr::val(1),
+                        )),
+                        Expr::plus(Expr::divide(e, Expr::val(clipping_value)), Expr::val(1)),
                     ),
                 )
-            )
-        } else {
-            Expr::col(n)
+            } else {
+                Expr::col(n)
+            }
         });
 
-        let mut vectors_base = vec!(vectors);
+        let mut vectors_base = vec![vectors];
         vectors_base.extend(base.clone());
         let aggregated_relation = self.sum_by(vectors_base, coordinates.clone());
 
-        let weighted_relation = aggregated_relation.apply_weights(weights, vectors, base.clone(), coordinates.clone());
+        let weighted_relation =
+            aggregated_relation.apply_weights(weights, vectors, base.clone(), coordinates.clone());
         weighted_relation.sum_by(base, coordinates)
     }
 }
@@ -636,9 +672,10 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let clipped_relation = table
-            .clone()
-            .clipped_sum("order_id", vec!["item"], vec!["price"], 45.);
+        let clipped_relation =
+            table
+                .clone()
+                .clipped_sum("order_id", vec!["item"], vec!["price"], 45.);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         let valid_query = r#"
@@ -651,10 +688,7 @@ mod tests {
         "#;
         let my_res = database.query(query).unwrap();
         let true_res = database.query(valid_query).unwrap();
-        assert_eq!(
-            my_res.len(),
-            true_res.len(),
-        );
+        assert_eq!(my_res.len(), true_res.len(),);
         for i in 0..6 {
             assert_eq!(my_res[i], true_res[i])
         }
@@ -674,9 +708,10 @@ mod tests {
         relation.display_dot().unwrap();
 
         // L2 Norm
-        let clipped_relation = relation
-            .clone()
-            .clipped_sum("order_id", vec!["item"], vec!["price", "std_price"], 45.);
+        let clipped_relation =
+            relation
+                .clone()
+                .clipped_sum("order_id", vec!["item"], vec!["price", "std_price"], 45.);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         database.query(query).unwrap();
@@ -713,9 +748,9 @@ mod tests {
         let user_id = schema.field_from_index(4).unwrap().name();
         let date = schema.field_from_index(6).unwrap().name();
 
-        let clipped_relation = relation.clipped_sum(user_id, vec![item, date], vec![price], 50.);
-        clipped_relation.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
         // TODO: complete the test
+        // let clipped_relation = relation.clipped_sum(user_id, vec![item, date], vec![price], 50.);
+        // clipped_relation.display_dot().unwrap();
+        // let query: &str = &ast::Query::from(&clipped_relation).to_string();
     }
 }

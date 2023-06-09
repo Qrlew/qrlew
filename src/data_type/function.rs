@@ -2242,7 +2242,7 @@ mod tests {
         let set = DataType::from(Struct::from_data_types(&[
             DataType::from(data_type::Boolean::default()),
             DataType::integer_value(1),
-            DataType::from(data_type::Integer::from_interval(0, 3))
+            DataType::from(data_type::Integer::from_interval(0, 3)),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);

@@ -586,11 +586,9 @@ mod tests {
         let query = parse("SELECT 2 * price FROM schema.table").unwrap();
         //println!("\nquery: {:?}", query);
         println!("\n{}", query.to_string());
-        let schema: Schema = vec![
-            ("price", DataType::float_interval(1., 4.)),
-        ]
-        .into_iter()
-        .collect();
+        let schema: Schema = vec![("price", DataType::float_interval(1., 4.))]
+            .into_iter()
+            .collect();
         let table = Relation::table()
             .name("tab")
             .schema(schema.clone())

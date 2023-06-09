@@ -35,7 +35,12 @@ impl fmt::Display for FieldDataTypes {
             "{}",
             self.0
                 .iter()
-                .map(|(field, expr)| format!("{} = {} ∈ {}", field.name(), dot::escape_html(&expr.to_string()), field.data_type()))
+                .map(|(field, expr)| format!(
+                    "{} = {} ∈ {}",
+                    field.name(),
+                    dot::escape_html(&expr.to_string()),
+                    field.data_type()
+                ))
                 .join("<br/>")
         )
     }
@@ -190,15 +195,23 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     JoinOperator::Inner(JoinConstraint::On(expr))
                     | JoinOperator::LeftOuter(JoinConstraint::On(expr))
                     | JoinOperator::RightOuter(JoinConstraint::On(expr))
-                    | JoinOperator::FullOuter(JoinConstraint::On(expr)) => format!("<br/>{} ON {}", join.operator.to_string(), expr),
+                    | JoinOperator::FullOuter(JoinConstraint::On(expr)) => {
+                        format!("<br/>{} ON {}", join.operator.to_string(), expr)
+                    }
                     JoinOperator::Inner(JoinConstraint::Using(identifiers))
                     | JoinOperator::LeftOuter(JoinConstraint::Using(identifiers))
                     | JoinOperator::RightOuter(JoinConstraint::Using(identifiers))
-                    | JoinOperator::FullOuter(JoinConstraint::Using(identifiers)) => format!("<br/>{} USING ({})", join.operator.to_string(), identifiers.iter().join(", ")),
+                    | JoinOperator::FullOuter(JoinConstraint::Using(identifiers)) => format!(
+                        "<br/>{} USING ({})",
+                        join.operator.to_string(),
+                        identifiers.iter().join(", ")
+                    ),
                     JoinOperator::Inner(JoinConstraint::Natural)
                     | JoinOperator::LeftOuter(JoinConstraint::Natural)
                     | JoinOperator::RightOuter(JoinConstraint::Natural)
-                    | JoinOperator::FullOuter(JoinConstraint::Natural) => format!("<br/>NATURAL {}", join.operator.to_string()),
+                    | JoinOperator::FullOuter(JoinConstraint::Natural) => {
+                        format!("<br/>NATURAL {}", join.operator.to_string())
+                    }
                     JoinOperator::Inner(JoinConstraint::None)
                     | JoinOperator::LeftOuter(JoinConstraint::None)
                     | JoinOperator::RightOuter(JoinConstraint::None)
@@ -343,11 +356,7 @@ mod tests {
     #[test]
     fn test_escape_html() {
         namer::reset();
-        let schema: Schema = vec![
-            ("a", DataType::float()),
-        ]
-        .into_iter()
-        .collect();
+        let schema: Schema = vec![("a", DataType::float())].into_iter().collect();
         let table: Relation = Relation::table()
             .name("table")
             .schema(schema.clone())
@@ -362,8 +371,8 @@ mod tests {
                 Expr::case(
                     Expr::gt(Expr::col("a"), Expr::val(0)),
                     Expr::val(1),
-                    Expr::val(-1)
-                )
+                    Expr::val(-1),
+                ),
             ))
             .input(table.clone())
             .build();
@@ -374,30 +383,28 @@ mod tests {
     #[test]
     fn test_display_join() {
         namer::reset();
-        let schema: Schema = vec![
-            ("b", DataType::float_interval(-2., 2.)),
-        ]
-        .into_iter()
-        .collect();
+        let schema: Schema = vec![("b", DataType::float_interval(-2., 2.))]
+            .into_iter()
+            .collect();
         let left: Relation = Relation::table()
-                .name("left")
-                .schema(schema.clone())
-                .size(1000)
-                .build();
+            .name("left")
+            .schema(schema.clone())
+            .size(1000)
+            .build();
         let right: Relation = Relation::table()
-                .name("right")
-                .schema(schema.clone())
-                .size(1000)
-                .build();
+            .name("right")
+            .schema(schema.clone())
+            .size(1000)
+            .build();
 
         let join: Relation = Relation::join()
-                .name("join")
-                .cross()
-                //.using("a")
-                //.on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
-                .left(left)
-                .right(right)
-                .build();
+            .name("join")
+            .cross()
+            //.using("a")
+            //.on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
+            .left(left)
+            .right(right)
+            .build();
         join.display_dot();
     }
 
@@ -411,16 +418,16 @@ mod tests {
         .into_iter()
         .collect();
         let table: Relation = Relation::table()
-                .name("table")
-                .schema(schema.clone())
-                .size(1000)
-                .build();
+            .name("table")
+            .schema(schema.clone())
+            .size(1000)
+            .build();
         let reduce: Relation = Relation::reduce()
-                .name("reduce")
-                .input(table)
-                .with_group_by_column("a")
-                .with(Expr::sum(Expr::col("b")))
-                .build();
+            .name("reduce")
+            .input(table)
+            .with_group_by_column("a")
+            .with(Expr::sum(Expr::col("b")))
+            .build();
         reduce.display_dot();
     }
 }

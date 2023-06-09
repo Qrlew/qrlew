@@ -95,13 +95,33 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
 
     fn node_label(&'a self, node: &Node<'a, T>) -> dot::LabelText<'a> {
         dot::LabelText::html(match &node.0 {
-            Expr::Column(col) => format!("<b>{}</b><br/>{}", dot::escape_html(&col.to_string()), &node.1),
-            Expr::Value(val) => format!("<b>{}</b><br/>{}", dot::escape_html(&val.to_string()), &node.1),
+            Expr::Column(col) => format!(
+                "<b>{}</b><br/>{}",
+                dot::escape_html(&col.to_string()),
+                &node.1
+            ),
+            Expr::Value(val) => format!(
+                "<b>{}</b><br/>{}",
+                dot::escape_html(&val.to_string()),
+                &node.1
+            ),
             Expr::Function(fun) => {
-                format!("<b>{}</b><br/>{}", dot::escape_html(&fun.function.to_string()), &node.1)
-            },
-            Expr::Aggregate(agg) => format!("<b>{}</b><br/>{}", dot::escape_html(&agg.aggregate.to_string()), &node.1),
-            Expr::Struct(s) => format!("<b>{}</b><br/>{}", dot::escape_html(&s.to_string()), &node.1),
+                format!(
+                    "<b>{}</b><br/>{}",
+                    dot::escape_html(&fun.function.to_string()),
+                    &node.1
+                )
+            }
+            Expr::Aggregate(agg) => format!(
+                "<b>{}</b><br/>{}",
+                dot::escape_html(&agg.aggregate.to_string()),
+                &node.1
+            ),
+            Expr::Struct(s) => format!(
+                "<b>{}</b><br/>{}",
+                dot::escape_html(&s.to_string()),
+                &node.1
+            ),
         })
     }
 
@@ -323,50 +343,31 @@ mod tests {
 
     #[test]
     fn test_dot_escape_html() {
-        let data_types = DataType::structured([
-            ("a", DataType::integer_interval(1, 10))
-        ]);
+        let data_types = DataType::structured([("a", DataType::integer_interval(1, 10))]);
 
         let my_expr = expr!(lt_eq(a, 5));
-        my_expr
-            .with(data_types.clone())
-            .display_dot()
-            .unwrap();
+        my_expr.with(data_types.clone()).display_dot().unwrap();
         assert_eq!(my_expr.to_string(), "(a <= 5)".to_string());
 
         let my_expr = expr!(gt(a, 5));
-        my_expr
-            .with(data_types.clone())
-            .display_dot()
-            .unwrap();
+        my_expr.with(data_types.clone()).display_dot().unwrap();
         assert_eq!(my_expr.to_string(), "(a > 5)".to_string());
 
         let my_expr = expr!(modulo(a, 2));
-        my_expr
-            .with(data_types)
-            .display_dot()
-            .unwrap();
+        my_expr.with(data_types).display_dot().unwrap();
         assert_eq!(my_expr.to_string(), "(a % 2)".to_string());
     }
 
     #[ignore]
     #[test]
     fn test_max() {
-        let data_types = DataType::structured([
-            ("a", DataType::float_interval(0., 4.))
-        ]);
+        let data_types = DataType::structured([("a", DataType::float_interval(0., 4.))]);
 
-        let my_expr = expr!((a + 1 + abs(a - 1))/2);
-        my_expr
-            .with(data_types.clone())
-            .display_dot()
-            .unwrap();
+        let my_expr = expr!((a + 1 + abs(a - 1)) / 2);
+        my_expr.with(data_types.clone()).display_dot().unwrap();
 
-        let my_expr = expr!(1 - gt(a,1) * (1 - a));
-        my_expr
-            .with(data_types)
-            .display_dot()
-            .unwrap();
+        let my_expr = expr!(1 - gt(a, 1) * (1 - a));
+        my_expr.with(data_types).display_dot().unwrap();
     }
 
     #[ignore]

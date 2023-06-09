@@ -563,30 +563,28 @@ mod tests {
     #[test]
     fn test_display_join() {
         namer::reset();
-        let schema: Schema = vec![
-            ("b", DataType::float_interval(-2., 2.)),
-        ]
-        .into_iter()
-        .collect();
+        let schema: Schema = vec![("b", DataType::float_interval(-2., 2.))]
+            .into_iter()
+            .collect();
         let left: Relation = Relation::table()
-                .name("left")
-                .schema(schema.clone())
-                .size(1000)
-                .build();
+            .name("left")
+            .schema(schema.clone())
+            .size(1000)
+            .build();
         let right: Relation = Relation::table()
-                .name("right")
-                .schema(schema.clone())
-                .size(1000)
-                .build();
+            .name("right")
+            .schema(schema.clone())
+            .size(1000)
+            .build();
 
         let join: Relation = Relation::join()
-                .name("join")
-                .left_outer()
-                //.using("a")
-                .on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
-                .left(left)
-                .right(right)
-                .build();
+            .name("join")
+            .left_outer()
+            //.using("a")
+            .on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
+            .left(left)
+            .right(right)
+            .build();
 
         let query = ast::Query::from(&join);
         println!("query = {}", query.to_string());

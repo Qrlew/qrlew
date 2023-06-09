@@ -424,9 +424,7 @@ impl Expr {
     //     }
     // }
 
-    pub fn all<F: IntoIterator<Item=Expr>>(
-        factors: F,
-    ) -> Expr {
+    pub fn all<F: IntoIterator<Item = Expr>>(factors: F) -> Expr {
         let mut factors = factors.into_iter();
         match factors.next() {
             Some(head) => Expr::and(head, Expr::all(factors)),
@@ -1432,21 +1430,23 @@ mod tests {
         println!(
             "expression super image = {}",
             expression
-                .super_image(&DataType::structured([
-                    ("x", DataType::float_interval(0., 2.)),
-                ]))
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::float_interval(0., 2.)
+                ),]))
                 .unwrap()
         );
 
-        let expression = expr!(gt(x, 1)*x + lt_eq(x, 1));
+        let expression = expr!(gt(x, 1) * x + lt_eq(x, 1));
         println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
         println!(
             "expression super image = {}",
             expression
-                .super_image(&DataType::structured([
-                    ("x", DataType::float_interval(0., 2.)),
-                ]))
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::float_interval(0., 2.)
+                ),]))
                 .unwrap()
         );
     }
