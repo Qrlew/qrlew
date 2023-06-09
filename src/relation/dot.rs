@@ -35,7 +35,7 @@ impl fmt::Display for FieldDataTypes {
             "{}",
             self.0
                 .iter()
-                .map(|(field, expr)| format!("{} = {} ∈ {}", field.name(), expr, field.data_type()))
+                .map(|(field, expr)| format!("{} = {} ∈ {}", field.name(), dot::escape_html(&expr.to_string()), field.data_type()))
                 .join("<br/>")
         )
     }
@@ -166,7 +166,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     "<b>{} size ∈ {}</b><br/>{}{filter}{order_by}",
                     map.name().to_uppercase(),
                     map.size(),
-                    dot::escape_html(&node.1.to_string())
+                    &node.1
                 )
             }
             Relation::Reduce(reduce) => {
@@ -186,18 +186,19 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 )
             }
             Relation::Join(join) => {
-                let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator
-                {
-                    format!("<br/>ON {}", expr)
-                } else {
-                    "".to_string()
-                };
+                // let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator
+                // {
+                //     format!("<br/>ON {}", expr)
+                // } else {
+                //     "".to_string()
+                // };
+                println!("JOIN OP: {} {}", &join.operator.to_string(), &node.1);
                 format!(
-                    "<b>{} size ∈ {}</b><br/>{}{}",
+                    "<b>{} size ∈ {}</b><br/>{}<br/>{}",
                     join.name().to_uppercase(),
                     join.size(),
                     &node.1,
-                    operator,
+                    &join.operator.to_string()//operator,
                 )
             }
             Relation::Set(set) => format!(
@@ -355,5 +356,59 @@ mod tests {
             .input(table.clone())
             .build();
         map.display_dot();
+    }
+
+    #[ignore]
+    #[test]
+    fn test_display_join() {
+        namer::reset();
+        let schema: Schema = vec![
+            ("b", DataType::float_interval(-2., 2.)),
+        ]
+        .into_iter()
+        .collect();
+        let left: Relation = Relation::table()
+                .name("left")
+                .schema(schema.clone())
+                .size(1000)
+                .build();
+        let right: Relation = Relation::table()
+                .name("right")
+                .schema(schema.clone())
+                .size(1000)
+                .build();
+
+        let join: Relation = Relation::join()
+                .name("join")
+                .inner()
+                //.using("a")
+                .on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
+                .left(left)
+                .right(right)
+                .build();
+        join.display_dot();
+    }
+
+    #[test]
+    fn test_display_reduce() {
+        namer::reset();
+        let schema: Schema = vec![
+            ("a", DataType::integer_interval(1, 5)),
+            ("b", DataType::float_interval(-2., 2.)),
+        ]
+        .into_iter()
+        .collect();
+        let table: Relation = Relation::table()
+                .name("table")
+                .schema(schema.clone())
+                .size(1000)
+                .build();
+        let reduce: Relation = Relation::reduce()
+                .name("reduce")
+                .input(table)
+                .with_group_by_column("a")
+                .with(Expr::sum(Expr::col("b")))
+                .build();
+        reduce.display_dot();
     }
 }

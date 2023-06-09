@@ -524,11 +524,11 @@ impl fmt::Display for JoinOperator {
             f,
             "{}",
             match self {
-                JoinOperator::Inner(_) => "INNER",
-                JoinOperator::LeftOuter(_) => "LEFT",
-                JoinOperator::RightOuter(_) => "RIGHT",
-                JoinOperator::FullOuter(_) => "FULL",
-                JoinOperator::Cross => "CROSS",
+                JoinOperator::Inner(x) => format!("INNER {}", x),
+                JoinOperator::LeftOuter(x) => format!("LEFT {}", x),
+                JoinOperator::RightOuter(x) => format!("RIGHT {}", x),
+                JoinOperator::FullOuter(x) => format!("FULL {}", x),
+                JoinOperator::Cross => "CROSS".to_string(),
             }
         )
     }
@@ -542,6 +542,24 @@ pub enum JoinConstraint {
     Natural,
     None,
 }
+
+// impl fmt::Display for JoinConstraint {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "{}",
+//             match self {
+//                     JoinConstraint::On(expr) => format!("ON {}", expr),
+//                     JoinConstraint::Using(identifiers) => format!(
+//                         "USING {}",
+//                         identifiers.iter().join(", ")
+//                     ),
+//                     JoinConstraint::Natural => todo!(),
+//                     JoinConstraint::None => todo!(),
+//                 }
+//         )
+//     }
+// }
 
 /// Join two relations on one or more join columns
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -1208,6 +1226,7 @@ impl Ready<Relation> for SetBuilder<WithInput, WithInput> {
 mod tests {
     use super::{schema::Schema, *};
     use crate::{builder::With, data_type::DataType};
+    use crate::display::Dot;
 
     #[test]
     fn test_table() {

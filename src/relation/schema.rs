@@ -27,7 +27,7 @@ impl Schema {
             fields
                 .iter()
                 .all(move |field| field_names.insert(field.name())),
-            "You cannot creaate a schema with ambiguous column names"
+            "You cannot create a schema with ambiguous column names"
         );
         Schema { fields }
     }

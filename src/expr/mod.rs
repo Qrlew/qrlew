@@ -1414,7 +1414,7 @@ mod tests {
     #[test]
     fn test_case() {
         let expression = expr!(case(gt(x, 5), x, y));
-        println!("expression = {}", expression);
+        println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
         println!(
             "expression super image = {}",
@@ -1422,6 +1422,30 @@ mod tests {
                 .super_image(&DataType::structured([
                     ("x", DataType::float_interval(1., 10.)),
                     ("y", DataType::float_values([-2., 0.5])),
+                ]))
+                .unwrap()
+        );
+
+        let expression = expr!(case(gt(x, 1), x, 1));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([
+                    ("x", DataType::float_interval(0., 2.)),
+                ]))
+                .unwrap()
+        );
+
+        let expression = expr!(gt(x, 1)*x + lt_eq(x, 1));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([
+                    ("x", DataType::float_interval(0., 2.)),
                 ]))
                 .unwrap()
         );

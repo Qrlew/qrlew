@@ -307,7 +307,7 @@ impl Relation {
 
         let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
         let map_rel = reduce_rel.map_fields(|n, e| if coordinates.contains(&n) { Expr::abs(e) } else { e });
-        map_rel.sum_by(base, coordinates)
+        map_rel.sum_by(vec!(vector), coordinates)
     }
 
     pub fn l2_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
@@ -316,37 +316,74 @@ impl Relation {
 
         let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
         let map_rel = reduce_rel.map_fields(|n, e| if coordinates.contains(&n) { Expr::pow(e, Expr::val(2)) } else { e });
-        let reduce_rel2  = map_rel.sum_by(base, coordinates.clone());
+        let reduce_rel2  = map_rel.sum_by(vec!(vector), coordinates.clone());
         reduce_rel2.map_fields(|n, e| if coordinates.contains(&n) { Expr::sqrt(e) } else { e })
     }
 
-    pub fn clip(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        let norm = self.clone().l2_norm(vector.clone(), base.clone(), coordinates.clone());
-        let left = norm.map_fields(|n, e| if coordinates.contains(&n) {
-            Expr::case(Expr::gt(e.clone(), Expr::val(1)), e,Expr::val(1))
-        } else {
-            e
-        });
-        left.display_dot().unwrap();
-        let right = self.sum_by(base.clone(), coordinates.clone());
-        let on_expr = Expr::all(base.iter()
-            .map(|s|
-                Expr::eq(
-                    Expr::qcol(left.name(), s),
-                    Expr::qcol(right.name(), s),
+    pub fn apply_weights(self, weight_relation: Self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+        // Join the two relations on the peid column
+        let join: Relation = Relation::join()
+            .using(vectors)
+            .left(self)
+            .right(weight_relation)
+            .inner()
+            .build();
+        join.display_dot();
+        println!("{:?}", join);
+        assert!(false);
+
+        // Multiply by weights
+        let mut grouping_cols: Vec<Expr> = vec!();
+        let mut weighted_agg: Vec<Expr>= vec!();
+        let length = base.len() + coordinates.len();
+        let out_fields = join.schema().fields();
+        let in_fields = join.input_fields();
+        for i in 0..(length + 1){
+            if coordinates.contains(&in_fields[i].name()) {
+                weighted_agg.push(
+                    Expr::multiply(
+                        Expr::col(out_fields[i].name()),
+                        Expr::col(out_fields[length + i].name())
+                    )
+                );
+            } else {
+                grouping_cols.push(Expr::col(out_fields[i].name()));
+            }
+        }
+
+        let mut vectors_base = vec!(vectors);
+        vectors_base.extend(base.clone());
+        Relation::map()
+            .input(join)
+            .with_iter(vectors_base.iter().zip(grouping_cols.iter()).map(|(s, e)| (s.to_string(), e.clone())))
+            .with_iter(coordinates.iter().zip(weighted_agg.iter()).map(|(s, e)| (s.to_string(), e.clone())))
+            .build()
+
+    }
+
+    pub fn clipped_sum(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+        let norm = self.clone().l2_norm(vectors.clone(), base.clone(), coordinates.clone());
+        let weights = norm.map_fields(|n, _| if coordinates.contains(&n) {
+            Expr::divide(
+                Expr::val(2),
+                Expr::plus(
+                    Expr::col(n),
+                    Expr::plus(
+                        Expr::val(1),
+                        Expr::abs(Expr::minus(Expr::col(n), Expr::val(1))),
+                    ),
                 )
             )
-            .collect::<Vec<Expr>>()
-        );
-        let join: Relation = Relation::join()
-            .left(left)
-            .right(right)
-            .inner()
-            .on(on_expr)
-            .build();
-        // println!("\ninput: {:?}", join.input_fields());
-        // println!("\noutput: {:?}", join.schema().fields());
-        join
+        } else {
+            Expr::col(n)
+        });
+
+        let mut vectors_base = vec!(vectors);
+        vectors_base.extend(base.clone());
+        let aggregated_relation = self.sum_by(vectors_base, coordinates.clone());
+
+        let weighted_relation = aggregated_relation.apply_weights(weights, vectors, base.clone(), coordinates.clone());
+        weighted_relation.sum_by(base, coordinates)
     }
 }
 
@@ -476,7 +513,7 @@ mod tests {
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         println!("Query = {}", query);
-        let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        let valid_query = "SELECT order_id, SUM(sum_by_group) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_group FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -485,7 +522,7 @@ mod tests {
         let amount_norm = table.l2_norm("order_id", vec!["item"], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
-        let valid_query = "SELECT item, SQRT(SUM(sum_by_peid)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        let valid_query = "SELECT order_id, SQRT(SUM(sum_by_group)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -512,7 +549,7 @@ mod tests {
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         //println!("Query = {}", query);
-        let valid_query = "SELECT item, SUM(sum_1), SUM(sum_2) FROM (SELECT order_id, item, ABS(SUM(price)) AS sum_1, ABS(SUM(std_price)) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        let valid_query = "SELECT order_id, SUM(sum_1), SUM(sum_2) FROM (SELECT order_id, item, ABS(SUM(price)) AS sum_1, ABS(SUM(std_price)) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -521,7 +558,7 @@ mod tests {
         let relation_norm = relation.l2_norm("order_id", vec!["item"], vec!["price", "std_price"]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
-        let valid_query = "SELECT item, SQRT(SUM(sum_1)), SQRT(SUM(sum_2)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        let valid_query = "SELECT order_id, SQRT(SUM(sum_1)), SQRT(SUM(sum_2)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -566,7 +603,7 @@ mod tests {
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         println!("Query = {}", query);
 
-        let valid_query = "SELECT item, date, SUM(sum_1) FROM (SELECT user_id, item, date, ABS(SUM(price)) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY item, date";
+        let valid_query = "SELECT user_id, SUM(sum_1) FROM (SELECT user_id, item, date, ABS(SUM(price)) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY user_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -575,7 +612,7 @@ mod tests {
         let relation_norm = relation.l2_norm(user_id, vec![item, date], vec![price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
-        let valid_query = "SELECT item, date, SQRT(SUM(sum_1)) FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY item, date";
+        let valid_query = "SELECT user_id, SQRT(SUM(sum_1)) FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY user_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -583,8 +620,8 @@ mod tests {
     }
 
     #[test]
-    fn test_clip_for_table() {
-        let database = postgresql::test_database();
+    fn test_clipped_sum_for_table() {
+        let mut database = postgresql::test_database();
         let relations = database.relations();
 
         let table = relations
@@ -594,14 +631,20 @@ mod tests {
             .clone();
         let clipped_relation = table
             .clone()
-            .clip("order_id", vec!["item"], vec!["price"]);
+            .clipped_sum("order_id", vec!["item"], vec!["price"]);
         clipped_relation.display_dot().unwrap();
-        // let query: &str = &ast::Query::from(&amount_norm).to_string();
-        // println!("Query = {}", query);
-        // let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
-        // assert_eq!(
-        //     database.query(query).unwrap(),
-        //     database.query(valid_query).unwrap()
-        // );
+        let query: &str = &ast::Query::from(&clipped_relation).to_string();
+        println!("Query = {}", query);
+        let valid_query = r#"
+            SELECT item, SUM(weight_price) FROM (
+                SELECT item, (CASE WHEN weight > 1 THEN 1 / weight ELSE 1 END) * price FROM item_table JOIN (
+                    SELECT order_id, SUM(sum_by_peid) AS weight FROM (SELECT order_id, SUM(POWER(price, 2)) AS sum_by_price FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id
+                ) AS weight_table ON item_table.order_id = weight_table.order_id
+            ) AS subq GROUP BY item
+        "#;
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
     }
 }

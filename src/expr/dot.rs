@@ -351,6 +351,26 @@ mod tests {
 
     #[ignore]
     #[test]
+    fn test_max() {
+        let data_types = DataType::structured([
+            ("a", DataType::float_interval(0., 4.))
+        ]);
+
+        let my_expr = expr!((a + 1 + abs(a - 1))/2);
+        my_expr
+            .with(data_types.clone())
+            .display_dot()
+            .unwrap();
+
+        let my_expr = expr!(1 - gt(a,1) * (1 - a));
+        my_expr
+            .with(data_types)
+            .display_dot()
+            .unwrap();
+    }
+
+    #[ignore]
+    #[test]
     fn test_dot_struct_dsl() {
         let rel: Rc<Relation> = Rc::new(
             Relation::table()

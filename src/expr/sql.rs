@@ -21,7 +21,9 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
     fn value(&self, value: &'a expr::Value) -> ast::Expr {
         match value {
             crate::data_type::value::Value::Unit(_) => todo!(),
-            crate::data_type::value::Value::Boolean(_) => todo!(),
+            crate::data_type::value::Value::Boolean(b) => {
+                ast::Expr::Value(ast::Value::Boolean(**b))
+            },
             crate::data_type::value::Value::Integer(i) => {
                 ast::Expr::Value(ast::Value::Number(format!("{}", **i), false))
             }
