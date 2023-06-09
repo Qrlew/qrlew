@@ -186,19 +186,31 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 )
             }
             Relation::Join(join) => {
-                // let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator
-                // {
-                //     format!("<br/>ON {}", expr)
-                // } else {
-                //     "".to_string()
-                // };
-                println!("JOIN OP: {} {}", &join.operator.to_string(), &node.1);
+                let operator = match &join.operator {
+                    JoinOperator::Inner(JoinConstraint::On(expr))
+                    | JoinOperator::LeftOuter(JoinConstraint::On(expr))
+                    | JoinOperator::RightOuter(JoinConstraint::On(expr))
+                    | JoinOperator::FullOuter(JoinConstraint::On(expr)) => format!("<br/>{} ON {}", join.operator.to_string(), expr),
+                    JoinOperator::Inner(JoinConstraint::Using(identifiers))
+                    | JoinOperator::LeftOuter(JoinConstraint::Using(identifiers))
+                    | JoinOperator::RightOuter(JoinConstraint::Using(identifiers))
+                    | JoinOperator::FullOuter(JoinConstraint::Using(identifiers)) => format!("<br/>{} USING ({})", join.operator.to_string(), identifiers.iter().join(", ")),
+                    JoinOperator::Inner(JoinConstraint::Natural)
+                    | JoinOperator::LeftOuter(JoinConstraint::Natural)
+                    | JoinOperator::RightOuter(JoinConstraint::Natural)
+                    | JoinOperator::FullOuter(JoinConstraint::Natural) => format!("<br/>NATURAL {}", join.operator.to_string()),
+                    JoinOperator::Inner(JoinConstraint::None)
+                    | JoinOperator::LeftOuter(JoinConstraint::None)
+                    | JoinOperator::RightOuter(JoinConstraint::None)
+                    | JoinOperator::FullOuter(JoinConstraint::None)
+                    | JoinOperator::Cross => format!("<br/>{}", join.operator.to_string()),
+                };
                 format!(
-                    "<b>{} size ∈ {}</b><br/>{}<br/>{}",
+                    "<b>{} size ∈ {}</b><br/>{}{}",
                     join.name().to_uppercase(),
                     join.size(),
                     &node.1,
-                    &join.operator.to_string()//operator,
+                    operator,
                 )
             }
             Relation::Set(set) => format!(
@@ -380,9 +392,9 @@ mod tests {
 
         let join: Relation = Relation::join()
                 .name("join")
-                .inner()
+                .cross()
                 //.using("a")
-                .on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
+                //.on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
                 .left(left)
                 .right(right)
                 .build();

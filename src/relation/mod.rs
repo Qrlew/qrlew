@@ -524,11 +524,16 @@ impl fmt::Display for JoinOperator {
             f,
             "{}",
             match self {
-                JoinOperator::Inner(x) => format!("INNER {}", x),
-                JoinOperator::LeftOuter(x) => format!("LEFT {}", x),
-                JoinOperator::RightOuter(x) => format!("RIGHT {}", x),
-                JoinOperator::FullOuter(x) => format!("FULL {}", x),
-                JoinOperator::Cross => "CROSS".to_string(),
+                // JoinOperator::Inner(x) => format!("INNER {}", x),
+                // JoinOperator::LeftOuter(x) => format!("LEFT {}", x),
+                // JoinOperator::RightOuter(x) => format!("RIGHT {}", x),
+                // JoinOperator::FullOuter(x) => format!("FULL {}", x),
+                // JoinOperator::Cross => "CROSS".to_string(),
+                JoinOperator::Inner(_) => "INNER",
+                JoinOperator::LeftOuter(_) => "LEFT",
+                JoinOperator::RightOuter(_) => "RIGHT",
+                JoinOperator::FullOuter(_) => "FULL",
+                JoinOperator::Cross => "CROSS",
             }
         )
     }
@@ -1226,7 +1231,6 @@ impl Ready<Relation> for SetBuilder<WithInput, WithInput> {
 mod tests {
     use super::{schema::Schema, *};
     use crate::{builder::With, data_type::DataType};
-    use crate::display::Dot;
 
     #[test]
     fn test_table() {
