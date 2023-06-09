@@ -413,6 +413,26 @@ impl Expr {
                 .collect(),
         )
     }
+
+    // pub fn all<E: Clone+Into<Expr>, F: AsRef<[E]>>(
+    //     factors: F,
+    // ) -> Expr {
+    //     let factors = factors.as_ref();
+    //     match factors.split_first() {
+    //         Some((head, tail)) => Expr::and(head.clone(), Expr::all(tail)),
+    //         None => Expr::val(true),
+    //     }
+    // }
+
+    pub fn all<F: IntoIterator<Item=Expr>>(
+        factors: F,
+    ) -> Expr {
+        let mut factors = factors.into_iter();
+        match factors.next() {
+            Some(head) => Expr::and(head, Expr::all(factors)),
+            None => Expr::val(true),
+        }
+    }
 }
 
 /// Implement basic Variant conversions

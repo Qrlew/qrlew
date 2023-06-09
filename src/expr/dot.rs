@@ -10,6 +10,7 @@ use crate::{
     namer,
     visitor::Acceptor,
 };
+use html_escape::encode_text;
 
 impl From<string::FromUtf8Error> for Error {
     fn from(err: string::FromUtf8Error) -> Self {
@@ -95,11 +96,13 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
 
     fn node_label(&'a self, node: &Node<'a, T>) -> dot::LabelText<'a> {
         dot::LabelText::html(match &node.0 {
-            Expr::Column(col) => format!("<b>{}</b><br/>{}", col, &node.1),
+            Expr::Column(col) => format!("<b>{}</b><br/>{}", encode_text(&col.to_string()), &node.1),
             Expr::Value(val) => format!("<b>{}</b><br/>{}", val, &node.1),
-            Expr::Function(fun) => format!("<b>{}</b><br/>{}", fun.function, &node.1),
+            Expr::Function(fun) => {
+                format!("<b>{}</b><br/>{}", encode_text(&fun.function.to_string()), &node.1)
+            },
             Expr::Aggregate(agg) => format!("<b>{}</b><br/>{}", agg.aggregate, &node.1),
-            Expr::Struct(s) => format!("<b>{}</b><br/>{}", s, &node.1),
+            Expr::Struct(s) => format!("<b>{}</b><br/>{}", encode_text(&s.to_string()), &node.1),
         })
     }
 
@@ -317,6 +320,34 @@ mod tests {
             .with(data_types)
             .display_dot()
             .unwrap();
+    }
+
+    #[test]
+    fn test_dot_symbols() {
+        let data_types = DataType::structured([
+            ("a", DataType::integer_interval(1, 10))
+        ]);
+
+        let my_expr = expr!(lt_eq(a, 5));
+        my_expr
+            .with(data_types.clone())
+            .display_dot()
+            .unwrap();
+        assert_eq!(my_expr.to_string(), "(a <= 5)".to_string());
+
+        let my_expr = expr!(gt(a, 5));
+        my_expr
+            .with(data_types.clone())
+            .display_dot()
+            .unwrap();
+        assert_eq!(my_expr.to_string(), "(a > 5)".to_string());
+
+        let my_expr = expr!(modulo(a, 2));
+        my_expr
+            .with(data_types)
+            .display_dot()
+            .unwrap();
+        assert_eq!(my_expr.to_string(), "(a % 2)".to_string());
     }
 
     #[ignore]

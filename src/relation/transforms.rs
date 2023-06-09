@@ -9,6 +9,7 @@ use crate::{
     expr::Expr,
     hierarchy::Hierarchy,
 };
+use crate::display::Dot;
 
 impl Map {
     pub fn with_field(self, name: &str, expr: Expr) -> Map {
@@ -318,6 +319,35 @@ impl Relation {
         let reduce_rel2  = map_rel.sum_by(base, coordinates.clone());
         reduce_rel2.map_fields(|n, e| if coordinates.contains(&n) { Expr::sqrt(e) } else { e })
     }
+
+    pub fn clip(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+        let norm = self.clone().l2_norm(vector.clone(), base.clone(), coordinates.clone());
+        let left = norm.map_fields(|n, e| if coordinates.contains(&n) {
+            Expr::case(Expr::gt(e.clone(), Expr::val(1)), e,Expr::val(1))
+        } else {
+            e
+        });
+        left.display_dot().unwrap();
+        let right = self.sum_by(base.clone(), coordinates.clone());
+        let on_expr = Expr::all(base.iter()
+            .map(|s|
+                Expr::eq(
+                    Expr::qcol(left.name(), s),
+                    Expr::qcol(right.name(), s),
+                )
+            )
+            .collect::<Vec<Expr>>()
+        );
+        let join: Relation = Relation::join()
+            .left(left)
+            .right(right)
+            .inner()
+            .on(on_expr)
+            .build();
+        // println!("\ninput: {:?}", join.input_fields());
+        // println!("\noutput: {:?}", join.schema().fields());
+        join
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -445,7 +475,7 @@ mod tests {
             .l1_norm("order_id", vec!["item"], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
-        //println!("Query = {}", query);
+        println!("Query = {}", query);
         let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
         assert_eq!(
             database.query(query).unwrap(),
@@ -550,5 +580,28 @@ mod tests {
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
         );
+    }
+
+    #[test]
+    fn test_clip_for_table() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let clipped_relation = table
+            .clone()
+            .clip("order_id", vec!["item"], vec!["price"]);
+        //clipped_relation.display_dot().unwrap();
+        // let query: &str = &ast::Query::from(&amount_norm).to_string();
+        // println!("Query = {}", query);
+        // let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";
+        // assert_eq!(
+        //     database.query(query).unwrap(),
+        //     database.query(valid_query).unwrap()
+        // );
     }
 }
