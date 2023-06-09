@@ -30,7 +30,6 @@ base64 = "0.21"
 rusqlite = { version = "0.29", features = ["chrono"], optional = true }
 postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
-html-escape = {version = "0.2.13"}
 
 [features]
 # Test on SQLite

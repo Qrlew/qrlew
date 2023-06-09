@@ -595,7 +595,7 @@ mod tests {
         let clipped_relation = table
             .clone()
             .clip("order_id", vec!["item"], vec!["price"]);
-        //clipped_relation.display_dot().unwrap();
+        clipped_relation.display_dot().unwrap();
         // let query: &str = &ast::Query::from(&amount_norm).to_string();
         // println!("Query = {}", query);
         // let valid_query = "SELECT item, SUM(sum_by_peid) FROM (SELECT order_id, item, SUM(ABS(price)) AS sum_by_peid FROM item_table GROUP BY order_id, item) AS subquery GROUP BY item";

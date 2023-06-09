@@ -10,7 +10,6 @@ use crate::{
     namer,
     visitor::Acceptor,
 };
-use html_escape::encode_text;
 
 impl From<string::FromUtf8Error> for Error {
     fn from(err: string::FromUtf8Error) -> Self {
@@ -96,13 +95,13 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
 
     fn node_label(&'a self, node: &Node<'a, T>) -> dot::LabelText<'a> {
         dot::LabelText::html(match &node.0 {
-            Expr::Column(col) => format!("<b>{}</b><br/>{}", encode_text(&col.to_string()), &node.1),
-            Expr::Value(val) => format!("<b>{}</b><br/>{}", val, &node.1),
+            Expr::Column(col) => format!("<b>{}</b><br/>{}", dot::escape_html(&col.to_string()), &node.1),
+            Expr::Value(val) => format!("<b>{}</b><br/>{}", dot::escape_html(&val.to_string()), &node.1),
             Expr::Function(fun) => {
-                format!("<b>{}</b><br/>{}", encode_text(&fun.function.to_string()), &node.1)
+                format!("<b>{}</b><br/>{}", dot::escape_html(&fun.function.to_string()), &node.1)
             },
-            Expr::Aggregate(agg) => format!("<b>{}</b><br/>{}", agg.aggregate, &node.1),
-            Expr::Struct(s) => format!("<b>{}</b><br/>{}", encode_text(&s.to_string()), &node.1),
+            Expr::Aggregate(agg) => format!("<b>{}</b><br/>{}", dot::escape_html(&agg.aggregate.to_string()), &node.1),
+            Expr::Struct(s) => format!("<b>{}</b><br/>{}", dot::escape_html(&s.to_string()), &node.1),
         })
     }
 
@@ -323,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dot_symbols() {
+    fn test_dot_escape_html() {
         let data_types = DataType::structured([
             ("a", DataType::integer_interval(1, 10))
         ]);

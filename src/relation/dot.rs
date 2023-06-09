@@ -166,7 +166,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     "<b>{} size ∈ {}</b><br/>{}{filter}{order_by}",
                     map.name().to_uppercase(),
                     map.size(),
-                    &node.1
+                    dot::escape_html(&node.1.to_string())
                 )
             }
             Relation::Reduce(reduce) => {
@@ -325,5 +325,35 @@ mod tests {
             .build();
         println!("join_2 = {}", join_2);
         join_2.display_dot();
+    }
+
+    #[test]
+    fn test_escape_html() {
+        namer::reset();
+        let schema: Schema = vec![
+            ("a", DataType::float()),
+        ]
+        .into_iter()
+        .collect();
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(schema.clone())
+            .size(1000)
+            .build();
+        println!("table = {}", table);
+        println!("table[a] = {}", table[&"a".into()]);
+        let map: Relation = Relation::map()
+            .name("map_1")
+            .with((
+                "case_expr",
+                Expr::case(
+                    Expr::gt(Expr::col("a"), Expr::val(0)),
+                    Expr::val(1),
+                    Expr::val(-1)
+                )
+            ))
+            .input(table.clone())
+            .build();
+        map.display_dot();
     }
 }
