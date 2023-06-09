@@ -579,6 +579,33 @@ mod tests {
         print!("{}", map)
     }
 
+    #[ignore]
+    #[test]
+    fn test_parse() {
+        let query = parse("SELECT 2 * (price - 1) FROM schema.table").unwrap();
+        let query = parse("SELECT 2 * price FROM schema.table").unwrap();
+        //println!("\nquery: {:?}", query);
+        println!("\n{}", query.to_string());
+        let schema: Schema = vec![
+            ("price", DataType::float_interval(1., 4.)),
+        ]
+        .into_iter()
+        .collect();
+        let table = Relation::table()
+            .name("tab")
+            .schema(schema.clone())
+            .size(100)
+            .build();
+        let map = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table"], Rc::new(table))]),
+        ))
+        .unwrap();
+        let query2 = &ast::Query::from(&map);
+        //println!("\nquery2: {:?}", query2);
+        println!("\n{}", query2.to_string());
+    }
+
     fn complex_query() -> ast::Query {
         parse(r#"
             with view_1 as (select * from schema.table_1),

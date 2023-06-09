@@ -548,24 +548,6 @@ pub enum JoinConstraint {
     None,
 }
 
-// impl fmt::Display for JoinConstraint {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "{}",
-//             match self {
-//                     JoinConstraint::On(expr) => format!("ON {}", expr),
-//                     JoinConstraint::Using(identifiers) => format!(
-//                         "USING {}",
-//                         identifiers.iter().join(", ")
-//                     ),
-//                     JoinConstraint::Natural => todo!(),
-//                     JoinConstraint::None => todo!(),
-//                 }
-//         )
-//     }
-// }
-
 /// Join two relations on one or more join columns
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Join {

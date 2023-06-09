@@ -323,14 +323,17 @@ impl Relation {
     pub fn apply_weights(self, weight_relation: Self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
         // Join the two relations on the peid column
         let join: Relation = Relation::join()
-            .using(vectors)
-            .left(self)
-            .right(weight_relation)
+            .left(self.clone())
+            .right(weight_relation.clone())
             .inner()
+            .on(
+                Expr::eq(
+                    Expr::qcol(self.name(), vectors),
+                    Expr::qcol(weight_relation.name(), vectors)
+                )
+            )
             .build();
         join.display_dot();
-        println!("{:?}", join);
-        assert!(false);
 
         // Multiply by weights
         let mut grouping_cols: Vec<Expr> = vec!();
@@ -361,16 +364,20 @@ impl Relation {
 
     }
 
-    pub fn clipped_sum(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+    pub fn clipped_sum(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>, clipping_value: f64) -> Self {
+        // TODO: clipping_value: Vec<f64>
         let norm = self.clone().l2_norm(vectors.clone(), base.clone(), coordinates.clone());
-        let weights = norm.map_fields(|n, _| if coordinates.contains(&n) {
+        let weights = norm.map_fields(|n, e| if coordinates.contains(&n) {
             Expr::divide(
                 Expr::val(2),
                 Expr::plus(
-                    Expr::col(n),
+                    Expr::abs(Expr::minus(
+                        Expr::divide(e.clone(), Expr::val(clipping_value)),
+                        Expr::val(1)
+                    )),
                     Expr::plus(
+                        Expr::divide(e, Expr::val(clipping_value)),
                         Expr::val(1),
-                        Expr::abs(Expr::minus(Expr::col(n), Expr::val(1))),
                     ),
                 )
             )
@@ -631,20 +638,84 @@ mod tests {
             .clone();
         let clipped_relation = table
             .clone()
-            .clipped_sum("order_id", vec!["item"], vec!["price"]);
+            .clipped_sum("order_id", vec!["item"], vec!["price"], 45.);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        println!("Query = {}", query);
         let valid_query = r#"
-            SELECT item, SUM(weight_price) FROM (
-                SELECT item, (CASE WHEN weight > 1 THEN 1 / weight ELSE 1 END) * price FROM item_table JOIN (
-                    SELECT order_id, SUM(sum_by_peid) AS weight FROM (SELECT order_id, SUM(POWER(price, 2)) AS sum_by_price FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id
-                ) AS weight_table ON item_table.order_id = weight_table.order_id
-            ) AS subq GROUP BY item
+        WITH norms AS (
+            SELECT order_id, SQRT(SUM(sum_by_group)) AS norm FROM (
+                SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item
+              ) AS subquery GROUP BY order_id
+          ), weights AS (SELECT order_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight FROM norms)
+          SELECT item, SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id) GROUP BY item;
         "#;
+        let my_res = database.query(query).unwrap();
+        let true_res = database.query(valid_query).unwrap();
         assert_eq!(
-            database.query(query).unwrap(),
-            database.query(valid_query).unwrap()
+            my_res.len(),
+            true_res.len(),
         );
+        for i in 0..6 {
+            assert_eq!(my_res[i], true_res[i])
+        }
+    }
+
+    #[test]
+    fn test_clipped_sum_for_map() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation = Relation::try_from(
+            parse("SELECT price * 25 AS std_price, * FROM item_table")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        relation.display_dot().unwrap();
+
+        // L2 Norm
+        let clipped_relation = relation
+            .clone()
+            .clipped_sum("order_id", vec!["item"], vec!["price", "std_price"], 45.);
+        clipped_relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&clipped_relation).to_string();
+        database.query(query).unwrap();
+        //TODO: complete that
+    }
+
+    #[test]
+    fn test_clipped_sum_for_join() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let left: Relation = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let right: Relation = relations
+            .get(&["order_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let relation: Relation = Relation::join()
+            .left(left)
+            .right(right)
+            .on(Expr::eq(
+                Expr::qcol("item_table", "order_id"),
+                Expr::qcol("order_table", "id"),
+            ))
+            .build();
+        relation.display_dot().unwrap();
+        let schema = relation.schema().clone();
+        let item = schema.field_from_index(1).unwrap().name();
+        let price = schema.field_from_index(2).unwrap().name();
+        let user_id = schema.field_from_index(4).unwrap().name();
+        let date = schema.field_from_index(6).unwrap().name();
+
+        let clipped_relation = relation.clipped_sum(user_id, vec![item, date], vec![price], 50.);
+        clipped_relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&clipped_relation).to_string();
+        // TODO: complete the test
     }
 }
