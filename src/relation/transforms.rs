@@ -5,7 +5,7 @@ use std::{ops::Deref, rc::Rc};
 
 use itertools::Itertools;
 
-use super::{Map, Relation, Variant as _};
+use super::{Table, Map, Reduce, Join, Set, Relation, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
     expr::Expr,
@@ -13,7 +13,26 @@ use crate::{
     DataType,
 };
 
+/* Reduce
+ */
+
+impl Table {
+    /// Rename a Table
+    pub fn with_name(mut self, name: String) -> Table {
+        self.name = name;
+        self
+    }
+}
+
+/* Map
+ */
+
 impl Map {
+    /// Rename a Map
+    pub fn with_name(mut self, name: String) -> Map {
+        self.name = name;
+        self
+    }
     /// Prepend a field to a Map
     pub fn with_field(self, name: &str, expr: Expr) -> Map {
         Relation::map().with((name, expr)).with(self).build()
@@ -76,6 +95,39 @@ impl<'a> From<(&'a str, &'a str, &'a str)> for Step<'a> {
             referred_relation,
             referred_id,
         }
+    }
+}
+
+/* Reduce
+ */
+
+ impl Reduce {
+    /// Rename a Reduce
+    pub fn with_name(mut self, name: String) -> Reduce {
+        self.name = name;
+        self
+    }
+}
+
+/* Join
+ */
+
+ impl Join {
+    /// Rename a Join
+    pub fn with_name(mut self, name: String) -> Join {
+        self.name = name;
+        self
+    }
+}
+
+/* Set
+ */
+
+ impl Set {
+    /// Rename a Join
+    pub fn with_name(mut self, name: String) -> Set {
+        self.name = name;
+        self
     }
 }
 
@@ -184,6 +236,16 @@ impl<'a> IntoIterator for FieldPath<'a> {
 }
 
 impl Relation {
+    /// Rename a Relation
+    pub fn with_name(self, name: String) -> Relation {
+        match self {
+            Relation::Table(t) => t.with_name(name).into(),
+            Relation::Map(m) => m.with_name(name).into(),
+            Relation::Reduce(r) => r.with_name(name).into(),
+            Relation::Join(j) => j.with_name(name).into(),
+            Relation::Set(s) => s.with_name(name).into(),
+        }
+    }
     /// Add a field that derives from existing fields
     pub fn identity_with_field(self, name: &str, expr: Expr) -> Relation {
         Relation::map()

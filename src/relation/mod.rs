@@ -129,18 +129,6 @@ pub trait Variant:
                 .field_from_identifier(&identifier.tail()?)
         }
     }
-    /// Access a field of the Relation by qualified identifier
-    fn field_from_qualified_name(&self, identifier: &Identifier) -> Result<&Field> {
-        if let &[ref table, ref field] = identifier.as_slice() {
-            if table == self.name() {
-                self.schema().field_from_identifier(&field.clone().into())
-            } else {
-                Err(Error::invalid_name(identifier))
-            }
-        } else {
-            Err(Error::invalid_name(identifier))
-        }
-    }
 }
 
 // Table Relation

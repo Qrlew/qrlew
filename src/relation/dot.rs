@@ -86,7 +86,7 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
             join.field_inputs()
                 .map(|(f, i)| {
                     (
-                        join.field_from_qualified_name(&f.into()).unwrap().clone(),
+                        join.field_from_identifier(&f.into()).unwrap().clone(),
                         Expr::from(i),
                     )
                 })
@@ -188,7 +188,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Join(join) => {
                 let operator = if let JoinOperator::Inner(JoinConstraint::On(expr)) = &join.operator
                 {
-                    format!("<br/>ON {}", expr)
+                    format!("<br/>ON {}", dot::escape_html(&expr.to_string()))
                 } else {
                     "".to_string()
                 };

@@ -686,6 +686,8 @@ pub struct SuperImageVisitor<'a>(&'a DataType);
 
 impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
     fn column(&self, column: &'a Column) -> Result<DataType> {
+        println!("DEBUG super_image col = {}", column);
+        println!("DEBUG super_image data_type {}", self.0);
         Ok(self.0[column.clone()].clone())
     }
 

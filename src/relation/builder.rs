@@ -516,7 +516,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         self.operator = Some(JoinOperator::Cross);
         self
     }
-
+    /// Add an on condition
     pub fn on(mut self, expr: Expr) -> Self {
         self.operator = match self.operator {
             Some(JoinOperator::Inner(_)) => Some(JoinOperator::Inner(JoinConstraint::On(expr))),
@@ -534,7 +534,24 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         };
         self
     }
-
+    /// Add a condition to the ON
+    pub fn and(mut self, expr: Expr) -> Self {
+        self.operator = match self.operator {
+            Some(JoinOperator::Inner(JoinConstraint::On(on))) => Some(JoinOperator::Inner(JoinConstraint::On(Expr::and(expr, on)))),
+            Some(JoinOperator::LeftOuter(JoinConstraint::On(on))) => {
+                Some(JoinOperator::LeftOuter(JoinConstraint::On(Expr::and(expr, on))))
+            }
+            Some(JoinOperator::RightOuter(JoinConstraint::On(on))) => {
+                Some(JoinOperator::RightOuter(JoinConstraint::On(Expr::and(expr, on))))
+            }
+            Some(JoinOperator::FullOuter(JoinConstraint::On(on))) => {
+                Some(JoinOperator::FullOuter(JoinConstraint::On(Expr::and(expr, on))))
+            }
+            op => op,
+        };
+        self
+    }
+    /// Add a using condition
     pub fn using<I: Into<Identifier>>(mut self, using: I) -> Self {
         let using: Identifier = using.into();
         self.operator = match self.operator {
@@ -796,5 +813,36 @@ mod tests {
             .input(map)
             .build();
         println!("Reduce = {reduce}");
+    }
+
+    #[test]
+    fn test_join_building() {
+        use sqlparser::ast;
+        use itertools::Itertools;
+        use crate::{
+            io::{Database, postgresql},
+            hierarchy::Path,
+            display::Dot,
+        };
+        let mut database = postgresql::test_database();
+        let join: Relation = Relation::join()
+            .left(database.relations().get(&"table_1".path()).unwrap().clone())
+            .right(database.relations().get(&["table_2".into()]).unwrap().clone())
+            .on(Expr::eq(Expr::col("d"), Expr::col("x")))
+            .and(Expr::lt(Expr::col("a"), Expr::col("x")))
+            .build();
+        println!("Join = {join}");
+        join.display_dot().unwrap();
+        let query = &ast::Query::from(&join).to_string();
+        println!(
+            "{}\n{}",
+            format!("{query}"),
+            database
+                .query(query)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
 }

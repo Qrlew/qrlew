@@ -106,7 +106,10 @@ pub fn protect_visitor_from_field_paths<'a>(
 impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVisitor<F> {
     fn table(&self, table: &'a Table) -> Result<Relation> {
         Ok((self.protect_tables)(table)
-            .insert_field(1, PE_WEIGHT, Expr::val(1)))
+            .insert_field(1, PE_WEIGHT, Expr::val(1))
+            // We preserve the name
+            .with_name(table.name().to_string())
+        )
     }
 
     fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
@@ -146,27 +149,18 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
                 let Join { name, operator, .. } = join;
-                let names = join.names();
-                //DEBUG
-                let debug = Expr::eq(
-                    Expr::qcol(left.clone()?.name(), PEID),
-                    Expr::qcol(right.clone()?.name(), PEID),
-                );
-                println!("DEBUG names = {}", names);//TODO we need to enable access by qcol
-                println!("DEBUG debug = {debug}");//TODO we need to enable access by qcol
-                println!("DEBUG debug renamed = {}", debug.rename(&names));//TODO we need to enable access by qcol
-                //DEBUG
                 let left = left?;
                 let right = right?;
                 let builder = Relation::join()
                     .name(name)
                     .operator(operator.clone())
-                    // .on(Expr::eq(
-                    //     Expr::qcol(left.name(), PEID),
-                    //     Expr::qcol(right.name(), PEID),
-                    // ).rename(&names))
+                    .and(Expr::eq(
+                        Expr::qcol(left.name(), PEID),
+                        Expr::qcol(right.name(), PEID),
+                    ))
                     .left(left)
                     .right(right);
+                println!("{:#?}", builder);
                 Ok(builder.build())
             }
         }
