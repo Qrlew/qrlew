@@ -338,6 +338,9 @@ impl Relation {
         })
     }
 
+    /// This transform multiplies the coordinates in self relation by their corresponding weights in weight_relation
+    /// weight_relation contains the coordinates weights and the vectors columns
+    /// self contains the coordinates, the base and vectors columns
     pub fn apply_weights(
         self,
         weight_relation: Self,
@@ -392,6 +395,9 @@ impl Relation {
             .build()
     }
 
+    /// The `self` relation must contain the vectors, base and coordinates columns
+    /// For each coordinate, it rescale the columns by 1 / max(c, norm_l2(coordinate))
+    /// where the l2 norm is computed for each elecment of `vectors`
     pub fn clipped_sum(
         self,
         vectors: &str,

@@ -524,11 +524,6 @@ impl fmt::Display for JoinOperator {
             f,
             "{}",
             match self {
-                // JoinOperator::Inner(x) => format!("INNER {}", x),
-                // JoinOperator::LeftOuter(x) => format!("LEFT {}", x),
-                // JoinOperator::RightOuter(x) => format!("RIGHT {}", x),
-                // JoinOperator::FullOuter(x) => format!("FULL {}", x),
-                // JoinOperator::Cross => "CROSS".to_string(),
                 JoinOperator::Inner(_) => "INNER",
                 JoinOperator::LeftOuter(_) => "LEFT",
                 JoinOperator::RightOuter(_) => "RIGHT",
