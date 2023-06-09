@@ -3,7 +3,7 @@ use crate::{
     expr::Expr,
     hierarchy::Hierarchy,
     relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
-    visitor::Acceptor,
+    visitor::Acceptor, display::Dot,
 };
 use std::{error, fmt, rc::Rc, result};
 
@@ -138,30 +138,35 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         left: Result<Relation>,
         right: Result<Relation>,
     ) -> Result<Relation> {
+        println!("DEBUG left = {}", left.clone()?);
+        left.clone()?.display_dot().unwrap();
+        println!("DEBUG right = {}", right.clone()?);
+        right.clone()?.display_dot().unwrap();
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
                 let Join { name, operator, .. } = join;
                 let names = join.names();
+                //DEBUG
+                let debug = Expr::eq(
+                    Expr::qcol(left.clone()?.name(), PEID),
+                    Expr::qcol(right.clone()?.name(), PEID),
+                );
+                println!("DEBUG names = {}", names);//TODO we need to enable access by qcol
+                println!("DEBUG debug = {debug}");//TODO we need to enable access by qcol
+                println!("DEBUG debug renamed = {}", debug.rename(&names));//TODO we need to enable access by qcol
+                //DEBUG
                 let left = left?;
                 let right = right?;
                 let builder = Relation::join()
                     .name(name)
                     .operator(operator.clone())
-                    .on(Expr::eq(
-                        Expr::qcol(left.name(), PEID),
-                        Expr::qcol(right.name(), PEID),
-                    ).rename(&names))
-                    .left(left.clone())
-                    .right(right.clone());//TODO DEBUG remove clone
-                //DEBUG
-                let debug = Expr::eq(
-                    Expr::qcol(left.name(), PEID),
-                    Expr::qcol(right.name(), PEID),
-                );
-                println!("DEBUG names = {}", names);//TODO we need to enable access by qcol
-                println!("DEBUG debug = {debug}");//TODO we need to enable access by qcol
-                println!("DEBUG debug renamed = {}", debug.rename(&names));//TODO we need to enable access by qcol
+                    // .on(Expr::eq(
+                    //     Expr::qcol(left.name(), PEID),
+                    //     Expr::qcol(right.name(), PEID),
+                    // ).rename(&names))
+                    .left(left)
+                    .right(right);
                 Ok(builder.build())
             }
         }
