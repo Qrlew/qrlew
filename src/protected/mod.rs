@@ -1,9 +1,9 @@
 use crate::{
     builder::{Ready, With},
-    expr::Expr,
-    hierarchy::Hierarchy,
+    expr::{Expr, identifier::Identifier},
     relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
     visitor::Acceptor, display::Dot,
+    hierarchy::Hierarchy,
 };
 use std::{error, fmt, rc::Rc, result};
 
@@ -113,6 +113,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
     }
 
     fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
+        println!("DEBUG map");
         let builder = Relation::map()
             .with((PEID, Expr::col(PEID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
@@ -141,10 +142,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         left: Result<Relation>,
         right: Result<Relation>,
     ) -> Result<Relation> {
-        println!("DEBUG left = {}", left.clone()?);
-        left.clone()?.display_dot().unwrap();
-        println!("DEBUG right = {}", right.clone()?);
-        right.clone()?.display_dot().unwrap();
+        println!("DEBUG names {}", join.names());
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
@@ -153,6 +151,8 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 let right = right?;
                 let builder = Relation::join()
                     .name(name)
+                    .left_names(left.schema().iter().map(|f| f.name()).collect())
+                    .right_names(right.schema().iter().map(|f| f.name()).collect())
                     .operator(operator.clone())
                     .and(Expr::eq(
                         Expr::qcol(left.name(), PEID),
@@ -160,8 +160,11 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     ))
                     .left(left)
                     .right(right);
-                println!("{:#?}", builder);
-                Ok(builder.build())
+                let join:Join = builder.build();
+                println!("DEBUG names {}", join.names());
+                println!("field = {:?}", join.field_from_identifier(&Identifier::from(["item_table", "item"])));
+                Ok(join.into())
+                // Ok(builder.build())
             }
         }
     }
@@ -399,6 +402,7 @@ mod tests {
         )
         .unwrap();
         // let relation = Relation::try_from(parse("SELECT * FROM primary_table").unwrap().with(&relations)).unwrap();
+        relation.display_dot().unwrap();
         // Table
         let relation = relation.force_protect_from_field_paths(
             &relations,

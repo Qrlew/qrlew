@@ -7,7 +7,7 @@ use super::{
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::Integer,
-    expr::{self, split, Expr, Identifier, Split},
+    expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
@@ -475,6 +475,8 @@ Join Builder
 #[derive(Debug, Default, Hash)]
 pub struct JoinBuilder<RequireLeftInput, RequireRightInput> {
     name: Option<String>,
+    left_names: Vec<String>,
+    right_names: Vec<String>,
     operator: Option<JoinOperator>,
     left: RequireLeftInput,
     right: RequireRightInput,
@@ -489,6 +491,16 @@ impl JoinBuilder<WithoutInput, WithoutInput> {
 impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireRightInput> {
     pub fn name<S: Into<String>>(mut self, name: S) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    pub fn left_names<S: Into<String>>(mut self, names: Vec<S>) -> Self {
+        self.left_names = names.into_iter().map(S::into).collect();
+        self
+    }
+
+    pub fn right_names<S: Into<String>>(mut self, names: Vec<S>) -> Self {
+        self.right_names = names.into_iter().map(S::into).collect();
         self
     }
 
@@ -601,6 +613,8 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
     ) -> JoinBuilder<WithInput, RequireRightInput> {
         JoinBuilder {
             name: self.name,
+            left_names: self.left_names,
+            right_names: self.right_names,
             operator: self.operator,
             left: WithInput(input.into()),
             right: self.right,
@@ -613,6 +627,8 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
     ) -> JoinBuilder<RequireLeftInput, WithInput> {
         JoinBuilder {
             name: self.name,
+            left_names: self.left_names,
+            right_names: self.right_names,
             operator: self.operator,
             left: self.left,
             right: WithInput(input.into()),
@@ -628,20 +644,28 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .name
             .clone()
             .unwrap_or(namer::name_from_content(JOIN, &self));
-        let left_names = self
+        let left_names = if self.left_names.is_empty() {
+            self
             .left
             .0
             .schema()
             .iter()
             .map(|field| namer::name_from_content(FIELD, &(&self.left.0, &field)))
-            .collect();
-        let right_names = self
+            .collect()
+        } else {
+            self.left_names
+        };
+        let right_names = if self.right_names.is_empty() {
+            self
             .right
             .0
             .schema()
             .iter()
             .map(|field| namer::name_from_content(FIELD, &(&self.right.0, &field)))
-            .collect();
+            .collect()
+        } else {
+            self.right_names
+        };
         let operator = self
             .operator
             .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));

@@ -262,9 +262,11 @@ impl Map {
 
     /// Compute the schema and exprs of the reduce
     fn schema_exprs(named_exprs: Vec<(String, Expr)>, input: &Relation) -> (Schema, Vec<Expr>) {
+        println!("DEBUG schema exprs");
         let (fields, exprs) = named_exprs
             .into_iter()
             .map(|(name, expr)| {
+                println!("DEBUG name expr {name} {expr}");
                 (
                     Field::new(name, expr.super_image(&input.data_type()).unwrap(), None),
                     expr,
@@ -589,7 +591,7 @@ impl Join {
     }
 
     /// Compute the size of the join
-    fn size(operator: &JoinOperator, left: &Relation, right: &Relation) -> Integer {
+    fn size(operator: &JoinOperator, left: &Relation, right: &Relation) -> Integer {// TODO BUG here
         let left_size_max = left.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         let right_size_max = right.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         // TODO Review this
