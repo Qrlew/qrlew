@@ -167,12 +167,10 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     .left(left)
                     .right(right);
                 let join:Join = builder.build();
-                let names = join.names();
                 let mut builder = Relation::map().name(name);
                 builder = builder.with((PEID, Expr::col(format!("_LEFT{PEID}"))));
                 builder = builder.with((PE_WEIGHT, Expr::multiply(Expr::col(format!("_LEFT{PE_WEIGHT}")), Expr::col(format!("_RIGHT{PE_WEIGHT}")))));
                 builder = join.names().iter().fold(builder, |b, (p, n)| {
-                    println!("{} -> {}.{}", n, p[0], p[1]);
                     if [PEID, PE_WEIGHT].contains(&p[1].as_str()) {
                         b
                     } else {
@@ -441,6 +439,10 @@ mod tests {
         assert_eq!(relation.schema()[0].name(), PEID);
         // Print query
         let query: &str = &ast::Query::from(&relation).to_string();
+        println!(
+            "{}",
+            format!("{query}").yellow()
+        );
         println!(
             "{}\n{}",
             format!("{query}").yellow(),
