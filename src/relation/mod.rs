@@ -262,11 +262,9 @@ impl Map {
 
     /// Compute the schema and exprs of the reduce
     fn schema_exprs(named_exprs: Vec<(String, Expr)>, input: &Relation) -> (Schema, Vec<Expr>) {
-        println!("DEBUG schema exprs");
         let (fields, exprs) = named_exprs
             .into_iter()
             .map(|(name, expr)| {
-                println!("DEBUG name expr {name} {expr}");
                 (
                     Field::new(name, expr.super_image(&input.data_type()).unwrap(), None),
                     expr,

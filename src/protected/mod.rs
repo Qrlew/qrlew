@@ -1,9 +1,9 @@
 use crate::{
-    builder::{Ready, With},
+    builder::{Ready, With, self},
     expr::{Expr, identifier::Identifier},
     relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
     visitor::Acceptor, display::Dot,
-    hierarchy::Hierarchy,
+    hierarchy::{Hierarchy, Path},
 };
 use std::{error, fmt, rc::Rc, result};
 
@@ -113,7 +113,6 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
     }
 
     fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
-        println!("DEBUG map");
         let builder = Relation::map()
             .with((PEID, Expr::col(PEID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
@@ -142,7 +141,15 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         left: Result<Relation>,
         right: Result<Relation>,
     ) -> Result<Relation> {
-        println!("DEBUG names {}", join.names());
+        let left_name = join.left.name().to_string();
+        let right_name = join.right.name().to_string();
+        // Preserve names
+        let names: Vec<String> = join.schema().iter().map(|f| f.name().to_string()).collect();
+        let mut left_names = vec![format!("_LEFT{PEID}"), format!("_LEFT{PE_WEIGHT}")];
+        left_names.extend(names.iter().take(join.left.schema().len()).cloned());
+        let mut right_names = vec![format!("_RIGHT{PEID}"), format!("_RIGHT{PE_WEIGHT}")];
+        right_names.extend(names.iter().skip(join.left.schema().len()).cloned());
+        // Create the protected join
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
@@ -150,21 +157,31 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 let left = left?;
                 let right = right?;
                 let builder = Relation::join()
-                    .name(name)
-                    .left_names(left.schema().iter().map(|f| f.name()).collect())
-                    .right_names(right.schema().iter().map(|f| f.name()).collect())
+                    .left_names(left_names)
+                    .right_names(right_names)
                     .operator(operator.clone())
                     .and(Expr::eq(
-                        Expr::qcol(left.name(), PEID),
-                        Expr::qcol(right.name(), PEID),
+                        Expr::qcol(left_name.as_str(), PEID),
+                        Expr::qcol(right_name.as_str(), PEID),
                     ))
                     .left(left)
                     .right(right);
                 let join:Join = builder.build();
-                println!("DEBUG names {}", join.names());
-                println!("field = {:?}", join.field_from_identifier(&Identifier::from(["item_table", "item"])));
-                Ok(join.into())
-                // Ok(builder.build())
+                let names = join.names();
+                let mut builder = Relation::map().name(name);
+                builder = builder.with((PEID, Expr::col(format!("_LEFT{PEID}"))));
+                builder = builder.with((PE_WEIGHT, Expr::multiply(Expr::col(format!("_LEFT{PE_WEIGHT}")), Expr::col(format!("_RIGHT{PE_WEIGHT}")))));
+                builder = join.names().iter().fold(builder, |b, (p, n)| {
+                    println!("{} -> {}.{}", n, p[0], p[1]);
+                    if [PEID, PE_WEIGHT].contains(&p[1].as_str()) {
+                        b
+                    } else {
+                        b.with((n, Expr::col(n)))
+                    }
+                });
+                let builder = builder.input(Rc::new(join.into()));
+
+                Ok(builder.build())
             }
         }
     }
