@@ -135,7 +135,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         }
     }
 
-    fn join(
+    fn join(//TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
         left: Result<Relation>,
