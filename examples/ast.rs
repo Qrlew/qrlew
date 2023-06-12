@@ -114,5 +114,8 @@ fn main() -> Result<(), &'static str> {
     // Print a UNION
     print_ast("SELECT * FROM table_1 10 UNION SELECT * FROM table_2")?;
 
+    // Print an expression with nesting
+    print_ast("SELECT (a+b)*(c+d) FROM table_1")?;
+
     Ok(())
 }

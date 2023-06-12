@@ -91,7 +91,7 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
             join.field_inputs()
                 .map(|(f, i)| {
                     (
-                        join.field_from_qualified_name(&f).unwrap().clone(),
+                        join.field_from_identifier(&f.into()).unwrap().clone(),
                         Expr::from(i),
                     )
                 })
