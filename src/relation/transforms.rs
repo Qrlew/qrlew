@@ -106,6 +106,82 @@ impl<'a> From<(&'a str, &'a str, &'a str)> for Step<'a> {
         self.name = name;
         self
     }
+
+    pub fn clip_aggregates(self, vectors: &str, clipping_value: f64) -> Relation {
+        let (vectors, base, coordinates): (Option<String>, Vec<String>, Vec<String>) = self.schema().clone().iter()
+            .zip(self.aggregate.into_iter())
+            .fold((None, vec![], vec![]), |(v, b, c), (f, x)| {
+                if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
+                    match agg.aggregate() {
+                        aggregate::Aggregate::Sum => {
+                            let mut c = c;
+                            c.push(agg.argument_name().unwrap().clone());
+                            (v, b, c)
+                        },
+                        aggregate::Aggregate::First => {
+                            if name == vectors {
+                                (Some(agg.argument_name().unwrap().clone()), b, c)
+                            } else {
+                                let mut b = b;
+                                b.push(agg.argument_name().unwrap().clone());
+                                (v, b, c)
+                            }
+                        },
+                        _ => (v, b, c),
+                    }
+                } else {
+                    (v, b, c)
+                }
+            });
+
+        self.input.display_dot();
+
+        self.input.as_ref().clone()
+            .clipped_sum(
+                vectors.unwrap().as_str(),
+                base.iter().map(|s| s.as_str()).collect(),
+                coordinates.iter().map(|s| s.as_str()).collect(),
+                clipping_value,
+            )
+    }
+
+
+    // pub fn clip_aggregates(self, vectors: &str, clipping_value: f64) -> Relation {
+    //     let base: Vec<&str> = self.group_by.iter()
+    //         .filter_map(|x| match x {
+    //             Expr::Column(col) => Some(col.last().unwrap().as_str()),
+    //             _ => None,
+    //         })
+    //         .collect();
+
+    //     let coordinates:Vec<&str> = self.aggregate.iter()
+    //         .filter_map(|x| if let Expr::Aggregate(agg) = x {
+    //                 match agg.aggregate() {
+    //                     aggregate::Aggregate::Sum => Some(agg.argument_name().ok()?.as_str()),
+    //                     _ => None,
+    //                 }
+    //             } else {None}
+    //         )
+    //         .collect();
+
+    //     for agg in self.aggregate {
+    //         match agg.aggregate {
+    //             aggregate::Aggregate::Sum => todo!(),
+    //             aggregate::Aggregate::First => todo!(),
+    //             _ => todo!(),
+    //         }
+    //     }
+    //     self.input.display_dot();
+
+    //     self.input.as_ref().clone()
+    //         .clipped_sum(
+    //             self.input.as_ref().schema().field(vectors).unwrap().name(),
+    //             base,
+    //             coordinates,
+    //             clipping_value,
+    //         )
+    // }
+
 }
 
 /* Join
@@ -589,38 +665,8 @@ impl Relation {
     }
 
     fn clip_aggregates(self, vectors: &str, clipping_value: f64) -> Self {
-        self.display_dot();
         match self {
-            Relation::Reduce(reduce) => {
-                let base: Vec<&str> = reduce.group_by.iter()
-                    .filter_map(|x| match x {
-                        Expr::Column(col) => Some(col.last().unwrap().as_str()),
-                        _ => None,
-                    })
-                    .collect();
-
-                let coordinates:Vec<&str> = reduce.aggregate.iter()
-                    .filter_map(|x| if let Expr::Aggregate(agg) = x {
-                            match agg.aggregate() {
-                                aggregate::Aggregate::Sum => Some(agg.argument_name().ok()?.as_str()),
-                                _ => None,
-                            }
-                        } else {None}
-                    )
-                    .collect();
-
-                println!("\n\nbase = {:?}\n\n", &base);
-                println!("\n\ncoordinates = {:?}\n\n", &coordinates);
-                reduce.input.display_dot();
-
-                reduce.input.as_ref().clone()
-                    .clipped_sum(
-                        vectors,
-                        base,
-                        coordinates,
-                        clipping_value,
-                    )
-            },
+            Relation::Reduce(reduce) => reduce.clip_aggregates(vectors, clipping_value),
             _ => todo!(),
         }
     }
@@ -1071,9 +1117,11 @@ mod tests {
 
         let my_relation: Relation = Relation::reduce()
             .input(table)
-            .with(Expr::sum(Expr::col("price")))
+            .with(("sum_price", Expr::sum(Expr::col("price"))))
             .with_group_by_column("item")
+            .with_group_by_column("order_id")
             .build();
+        my_relation.display_dot();
 
         let clipped_relation = my_relation.clip_aggregates("order_id", 45.);
         clipped_relation.display_dot();
