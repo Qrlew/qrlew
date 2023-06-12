@@ -19,7 +19,7 @@ mod tests {
     use sqlparser::ast;
 
     #[test]
-    fn test_table_protection() {
+    fn test_table_with_noise() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         // // CReate a relation to add noise to

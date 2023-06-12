@@ -1,12 +1,11 @@
-use paste::paste;
 use std::rc::Rc;
-
 use crate::data_type::{
     function::{self, Extensible},
     DataType,
 };
-
 use super::{aggregate::Aggregate, function::Function};
+use paste::paste;
+use rand::thread_rng;
 
 macro_rules! function_implementations {
     ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], $function:ident, $default:block) => {
@@ -76,6 +75,7 @@ function_implementations!(
     {
         match x {
             Function::Concat(n) => Rc::new(function::concat(n)),
+            Function::Random(n) => Rc::new(function::random(thread_rng())),//TODO change this initialization
             _ => unreachable!(),
         }
     }

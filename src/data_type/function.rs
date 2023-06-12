@@ -161,7 +161,7 @@ pub struct Stateful {
 impl Stateful {
     /// Constructor for Generic
     pub fn new(domain: DataType, co_domain: DataType, value: Rc<RefCell<dyn FnMut(Value) -> Value>>) -> Self {
-        Simple {
+        Stateful {
             domain,
             co_domain,
             value,
@@ -1136,7 +1136,7 @@ pub fn md5() -> impl Function + Clone {
 }
 
 pub fn random<R: rand::Rng+'static>(mut rng: R) -> impl Function + Clone {
-    Simple::new(
+    Stateful::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
         Rc::new(RefCell::new(move |v| {
