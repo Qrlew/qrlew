@@ -21,7 +21,9 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
     fn value(&self, value: &'a expr::Value) -> ast::Expr {
         match value {
             crate::data_type::value::Value::Unit(_) => ast::Expr::Value(ast::Value::Null),
-            crate::data_type::value::Value::Boolean(_) => todo!(),
+            crate::data_type::value::Value::Boolean(b) => {
+                ast::Expr::Value(ast::Value::Boolean(**b))
+            }
             crate::data_type::value::Value::Integer(i) => {
                 ast::Expr::Value(ast::Value::Number(format!("{}", **i), false))
             }
@@ -73,14 +75,14 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 right: Box::new(arguments[1].clone()),
             },
             expr::function::Function::Multiply => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Multiply,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Divide => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Divide,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Modulo => ast::Expr::BinaryOp {
                 left: Box::new(arguments[0].clone()),
@@ -324,7 +326,11 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr, gen_expr)
+        //assert_eq!(ast_expr, gen_expr)
+        assert_eq!(
+            gen_expr.to_string(),
+            String::from("exp((a) * (cos(sin(x) + (2) * (a) + b)))")
+        )
     }
 
     #[test]
@@ -375,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_from_expr_with_var() {
-        let ast_expr: ast::Expr = parse_expr("exp(a*variance(sin(x) + 2*a + b))").unwrap();
+        let ast_expr: ast::Expr = parse_expr("variance(sin(x) + b)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);

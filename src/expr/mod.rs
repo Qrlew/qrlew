@@ -421,6 +421,24 @@ impl Expr {
                 .collect(),
         )
     }
+
+    // pub fn all<E: Clone+Into<Expr>, F: AsRef<[E]>>(
+    //     factors: F,
+    // ) -> Expr {
+    //     let factors = factors.as_ref();
+    //     match factors.split_first() {
+    //         Some((head, tail)) => Expr::and(head.clone(), Expr::all(tail)),
+    //         None => Expr::val(true),
+    //     }
+    // }
+
+    pub fn all<F: IntoIterator<Item = Expr>>(factors: F) -> Expr {
+        let mut factors = factors.into_iter();
+        match factors.next() {
+            Some(head) => Expr::and(head, Expr::all(factors)),
+            None => Expr::val(true),
+        }
+    }
 }
 
 /// Implement basic Variant conversions
@@ -1384,7 +1402,7 @@ mod tests {
     #[test]
     fn test_case() {
         let expression = expr!(case(gt(x, 5), x, y));
-        println!("expression = {}", expression);
+        println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
         let set = DataType::structured([
             ("x", DataType::float_interval(1., 10.)),
@@ -1406,6 +1424,32 @@ mod tests {
         println!(
             "expression super image = {}",
             expression.super_image(&set).unwrap()
+        );
+
+        let expression = expr!(case(gt(x, 1), x, 1));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::float_interval(0., 2.)
+                ),]))
+                .unwrap()
+        );
+
+        let expression = expr!(gt(x, 1) * x + lt_eq(x, 1));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::float_interval(0., 2.)
+                ),]))
+                .unwrap()
         );
     }
 

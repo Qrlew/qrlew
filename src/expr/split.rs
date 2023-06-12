@@ -686,7 +686,10 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
 
     fn function(&self, function: &'a function::Function, arguments: Vec<Split>) -> Split {
         let arguments: Vec<Map> = arguments.into_iter().map(|s| s.into_map()).collect();
-        let named_exprs: Vec<(String, Expr)> = arguments.iter().map(|m| m.named_exprs()[0].clone()).collect();
+        let named_exprs: Vec<(String, Expr)> = arguments
+            .iter()
+            .map(|m| m.named_exprs()[0].clone())
+            .collect();
         let Map {
             named_exprs: _,
             filter,

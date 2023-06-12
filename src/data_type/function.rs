@@ -1517,7 +1517,7 @@ pub fn first() -> impl Function + Clone {
         |values| values.first().unwrap().clone(),
         |(dt, _size)| match dt {
             DataType::List(list) => Ok(list.data_type().clone()),
-            dt => Ok(dt)
+            dt => Ok(dt),
         },
     )
 }
@@ -1529,7 +1529,7 @@ pub fn last() -> impl Function + Clone {
         |values| values.last().unwrap().clone(),
         |(dt, _size)| match dt {
             DataType::List(list) => Ok(list.data_type().clone()),
-            dt => Ok(dt)
+            dt => Ok(dt),
         },
     )
 }
