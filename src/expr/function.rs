@@ -47,6 +47,7 @@ pub enum Function {
     Lower,
     Position,
     Upper,
+    Random,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -89,8 +90,10 @@ impl Function {
             | Function::BitwiseOr
             | Function::BitwiseAnd
             | Function::BitwiseXor => Style::BinaryOperator,
+            // Zero arg Functions
+            Function::Random
             // Unary Functions
-            Function::Exp
+            | Function::Exp
             | Function::Ln
             | Function::Log
             | Function::Abs
@@ -135,6 +138,8 @@ impl Function {
             | Function::BitwiseOr
             | Function::BitwiseAnd
             | Function::BitwiseXor => Arity::Nary(2),
+            // Zero arg Functions
+            | Function::Random => Arity::Nary(0),
             // Unary Functions
             Function::Exp
             | Function::Ln
@@ -202,6 +207,8 @@ impl fmt::Display for Function {
             Function::BitwiseOr => "|",
             Function::BitwiseAnd => "&",
             Function::BitwiseXor => "^",
+            // Zero arg Functions
+            Function::Random => "random",
             // Unary Functions
             Function::Exp => "exp",
             Function::Ln => "ln",

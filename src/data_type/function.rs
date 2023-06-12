@@ -6,6 +6,7 @@ use std::{
     ops::Deref,
     rc::Rc,
     result,
+    cell::RefCell, borrow::BorrowMut,
 };
 
 use itertools::Itertools;
@@ -149,16 +150,17 @@ where
 
 /// A function defined by its type signature and indicative value function without any other particular properties
 /// In particular, no range computation is done
+/// The computation may be stateful //TODO remove this feature?
 #[derive(Clone)]
 pub struct Simple {
     domain: DataType,
     co_domain: DataType,
-    value: Rc<dyn Fn(Value) -> Value>,
+    value: Rc<RefCell<dyn FnMut(Value) -> Value>>,
 }
 
 impl Simple {
     /// Constructor for Generic
-    pub fn new(domain: DataType, co_domain: DataType, value: Rc<dyn Fn(Value) -> Value>) -> Self {
+    pub fn new(domain: DataType, co_domain: DataType, value: Rc<RefCell<dyn FnMut(Value) -> Value>>) -> Self {
         Simple {
             domain,
             co_domain,
@@ -189,7 +191,7 @@ impl Function for Simple {
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
-        Ok((*self.value)(arg.clone()))
+        Ok(((*self.value).borrow_mut())(arg.clone()))
     }
 }
 
@@ -1125,11 +1127,21 @@ pub fn md5() -> impl Function + Clone {
     Simple::new(
         DataType::text(),
         DataType::text(),
-        Rc::new(|v| {
+        Rc::new(RefCell::new(|v| {
             let mut s = collections::hash_map::DefaultHasher::new();
             Bound::hash((value::Text::try_from(v).unwrap()).deref(), &mut s);
             Encoder::new(BASE_64, 10).encode(s.finish()).into()
-        }),
+        })),
+    )
+}
+
+pub fn random<R: rand::Rng+'static>(mut rng: R) -> impl Function + Clone {
+    Simple::new(
+        DataType::unit(),
+        DataType::float_interval(0., 1.),
+        Rc::new(RefCell::new(move |v| {
+            rng.gen::<f64>().into()
+        })),
     )
 }
 
