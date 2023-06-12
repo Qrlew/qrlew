@@ -302,41 +302,50 @@ impl Relation {
         reduce.build()
     }
 
-    pub fn l1_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        let mut vectors_base = vec![vector];
+    pub fn l1_norm(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+        let mut vectors_base = vec![vectors];
         vectors_base.extend(base.clone());
+        let first = self.sum_by(vectors_base, coordinates.clone());
 
-        let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
-        let map_rel = reduce_rel.map_fields(|n, e| {
+        let map_rel = first.map_fields(|n, e| {
             if coordinates.contains(&n) {
                 Expr::abs(e)
             } else {
                 e
             }
         });
-        map_rel.sum_by(vec![vector], coordinates)
+
+        if base.is_empty() {
+            map_rel
+        } else {
+            map_rel.sum_by(vec![vectors], coordinates)
+        }
     }
 
-    pub fn l2_norm(self, vector: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        let mut vectors_base = vec![vector];
-        vectors_base.extend(base.clone());
+    pub fn l2_norm(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+        if base.is_empty() {
+            self.l1_norm(vectors, base, coordinates)
+        } else {
+            let mut vectors_base = vec![vectors];
+            vectors_base.extend(base.clone());
+            let first = self.sum_by(vectors_base, coordinates.clone());
 
-        let reduce_rel = self.sum_by(vectors_base, coordinates.clone());
-        let map_rel = reduce_rel.map_fields(|n, e| {
-            if coordinates.contains(&n) {
-                Expr::pow(e, Expr::val(2))
-            } else {
-                e
-            }
-        });
-        let reduce_rel2 = map_rel.sum_by(vec![vector], coordinates.clone());
-        reduce_rel2.map_fields(|n, e| {
-            if coordinates.contains(&n) {
-                Expr::sqrt(e)
-            } else {
-                e
-            }
-        })
+            let map_rel = first.map_fields(|n, e| {
+                if coordinates.contains(&n) {
+                    Expr::pow(e, Expr::val(2))
+                } else {
+                    e
+                }
+            });
+            let reduce_rel = map_rel.sum_by(vec![vectors], coordinates.clone());
+            reduce_rel.map_fields(|n, e| {
+                if coordinates.contains(&n) {
+                    Expr::sqrt(e)
+                } else {
+                    e
+                }
+            })
+        }
     }
 
     /// This transform multiplies the coordinates in self relation by their corresponding weights in weight_relation
@@ -363,7 +372,11 @@ impl Relation {
         // Multiply by weights
         let mut grouping_cols: Vec<Expr> = vec![];
         let mut weighted_agg: Vec<Expr> = vec![];
-        let length = base.len() + coordinates.len();
+        let length = if base.is_empty() {
+            coordinates.len() + 1
+        } else {
+            base.len() + coordinates.len()
+        };
         let out_fields = join.schema().fields();
         let in_fields = join.input_fields();
         for i in 0..(length + 1) {
@@ -411,6 +424,7 @@ impl Relation {
         let norm = self
             .clone()
             .l2_norm(vectors.clone(), base.clone(), coordinates.clone());
+
         let weights = norm.map_fields(|n, e| {
             if coordinates.contains(&n) {
                 Expr::divide(
@@ -428,12 +442,27 @@ impl Relation {
             }
         });
 
-        let mut vectors_base = vec![vectors];
-        vectors_base.extend(base.clone());
-        let aggregated_relation = self.sum_by(vectors_base, coordinates.clone());
+        let aggregated_relation: Relation = if base.is_empty() {
+            Relation::map()
+                .input(self)
+                .with((vectors, Expr::col(vectors)))
+                .with_iter(
+                    coordinates
+                        .iter()
+                        .map(|s| (s.to_string(), Expr::col(s.to_string()))),
+                )
+                .build()
+        } else {
+            let mut vectors_base = vec![vectors];
+            vectors_base.extend(base.clone());
+            self.sum_by(vectors_base, coordinates.clone())
+        };
+        aggregated_relation.display_dot().unwrap();
 
         let weighted_relation =
             aggregated_relation.apply_weights(weights, vectors, base.clone(), coordinates.clone());
+        weighted_relation.display_dot().unwrap();
+
         weighted_relation.sum_by(base, coordinates)
     }
 }
@@ -581,6 +610,41 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_norm_for_empty_base() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        // L1 Norm
+        let amount_norm = table.clone().l1_norm("order_id", vec![], vec!["price"]);
+        amount_norm.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&amount_norm).to_string();
+        println!("Query = {}", query);
+        let valid_query = "SELECT order_id, ABS(SUM(price)) FROM item_table GROUP BY order_id";
+        database.query(query).unwrap();
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+
+        // L2 Norm
+        let amount_norm = table.l2_norm("order_id", vec![], vec!["price"]);
+        amount_norm.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&amount_norm).to_string();
+        let valid_query =
+            "SELECT order_id, SQRT(POWER(SUM(price), 2)) FROM item_table GROUP BY order_id";
+        database.query(query).unwrap();
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+    }
+
+    #[test]
     fn test_compute_norm_for_map() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
@@ -705,6 +769,35 @@ mod tests {
         //     assert_eq!(my_res[i], true_res[i])
         // }
         // TODO: I have checked that manually but we need an automatic test
+    }
+
+    #[test]
+    fn test_clipped_sum_with_empty_base() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let clipped_relation = table
+            .clone()
+            .clipped_sum("order_id", vec![], vec!["price"], 45.);
+        clipped_relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&clipped_relation).to_string();
+        println!("Query: {}", query);
+        let valid_query = r#"
+            WITH norms AS (
+                SELECT order_id, ABS(SUM(price)) AS norm FROM item_table GROUP BY order_id
+            ), weights AS (
+                SELECT order_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight FROM norms
+            )
+            SELECT SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id);
+        "#;
+        let my_res = database.query(query).unwrap();
+        let true_res = database.query(valid_query).unwrap();
+        assert_eq!(my_res, true_res,);
     }
 
     #[test]
