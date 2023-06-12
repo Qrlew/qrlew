@@ -1,6 +1,7 @@
 //! A few transforms for relations
 //!
 
+use std::collections::HashMap;
 use std::{ops::Deref, rc::Rc};
 use itertools::Itertools;
 use super::{Table, Map, Reduce, Join, Set, Relation, Variant as _};
@@ -588,6 +589,20 @@ impl Relation {
 
         weighted_relation.sum_by(base, coordinates)
     }
+
+    /// Add gaussian noise of a given standard deviation to the given columns
+    pub fn add_gaussian_noise(self, name_sigmas: Vec<(&str, f64)>) -> Relation {
+        let name_sigmas: HashMap<&str, f64> = name_sigmas.into_iter().collect();
+        Relation::map()
+        // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
+        .with_iter(self.schema().iter().map(|f| if name_sigmas.contains_key(&f.name()) {
+            (f.name(), Expr::col(f.name()).add_gaussian_noise(name_sigmas[f.name()]))
+        } else {
+            (f.name(), Expr::col(f.name()))
+        }))
+        .input(self)
+        .build()
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -1019,5 +1034,26 @@ mod tests {
         let my_res = refacto_results(database.query(query).unwrap(), 3);
         let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
         assert_eq!(my_res, true_res);
+    }
+
+    #[test]
+    fn test_add_noise() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        // CReate a relation to add noise to
+        let relation = Relation::try_from(
+            parse("SELECT 0.0 as z, sum(price) as a, sum(price) as b FROM item_table GROUP BY order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        let relation_with_noise = relation.add_gaussian_noise(vec![("z", 1.)]);
+        println!("Schema = {}", relation_with_noise.schema());
+        relation_with_noise.display_dot().unwrap();
+
+        // Add noise directly
+        for row in database.query(&ast::Query::try_from(&relation_with_noise).unwrap().to_string()).unwrap() {
+            println!("Row = {row}");
+        }
     }
 }

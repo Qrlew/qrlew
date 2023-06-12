@@ -8,6 +8,7 @@ pub mod identifier;
 pub mod implementation;
 pub mod split;
 pub mod sql;
+pub mod transforms;
 
 use itertools::Itertools;
 use paste::paste;
@@ -160,6 +161,20 @@ impl fmt::Display for Function {
 }
 
 impl Variant for Function {}
+
+/// Implemant random function constructor (same thing but no macro here)
+impl Function {
+    pub fn random(n: usize) -> Function {
+        Function::new(function::Function::Random(n), vec![])
+    }
+}
+
+/// Implemant random expression constructor (same thing but no macro here)
+impl Expr {
+    pub fn random(n: usize) -> Expr {
+        Expr::from(Function::random(n))
+    }
+}
 
 /// Implement unary function constructors
 macro_rules! impl_unary_function_constructors {
