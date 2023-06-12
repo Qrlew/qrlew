@@ -57,10 +57,6 @@ impl Identifier {
         let (child, parent) = self.0.split_last().ok_or(Error::other("Split failed"))?;
         Ok((child.clone(), Identifier::from(parent.to_vec())))
     }
-
-    // pub fn last(&self) -> Result<&String> {
-    //     Ok(self.0.split_last().ok_or(Error::other("Split failed"))?.0)
-    // }
 }
 
 impl With<String> for Identifier {

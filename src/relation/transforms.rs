@@ -925,7 +925,7 @@ mod tests {
             }
             sorted_results.push(str_row)
         }
-        sorted_results.sort_by_key(|v| v[0].clone());
+        sorted_results.sort();
         sorted_results
     }
 
