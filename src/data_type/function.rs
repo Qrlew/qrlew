@@ -148,17 +148,17 @@ where
     }
 }
 
-/// A function defined by its type signature and indicative value function without any other particular properties
+/// A function defined by its type signature and potentially stateful value function without any other particular properties
 /// In particular, no range computation is done
-/// The computation may be stateful //TODO remove this feature?
+/// Note that stateful computations should be avoided and reserved to pseudorandom functions//TODO remove this feature?
 #[derive(Clone)]
-pub struct Simple {
+pub struct Stateful {
     domain: DataType,
     co_domain: DataType,
     value: Rc<RefCell<dyn FnMut(Value) -> Value>>,
 }
 
-impl Simple {
+impl Stateful {
     /// Constructor for Generic
     pub fn new(domain: DataType, co_domain: DataType, value: Rc<RefCell<dyn FnMut(Value) -> Value>>) -> Self {
         Simple {
@@ -169,19 +169,19 @@ impl Simple {
     }
 }
 
-impl fmt::Debug for Simple {
+impl fmt::Debug for Stateful {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
     }
 }
 
-impl fmt::Display for Simple {
+impl fmt::Display for Stateful {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
     }
 }
 
-impl Function for Simple {
+impl Function for Stateful {
     fn domain(&self) -> DataType {
         self.domain.clone()
     }
@@ -1124,7 +1124,7 @@ pub fn concat(n: usize) -> impl Function + Clone {
 }
 
 pub fn md5() -> impl Function + Clone {
-    Simple::new(
+    Stateful::new(
         DataType::text(),
         DataType::text(),
         Rc::new(RefCell::new(|v| {
