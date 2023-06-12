@@ -34,7 +34,8 @@ impl error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 
-pub const PEID: &str = "_PROTECTED_ENTITY_ID_";
+pub const PROTECTION_PREFIX: &str = "_protected_";
+pub const PE_ID: &str = "_PROTECTED_ENTITY_ID_";
 pub const PE_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
@@ -76,7 +77,7 @@ pub fn protect_visitor_from_exprs<'a>(
             .iter()
             .find_map(|(t, e)| (table == *t).then(|| e.clone()))
         {
-            Some(expr) => Relation::from(table.clone()).identity_with_field(PEID, expr.clone()),
+            Some(expr) => Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()),
             None => table.clone().into(),
         },
         strategy,
@@ -95,8 +96,8 @@ pub fn protect_visitor_from_field_paths<'a>(
             .find(|(tab, path, field)| table.name() == *tab)
         {
             Some((tab, path, field)) => Relation::from(table.clone())
-                .with_field_path(relations, path, field, PEID)
-                .map_fields(|n, e| if n == PEID { Expr::md5(e) } else { e }),
+                .with_field_path(relations, path, field, PE_ID)
+                .map_fields(|n, e| if n == PE_ID { Expr::md5(e) } else { e }),
             None => table.clone().into(),
         },
         strategy,
@@ -108,13 +109,13 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         Ok((self.protect_tables)(table)
             .insert_field(1, PE_WEIGHT, Expr::val(1))
             // We preserve the name
-            .with_name(table.name().to_string())
+            .with_name(format!("{}{}", PROTECTION_PREFIX, table.name()))
         )
     }
 
     fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
         let builder = Relation::map()
-            .with((PEID, Expr::col(PEID)))
+            .with((PE_ID, Expr::col(PE_ID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
             .with(map.clone())
             .input(input?);
@@ -126,7 +127,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
             Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce)),
             Strategy::Hard => {
                 let builder = Relation::reduce()
-                    .with_group_by_column(PEID)
+                    .with_group_by_column(PE_ID)
                     .with((PE_WEIGHT, Expr::sum(Expr::col(PE_WEIGHT))))
                     .with(reduce.clone())
                     .input(input?);
@@ -141,13 +142,13 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         left: Result<Relation>,
         right: Result<Relation>,
     ) -> Result<Relation> {
-        let left_name = join.left.name().to_string();
-        let right_name = join.right.name().to_string();
+        let left_name = left.as_ref().unwrap().name().to_string();
+        let right_name: String = right.as_ref().unwrap().name().to_string();
         // Preserve names
         let names: Vec<String> = join.schema().iter().map(|f| f.name().to_string()).collect();
-        let mut left_names = vec![format!("_LEFT{PEID}"), format!("_LEFT{PE_WEIGHT}")];
+        let mut left_names = vec![format!("_LEFT{PE_ID}"), format!("_LEFT{PE_WEIGHT}")];
         left_names.extend(names.iter().take(join.left.schema().len()).cloned());
-        let mut right_names = vec![format!("_RIGHT{PEID}"), format!("_RIGHT{PE_WEIGHT}")];
+        let mut right_names = vec![format!("_RIGHT{PE_ID}"), format!("_RIGHT{PE_WEIGHT}")];
         right_names.extend(names.iter().skip(join.left.schema().len()).cloned());
         // Create the protected join
         match self.strategy {
@@ -156,22 +157,23 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 let Join { name, operator, .. } = join;
                 let left = left?;
                 let right = right?;
+                println!("DEBUG operator = {}", operator.clone());
                 let builder = Relation::join()
                     .left_names(left_names)
                     .right_names(right_names)
                     .operator(operator.clone())
                     .and(Expr::eq(
-                        Expr::qcol(left_name.as_str(), PEID),
-                        Expr::qcol(right_name.as_str(), PEID),
+                        Expr::qcol(left_name.as_str(), PE_ID),
+                        Expr::qcol(right_name.as_str(), PE_ID),
                     ))
                     .left(left)
                     .right(right);
                 let join:Join = builder.build();
                 let mut builder = Relation::map().name(name);
-                builder = builder.with((PEID, Expr::col(format!("_LEFT{PEID}"))));
+                builder = builder.with((PE_ID, Expr::col(format!("_LEFT{PE_ID}"))));
                 builder = builder.with((PE_WEIGHT, Expr::multiply(Expr::col(format!("_LEFT{PE_WEIGHT}")), Expr::col(format!("_RIGHT{PE_WEIGHT}")))));
                 builder = join.names().iter().fold(builder, |b, (p, n)| {
-                    if [PEID, PE_WEIGHT].contains(&p[1].as_str()) {
+                    if [PE_ID, PE_WEIGHT].contains(&p[1].as_str()) {
                         b
                     } else {
                         b.with((n, Expr::col(n)))
@@ -294,7 +296,7 @@ mod tests {
             .protect_from_exprs(&[(&database.tables()[0], expr!(md5(a)))])
             .unwrap();
         println!("Schema protected = {}", table.schema());
-        assert_eq!(table.schema()[0].name(), PEID)
+        assert_eq!(table.schema()[0].name(), PE_ID)
     }
 
     #[test]
@@ -314,7 +316,7 @@ mod tests {
             )
             .unwrap();
         println!("Schema protected = {}", table.schema());
-        assert_eq!(table.schema()[0].name(), PEID)
+        assert_eq!(table.schema()[0].name(), PE_ID)
     }
 
     #[test]
@@ -346,7 +348,7 @@ mod tests {
         );
         relation.display_dot().unwrap();
         println!("Schema protected = {}", relation.schema());
-        assert_eq!(relation.schema()[0].name(), PEID);
+        assert_eq!(relation.schema()[0].name(), PE_ID);
         // Print query
         let query: &str = &ast::Query::from(&relation).to_string();
         println!(
@@ -385,9 +387,9 @@ mod tests {
         );
         //display(&relation);
         println!("Schema protected = {}", relation.schema());
-        assert_eq!(relation.schema()[0].name(), PEID);
+        assert_eq!(relation.schema()[0].name(), PE_ID);
 
-        let vector = PEID.clone();
+        let vector = PE_ID.clone();
         let base = vec!["item"];
         let coordinates = vec!["price"];
         let norm = relation.l2_norm(vector, base, coordinates);
@@ -410,33 +412,34 @@ mod tests {
     fn test_relation_protection_weights() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let relation = Relation::try_from(
-            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
-                .unwrap()
-                .with(&relations),
-        )
-        .unwrap();
-        // let relation = Relation::try_from(parse("SELECT * FROM primary_table").unwrap().with(&relations)).unwrap();
+        // let relation = Relation::try_from(
+        //     parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
+        //         .unwrap()
+        //         .with(&relations),
+        // )
+        // .unwrap();
+        // DEBUG
+        let relation = Relation::try_from(parse("SELECT * FROM user_table JOIN order_table ON user_table.id=order_table.user_id").unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Table
-        let relation = relation.force_protect_from_field_paths(
-            &relations,
-            &[
-                (
-                    "item_table",
-                    &[
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
-                    ],
-                    "name",
-                ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
-            ],
-        );
+        // let relation = relation.force_protect_from_field_paths(
+        //     &relations,
+        //     &[
+        //         (
+        //             "item_table",
+        //             &[
+        //                 ("order_id", "order_table", "id"),
+        //                 ("user_id", "user_table", "id"),
+        //             ],
+        //             "name",
+        //         ),
+        //         ("order_table", &[("user_id", "user_table", "id")], "name"),
+        //         ("user_table", &[], "name"),
+        //     ],
+        // );
         relation.display_dot().unwrap();
         println!("Schema protected = {}", relation.schema());
-        assert_eq!(relation.schema()[0].name(), PEID);
+        assert_eq!(relation.schema()[0].name(), PE_ID);
         // Print query
         let query: &str = &ast::Query::from(&relation).to_string();
         println!(

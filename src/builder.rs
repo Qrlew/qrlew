@@ -25,6 +25,7 @@ impl<Input, W: With<Input>> WithIterator<Input> for W {
 // A builder to add a context to an object
 
 /// A struct holding an object with its context
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct WithContext<O, C> {
     pub object: O,
     pub context: C,
