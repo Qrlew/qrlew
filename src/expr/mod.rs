@@ -875,11 +875,11 @@ impl Expr {
 
 /// Rename the columns with the namer
 #[derive(Clone, Debug)]
-pub struct RenameVisitor<'a>(&'a Hierarchy<String>);
+pub struct RenameVisitor<'a>(&'a Hierarchy<Identifier>);
 
 impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
     fn column(&self, column: &'a Column) -> Expr {
-        self.0.get(column).map(|name| Expr::col(name.clone()))
+        self.0.get(column).map(|name| Expr::Column(name.clone()))
             .unwrap_or_else(|| Expr::Column(column.clone()))
     }
 
@@ -917,8 +917,8 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
 }
 
 impl Expr {
-    pub fn rename<'a>(&'a self, names: &'a Hierarchy<String>) -> Expr {
-        self.accept(RenameVisitor(names))
+    pub fn rename<'a>(&'a self, columns: &'a Hierarchy<Identifier>) -> Expr {
+        self.accept(RenameVisitor(columns))
     }
 }
 
@@ -1346,8 +1346,8 @@ mod tests {
     fn test_rename() {
         let x = expr!(exp(a * b + cos(2 * z) * d - 2 * z + t * sin(c + 3 * x)));
         println!("x = {x}");
-        let names = Hierarchy::from([
-            (["a"], format!("A")),
+        let names: Hierarchy<Identifier> = Hierarchy::from([
+            (["a"], format!("A").into()),
         ]);
         let renamed = x.rename(&names);
         println!("renamed x = {renamed} ({names})");

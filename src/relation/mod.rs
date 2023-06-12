@@ -506,6 +506,19 @@ pub enum JoinOperator {
     Cross,
 }
 
+impl JoinOperator {
+    /// Rename all exprs in the operator
+    pub fn rename<'a>(&'a self, columns: &'a Hierarchy<Identifier>) -> Self {
+        match self {
+            JoinOperator::Inner(c) => JoinOperator::Inner(c.rename(columns)),
+            JoinOperator::LeftOuter(c) => JoinOperator::LeftOuter(c.rename(columns)),
+            JoinOperator::RightOuter(c) => JoinOperator::RightOuter(c.rename(columns)),
+            JoinOperator::FullOuter(c) => JoinOperator::FullOuter(c.rename(columns)),
+            JoinOperator::Cross => JoinOperator::Cross,
+        }
+    }
+}
+
 impl fmt::Display for JoinOperator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -529,6 +542,21 @@ pub enum JoinConstraint {
     Using(Vec<Identifier>),
     Natural,
     None,
+}
+
+impl JoinConstraint {
+    /// Rename all exprs in the constraint
+    pub fn rename<'a>(&'a self, columns: &'a Hierarchy<Identifier>) -> Self {
+        match self {
+            JoinConstraint::On(expr) => JoinConstraint::On(expr.rename(columns)),
+            JoinConstraint::Using(identifiers) => JoinConstraint::Using(identifiers
+                .iter()
+                .map(|i| columns.get(i).unwrap().clone()).collect()
+            ),
+            JoinConstraint::Natural => JoinConstraint::Natural,
+            JoinConstraint::None => JoinConstraint::None,
+        }
+    }
 }
 
 /// Join two relations on one or more join columns

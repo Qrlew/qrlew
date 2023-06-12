@@ -35,6 +35,7 @@ impl error::Error for Error {}
 pub type Result<T> = result::Result<T, Error>;
 
 pub const PROTECTION_PREFIX: &str = "_protected_";
+pub const PROTECTION_COLUMNS: usize = 2;
 pub const PE_ID: &str = "_PROTECTED_ENTITY_ID_";
 pub const PE_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
 
@@ -157,11 +158,18 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 let Join { name, operator, .. } = join;
                 let left = left?;
                 let right = right?;
-                println!("DEBUG operator = {}", operator.clone());
+                // Compute the mapping between current and new columns //TODO clean this code a bit
+                let columns: Hierarchy<Identifier> =
+                    join.left.schema().iter().zip(left.schema().iter().skip(PROTECTION_COLUMNS))
+                    .map(|(o, n)| (vec![join.left.name().to_string(), o.name().to_string()], Identifier::from(vec![left_name.clone(), n.name().to_string()]))).chain(
+                        join.right.schema().iter().zip(right.schema().iter().skip(PROTECTION_COLUMNS))
+                        .map(|(o, n)| (vec![join.right.name().to_string(), o.name().to_string()], Identifier::from(vec![right_name.clone(), n.name().to_string()])))
+                    ).collect();
+                // Rename expressions in the operator// TODO
                 let builder = Relation::join()
                     .left_names(left_names)
                     .right_names(right_names)
-                    .operator(operator.clone())
+                    .operator(operator.rename(&columns))
                     .and(Expr::eq(
                         Expr::qcol(left_name.as_str(), PE_ID),
                         Expr::qcol(right_name.as_str(), PE_ID),
@@ -412,31 +420,28 @@ mod tests {
     fn test_relation_protection_weights() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        // let relation = Relation::try_from(
-        //     parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
-        //         .unwrap()
-        //         .with(&relations),
-        // )
-        // .unwrap();
-        // DEBUG
-        let relation = Relation::try_from(parse("SELECT * FROM user_table JOIN order_table ON user_table.id=order_table.user_id").unwrap().with(&relations)).unwrap();
-        relation.display_dot().unwrap();
+        let relation = Relation::try_from(
+            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
         // Table
-        // let relation = relation.force_protect_from_field_paths(
-        //     &relations,
-        //     &[
-        //         (
-        //             "item_table",
-        //             &[
-        //                 ("order_id", "order_table", "id"),
-        //                 ("user_id", "user_table", "id"),
-        //             ],
-        //             "name",
-        //         ),
-        //         ("order_table", &[("user_id", "user_table", "id")], "name"),
-        //         ("user_table", &[], "name"),
-        //     ],
-        // );
+        let relation = relation.force_protect_from_field_paths(
+            &relations,
+            &[
+                (
+                    "item_table",
+                    &[
+                        ("order_id", "order_table", "id"),
+                        ("user_id", "user_table", "id"),
+                    ],
+                    "name",
+                ),
+                ("order_table", &[("user_id", "user_table", "id")], "name"),
+                ("user_table", &[], "name"),
+            ],
+        );
         relation.display_dot().unwrap();
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PE_ID);
