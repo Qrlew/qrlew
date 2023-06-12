@@ -329,7 +329,7 @@ mod tests {
         //assert_eq!(ast_expr, gen_expr)
         assert_eq!(
             gen_expr.to_string(),
-            String::from("exp((a) * (cos(sin(x) + (2) * (a) + b)))")
+            String::from("exp((a) * ((cos(((sin(x)) + ((2) * ((a)))) + (b)))))")
         )
     }
 
@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_from_expr_with_var() {
-        let ast_expr: ast::Expr = parse_expr("variance(sin(x) + b)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("variance((sin(x)) + (b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -403,7 +403,7 @@ mod tests {
         println!("ast::expr = {}", gen_expr.to_string());
         assert_eq!(
             gen_expr.to_string(),
-            "CASE WHEN a = 5 THEN 0 ELSE a END".to_string(),
+            "CASE WHEN (a) = (5) THEN 0 ELSE a END".to_string(),
         );
     }
 }

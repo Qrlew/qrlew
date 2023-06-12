@@ -594,13 +594,13 @@ impl Join {
         let right_size_max = right.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         // TODO Review this
         match operator {
-            JoinOperator::Inner(_) => Integer::from_interval(0, left_size_max * right_size_max),
-            JoinOperator::LeftOuter(_) => Integer::from_interval(0, left_size_max * right_size_max),
-            JoinOperator::RightOuter(_) => Integer::from_interval(0, left_size_max * right_size_max),
+            JoinOperator::Inner(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
+            JoinOperator::LeftOuter(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
+            JoinOperator::RightOuter(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
             JoinOperator::FullOuter(_) => {
-                Integer::from_interval(0, left_size_max * right_size_max)
+                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
             }
-            JoinOperator::Cross => Integer::from_interval(0, left_size_max * right_size_max),
+            JoinOperator::Cross => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
         }
     }
 
