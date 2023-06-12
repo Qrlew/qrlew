@@ -756,15 +756,6 @@ mod tests {
                     Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
                     Err(_) => row[i].to_string(),
                 })
-                // let my_float:f64 = row[i].to_string().parse().unwrap();
-                // str_row.push()
-                // (float_number * 1000.0).round() / 1000.0
-                // str_row.push(
-                //     match my_str.find('.') {
-                //         Some(ind) => my_str[..ind+4].to_string(),
-                //         None => my_str + &".000"
-                //     }
-                // )
             }
             sorted_results.push(str_row)
         }
@@ -864,12 +855,6 @@ mod tests {
 
         let my_res = refacto_results(database.query(query).unwrap(), 3);
         let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
-        // for (r1, r2) in my_res.iter().zip(true_res.iter()) {
-        //     if r1 != r2 {
-        //         println!("my_res = {:?}", r1);
-        //         println!("true_res = {:?}", r2);
-        //     }
-        // }
         assert_eq!(my_res, true_res);
     }
 
@@ -903,7 +888,6 @@ mod tests {
         let user_id = schema.field_from_index(4).unwrap().name();
         let date = schema.field_from_index(6).unwrap().name();
 
-        // TODO: complete the test
         let clipped_relation = relation.clipped_sum(user_id, vec![item, date], vec![price], 50.);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -919,12 +903,6 @@ mod tests {
 
         let my_res = refacto_results(database.query(query).unwrap(), 3);
         let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
-        // for (r1, r2) in my_res.iter().zip(true_res.iter()) {
-        //     if r1 != r2 {
-        //         println!("my_res = {:?}", r1);
-        //         println!("true_res = {:?}", r2);
-        //     }
-        // }
         assert_eq!(my_res, true_res);
     }
 }
