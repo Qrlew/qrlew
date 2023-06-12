@@ -24,8 +24,9 @@ use crate::{
         Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
+    hierarchy::Hierarchy,
     namer,
-    visitor::{self, Acceptor, Dependencies, Visited}, hierarchy::Hierarchy,
+    visitor::{self, Acceptor, Dependencies, Visited},
 };
 pub use builder::{
     JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, WithInput, WithSchema,
@@ -549,9 +550,11 @@ impl JoinConstraint {
     pub fn rename<'a>(&'a self, columns: &'a Hierarchy<Identifier>) -> Self {
         match self {
             JoinConstraint::On(expr) => JoinConstraint::On(expr.rename(columns)),
-            JoinConstraint::Using(identifiers) => JoinConstraint::Using(identifiers
-                .iter()
-                .map(|i| columns.get(i).unwrap().clone()).collect()
+            JoinConstraint::Using(identifiers) => JoinConstraint::Using(
+                identifiers
+                    .iter()
+                    .map(|i| columns.get(i).unwrap().clone())
+                    .collect(),
             ),
             JoinConstraint::Natural => JoinConstraint::Natural,
             JoinConstraint::None => JoinConstraint::None,
@@ -617,27 +620,33 @@ impl Join {
     }
 
     /// Compute the size of the join
-    fn size(operator: &JoinOperator, left: &Relation, right: &Relation) -> Integer {// TODO BUG here
+    fn size(operator: &JoinOperator, left: &Relation, right: &Relation) -> Integer {
+        // TODO BUG here
         let left_size_max = left.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         let right_size_max = right.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         // TODO Review this
         match operator {
-            JoinOperator::Inner(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
-            JoinOperator::LeftOuter(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
-            JoinOperator::RightOuter(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
+            JoinOperator::Inner(_) => {
+                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            }
+            JoinOperator::LeftOuter(_) => {
+                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            }
+            JoinOperator::RightOuter(_) => {
+                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            }
             JoinOperator::FullOuter(_) => {
                 Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
             }
-            JoinOperator::Cross => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
+            JoinOperator::Cross => {
+                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            }
         }
     }
 
     /// Iterate over fields and input names
     pub fn field_inputs<'a>(&'a self) -> impl Iterator<Item = (String, Identifier)> + 'a {
-        let field_identifiers = self
-            .schema()
-            .iter()
-            .map(|f| f.name().to_string());
+        let field_identifiers = self.schema().iter().map(|f| f.name().to_string());
         let left_identifiers = self
             .left
             .schema()
@@ -654,7 +663,7 @@ impl Join {
     }
 
     pub fn names(&self) -> Hierarchy<String> {
-        Hierarchy::from_iter(self.field_inputs().map(|(n, i)|(i, n)))
+        Hierarchy::from_iter(self.field_inputs().map(|(n, i)| (i, n)))
     }
 
     pub fn builder() -> JoinBuilder<WithoutInput, WithoutInput> {

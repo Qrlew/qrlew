@@ -126,6 +126,10 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
+    pub fn order_by_iter(mut self, iter: Vec<(Expr, bool)>) -> Self {
+        iter.into_iter().fold(self, |w, (x, b)| w.order_by(x, b))
+    }
+
     /// Add a group by
     pub fn group_by(mut self, expr: Expr) -> Self {
         self.split = self
@@ -549,16 +553,18 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
     /// Add a condition to the ON
     pub fn and(mut self, expr: Expr) -> Self {
         self.operator = match self.operator {
-            Some(JoinOperator::Inner(JoinConstraint::On(on))) => Some(JoinOperator::Inner(JoinConstraint::On(Expr::and(expr, on)))),
-            Some(JoinOperator::LeftOuter(JoinConstraint::On(on))) => {
-                Some(JoinOperator::LeftOuter(JoinConstraint::On(Expr::and(expr, on))))
+            Some(JoinOperator::Inner(JoinConstraint::On(on))) => {
+                Some(JoinOperator::Inner(JoinConstraint::On(Expr::and(expr, on))))
             }
-            Some(JoinOperator::RightOuter(JoinConstraint::On(on))) => {
-                Some(JoinOperator::RightOuter(JoinConstraint::On(Expr::and(expr, on))))
-            }
-            Some(JoinOperator::FullOuter(JoinConstraint::On(on))) => {
-                Some(JoinOperator::FullOuter(JoinConstraint::On(Expr::and(expr, on))))
-            }
+            Some(JoinOperator::LeftOuter(JoinConstraint::On(on))) => Some(JoinOperator::LeftOuter(
+                JoinConstraint::On(Expr::and(expr, on)),
+            )),
+            Some(JoinOperator::RightOuter(JoinConstraint::On(on))) => Some(
+                JoinOperator::RightOuter(JoinConstraint::On(Expr::and(expr, on))),
+            ),
+            Some(JoinOperator::FullOuter(JoinConstraint::On(on))) => Some(JoinOperator::FullOuter(
+                JoinConstraint::On(Expr::and(expr, on)),
+            )),
             op => op,
         };
         self
@@ -645,24 +651,22 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .clone()
             .unwrap_or(namer::name_from_content(JOIN, &self));
         let left_names = if self.left_names.is_empty() {
-            self
-            .left
-            .0
-            .schema()
-            .iter()
-            .map(|field| namer::name_from_content(FIELD, &(&self.left.0, &field)))
-            .collect()
+            self.left
+                .0
+                .schema()
+                .iter()
+                .map(|field| namer::name_from_content(FIELD, &(&self.left.0, &field)))
+                .collect()
         } else {
             self.left_names
         };
         let right_names = if self.right_names.is_empty() {
-            self
-            .right
-            .0
-            .schema()
-            .iter()
-            .map(|field| namer::name_from_content(FIELD, &(&self.right.0, &field)))
-            .collect()
+            self.right
+                .0
+                .schema()
+                .iter()
+                .map(|field| namer::name_from_content(FIELD, &(&self.right.0, &field)))
+                .collect()
         } else {
             self.right_names
         };
@@ -841,17 +845,23 @@ mod tests {
 
     #[test]
     fn test_join_building() {
-        use sqlparser::ast;
-        use itertools::Itertools;
         use crate::{
-            io::{Database, postgresql},
-            hierarchy::Path,
             display::Dot,
+            hierarchy::Path,
+            io::{postgresql, Database},
         };
+        use itertools::Itertools;
+        use sqlparser::ast;
         let mut database = postgresql::test_database();
         let join: Relation = Relation::join()
             .left(database.relations().get(&"table_1".path()).unwrap().clone())
-            .right(database.relations().get(&["table_2".into()]).unwrap().clone())
+            .right(
+                database
+                    .relations()
+                    .get(&["table_2".into()])
+                    .unwrap()
+                    .clone(),
+            )
             .on(Expr::eq(Expr::col("d"), Expr::col("x")))
             .and(Expr::lt(Expr::col("a"), Expr::col("x")))
             .build();

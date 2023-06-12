@@ -221,9 +221,7 @@ impl<'a> VisitedQueryRelations<'a> {
         columns: &'a Hierarchy<Identifier>,
     ) -> Result<JoinConstraint> {
         match join_constraint {
-            ast::JoinConstraint::On(expr) => {
-                Ok(JoinConstraint::On(expr.with(columns).try_into()?))
-            },
+            ast::JoinConstraint::On(expr) => Ok(JoinConstraint::On(expr.with(columns).try_into()?)),
             ast::JoinConstraint::Using(idents) => Ok(JoinConstraint::Using(
                 idents
                     .into_iter()
@@ -351,8 +349,10 @@ impl<'a> VisitedQueryRelations<'a> {
             .map(|e| e.with(columns).try_into())
             .map_or(Ok(None), |r| r.map(Some))?;
         // Prepare the GROUP BY
-        let group_by: Result<Vec<Expr>> =
-            group_by.iter().map(|e| e.with(columns).try_into()).collect();
+        let group_by: Result<Vec<Expr>> = group_by
+            .iter()
+            .map(|e| e.with(columns).try_into())
+            .collect();
         // Build a Relation
         let relation = match split {
             Split::Map(map) => {
@@ -426,14 +426,13 @@ impl<'a> VisitedQueryRelations<'a> {
                     // Add input
                     let relation_bulider = relation_builder.input(relation);
                     // Add ORDER BYs
-                    let relation_bulider: Result<MapBuilder<WithInput>> =
-                        order_by.iter().fold(
-                            Ok(relation_bulider),
-                            |builder, ast::OrderByExpr { expr, asc, .. }| {
-                                Ok(builder?
-                                    .order_by(expr.with(&columns).try_into()?, asc.unwrap_or(true)))
-                            },
-                        );
+                    let relation_bulider: Result<MapBuilder<WithInput>> = order_by.iter().fold(
+                        Ok(relation_bulider),
+                        |builder, ast::OrderByExpr { expr, asc, .. }| {
+                            Ok(builder?
+                                .order_by(expr.with(&columns).try_into()?, asc.unwrap_or(true)))
+                        },
+                    );
                     // Add LIMITs
                     let relation_bulider: Result<MapBuilder<WithInput>> =
                         limit.iter().fold(relation_bulider, |builder, limit| {

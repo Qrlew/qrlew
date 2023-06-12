@@ -22,9 +22,9 @@ use std::{
 
 use crate::{
     data_type::{self, value, DataType, DataTyped},
+    hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
-    hierarchy::Hierarchy,
 };
 
 pub use identifier::Identifier;
@@ -315,7 +315,7 @@ impl Aggregate {
     pub fn argument_name(&self) -> Result<&String> {
         match self.argument.as_ref() {
             Expr::Column(col) => Ok(col.last().unwrap()),
-            _ => Err(Error::other("Cannot return the argument_name"))
+            _ => Err(Error::other("Cannot return the argument_name")),
         }
     }
 }
@@ -890,7 +890,9 @@ pub struct RenameVisitor<'a>(&'a Hierarchy<Identifier>);
 
 impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
     fn column(&self, column: &'a Column) -> Expr {
-        self.0.get(column).map(|name| Expr::Column(name.clone()))
+        self.0
+            .get(column)
+            .map(|name| Expr::Column(name.clone()))
             .unwrap_or_else(|| Expr::Column(column.clone()))
     }
 
@@ -898,31 +900,18 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
         Expr::Value(value.clone())
     }
 
-    fn function(
-        &self,
-        function: &'a function::Function,
-        arguments: Vec<Expr>,
-    ) -> Expr {
+    fn function(&self, function: &'a function::Function, arguments: Vec<Expr>) -> Expr {
         let arguments: Vec<Rc<Expr>> = arguments.into_iter().map(|a| Rc::new(a)).collect();
         Expr::Function(Function::new(function.clone(), arguments))
     }
 
-    fn aggregate(
-        &self,
-        aggregate: &'a aggregate::Aggregate,
-        argument: Expr,
-    ) -> Expr {
+    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: Expr) -> Expr {
         Expr::Aggregate(Aggregate::new(aggregate.clone(), Rc::new(argument)))
     }
 
-    fn structured(
-        &self,
-        fields: Vec<(Identifier, Expr)>,
-    ) -> Expr {
-        let fields: Vec<(Identifier, Rc<Expr>)> = fields
-            .into_iter()
-            .map(|(i, e)| (i, Rc::new(e)))
-            .collect();
+    fn structured(&self, fields: Vec<(Identifier, Expr)>) -> Expr {
+        let fields: Vec<(Identifier, Rc<Expr>)> =
+            fields.into_iter().map(|(i, e)| (i, Rc::new(e))).collect();
         Expr::Struct(Struct::from_iter(fields))
     }
 }
@@ -1357,9 +1346,7 @@ mod tests {
     fn test_rename() {
         let x = expr!(exp(a * b + cos(2 * z) * d - 2 * z + t * sin(c + 3 * x)));
         println!("x = {x}");
-        let names: Hierarchy<Identifier> = Hierarchy::from([
-            (["a"], format!("A").into()),
-        ]);
+        let names: Hierarchy<Identifier> = Hierarchy::from([(["a"], format!("A").into())]);
         let renamed = x.rename(&names);
         println!("renamed x = {renamed} ({names})");
     }

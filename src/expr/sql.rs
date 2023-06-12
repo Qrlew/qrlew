@@ -77,12 +77,16 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             expr::function::Function::Multiply => ast::Expr::BinaryOp {
                 left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Multiply,
-                right: Box::new(ast::Expr::Nested(Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))))),
+                right: Box::new(ast::Expr::Nested(Box::new(ast::Expr::Nested(Box::new(
+                    arguments[1].clone(),
+                ))))),
             },
             expr::function::Function::Divide => ast::Expr::BinaryOp {
                 left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Divide,
-                right: Box::new(ast::Expr::Nested(Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))))),
+                right: Box::new(ast::Expr::Nested(Box::new(ast::Expr::Nested(Box::new(
+                    arguments[1].clone(),
+                ))))),
             },
             expr::function::Function::Modulo => ast::Expr::BinaryOp {
                 left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
