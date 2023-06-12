@@ -3,11 +3,11 @@
 
 use std::{ops::Deref, rc::Rc};
 
-use super::{Map, Relation, Variant as _};
+use super::{Map, Relation, Variant as _, Reduce};
 use crate::display::Dot;
 use crate::{
     builder::{Ready, With, WithIterator},
-    expr::Expr,
+    expr::{Aggregate, aggregate, Expr, Value},
     hierarchy::Hierarchy,
     DataType,
 };
@@ -430,7 +430,6 @@ impl Relation {
         clipping_value: f64,
     ) -> Self {
         // TODO: clipping_value: Vec<f64>
-        // TODO: test when base is empty
         let norm = self
             .clone()
             .l2_norm(vectors.clone(), base.clone(), coordinates.clone());
@@ -473,6 +472,44 @@ impl Relation {
 
         weighted_relation.sum_by(base, coordinates)
     }
+
+    fn clip_aggregates(self, vectors: &str, clipping_value: f64) -> Self {
+        self.display_dot();
+        match self {
+            Relation::Reduce(reduce) => {
+                let base: Vec<&str> = reduce.group_by.iter()
+                    .filter_map(|x| match x {
+                        Expr::Column(col) => Some(col.last().unwrap().as_str()),
+                        _ => None,
+                    })
+                    .collect();
+
+                let coordinates:Vec<&str> = reduce.aggregate.iter()
+                    .filter_map(|x| if let Expr::Aggregate(agg) = x {
+                            match agg.aggregate() {
+                                aggregate::Aggregate::Sum => Some(agg.argument_name().ok()?.as_str()),
+                                _ => None,
+                            }
+                        } else {None}
+                    )
+                    .collect();
+
+                println!("\n\nbase = {:?}\n\n", &base);
+                println!("\n\ncoordinates = {:?}\n\n", &coordinates);
+                reduce.input.display_dot();
+
+                reduce.input.as_ref().clone()
+                    .clipped_sum(
+                        vectors,
+                        base,
+                        coordinates,
+                        clipping_value,
+                    )
+            },
+            _ => todo!(),
+        }
+    }
+
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -904,5 +941,26 @@ mod tests {
         let my_res = refacto_results(database.query(query).unwrap(), 3);
         let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
         assert_eq!(my_res, true_res);
+    }
+
+    #[test]
+    fn test_clip_aggregates_reduce() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
+        let my_relation: Relation = Relation::reduce()
+            .input(table)
+            .with(Expr::sum(Expr::col("price")))
+            .with_group_by_column("item")
+            .build();
+
+        let clipped_relation = my_relation.clip_aggregates("order_id", 45.);
+        clipped_relation.display_dot();
     }
 }

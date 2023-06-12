@@ -306,6 +306,17 @@ impl Aggregate {
             argument,
         }
     }
+
+    pub fn aggregate(&self) -> aggregate::Aggregate {
+        self.aggregate
+    }
+
+    pub fn argument_name(&self) -> Result<&String> {
+        match self.argument.as_ref() {
+            Expr::Column(col) => Ok(col.last().unwrap()),
+            _ => Err(Error::other("Cannot return the argument_name"))
+        }
+    }
 }
 
 impl fmt::Display for Aggregate {
