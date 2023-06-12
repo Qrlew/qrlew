@@ -58,101 +58,101 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
         match function {
             expr::function::Function::Opposite => ast::Expr::UnaryOp {
                 op: ast::UnaryOperator::Minus,
-                expr: Box::new(arguments[0].clone()),
+                expr: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
             },
             expr::function::Function::Not => ast::Expr::UnaryOp {
                 op: ast::UnaryOperator::Not,
-                expr: Box::new(arguments[0].clone()),
+                expr: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
             },
             expr::function::Function::Plus => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Plus,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Minus => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Minus,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Multiply => ast::Expr::BinaryOp {
                 left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Multiply,
-                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
+                right: Box::new(ast::Expr::Nested(Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))))),
             },
             expr::function::Function::Divide => ast::Expr::BinaryOp {
                 left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Divide,
-                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
+                right: Box::new(ast::Expr::Nested(Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))))),
             },
             expr::function::Function::Modulo => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Modulo,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::StringConcat => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::StringConcat,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Gt => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Gt,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Lt => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Lt,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::GtEq => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::GtEq,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::LtEq => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::LtEq,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Eq => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Eq,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::NotEq => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::NotEq,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::And => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::And,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Or => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Or,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Xor => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::Xor,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::BitwiseOr => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::BitwiseOr,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::BitwiseAnd => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::BitwiseAnd,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::BitwiseXor => ast::Expr::BinaryOp {
-                left: Box::new(arguments[0].clone()),
+                left: Box::new(ast::Expr::Nested(Box::new(arguments[0].clone()))),
                 op: ast::BinaryOperator::BitwiseXor,
-                right: Box::new(arguments[1].clone()),
+                right: Box::new(ast::Expr::Nested(Box::new(arguments[1].clone()))),
             },
             expr::function::Function::Exp
             | expr::function::Function::Ln
@@ -329,7 +329,7 @@ mod tests {
         //assert_eq!(ast_expr, gen_expr)
         assert_eq!(
             gen_expr.to_string(),
-            String::from("exp((a) * (cos(sin(x) + (2) * (a) + b)))")
+            String::from("exp((a) * ((cos(((sin(x)) + ((2) * ((a)))) + (b)))))")
         )
     }
 
@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_from_expr_with_var() {
-        let ast_expr: ast::Expr = parse_expr("variance(sin(x) + b)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("variance((sin(x)) + (b))").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -403,7 +403,7 @@ mod tests {
         println!("ast::expr = {}", gen_expr.to_string());
         assert_eq!(
             gen_expr.to_string(),
-            "CASE WHEN a = 5 THEN 0 ELSE a END".to_string(),
+            "CASE WHEN (a) = (5) THEN 0 ELSE a END".to_string(),
         );
     }
 }

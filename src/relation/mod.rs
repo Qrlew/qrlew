@@ -25,7 +25,7 @@ use crate::{
     },
     expr::{self, Expr, Identifier, Split},
     namer,
-    visitor::{self, Acceptor, Dependencies, Visited},
+    visitor::{self, Acceptor, Dependencies, Visited}, hierarchy::Hierarchy,
 };
 pub use builder::{
     JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, WithInput, WithSchema,
@@ -127,18 +127,6 @@ pub trait Variant:
                 .ok_or_else(|| Error::invalid_name(identifier))?
                 .schema()
                 .field_from_identifier(&identifier.tail()?)
-        }
-    }
-    /// Access a field of the Relation by qualified identifier
-    fn field_from_qualified_name(&self, identifier: &Identifier) -> Result<&Field> {
-        if let &[ref table, ref field] = identifier.as_slice() {
-            if table == self.name() {
-                self.schema().field_from_identifier(&field.clone().into())
-            } else {
-                Err(Error::invalid_name(identifier))
-            }
-        } else {
-            Err(Error::invalid_name(identifier))
         }
     }
 }
@@ -518,6 +506,19 @@ pub enum JoinOperator {
     Cross,
 }
 
+impl JoinOperator {
+    /// Rename all exprs in the operator
+    pub fn rename<'a>(&'a self, columns: &'a Hierarchy<Identifier>) -> Self {
+        match self {
+            JoinOperator::Inner(c) => JoinOperator::Inner(c.rename(columns)),
+            JoinOperator::LeftOuter(c) => JoinOperator::LeftOuter(c.rename(columns)),
+            JoinOperator::RightOuter(c) => JoinOperator::RightOuter(c.rename(columns)),
+            JoinOperator::FullOuter(c) => JoinOperator::FullOuter(c.rename(columns)),
+            JoinOperator::Cross => JoinOperator::Cross,
+        }
+    }
+}
+
 impl fmt::Display for JoinOperator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -541,6 +542,21 @@ pub enum JoinConstraint {
     Using(Vec<Identifier>),
     Natural,
     None,
+}
+
+impl JoinConstraint {
+    /// Rename all exprs in the constraint
+    pub fn rename<'a>(&'a self, columns: &'a Hierarchy<Identifier>) -> Self {
+        match self {
+            JoinConstraint::On(expr) => JoinConstraint::On(expr.rename(columns)),
+            JoinConstraint::Using(identifiers) => JoinConstraint::Using(identifiers
+                .iter()
+                .map(|i| columns.get(i).unwrap().clone()).collect()
+            ),
+            JoinConstraint::Natural => JoinConstraint::Natural,
+            JoinConstraint::None => JoinConstraint::None,
+        }
+    }
 }
 
 /// Join two relations on one or more join columns
@@ -601,27 +617,27 @@ impl Join {
     }
 
     /// Compute the size of the join
-    fn size(operator: &JoinOperator, left: &Relation, right: &Relation) -> Integer {
+    fn size(operator: &JoinOperator, left: &Relation, right: &Relation) -> Integer {// TODO BUG here
         let left_size_max = left.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         let right_size_max = right.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         // TODO Review this
         match operator {
-            JoinOperator::Inner(_) => Integer::from_interval(0, left_size_max.min(right_size_max)),
-            JoinOperator::LeftOuter(_) => Integer::from_interval(0, left_size_max),
-            JoinOperator::RightOuter(_) => Integer::from_interval(0, right_size_max),
+            JoinOperator::Inner(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
+            JoinOperator::LeftOuter(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
+            JoinOperator::RightOuter(_) => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
             JoinOperator::FullOuter(_) => {
-                Integer::from_interval(0, left_size_max.max(right_size_max))
+                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
             }
-            JoinOperator::Cross => Integer::from_interval(0, left_size_max * right_size_max),
+            JoinOperator::Cross => Integer::from_interval(0, left_size_max.saturating_mul(right_size_max)),
         }
     }
 
     /// Iterate over fields and input names
-    pub fn field_inputs<'a>(&'a self) -> impl Iterator<Item = (Identifier, Identifier)> + 'a {
+    pub fn field_inputs<'a>(&'a self) -> impl Iterator<Item = (String, Identifier)> + 'a {
         let field_identifiers = self
             .schema()
             .iter()
-            .map(|f| Identifier::from_qualified_name(self.name(), f.name()));
+            .map(|f| f.name().to_string());
         let left_identifiers = self
             .left
             .schema()
@@ -635,6 +651,10 @@ impl Join {
         field_identifiers
             .zip(left_identifiers.chain(right_identifiers))
             .map(|(f, i)| (f, i))
+    }
+
+    pub fn names(&self) -> Hierarchy<String> {
+        Hierarchy::from_iter(self.field_inputs().map(|(n, i)|(i, n)))
     }
 
     pub fn builder() -> JoinBuilder<WithoutInput, WithoutInput> {

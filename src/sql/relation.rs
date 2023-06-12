@@ -8,7 +8,7 @@ use super::{
     Error, Result,
 };
 use crate::{
-    builder::{Ready, With},
+    builder::{Ready, With, WithoutContext},
     expr::{Expr, Identifier, Split},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
@@ -27,7 +27,6 @@ use sqlparser::{
 };
 use std::{
     convert::TryFrom,
-    fmt::format,
     iter::{once, Iterator},
     rc::Rc,
     result,
@@ -216,13 +215,15 @@ impl<'a> VisitedQueryRelations<'a> {
         }
     }
 
-    fn try_from_join_constraint_with_names(
+    fn try_from_join_constraint_with_columns(
         &self,
         join_constraint: &ast::JoinConstraint,
-        names: &'a Hierarchy<String>,
+        columns: &'a Hierarchy<Identifier>,
     ) -> Result<JoinConstraint> {
         match join_constraint {
-            ast::JoinConstraint::On(expr) => Ok(JoinConstraint::On(expr.with(names).try_into()?)),
+            ast::JoinConstraint::On(expr) => {
+                Ok(JoinConstraint::On(expr.with(columns).try_into()?))
+            },
             ast::JoinConstraint::Using(idents) => Ok(JoinConstraint::Using(
                 idents
                     .into_iter()
@@ -234,23 +235,23 @@ impl<'a> VisitedQueryRelations<'a> {
         }
     }
 
-    fn try_from_join_operator_with_names(
+    fn try_from_join_operator_with_columns(
         &self,
         join_operator: &ast::JoinOperator,
-        names: &'a Hierarchy<String>,
+        columns: &'a Hierarchy<Identifier>,
     ) -> Result<JoinOperator> {
         match join_operator {
             ast::JoinOperator::Inner(join_constraint) => Ok(JoinOperator::Inner(
-                self.try_from_join_constraint_with_names(join_constraint, names)?,
+                self.try_from_join_constraint_with_columns(join_constraint, columns)?,
             )),
             ast::JoinOperator::LeftOuter(join_constraint) => Ok(JoinOperator::LeftOuter(
-                self.try_from_join_constraint_with_names(join_constraint, names)?,
+                self.try_from_join_constraint_with_columns(join_constraint, columns)?,
             )),
             ast::JoinOperator::RightOuter(join_constraint) => Ok(JoinOperator::RightOuter(
-                self.try_from_join_constraint_with_names(join_constraint, names)?,
+                self.try_from_join_constraint_with_columns(join_constraint, columns)?,
             )),
             ast::JoinOperator::FullOuter(join_constraint) => Ok(JoinOperator::FullOuter(
-                self.try_from_join_constraint_with_names(join_constraint, names)?,
+                self.try_from_join_constraint_with_columns(join_constraint, columns)?,
             )),
             ast::JoinOperator::CrossJoin => Ok(JoinOperator::Cross),
             _ => todo!(), //TODO implement other JOIN later
@@ -271,9 +272,10 @@ impl<'a> VisitedQueryRelations<'a> {
                 let RelationWithColumns(right_relation, right_columns) =
                     self.try_from_table_factor(&join.relation)?;
                 let all_columns = left_columns.with(right_columns);
-                let operator = self.try_from_join_operator_with_names(
+                let operator = self.try_from_join_operator_with_columns(
                     &join.join_operator,
-                    &all_columns.filter_map(|i| Some(i.split_last().ok()?.0)),
+                    // &all_columns.filter_map(|i| Some(i.split_last().ok()?.0)),//TODO remove this
+                    &all_columns,
                 )?;
                 // We build a Join
                 let join: Join = Relation::join()
@@ -283,7 +285,7 @@ impl<'a> VisitedQueryRelations<'a> {
                     .build();
                 // We collect column mapping inputs should map to new names (hence the inversion)
                 let new_columns: Hierarchy<Identifier> =
-                    join.field_inputs().map(|(f, i)| (i, f)).collect();
+                    join.field_inputs().map(|(f, i)| (i, f.into())).collect();
                 let composed_columns = all_columns.and_then(new_columns);
                 let relation = Rc::new(Relation::from(join));
                 // We should compose hierarchies
@@ -315,6 +317,8 @@ impl<'a> VisitedQueryRelations<'a> {
     ) -> Result<Rc<Relation>> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = Vec::new();
+        // Columns from names
+        let columns = &names.map(|s| s.clone().into());
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -326,10 +330,10 @@ impl<'a> VisitedQueryRelations<'a> {
                         }
                         expr => namer::name_from_content(FIELD, &expr),
                     },
-                    Expr::try_from(expr.with(names))?,
+                    Expr::try_from(expr.with(columns))?,
                 )),
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
-                    named_exprs.push((alias.clone().value, Expr::try_from(expr.with(names))?))
+                    named_exprs.push((alias.clone().value, Expr::try_from(expr.with(columns))?))
                 }
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
@@ -344,11 +348,11 @@ impl<'a> VisitedQueryRelations<'a> {
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
-            .map(|e| e.with(names).try_into())
+            .map(|e| e.with(columns).try_into())
             .map_or(Ok(None), |r| r.map(Some))?;
         // Prepare the GROUP BY
         let group_by: Result<Vec<Expr>> =
-            group_by.iter().map(|e| e.with(names).try_into()).collect();
+            group_by.iter().map(|e| e.with(columns).try_into()).collect();
         // Build a Relation
         let relation = match split {
             Split::Map(map) => {
@@ -406,7 +410,7 @@ impl<'a> VisitedQueryRelations<'a> {
             ast::SetExpr::Select(select) => {
                 let RelationWithColumns(relation, columns) =
                     self.try_from_select(select.as_ref())?;
-                let names = &columns.filter_map(|i| Some(i.split_last().ok()?.0));
+                // let names = &columns.filter_map(|i| Some(i.split_last().ok()?.0));//TODO remove this
                 if order_by.is_empty() && limit.is_none() {
                     Ok(relation)
                 } else {
@@ -427,7 +431,7 @@ impl<'a> VisitedQueryRelations<'a> {
                             Ok(relation_bulider),
                             |builder, ast::OrderByExpr { expr, asc, .. }| {
                                 Ok(builder?
-                                    .order_by(expr.with(names).try_into()?, asc.unwrap_or(true)))
+                                    .order_by(expr.with(&columns).try_into()?, asc.unwrap_or(true)))
                             },
                         );
                     // Add LIMITs

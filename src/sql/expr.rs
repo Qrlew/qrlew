@@ -4,7 +4,7 @@
 
 use super::{Error, Result};
 use crate::{
-    builder::With,
+    builder::{With, WithContext, WithoutContext},
     expr::{identifier::Identifier, Expr, Value},
     hierarchy::{Hierarchy, Path},
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -500,7 +500,7 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
-pub struct TryIntoExprVisitor<'a>(&'a Hierarchy<String>); // With name remapping
+pub struct TryIntoExprVisitor<'a>(&'a Hierarchy<Identifier>); // With columns remapping
 
 /// Implement conversion from Ident to Identifier
 impl From<&ast::Ident> for Identifier {
@@ -526,21 +526,21 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 
     fn identifier(&self, ident: &'a ast::Ident) -> Result<Expr> {
-        let name = self
+        let column = self
             .0
             .get(&ident.cloned())
             .cloned()
-            .unwrap_or_else(|| ident.value.clone());
-        Ok(Expr::col(name))
+            .unwrap_or_else(|| ident.value.clone().into());
+        Ok(Expr::Column(column))
     }
 
     fn compound_identifier(&self, idents: &'a Vec<ast::Ident>) -> Result<Expr> {
-        let name = self
+        let column = self
             .0
             .get(&idents.cloned())
             .cloned()
-            .unwrap_or_else(|| idents.split_last().unwrap().0.value.clone());
-        Ok(Expr::col(name))
+            .unwrap_or_else(|| idents.iter().map(|i| i.value.clone()).collect());
+        Ok(Expr::Column(column))
     }
 
     fn binary_op(
@@ -699,29 +699,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 }
 
-// A struct holding a query and a context for conversion to Relation
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ExprWithNames<'a>(&'a ast::Expr, &'a Hierarchy<String>);
-
-impl<'a> ExprWithNames<'a> {
-    pub fn new(expr: &'a ast::Expr, names: &'a Hierarchy<String>) -> Self {
-        ExprWithNames(expr, names)
-    }
-}
-
-impl<'a> With<&'a Hierarchy<String>, ExprWithNames<'a>> for &'a ast::Expr {
-    fn with(self, input: &'a Hierarchy<String>) -> ExprWithNames<'a> {
-        ExprWithNames::new(self, input)
-    }
-}
-
 /// Based on the TryIntoExprVisitor implement the TryFrom trait
-impl<'a> TryFrom<ExprWithNames<'a>> for Expr {
+impl<'a> TryFrom<WithContext<&'a ast::Expr, &'a Hierarchy<Identifier>>> for Expr {
     type Error = Error;
 
-    fn try_from(value: ExprWithNames<'a>) -> result::Result<Self, Self::Error> {
-        let ExprWithNames(expr, names) = value;
-        expr.accept(TryIntoExprVisitor(names))
+    fn try_from(value: WithContext<&'a ast::Expr, &'a Hierarchy<Identifier>>) -> result::Result<Self, Self::Error> {
+        let WithContext { object, context } = value;
+        object.accept(TryIntoExprVisitor(context))
     }
 }
 

@@ -2,8 +2,8 @@
 //!
 
 use std::{ops::Deref, rc::Rc};
-
-use super::{Map, Relation, Variant as _};
+use itertools::Itertools;
+use super::{Table, Map, Reduce, Join, Set, Relation, Variant as _};
 use crate::display::Dot;
 use crate::{
     builder::{Ready, With, WithIterator},
@@ -12,15 +12,68 @@ use crate::{
     DataType,
 };
 
+/* Reduce
+ */
+
+impl Table {
+    /// Rename a Table
+    pub fn with_name(mut self, name: String) -> Table {
+        self.name = name;
+        self
+    }
+}
+
+/* Map
+ */
+
 impl Map {
+    /// Rename a Map
+    pub fn with_name(mut self, name: String) -> Map {
+        self.name = name;
+        self
+    }
+    /// Prepend a field to a Map
     pub fn with_field(self, name: &str, expr: Expr) -> Map {
         Relation::map().with((name, expr)).with(self).build()
     }
-
+    /// Insert a field in a Map at position index
+    pub fn insert_field(self, index: usize, inserted_name: &str, inserted_expr: Expr) -> Map {
+        let Map {
+            name,
+            projection,
+            filter,
+            order_by,
+            limit,
+            schema,
+            input,
+            ..
+        } = self;
+        let mut builder = Map::builder().name(name);
+        let field_exprs: Vec<_> = schema.into_iter().zip(projection).collect();
+        for (f, e) in &field_exprs[0..index] {
+            builder = builder.with((f.name().to_string(), e.clone()));
+        }
+        builder = builder.with((inserted_name, inserted_expr));
+        for (f, e) in &field_exprs[index..field_exprs.len()] {
+            builder = builder.with((f.name().to_string(), e.clone()));
+        }
+        // Filter
+        builder = filter.into_iter().fold(builder, |b, f| b.filter(f));
+        // Order by
+        builder = order_by
+            .into_iter()
+            .fold(builder, |b, o| b.order_by(o.expr, o.asc));
+        // Limit
+        builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        builder
+            .input(input)
+            .build()
+    }
+    /// Filter fields
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Map {
         Relation::map().filter_with(self, predicate).build()
     }
-
+    /// Map fields
     pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Map {
         Relation::map().map_with(self, f).build()
     }
@@ -41,6 +94,39 @@ impl<'a> From<(&'a str, &'a str, &'a str)> for Step<'a> {
             referred_relation,
             referred_id,
         }
+    }
+}
+
+/* Reduce
+ */
+
+ impl Reduce {
+    /// Rename a Reduce
+    pub fn with_name(mut self, name: String) -> Reduce {
+        self.name = name;
+        self
+    }
+}
+
+/* Join
+ */
+
+ impl Join {
+    /// Rename a Join
+    pub fn with_name(mut self, name: String) -> Join {
+        self.name = name;
+        self
+    }
+}
+
+/* Set
+ */
+
+ impl Set {
+    /// Rename a Join
+    pub fn with_name(mut self, name: String) -> Set {
+        self.name = name;
+        self
     }
 }
 
@@ -149,6 +235,16 @@ impl<'a> IntoIterator for FieldPath<'a> {
 }
 
 impl Relation {
+    /// Rename a Relation
+    pub fn with_name(self, name: String) -> Relation {
+        match self {
+            Relation::Table(t) => t.with_name(name).into(),
+            Relation::Map(m) => m.with_name(name).into(),
+            Relation::Reduce(r) => r.with_name(name).into(),
+            Relation::Join(j) => j.with_name(name).into(),
+            Relation::Set(s) => s.with_name(name).into(),
+        }
+    }
     /// Add a field that derives from existing fields
     pub fn identity_with_field(self, name: &str, expr: Expr) -> Relation {
         Relation::map()
@@ -161,7 +257,19 @@ impl Relation {
             .input(self)
             .build()
     }
-
+    /// Insert a field that derives from existing fields
+    pub fn identity_insert_field(self, index: usize, inserted_name: &str, inserted_expr: Expr) -> Relation {
+        let mut builder = Relation::map();
+        let named_exprs: Vec<_> = self.schema().iter().map(|f| (f.name(), Expr::col(f.name()))).collect();
+        for (n, e) in &named_exprs[0..index] {
+            builder = builder.with((n.to_string(), e.clone()));
+        }
+        builder = builder.with((inserted_name, inserted_expr));
+        for (n, e) in &named_exprs[index..named_exprs.len()] {
+            builder = builder.with((n.to_string(), e.clone()));
+        }
+        builder.input(self).build()
+    }
     /// Add a field that derives from input fields
     pub fn with_field(self, name: &str, expr: Expr) -> Relation {
         match self {
@@ -170,7 +278,14 @@ impl Relation {
             relation => relation.identity_with_field(name, expr),
         }
     }
-
+    /// Insert a field that derives from input fields
+    pub fn insert_field(self, index: usize, inserted_name: &str, inserted_expr: Expr) -> Relation {
+        match self {
+            // Simply add a column on Maps
+            Relation::Map(map) => map.insert_field(index, inserted_name, inserted_expr).into(),
+            relation => relation.identity_insert_field(index, inserted_name, inserted_expr),
+        }
+    }
     /// Add a field designated with a foreign relation and a field
     pub fn with_referred_field<'a>(
         self,
