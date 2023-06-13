@@ -862,6 +862,7 @@ impl<'a> Visitor<'a, Vec<&'a Column>> for ColumnsVisitor {
 }
 
 impl Expr {
+    /// Collect all columns in an expression
     pub fn columns(&self) -> Vec<&Column> {
         self.accept(ColumnsVisitor)
     }
@@ -1018,10 +1019,11 @@ impl<'a> visitor::Visitor<'a, Expr, (Expr, Vec<(Expr, Expr)>)> for ReplaceVisito
 }
 
 impl Expr {
+    /// Replace matched left expressions by corresponding right expressions
     pub fn replace(&self, map: Vec<(Expr, Expr)>) -> (Expr, Vec<(Expr, Expr)>) {
         self.accept(ReplaceVisitor(map))
     }
-
+    /// Alias expressions by name 
     pub fn alias(&self, named_exprs: Vec<(String, Expr)>) -> (Expr, Vec<(String, Expr)>) {
         let map = named_exprs
             .into_iter()
@@ -1041,6 +1043,13 @@ impl Expr {
                 })
                 .collect(),
         )
+    }
+    /// Transform an expression into an aggregation
+    pub fn into_aggregate(self) -> Expr {
+        match self {
+            Expr::Aggregate(_) => self,
+            _ => Expr::first(self),//TODO maybe change this default behavior
+        }
     }
 }
 
