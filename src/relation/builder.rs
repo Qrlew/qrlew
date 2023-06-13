@@ -227,7 +227,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
                 schema
                     .into_iter()
                     .zip(projection)
-                    .map(|(field, expr)| (f(field.name(), expr), expr)),
+                    .map(|(field, expr)| (f(field.name(), expr.clone()), expr)),
             )
             .input(input);
         // Filter
@@ -377,6 +377,10 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         self
     }
 
+    pub fn group_by_iter<I: IntoIterator<Item = Expr>>(self, iter: I) -> Self {
+        iter.into_iter().fold(self, |w, i| w.group_by(i))
+    }
+
     pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> ReduceBuilder<WithInput> {
         ReduceBuilder {
             name: self.name,
@@ -431,7 +435,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
             aggregate,
             group_by,
             schema,
-            size,
+            size:_,
             input,
         } = red;
         let builder = self
@@ -440,8 +444,9 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
                 schema
                     .into_iter()
                     .zip(aggregate)
-                    .map(|(field, expr)| (f(field.name(), expr), expr)),
+                    .map(|(field, expr)| (f(field.name(), expr.clone()), expr)),
             )
+            .group_by_iter(group_by.into_iter())
             .input(input);
         builder
     }

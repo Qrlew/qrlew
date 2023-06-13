@@ -112,42 +112,76 @@ impl Reduce {
     }
 
     pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Relation {
-        let (vectors_name, vectors, base_name, base, coordinates_name, coordinates): (
-            Option<String>, Option<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>
+        let (map_names, vectors, base, coordinates): (
+            Vec<(String, String)>, Option<String>, Vec<String>, Vec<String>
         ) = self
             .schema()
             .clone()
             .iter()
             .zip(self.aggregate.into_iter())
-            .fold((None, None, vec![], vec![], vec![], vec![]), |(vn, v, bn, b, cn, c), (f, x)| {
+            .fold((vec![], None, vec![], vec![]), |(mn, v, b, c), (f, x)| {
                 if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
+                    let argname = agg.argument_name().unwrap().clone();
+                    let mut mn = mn;
+                    mn.push((argname.clone(), name.to_string()));
                     match agg.aggregate() {
                         aggregate::Aggregate::Sum => {
                             let mut c = c;
-                            c.push(agg.argument_name().unwrap().clone());
-                            let mut cn = cn;
-                            cn.push(name.to_string());
-                            (vn, v, bn, b, cn, c)
+                            c.push(argname);
+                            (mn, v, b, c)
                         }
                         aggregate::Aggregate::First => {
                             if name == vectors {
-                                let v = Some(agg.argument_name().unwrap().clone());
-                                let vn = Some(name.to_string());
-                                (vn, v, bn, b, cn, c)
+                                let v = Some(argname);
+                                (mn, v, b, c)
                             } else {
                                 let mut b = b;
-                                b.push(agg.argument_name().unwrap().clone());
-                                let mut bn = bn;
-                                bn.push(name.to_string());
-                                (vn, v, bn, b, cn, c)
+                                b.push(argname);
+                                (mn, v, b, c)
                             }
                         }
-                        _ => (vn, v, bn, b, cn, c),
+                        _ => (mn, v, b, c),
                     }
                 } else {
-                    (vn, v, bn, b, cn, c)
+                    (mn, v, b, c)
                 }
             });
+        // let (vectors_name, vectors, base_name, base, coordinates_name, coordinates): (
+        //     Option<String>, Option<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>
+        // ) = self
+        //     .schema()
+        //     .clone()
+        //     .iter()
+        //     .zip(self.aggregate.into_iter())
+        //     .fold((None, None, vec![], vec![], vec![], vec![]), |(vn, v, bn, b, cn, c), (f, x)| {
+        //         if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
+        //             match agg.aggregate() {
+        //                 aggregate::Aggregate::Sum => {
+        //                     let mut c = c;
+        //                     c.push(agg.argument_name().unwrap().clone());
+        //                     let mut cn = cn;
+        //                     cn.push(name.to_string());
+        //                     (vn, v, bn, b, cn, c)
+        //                 }
+        //                 aggregate::Aggregate::First => {
+        //                     if name == vectors {
+        //                         let v = Some(agg.argument_name().unwrap().clone());
+        //                         let vn = Some(name.to_string());
+        //                         (vn, v, bn, b, cn, c)
+        //                     } else {
+        //                         let mut b = b;
+        //                         b.push(agg.argument_name().unwrap().clone());
+        //                         let mut bn = bn;
+        //                         bn.push(name.to_string());
+        //                         (vn, v, bn, b, cn, c)
+        //                     }
+        //                 }
+        //                 _ => (vn, v, bn, b, cn, c),
+        //             }
+        //         } else {
+        //             (vn, v, bn, b, cn, c)
+        //         }
+        //     });
 
         assert_eq!(clipping_values.len(), coordinates.len());
         let clipped_relation = self.input.as_ref().clone().clipped_sum(
@@ -156,8 +190,10 @@ impl Reduce {
             coordinates.iter().map(|s| s.as_str()).collect(),
             clipping_values,
         );
-        clipped_relation.rename_fields(|f, x| todo!())
+        let map_names: HashMap<String, String> = map_names.into_iter().collect();
+        clipped_relation.rename_fields(|n, _| map_names[n].to_string())
     }
+
     /// Rename fields
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Reduce {
         Relation::reduce().rename_with(self, f).build()
@@ -1142,14 +1178,12 @@ mod tests {
             .with_group_by_column("item")
             .with_group_by_column("order_id")
             .build();
-        let name_fields:Vec<&str> = my_relation.schema().iter().map(|f| f.name()).collect();
-        println!("{:?}", name_fields);
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
         let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
-        let name_fields_clip:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
-        println!("{:?}", name_fields_clip);
+        let name_fields:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        assert_eq!(name_fields, vec!["item", "sum_price"]);
         clipped_relation.display_dot();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1177,7 +1211,9 @@ mod tests {
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
         let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
-        //clipped_relation.display_dot();
+        let name_fields:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        assert_eq!(name_fields, vec!["sum_price"]);
+        clipped_relation.display_dot();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         println!("Query: {}", query);
@@ -1218,6 +1254,8 @@ mod tests {
         let std_price = schema.field_from_index(3).unwrap().name();
         let clipped_relation = relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]);
         clipped_relation.display_dot();
+        let name_fields:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         println!("Query: {}", query);
@@ -1264,7 +1302,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rename_fields {
+    fn test_rename_fields() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -1282,5 +1320,8 @@ mod tests {
             .with_group_by_column("order_id")
             .build();
         my_relation.display_dot();
+
+        let renamed_relation = my_relation.clone().rename_fields(|n, _| {if n == "sum_price" {"SumPrice".to_string()} else if  n=="item" {"ITEM".to_string()} else {"unknown".to_string()}});
+        renamed_relation.display_dot();
     }
 }
