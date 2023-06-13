@@ -843,8 +843,34 @@ mod tests {
             &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
         ))
         .unwrap();
-        println!("relation = {relation:#?}");
-        //display(&relation);
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+    }
+
+    #[test]
+    fn test_group_by_columns() {
+        let query =
+            parse("SELECT a, sum(b) as s FROM table_1 GROUP BY a").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+            ]
+            .into_iter()
+            .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
         let q = ast::Query::from(&relation);
         println!("query = {q}");
     }
