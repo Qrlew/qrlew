@@ -1,21 +1,34 @@
 use std::collections::HashMap;
 use std::{ops::Deref, rc::Rc};
 use itertools::Itertools;
+use crate::data_type::DataTyped;
 use crate::{
     builder::{Ready, With, WithIterator},
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
     DataType,
+    data_type::intervals::{Bound, Intervals},
     relation::{Table, Map, Reduce, Join, Set, Relation, Variant as _, field::Field},
     display::Dot,
     protected::PE_ID,
 };
-
+use std::cmp;
 
 impl Field {
     pub fn clipping_value(self, multiplicity: i64) -> f64 {
-        println!("Field: {:?}", self);
-        todo!()
+        match self.data_type() {
+            DataType::Float(f) => {
+                let min = f.min().unwrap().abs();
+                let max = f.max().unwrap().abs();
+                (min + max + (min - max).abs()) / 2. * multiplicity as f64
+            },
+            DataType::Integer(i) => {
+                let min = i.min().unwrap().abs();
+                let max = i.max().unwrap().abs();
+                (cmp::max(min, max) * multiplicity ) as f64
+            },
+            _ => todo!()
+        }
     }
 }
 
@@ -33,24 +46,11 @@ impl Reduce {
         epsilon: f64,
         delta: f64
     ) -> Relation {
-        // fn (Reduce, epsilon, delta) -> Relation
-        // 0. protection
-        // 1. Recupérer les intervals des aggs
-        // 2. Pour chaque colonne, c = max(abs(min), abs(max)) * 1
-        // 3. clipping avec un c par colonne
-        // 4. ajout de bruit avec sigma(c, epsilon, delta) par col
-        let protected_relation = Relation::Reduce(self.clone()).force_protect_from_field_paths(
-            relations,
-            protected_entity
-        );
-
         let multiplicity = 1; // TODO
-        println!("{:?}", self.input.schema());
-        let (clipping_values, name_sigmas): (Vec<(String, f64)>, Vec<(String, f64)>) = self
-            .schema()
+        let (clipping_values, name_sigmas): (Vec<(String, f64)>, Vec<(String, f64)>) = self.schema()
             .clone()
             .iter()
-            .zip(self.aggregate.into_iter())
+            .zip(self.aggregate.clone().into_iter())
             .fold((vec![], vec![]), |(c, s), (f, x)| {
                 if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
                     match agg.aggregate() {
@@ -76,7 +76,7 @@ impl Reduce {
             });
 
         let clipping_values = clipping_values.iter().map(|(n, v)| (n.as_str(), *v)).collect();
-        let clipped_relation = protected_relation.clip_aggregates(PE_ID, clipping_values);
+        let clipped_relation = self.clip_aggregates(PE_ID, clipping_values);
 
         let name_sigmas = name_sigmas.iter().map(|(n, v)| (n.as_str(), *v)).collect();
         clipped_relation.add_gaussian_noise(name_sigmas)
@@ -93,7 +93,11 @@ impl Relation {
         epsilon: f64,
         delta: f64
     ) -> Relation {
-        match self {
+        let protected_relation = self.force_protect_from_field_paths(
+            relations,
+            protected_entity
+        );
+        match protected_relation {
             Relation::Reduce(reduce) => reduce.dp_compilation(relations, protected_entity, epsilon, delta),
             _ => todo!(),
         }
@@ -155,7 +159,7 @@ mod tests {
 
         let epsilon = 1.;
         let delta = 1e-3;
-        let relation = relation.dp_compilation(
+        let dp_relation = relation.dp_compilation(
             &relations,
             &[
                 (
@@ -172,6 +176,12 @@ mod tests {
             epsilon,
             delta,
         );
-        relation.display_dot().unwrap();
+        dp_relation.display_dot().unwrap();
+
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        println!("Query: {}", query);
+        let my_res = database.query(query).unwrap();
+        println!("\n\nresults = {:?}", my_res);
+
     }
 }

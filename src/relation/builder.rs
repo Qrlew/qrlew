@@ -209,6 +209,38 @@ impl<RequireInput> MapBuilder<RequireInput> {
         builder
     }
 
+    /// Initialize a builder with filtered existing map
+    pub fn rename_with<F: Fn(&str, Expr) -> String>(self, map: Map, f: F) -> MapBuilder<WithInput> {
+        let Map {
+            name,
+            projection,
+            filter,
+            order_by,
+            limit,
+            schema,
+            input,
+            ..
+        } = map;
+        let builder = self
+            .name(name)
+            .with_iter(
+                schema
+                    .into_iter()
+                    .zip(projection)
+                    .map(|(field, expr)| (f(field.name(), expr), expr)),
+            )
+            .input(input);
+        // Filter
+        let builder = filter.into_iter().fold(builder, |b, f| b.filter(f));
+        // Order by
+        let builder = order_by
+            .into_iter()
+            .fold(builder, |b, o| b.order_by(o.expr, o.asc));
+        // Limit
+        let builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        builder
+    }
+
     pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> MapBuilder<WithInput> {
         MapBuilder {
             name: self.name,
@@ -390,6 +422,28 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         self = self.group_by(expr.clone());
         self = self.with((name, Expr::first(expr)));
         self
+    }
+
+    /// Rename fields in the reduce
+    pub fn rename_with<F: Fn(&str, Expr) -> String>(self, red: Reduce, f: F) -> ReduceBuilder<WithInput> {
+        let Reduce {
+            name,
+            aggregate,
+            group_by,
+            schema,
+            size,
+            input,
+        } = red;
+        let builder = self
+            .name(name)
+            .with_iter(
+                schema
+                    .into_iter()
+                    .zip(aggregate)
+                    .map(|(field, expr)| (f(field.name(), expr), expr)),
+            )
+            .input(input);
+        builder
     }
 }
 

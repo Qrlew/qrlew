@@ -76,6 +76,11 @@ impl Map {
     pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Map {
         Relation::map().map_with(self, f).build()
     }
+
+    /// Rename fields
+    pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Map {
+        Relation::map().rename_with(self, f).build()
+    }
 }
 
 // A few utility objects
@@ -107,43 +112,57 @@ impl Reduce {
     }
 
     pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Relation {
-        let (vectors, base, coordinates): (Option<String>, Vec<String>, Vec<String>) = self
+        let (vectors_name, vectors, base_name, base, coordinates_name, coordinates): (
+            Option<String>, Option<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>
+        ) = self
             .schema()
             .clone()
             .iter()
             .zip(self.aggregate.into_iter())
-            .fold((None, vec![], vec![]), |(v, b, c), (f, x)| {
+            .fold((None, None, vec![], vec![], vec![], vec![]), |(vn, v, bn, b, cn, c), (f, x)| {
                 if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
                     match agg.aggregate() {
                         aggregate::Aggregate::Sum => {
                             let mut c = c;
                             c.push(agg.argument_name().unwrap().clone());
-                            (v, b, c)
+                            let mut cn = cn;
+                            cn.push(name.to_string());
+                            (vn, v, bn, b, cn, c)
                         }
                         aggregate::Aggregate::First => {
                             if name == vectors {
-                                (Some(agg.argument_name().unwrap().clone()), b, c)
+                                let v = Some(agg.argument_name().unwrap().clone());
+                                let vn = Some(name.to_string());
+                                (vn, v, bn, b, cn, c)
                             } else {
                                 let mut b = b;
                                 b.push(agg.argument_name().unwrap().clone());
-                                (v, b, c)
+                                let mut bn = bn;
+                                bn.push(name.to_string());
+                                (vn, v, bn, b, cn, c)
                             }
                         }
-                        _ => (v, b, c),
+                        _ => (vn, v, bn, b, cn, c),
                     }
                 } else {
-                    (v, b, c)
+                    (vn, v, bn, b, cn, c)
                 }
             });
 
         assert_eq!(clipping_values.len(), coordinates.len());
-        self.input.as_ref().clone().clipped_sum(
+        let clipped_relation = self.input.as_ref().clone().clipped_sum(
             vectors.unwrap().as_str(),
             base.iter().map(|s| s.as_str()).collect(),
             coordinates.iter().map(|s| s.as_str()).collect(),
             clipping_values,
-        )
+        );
+        clipped_relation.rename_fields(|f, x| todo!())
     }
+    /// Rename fields
+    pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Reduce {
+        Relation::reduce().rename_with(self, f).build()
+    }
+
 }
 
 /* Join
@@ -451,6 +470,22 @@ impl Relation {
         }
     }
 
+    pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Relation {
+        match self {
+            Relation::Map(map) => map.rename_fields(f).into(),
+            Relation::Reduce(red) => red.rename_fields(f).into(),
+            relation => Relation::map()
+                .with_iter(
+                    relation
+                        .schema()
+                        .iter()
+                        .map(|field| (f(field.name(), Expr::col(field.name())), Expr::col(field.name()))),
+                )
+                .input(relation)
+                .build(),
+        }
+    }
+
     pub fn sum_by(self, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
         reduce = base
@@ -513,7 +548,7 @@ impl Relation {
     /// This transform multiplies the coordinates in self relation by their corresponding weights in weight_relation
     /// weight_relation contains the coordinates weights and the vectors columns
     /// self contains the coordinates, the base and vectors columns
-    pub fn apply_weights(
+    pub fn renormalize(
         self,
         weight_relation: Self,
         vectors: &str,
@@ -631,7 +666,7 @@ impl Relation {
         };
 
         let weighted_relation =
-            aggregated_relation.apply_weights(weights, vectors, base.clone(), coordinates.clone());
+            aggregated_relation.renormalize(weights, vectors, base.clone(), coordinates.clone());
 
         weighted_relation.sum_by(base, coordinates)
     }
@@ -1107,10 +1142,14 @@ mod tests {
             .with_group_by_column("item")
             .with_group_by_column("order_id")
             .build();
+        let name_fields:Vec<&str> = my_relation.schema().iter().map(|f| f.name()).collect();
+        println!("{:?}", name_fields);
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
         let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
+        let name_fields_clip:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        println!("{:?}", name_fields_clip);
         clipped_relation.display_dot();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1153,8 +1192,12 @@ mod tests {
         let my_res = refacto_results(database.query(query).unwrap(), 1);
         let true_res = refacto_results(database.query(valid_query).unwrap(), 1);
         assert_eq!(my_res, true_res);
+    }
 
-        // complex reduce
+    #[test]
+    fn test_clip_aggregates_complex_reduce() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
         let initial_query = r#"
         SELECT user_id AS user_id, item AS item, 5 * price AS std_price, price AS price, date AS date
         FROM item_table LEFT JOIN order_table ON item_table.order_id = order_table.id
@@ -1189,7 +1232,7 @@ mod tests {
         )
         SELECT my_table.item, SUM(price*weight) AS sum1, SUM(std_price*weight2) As sum2 FROM my_table LEFT JOIN weights USING (user_id) GROUP BY item;
         "#;
-        let my_res = refacto_results(database.query(query).unwrap(), 3);
+        let my_res: Vec<Vec<String>> = refacto_results(database.query(query).unwrap(), 3);
         let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
         // for (r1, r2) in my_res.iter().zip(true_res.iter()) {
         //     if r1!=r2 {
@@ -1218,5 +1261,26 @@ mod tests {
         for row in database.query(&ast::Query::try_from(&relation_with_noise).unwrap().to_string()).unwrap() {
             println!("Row = {row}");
         }
+    }
+
+    #[test]
+    fn test_rename_fields {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
+        // with GROUP BY
+        let my_relation: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(("sum_price", Expr::sum(Expr::col("price"))))
+            .with_group_by_column("item")
+            .with_group_by_column("order_id")
+            .build();
+        my_relation.display_dot();
     }
 }
