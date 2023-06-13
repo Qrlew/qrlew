@@ -388,7 +388,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         let name = column.into();
         let expr = Expr::col(name.clone());
         self = self.group_by(expr.clone());
-        self = self.with((name, Expr::first(expr)));
+        self = self.with((name, expr.into_aggregate()));
         self
     }
 }
