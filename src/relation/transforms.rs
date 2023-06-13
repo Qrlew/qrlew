@@ -106,7 +106,7 @@ impl Reduce {
         self
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_value: f64) -> Relation {
+    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<f64>) -> Relation {
         let (vectors, base, coordinates): (Option<String>, Vec<String>, Vec<String>) = self
             .schema()
             .clone()
@@ -136,11 +136,12 @@ impl Reduce {
                 }
             });
 
+        assert_eq!(clipping_values.len(), coordinates.len());
         self.input.as_ref().clone().clipped_sum(
             vectors.unwrap().as_str(),
             base.iter().map(|s| s.as_str()).collect(),
             coordinates.iter().map(|s| s.as_str()).collect(),
-            clipping_value,
+            clipping_values,
         )
     }
 }
@@ -588,12 +589,16 @@ impl Relation {
         vectors: &str,
         base: Vec<&str>,
         coordinates: Vec<&str>,
-        clipping_value: f64,
+        clipping_values: Vec<f64>,
     ) -> Self {
         // TODO: clipping_value: Vec<f64>
         let norm = self
             .clone()
             .l2_norm(vectors.clone(), base.clone(), coordinates.clone());
+
+        let map_clipping_values: HashMap<&str, f64> = coordinates.iter().zip(clipping_values.iter())
+            .map(|(s, f)| (s.as_ref(), f.clone()))
+            .collect();
 
         let weights = norm.map_fields(|n, e| {
             if coordinates.contains(&n) {
@@ -601,10 +606,10 @@ impl Relation {
                     Expr::val(2),
                     Expr::plus(
                         Expr::abs(Expr::minus(
-                            Expr::divide(e.clone(), Expr::val(clipping_value)),
+                            Expr::divide(e.clone(), Expr::val(map_clipping_values[&n])),
                             Expr::val(1),
                         )),
-                        Expr::plus(Expr::divide(e, Expr::val(clipping_value)), Expr::val(1)),
+                        Expr::plus(Expr::divide(e, Expr::val(map_clipping_values[&n])), Expr::val(1)),
                     ),
                 )
             } else {
@@ -634,9 +639,9 @@ impl Relation {
         weighted_relation.sum_by(base, coordinates)
     }
 
-    fn clip_aggregates(self, vectors: &str, clipping_value: f64) -> Self {
+    fn clip_aggregates(self, vectors: &str, clipping_values: Vec<f64>) -> Self {
         match self {
-            Relation::Reduce(reduce) => reduce.clip_aggregates(vectors, clipping_value),
+            Relation::Reduce(reduce) => reduce.clip_aggregates(vectors, clipping_values),
             _ => todo!(),
         }
     }
@@ -957,7 +962,7 @@ mod tests {
         let clipped_relation =
             table
                 .clone()
-                .clipped_sum("order_id", vec!["item"], vec!["price"], 45.);
+                .clipped_sum("order_id", vec!["item"], vec!["price"], vec![45.]);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         let valid_query = r#"
@@ -985,7 +990,7 @@ mod tests {
             .clone();
         let clipped_relation = table
             .clone()
-            .clipped_sum("order_id", vec![], vec!["price"], 45.);
+            .clipped_sum("order_id", vec![], vec!["price"], vec![45.]);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         println!("Query: {}", query);
@@ -1019,7 +1024,7 @@ mod tests {
         let clipped_relation =
             relation
                 .clone()
-                .clipped_sum("order_id", vec!["item"], vec!["price", "std_price"], 45.);
+                .clipped_sum("order_id", vec!["item"], vec!["price", "std_price"], vec![45., 50.]);
         clipped_relation.display_dot().unwrap();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1030,7 +1035,7 @@ mod tests {
             SELECT order_id, SQRT(SUM(sum_by_group)) AS norm1, SQRT(SUM(sum_by_group2)) AS norm2 FROM (
               SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group, POWER(SUM(std_price), 2) AS sum_by_group2 FROM my_table GROUP BY order_id, item
             ) AS subquery GROUP BY order_id
-          ), weights AS (SELECT order_id, CASE WHEN 45 / norm1 < 1 THEN 45 / norm1 ELSE 1 END AS weight1, CASE WHEN 45 / norm2 < 1 THEN 45 / norm2 ELSE 1 END AS weight2 FROM norms)
+          ), weights AS (SELECT order_id, CASE WHEN 45 / norm1 < 1 THEN 45 / norm1 ELSE 1 END AS weight1, CASE WHEN 50 / norm2 < 1 THEN 50 / norm2 ELSE 1 END AS weight2 FROM norms)
           SELECT item, SUM(price*weight1), SUM(std_price*weight2) FROM my_table LEFT JOIN weights USING (order_id) GROUP BY item;
         "#;
 
@@ -1069,7 +1074,7 @@ mod tests {
         let user_id = schema.field_from_index(4).unwrap().name();
         let date = schema.field_from_index(6).unwrap().name();
 
-        let clipped_relation = relation.clipped_sum(user_id, vec![item, date], vec![price], 50.);
+        let clipped_relation = relation.clipped_sum(user_id, vec![item, date], vec![price], vec![50.]);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         let valid_query = r#"
@@ -1106,7 +1111,7 @@ mod tests {
             .with_group_by_column("order_id")
             .build();
 
-        let clipped_relation = my_relation.clip_aggregates("order_id", 45.);
+        let clipped_relation = my_relation.clip_aggregates("order_id", vec![45.]);
         clipped_relation.display_dot();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1130,7 +1135,7 @@ mod tests {
             .with_group_by_column("order_id")
             .build();
 
-        let clipped_relation = my_relation.clip_aggregates("order_id", 45.);
+        let clipped_relation = my_relation.clip_aggregates("order_id", vec![45.]);
         //clipped_relation.display_dot();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1161,7 +1166,7 @@ mod tests {
             .with(("sum2", Expr::sum(Expr::col("std_price"))))
             .build();
         relation.display_dot();
-        let clipped_relation = relation.clip_aggregates("user_id", 45.);
+        let clipped_relation = relation.clip_aggregates("user_id", vec![45., 50.]);
         clipped_relation.display_dot();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1173,7 +1178,7 @@ mod tests {
         ),norms AS (
             SELECT user_id, SQRT(SUM(sum_1)) AS norm, SQRT(SUM(sum_2)) AS norm2 FROM (SELECT user_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM my_table GROUP BY user_id, item) As subq GROUP BY user_id
         ), weights AS (
-            SELECT user_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight, CASE WHEN 45 / norm2 < 1 THEN 45 / norm2 ELSE 1 END AS weight2 FROM norms
+            SELECT user_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight, CASE WHEN 50 / norm2 < 1 THEN 50 / norm2 ELSE 1 END AS weight2 FROM norms
         )
         SELECT my_table.item, SUM(price*weight) AS sum1, SUM(std_price*weight2) As sum2 FROM my_table LEFT JOIN weights USING (user_id) GROUP BY item;
         "#;
@@ -1187,6 +1192,7 @@ mod tests {
         // assert_eq!(my_res, true_res); // todo: fix that
     }
 
+    #[test]
     fn test_add_noise() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
