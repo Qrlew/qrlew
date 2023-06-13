@@ -703,7 +703,9 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
 impl<'a> TryFrom<WithContext<&'a ast::Expr, &'a Hierarchy<Identifier>>> for Expr {
     type Error = Error;
 
-    fn try_from(value: WithContext<&'a ast::Expr, &'a Hierarchy<Identifier>>) -> result::Result<Self, Self::Error> {
+    fn try_from(
+        value: WithContext<&'a ast::Expr, &'a Hierarchy<Identifier>>,
+    ) -> result::Result<Self, Self::Error> {
         let WithContext { object, context } = value;
         object.accept(TryIntoExprVisitor(context))
     }

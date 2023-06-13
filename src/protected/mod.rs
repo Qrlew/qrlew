@@ -1,9 +1,10 @@
 use crate::{
-    builder::{Ready, With, self},
-    expr::{Expr, identifier::Identifier},
-    relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
-    visitor::Acceptor, display::Dot,
+    builder::{self, Ready, With},
+    display::Dot,
+    expr::{identifier::Identifier, Expr},
     hierarchy::{Hierarchy, Path},
+    relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
+    visitor::Acceptor,
 };
 use std::{error, fmt, rc::Rc, result};
 
@@ -110,8 +111,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         Ok((self.protect_tables)(table)
             .insert_field(1, PE_WEIGHT, Expr::val(1))
             // We preserve the name
-            .with_name(format!("{}{}", PROTECTION_PREFIX, table.name()))
-        )
+            .with_name(format!("{}{}", PROTECTION_PREFIX, table.name())))
     }
 
     fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
@@ -137,7 +137,8 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         }
     }
 
-    fn join(//TODO this need to be cleaned (really)
+    fn join(
+        //TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
         left: Result<Relation>,
@@ -159,12 +160,33 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 let left = left?;
                 let right = right?;
                 // Compute the mapping between current and new columns //TODO clean this code a bit
-                let columns: Hierarchy<Identifier> =
-                    join.left.schema().iter().zip(left.schema().iter().skip(PROTECTION_COLUMNS))
-                    .map(|(o, n)| (vec![join.left.name().to_string(), o.name().to_string()], Identifier::from(vec![left_name.clone(), n.name().to_string()]))).chain(
-                        join.right.schema().iter().zip(right.schema().iter().skip(PROTECTION_COLUMNS))
-                        .map(|(o, n)| (vec![join.right.name().to_string(), o.name().to_string()], Identifier::from(vec![right_name.clone(), n.name().to_string()])))
-                    ).collect();
+                let columns: Hierarchy<Identifier> = join
+                    .left
+                    .schema()
+                    .iter()
+                    .zip(left.schema().iter().skip(PROTECTION_COLUMNS))
+                    .map(|(o, n)| {
+                        (
+                            vec![join.left.name().to_string(), o.name().to_string()],
+                            Identifier::from(vec![left_name.clone(), n.name().to_string()]),
+                        )
+                    })
+                    .chain(
+                        join.right
+                            .schema()
+                            .iter()
+                            .zip(right.schema().iter().skip(PROTECTION_COLUMNS))
+                            .map(|(o, n)| {
+                                (
+                                    vec![join.right.name().to_string(), o.name().to_string()],
+                                    Identifier::from(vec![
+                                        right_name.clone(),
+                                        n.name().to_string(),
+                                    ]),
+                                )
+                            }),
+                    )
+                    .collect();
                 // Rename expressions in the operator// TODO
                 let builder = Relation::join()
                     .left_names(left_names)
@@ -176,10 +198,16 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     ))
                     .left(left)
                     .right(right);
-                let join:Join = builder.build();
+                let join: Join = builder.build();
                 let mut builder = Relation::map().name(name);
                 builder = builder.with((PE_ID, Expr::col(format!("_LEFT{PE_ID}"))));
-                builder = builder.with((PE_WEIGHT, Expr::multiply(Expr::col(format!("_LEFT{PE_WEIGHT}")), Expr::col(format!("_RIGHT{PE_WEIGHT}")))));
+                builder = builder.with((
+                    PE_WEIGHT,
+                    Expr::multiply(
+                        Expr::col(format!("_LEFT{PE_WEIGHT}")),
+                        Expr::col(format!("_RIGHT{PE_WEIGHT}")),
+                    ),
+                ));
                 builder = join.names().iter().fold(builder, |b, (p, n)| {
                     if [PE_ID, PE_WEIGHT].contains(&p[1].as_str()) {
                         b
@@ -447,10 +475,7 @@ mod tests {
         assert_eq!(relation.schema()[0].name(), PE_ID);
         // Print query
         let query: &str = &ast::Query::from(&relation).to_string();
-        println!(
-            "{}",
-            format!("{query}").yellow()
-        );
+        println!("{}", format!("{query}").yellow());
         println!(
             "{}\n{}",
             format!("{query}").yellow(),
