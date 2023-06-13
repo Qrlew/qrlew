@@ -149,42 +149,6 @@ impl Reduce {
                     (mn, v, b, c)
                 }
             });
-        // let (vectors_name, vectors, base_name, base, coordinates_name, coordinates): (
-        //     Option<String>, Option<String>, Vec<String>, Vec<String>, Vec<String>, Vec<String>
-        // ) = self
-        //     .schema()
-        //     .clone()
-        //     .iter()
-        //     .zip(self.aggregate.into_iter())
-        //     .fold((None, None, vec![], vec![], vec![], vec![]), |(vn, v, bn, b, cn, c), (f, x)| {
-        //         if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
-        //             match agg.aggregate() {
-        //                 aggregate::Aggregate::Sum => {
-        //                     let mut c = c;
-        //                     c.push(agg.argument_name().unwrap().clone());
-        //                     let mut cn = cn;
-        //                     cn.push(name.to_string());
-        //                     (vn, v, bn, b, cn, c)
-        //                 }
-        //                 aggregate::Aggregate::First => {
-        //                     if name == vectors {
-        //                         let v = Some(agg.argument_name().unwrap().clone());
-        //                         let vn = Some(name.to_string());
-        //                         (vn, v, bn, b, cn, c)
-        //                     } else {
-        //                         let mut b = b;
-        //                         b.push(agg.argument_name().unwrap().clone());
-        //                         let mut bn = bn;
-        //                         bn.push(name.to_string());
-        //                         (vn, v, bn, b, cn, c)
-        //                     }
-        //                 }
-        //                 _ => (vn, v, bn, b, cn, c),
-        //             }
-        //         } else {
-        //             (vn, v, bn, b, cn, c)
-        //         }
-        //     });
 
         assert_eq!(clipping_values.len(), coordinates.len());
         let clipped_relation = self.input.as_ref().clone().clipped_sum(
