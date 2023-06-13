@@ -139,7 +139,7 @@ impl Function {
             | Function::BitwiseAnd
             | Function::BitwiseXor => Arity::Nary(2),
             // Zero arg Functions
-            | Function::Random(_) => Arity::Nary(0),
+            Function::Random(_) => Arity::Nary(0),
             // Unary Functions
             Function::Exp
             | Function::Ln

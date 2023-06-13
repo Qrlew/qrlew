@@ -429,13 +429,17 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     }
 
     /// Rename fields in the reduce
-    pub fn rename_with<F: Fn(&str, Expr) -> String>(self, red: Reduce, f: F) -> ReduceBuilder<WithInput> {
+    pub fn rename_with<F: Fn(&str, Expr) -> String>(
+        self,
+        red: Reduce,
+        f: F,
+    ) -> ReduceBuilder<WithInput> {
         let Reduce {
             name,
             aggregate,
             group_by,
             schema,
-            size:_,
+            size: _,
             input,
         } = red;
         let builder = self

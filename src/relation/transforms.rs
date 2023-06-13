@@ -1,10 +1,7 @@
 //! A few transforms for relations
 //!
 
-use std::collections::HashMap;
-use std::{ops::Deref, rc::Rc};
-use itertools::Itertools;
-use super::{Table, Map, Reduce, Join, Set, Relation, Variant as _};
+use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
 use crate::display::Dot;
 use crate::{
     builder::{Ready, With, WithIterator},
@@ -12,6 +9,9 @@ use crate::{
     hierarchy::Hierarchy,
     DataType,
 };
+use itertools::Itertools;
+use std::collections::HashMap;
+use std::{ops::Deref, rc::Rc};
 
 /* Reduce
  */
@@ -113,7 +113,10 @@ impl Reduce {
 
     pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Relation {
         let (map_names, vectors, base, coordinates): (
-            Vec<(String, String)>, Option<String>, Vec<String>, Vec<String>
+            Vec<(String, String)>,
+            Option<String>,
+            Vec<String>,
+            Vec<String>,
         ) = self
             .schema()
             .clone()
@@ -198,7 +201,6 @@ impl Reduce {
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Reduce {
         Relation::reduce().rename_with(self, f).build()
     }
-
 }
 
 /* Join
@@ -511,12 +513,12 @@ impl Relation {
             Relation::Map(map) => map.rename_fields(f).into(),
             Relation::Reduce(red) => red.rename_fields(f).into(),
             relation => Relation::map()
-                .with_iter(
-                    relation
-                        .schema()
-                        .iter()
-                        .map(|field| (f(field.name(), Expr::col(field.name())), Expr::col(field.name()))),
-                )
+                .with_iter(relation.schema().iter().map(|field| {
+                    (
+                        f(field.name(), Expr::col(field.name())),
+                        Expr::col(field.name()),
+                    )
+                }))
                 .input(relation)
                 .build(),
         }
@@ -677,7 +679,10 @@ impl Relation {
                             Expr::divide(e.clone(), Expr::val(map_clipping_values[&n])),
                             Expr::val(1),
                         )),
-                        Expr::plus(Expr::divide(e, Expr::val(map_clipping_values[&n])), Expr::val(1)),
+                        Expr::plus(
+                            Expr::divide(e, Expr::val(map_clipping_values[&n])),
+                            Expr::val(1),
+                        ),
                     ),
                 )
             } else {
@@ -718,14 +723,19 @@ impl Relation {
     pub fn add_gaussian_noise(self, name_sigmas: Vec<(&str, f64)>) -> Relation {
         let name_sigmas: HashMap<&str, f64> = name_sigmas.into_iter().collect();
         Relation::map()
-        // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
-        .with_iter(self.schema().iter().map(|f| if name_sigmas.contains_key(&f.name()) {
-            (f.name(), Expr::col(f.name()).add_gaussian_noise(name_sigmas[f.name()]))
-        } else {
-            (f.name(), Expr::col(f.name()))
-        }))
-        .input(self)
-        .build()
+            // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
+            .with_iter(self.schema().iter().map(|f| {
+                if name_sigmas.contains_key(&f.name()) {
+                    (
+                        f.name(),
+                        Expr::col(f.name()).add_gaussian_noise(name_sigmas[f.name()]),
+                    )
+                } else {
+                    (f.name(), Expr::col(f.name()))
+                }
+            }))
+            .input(self)
+            .build()
     }
 }
 
@@ -1027,10 +1037,12 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let clipped_relation =
-            table
-                .clone()
-                .clipped_sum("order_id", vec!["item"], vec!["price"], vec![("price", 45.)]);
+        let clipped_relation = table.clone().clipped_sum(
+            "order_id",
+            vec!["item"],
+            vec!["price"],
+            vec![("price", 45.)],
+        );
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         let valid_query = r#"
@@ -1056,9 +1068,10 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let clipped_relation = table
-            .clone()
-            .clipped_sum("order_id", vec![], vec!["price"], vec![("price", 45.)]);
+        let clipped_relation =
+            table
+                .clone()
+                .clipped_sum("order_id", vec![], vec!["price"], vec![("price", 45.)]);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         println!("Query: {}", query);
@@ -1089,10 +1102,12 @@ mod tests {
         relation.display_dot().unwrap();
 
         // L2 Norm
-        let clipped_relation =
-            relation
-                .clone()
-                .clipped_sum("order_id", vec!["item"], vec!["price", "std_price"], vec![("std_price", 45.), ("price", 50.)]);
+        let clipped_relation = relation.clone().clipped_sum(
+            "order_id",
+            vec!["item"],
+            vec!["price", "std_price"],
+            vec![("std_price", 45.), ("price", 50.)],
+        );
         clipped_relation.display_dot().unwrap();
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1142,7 +1157,8 @@ mod tests {
         let user_id = schema.field_from_index(4).unwrap().name();
         let date = schema.field_from_index(6).unwrap().name();
 
-        let clipped_relation = relation.clipped_sum(user_id, vec![item, date], vec![price], vec![(price, 50.)]);
+        let clipped_relation =
+            relation.clipped_sum(user_id, vec![item, date], vec![price], vec![(price, 50.)]);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         let valid_query = r#"
@@ -1182,7 +1198,7 @@ mod tests {
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
         let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
-        let name_fields:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum_price"]);
         clipped_relation.display_dot();
 
@@ -1207,11 +1223,10 @@ mod tests {
             .with_group_by_column("order_id")
             .build();
 
-
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
         let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
-        let name_fields:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["sum_price"]);
         clipped_relation.display_dot();
 
@@ -1248,13 +1263,13 @@ mod tests {
             .build();
         relation.display_dot();
 
-
         let schema = relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(2).unwrap().name();
         let std_price = schema.field_from_index(3).unwrap().name();
-        let clipped_relation = relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]);
+        let clipped_relation =
+            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]);
         clipped_relation.display_dot();
-        let name_fields:Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
 
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
@@ -1296,7 +1311,14 @@ mod tests {
         relation_with_noise.display_dot().unwrap();
 
         // Add noise directly
-        for row in database.query(&ast::Query::try_from(&relation_with_noise).unwrap().to_string()).unwrap() {
+        for row in database
+            .query(
+                &ast::Query::try_from(&relation_with_noise)
+                    .unwrap()
+                    .to_string(),
+            )
+            .unwrap()
+        {
             println!("Row = {row}");
         }
     }
@@ -1321,7 +1343,15 @@ mod tests {
             .build();
         my_relation.display_dot();
 
-        let renamed_relation = my_relation.clone().rename_fields(|n, _| {if n == "sum_price" {"SumPrice".to_string()} else if  n=="item" {"ITEM".to_string()} else {"unknown".to_string()}});
+        let renamed_relation = my_relation.clone().rename_fields(|n, _| {
+            if n == "sum_price" {
+                "SumPrice".to_string()
+            } else if n == "item" {
+                "ITEM".to_string()
+            } else {
+                "unknown".to_string()
+            }
+        });
         renamed_relation.display_dot();
     }
 }
