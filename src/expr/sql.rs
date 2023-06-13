@@ -170,7 +170,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Concat(_)
             | expr::function::Function::CharLength
             | expr::function::Function::Lower
-            | expr::function::Function::Upper => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Upper
+            | expr::function::Function::Random(_) => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
