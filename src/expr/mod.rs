@@ -1023,7 +1023,7 @@ impl Expr {
     pub fn replace(&self, map: Vec<(Expr, Expr)>) -> (Expr, Vec<(Expr, Expr)>) {
         self.accept(ReplaceVisitor(map))
     }
-    /// Alias expressions by name 
+    /// Alias expressions by name
     pub fn alias(&self, named_exprs: Vec<(String, Expr)>) -> (Expr, Vec<(String, Expr)>) {
         let map = named_exprs
             .into_iter()
@@ -1048,7 +1048,7 @@ impl Expr {
     pub fn into_aggregate(self) -> Expr {
         match self {
             Expr::Aggregate(_) => self,
-            _ => Expr::first(self),//TODO maybe change this default behavior
+            _ => Expr::first(self), //TODO maybe change this default behavior
         }
     }
 }

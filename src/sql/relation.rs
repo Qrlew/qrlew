@@ -851,14 +851,13 @@ mod tests {
 
     #[test]
     fn test_group_by_columns() {
-        let query =
-            parse("SELECT a, sum(b) as s FROM table_1 GROUP BY a").unwrap();
+        let query = parse("SELECT a, sum(b) as s FROM table_1 GROUP BY a").unwrap();
         let schema_1: Schema = vec![
             ("a", DataType::integer_interval(0, 10)),
             ("b", DataType::float_interval(0., 10.)),
-            ]
-            .into_iter()
-            .collect();
+        ]
+        .into_iter()
+        .collect();
         let table_1 = Relation::table()
             .name("tab_1")
             .schema(schema_1.clone())

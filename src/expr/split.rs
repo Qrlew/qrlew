@@ -427,7 +427,12 @@ pub struct Reduce {
 impl Reduce {
     pub fn new(named_exprs: Vec<(String, Expr)>, group_by: Vec<Expr>, map: Option<Map>) -> Self {
         // A reduce can only contain aggregations
-        assert!(named_exprs.iter().all(|(_n, e)| matches!(e, Expr::Aggregate(_))), "A Reduce split can only have aggregations");
+        assert!(
+            named_exprs
+                .iter()
+                .all(|(_n, e)| matches!(e, Expr::Aggregate(_))),
+            "A Reduce split can only have aggregations"
+        );
         Reduce {
             named_exprs: named_exprs.into_iter().unique().collect(),
             group_by: group_by.into_iter().unique().collect(),
@@ -652,7 +657,10 @@ impl And<Expr> for Reduce {
         // Replace the sub-expressions
         let (expr, matched) = expr.alias(patterns);
         // Express matched sub-expressions as aggregates
-        let matched: Vec<_> = matched.into_iter().map(|(n, e)| (n, e.into_aggregate())).collect();
+        let matched: Vec<_> = matched
+            .into_iter()
+            .map(|(n, e)| (n, e.into_aggregate()))
+            .collect();
         // Add matched sub-expressions
         (
             Reduce::new(
@@ -855,13 +863,17 @@ mod tests {
     fn test_reduce_and_expr() {
         let reduce = Reduce::default();
         println!("reduce = {}", reduce);
-        let (reduce, expr) = reduce.and(expr!(sum(1+a)));
+        let (reduce, expr) = reduce.and(expr!(sum(1 + a)));
         println!("reduce = {}, expr = {}", reduce, expr);
     }
 
     #[test]
     fn test_split_map_reduce_map_expr() {
-        let split = Split::from_iter([("a", expr!(1 + sum(x))), ("b", expr!(count(1 + y))), ("c", expr!(c))]);
+        let split = Split::from_iter([
+            ("a", expr!(1 + sum(x))),
+            ("b", expr!(count(1 + y))),
+            ("c", expr!(c)),
+        ]);
         println!("split = {split}");
     }
 }

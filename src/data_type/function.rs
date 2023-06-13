@@ -1,4 +1,6 @@
 use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
     cmp, collections,
     convert::{Infallible, TryFrom, TryInto},
     error, fmt,
@@ -6,7 +8,6 @@ use std::{
     ops::Deref,
     rc::Rc,
     result,
-    cell::RefCell, borrow::BorrowMut,
 };
 
 use itertools::Itertools;
@@ -160,7 +161,11 @@ pub struct Stateful {
 
 impl Stateful {
     /// Constructor for Generic
-    pub fn new(domain: DataType, co_domain: DataType, value: Rc<RefCell<dyn FnMut(Value) -> Value>>) -> Self {
+    pub fn new(
+        domain: DataType,
+        co_domain: DataType,
+        value: Rc<RefCell<dyn FnMut(Value) -> Value>>,
+    ) -> Self {
         Stateful {
             domain,
             co_domain,
@@ -1135,13 +1140,11 @@ pub fn md5() -> impl Function + Clone {
     )
 }
 
-pub fn random<R: rand::Rng+'static>(mut rng: R) -> impl Function + Clone {
+pub fn random<R: rand::Rng + 'static>(mut rng: R) -> impl Function + Clone {
     Stateful::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
-        Rc::new(RefCell::new(move |v| {
-            rng.gen::<f64>().into()
-        })),
+        Rc::new(RefCell::new(move |v| rng.gen::<f64>().into())),
     )
 }
 
