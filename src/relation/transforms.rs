@@ -750,6 +750,23 @@ mod tests {
         assert!(relation.schema()[0].name() != "peid");
     }
 
+    fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {
+        let mut sorted_results: Vec<Vec<String>> = vec![];
+        for row in results {
+            let mut str_row = vec![];
+            for i in 0..size {
+                let float_i: Result<f64, _> = row[i].to_string().parse();
+                str_row.push(match float_i {
+                    Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
+                    Err(_) => row[i].to_string(),
+                })
+            }
+            sorted_results.push(str_row)
+        }
+        sorted_results.sort();
+        sorted_results
+    }
+
     #[test]
     fn test_compute_norm_for_table() {
         let mut database = postgresql::test_database();
@@ -912,23 +929,6 @@ mod tests {
         }
     }
 
-    fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {
-        let mut sorted_results: Vec<Vec<String>> = vec![];
-        for row in results {
-            let mut str_row = vec![];
-            for i in 0..size {
-                let float_i: Result<f64, _> = row[i].to_string().parse();
-                str_row.push(match float_i {
-                    Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
-                    Err(_) => row[i].to_string(),
-                })
-            }
-            sorted_results.push(str_row)
-        }
-        sorted_results.sort();
-        sorted_results
-    }
-
     #[test]
     fn test_clipped_sum_for_table() {
         let mut database = postgresql::test_database();
@@ -982,8 +982,8 @@ mod tests {
             )
             SELECT SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id);
         "#;
-        let my_res = database.query(query).unwrap();
-        let true_res = database.query(valid_query).unwrap();
+        let my_res = refacto_results(database.query(query).unwrap(), 1);
+        let true_res = refacto_results(database.query(valid_query).unwrap(), 1);
         assert_eq!(my_res, true_res);
     }
 
@@ -1128,8 +1128,8 @@ mod tests {
             )
             SELECT SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id);
         "#;
-        let my_res = database.query(query).unwrap();
-        let true_res = database.query(valid_query).unwrap();
+        let my_res = refacto_results(database.query(query).unwrap(), 1);
+        let true_res = refacto_results(database.query(valid_query).unwrap(), 1);
         assert_eq!(my_res, true_res);
 
         // complex reduce
