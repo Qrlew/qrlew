@@ -1,6 +1,6 @@
 fn rewrite() {
-    use qrlew::io::{postgresql, Database};
     use qrlew::display::Dot;
+    use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
     use sqlparser::ast::Query;
@@ -8,10 +8,12 @@ fn rewrite() {
     let database = postgresql::test_database();
     let relations = database.relations();
     let relation = Relation::try_from(
-        parse("SELECT * FROM order_table JOIN
-            item_table ON id=order_id;")
-            .unwrap()
-            .with(&relations),
+        parse(
+            "SELECT * FROM order_table JOIN
+            item_table ON id=order_id;",
+        )
+        .unwrap()
+        .with(&relations),
     )
     .unwrap();
     println!("relation = {relation}");
@@ -21,8 +23,8 @@ fn rewrite() {
 }
 
 fn ranges() {
-    use qrlew::io::{postgresql, Database};
     use qrlew::display::Dot;
+    use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
     use sqlparser::ast::Query;
@@ -42,8 +44,8 @@ fn ranges() {
 }
 
 fn protect() {
-    use qrlew::io::{postgresql, Database};
     use qrlew::display::Dot;
+    use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
     use sqlparser::ast::Query;
@@ -51,10 +53,12 @@ fn protect() {
     let database = postgresql::test_database();
     let relations = database.relations();
     let relation = Relation::try_from(
-        parse("SELECT * FROM order_table JOIN
-            item_table ON id=order_id;")
-            .unwrap()
-            .with(&relations),
+        parse(
+            "SELECT * FROM order_table JOIN
+            item_table ON id=order_id;",
+        )
+        .unwrap()
+        .with(&relations),
     )
     .unwrap();
     println!("relation = {relation}");
@@ -80,8 +84,8 @@ fn protect() {
 }
 
 fn compile() {
-    use qrlew::io::{postgresql, Database};
     use qrlew::display::Dot;
+    use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
     use sqlparser::ast::Query;
@@ -109,8 +113,8 @@ fn compile() {
             ("order_table", &[("user_id", "user_table", "id")], "name"),
             ("user_table", &[], "name"),
         ],
-        1., // epsilon
-        1e-5 // delta
+        1.,   // epsilon
+        1e-5, // delta
     );
     println!("relation = {relation}");
     relation.display_dot().unwrap();
