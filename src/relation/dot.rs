@@ -118,16 +118,23 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
     }
 }
 
+/// Clip a str
+fn truncate(s: &str, max_chars: usize) -> &str {
+    match s.char_indices().nth(max_chars) {
+        None => s,
+        Some((idx, _)) => &s[..idx],
+    }
+}
+
 fn shorten_string(s: &str) -> Cow<str> {
     const MAX_STR_LEN: usize = 128;
     if s.len() > MAX_STR_LEN {
-        let mut ms: String = s.into();
-        ms.truncate(MAX_STR_LEN - 3);
-        format!("{}...", ms).into()
+        format!("{}...", truncate(s, MAX_STR_LEN - 3)).into()
     } else {
         s.into()
     }
 }
+
 
 impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, T>, Edge<'a, T>>
     for VisitedRelation<'a, V>
