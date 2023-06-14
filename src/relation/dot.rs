@@ -119,7 +119,7 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
 }
 
 fn shorten_string(s: &str) -> Cow<str> {
-    const MAX_STR_LEN: usize = 64;
+    const MAX_STR_LEN: usize = 128;
     if s.len() > MAX_STR_LEN {
         let mut ms: String = s.into();
         ms.truncate(MAX_STR_LEN - 3);
