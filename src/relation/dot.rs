@@ -35,13 +35,16 @@ impl fmt::Display for FieldDataTypes {
             "{}",
             self.0
                 .iter()
-                .map(|(field, expr)| format!(
-                    "{} = {} ∈ {}",
-                    field.name(),
-                    dot::escape_html(&expr.to_string()),
-                    field.data_type()
-                ))
-                .join("<br/>")
+                .map(|(field, expr)| {
+                    let formated = format!("{}", shorten_string(&format!(
+                        "{} = {} ∈ {}",
+                        field.name(),
+                        dot::escape_html(&expr.to_string()),
+                        field.data_type()
+                    )));
+                    // shorten_string(&formated).into_owned()
+                    formated
+                }).join("<br/>")
         )
     }
 }
@@ -115,9 +118,8 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
     }
 }
 
-#[allow(dead_code)]
 fn shorten_string(s: &str) -> Cow<str> {
-    const MAX_STR_LEN: usize = 16;
+    const MAX_STR_LEN: usize = 64;
     if s.len() > MAX_STR_LEN {
         let mut ms: String = s.into();
         ms.truncate(MAX_STR_LEN - 3);
