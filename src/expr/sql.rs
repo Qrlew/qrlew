@@ -2,8 +2,8 @@
 use crate::{
     expr::{self, Expr},
     visitor::Acceptor,
+    ast,
 };
-use sqlparser::ast;
 use std::iter::Iterator;
 
 /// A simple Expr -> ast::Expr conversion Visitor

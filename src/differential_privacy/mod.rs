@@ -1,3 +1,8 @@
+//! # Methods to transform `Relation`s into differentially private ones
+//! 
+//! This is experimental and little tested yet.
+//! 
+
 use crate::data_type::DataTyped;
 use crate::{
     builder::{Ready, With, WithIterator},
@@ -113,11 +118,10 @@ mod tests {
         io::{postgresql, Database},
         relation::Variant as _,
         sql::parse,
-        Relation,
+        Relation, ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
-    use sqlparser::ast;
 
     #[test]
     fn test_table_with_noise() {

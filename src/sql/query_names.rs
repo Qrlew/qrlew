@@ -5,10 +5,10 @@ use crate::{
     hierarchy::Path,
     sql::visitor::{TableWithJoins, Visitor},
     visitor::Visited,
+    ast,
 };
 use colored::Colorize;
 use itertools::Itertools;
-use sqlparser::ast;
 use std::{
     collections::BTreeMap,
     fmt,

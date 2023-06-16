@@ -1,4 +1,4 @@
-//! This file provides tools for converting a sqlparser::ast::Statement
+//! This file provides tools for converting a ast::Statement
 //! into the corresponding Qrlew Relation.
 //! Example: `Expr::try_from(sql_parser_statement)`
 
@@ -17,14 +17,9 @@ use crate::{
         Variant as _, WithInput,
     },
     visitor::{Acceptor, Dependencies, Visited},
+    ast, dialect::{Dialect, GenericDialect}, parser::Parser, tokenizer::Tokenizer,
 };
 use itertools::Itertools;
-use sqlparser::{
-    ast,
-    dialect::{Dialect, GenericDialect},
-    parser::Parser,
-    tokenizer::Tokenizer,
-};
 use std::{
     convert::TryFrom,
     iter::{once, Iterator},

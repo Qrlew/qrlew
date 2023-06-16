@@ -7,8 +7,8 @@ use crate::{
     data_type::{DataType, DataTyped},
     expr::identifier::Identifier,
     visitor::Acceptor,
+    ast,
 };
-use sqlparser::ast;
 use std::{collections::HashSet, convert::TryFrom, iter::Iterator};
 
 /// A simple Relation -> ast::Query conversion Visitor using CTE

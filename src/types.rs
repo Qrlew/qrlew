@@ -1,4 +1,5 @@
-//!
+//! # Type utilities
+//! 
 //! A few types and type composers
 //!
 

@@ -1,3 +1,5 @@
+//! # SQL parsing and conversion into Relation
+//! 
 //! This module contains everything needed to parse an SQL query and build a Relation out of it
 //!
 
@@ -8,7 +10,7 @@ pub mod relation;
 pub mod visitor;
 pub mod writer;
 
-use sqlparser::ast as sql;
+use crate::ast as sql;
 
 // I would put here the abstact AST Visitor.
 // Then in expr.rs module we write an implementation of the abstract visitor for Qrlew expr
@@ -110,10 +112,10 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         relation::Relation,
+        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
-    use sqlparser::ast;
     #[ignore]
     #[test]
     fn test_display() {

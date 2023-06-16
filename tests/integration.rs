@@ -1,4 +1,7 @@
-use colored::Colorize;
+//! # Integration tests
+//! 
+//! Various queries are tested against their compiled to Relation + decompiled counterpart.
+
 use itertools::Itertools;
 #[cfg(feature = "sqlite")]
 use qrlew::io::sqlite;
@@ -6,9 +9,9 @@ use qrlew::{
     display::Dot,
     io::{postgresql, Database},
     sql::parse,
-    Relation, With,
+    Relation, With, ast,
 };
-use sqlparser::ast;
+use colored::Colorize;
 
 pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();

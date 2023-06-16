@@ -1,4 +1,7 @@
-//! Some simpleb utilities to encode an integer to string
+//! # Encoding utilities
+//! 
+//! Some simple utilities to encode an integer to string
+//! 
 
 pub const BASE_62: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const BASE_63: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";

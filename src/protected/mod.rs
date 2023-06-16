@@ -1,3 +1,8 @@
+//! # Methods to define `Relation`s' protected entity and propagate it
+//! 
+//! This is experimental and little tested yet.
+//! 
+
 use crate::{
     builder::{self, Ready, With},
     display::Dot,
@@ -317,10 +322,10 @@ mod tests {
         io::{postgresql, Database},
         relation::Variant,
         sql::parse,
+        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
-    use sqlparser::ast;
 
     #[test]
     fn test_table_protection() {
