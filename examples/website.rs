@@ -3,7 +3,7 @@ fn rewrite() {
     use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
-    use sqlparser::ast::Query;
+    use qrlew::ast::Query;
 
     let database = postgresql::test_database();
     let relations = database.relations();
@@ -27,7 +27,7 @@ fn ranges() {
     use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
-    use sqlparser::ast::Query;
+    use qrlew::ast::Query;
 
     let database = postgresql::test_database();
     let relations = database.relations();
@@ -48,7 +48,7 @@ fn protect() {
     use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
-    use sqlparser::ast::Query;
+    use qrlew::ast::Query;
 
     let database = postgresql::test_database();
     let relations = database.relations();
@@ -88,7 +88,7 @@ fn compile() {
     use qrlew::io::{postgresql, Database};
     use qrlew::With;
     use qrlew::{sql::parse, Relation};
-    use sqlparser::ast::Query;
+    use qrlew::ast::Query;
 
     let database = postgresql::test_database();
     let relations = database.relations();

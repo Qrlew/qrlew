@@ -9,7 +9,7 @@ use crate::{
     data_type::Integer,
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
-    And,
+    And, ast,
 };
 
 // A Table builder
@@ -912,9 +912,9 @@ mod tests {
             display::Dot,
             hierarchy::Path,
             io::{postgresql, Database},
+            ast,
         };
         use itertools::Itertools;
-        use sqlparser::ast;
         let mut database = postgresql::test_database();
         let join: Relation = Relation::join()
             .left(database.relations().get(&"table_1".path()).unwrap().clone())

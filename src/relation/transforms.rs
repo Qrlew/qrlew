@@ -717,10 +717,10 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
+        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
-    use sqlparser::ast;
 
     #[test]
     fn test_with_computed_field() {

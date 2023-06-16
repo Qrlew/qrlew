@@ -322,10 +322,10 @@ mod tests {
         io::{postgresql, Database},
         relation::Variant,
         sql::parse,
+        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
-    use sqlparser::ast;
 
     #[test]
     fn test_table_protection() {

@@ -118,11 +118,10 @@ mod tests {
         io::{postgresql, Database},
         relation::Variant as _,
         sql::parse,
-        Relation,
+        Relation, ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
-    use sqlparser::ast;
 
     #[test]
     fn test_table_with_noise() {

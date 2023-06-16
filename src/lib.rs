@@ -33,10 +33,11 @@ pub mod sql;
 pub mod types;
 pub mod visitor;
 
-pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
 pub use data_type::{value::Value, DataType};
 pub use expr::Expr;
 pub use relation::Relation;
-/// Expose sqlparser as part of qrlew
-pub use sqlparser;
+/// Expose sqlparser::ast as part of qrlew
+pub use sqlparser::{ast, dialect, parser, tokenizer};
 pub use types::{And, Factor, Or, Term};
+pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
+

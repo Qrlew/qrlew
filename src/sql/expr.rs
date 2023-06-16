@@ -1,4 +1,4 @@
-//! This file provides tools for converting a sqlparser::ast::Expr
+//! This file provides tools for converting an ast::Expr
 //! into the corresponding Qrlew expression.
 //! Example: `Expr::try_from(sql_parser_expr)`
 

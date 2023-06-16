@@ -1,5 +1,7 @@
-use qrlew::sql::relation::parse;
-use sqlparser::ast::*;
+use qrlew::{
+    sql::relation::parse,
+    ast::*,
+};
 
 fn build_ast() -> Result<(), &'static str> {
     // A query

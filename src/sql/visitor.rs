@@ -1,8 +1,10 @@
 //! An Acceptor and Visitor implementation for ast::Query
 
-use crate::visitor::{self, Acceptor, Dependencies, Visited};
+use crate::{
+    visitor::{self, Acceptor, Dependencies, Visited},
+    ast,
+};
 use itertools::Itertools;
-use sqlparser::ast;
 use std::iter::Iterator;
 
 /// A type to hold queries and relations with their aliases

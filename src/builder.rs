@@ -1,7 +1,7 @@
 //! # Builder utilities
 //! 
 //! This module contains utilities to ease and standardize the writing of builders
-//! such as: [relation::builder::MapBuilder]
+//! such as: [MapBuilder](qrlew::relation::builder::MapBuilder)
 //!
 
 use std::{error, fmt, ops::Deref};
