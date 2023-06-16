@@ -1,5 +1,5 @@
 use super::DataType;
-use sqlparser::ast;
+use crate::ast;
 
 /// Based on the FromRelationVisitor implement the From trait
 impl From<DataType> for ast::DataType {
