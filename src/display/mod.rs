@@ -1,3 +1,8 @@
+//! # Methods to display representations of `Relation`s and `Expr`s
+//! 
+//! This is experimental and little tested yet.
+//! 
+
 pub mod colors;
 pub mod dot;
 

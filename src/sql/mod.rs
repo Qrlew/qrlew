@@ -1,3 +1,5 @@
+//! # SQL parsing and conversion into Relation
+//! 
 //! This module contains everything needed to parse an SQL query and build a Relation out of it
 //!
 

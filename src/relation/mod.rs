@@ -1,8 +1,7 @@
+//! # `Relation` definition and manipulation
+//! 
 //! This module defines the `Relation` struct
 //! A `Relation` is the lazy representation of a computation that can be compiled into DP
-//! It is rather close to similar lazy computation representations designed for a different purpose: https://pola-rs.github.io/polars/polars_lazy/prelude/enum.LogicalPlan.html#
-//!
-//! Nice ideas about extensibility can be taken from: https://github.com/dcreager/expression-problem-rust
 //!
 
 pub mod builder;

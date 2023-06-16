@@ -1,3 +1,8 @@
+//! # Methods to define `Relation`s' protected entity and propagate it
+//! 
+//! This is experimental and little tested yet.
+//! 
+
 use crate::{
     builder::{self, Ready, With},
     display::Dot,

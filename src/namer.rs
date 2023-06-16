@@ -1,6 +1,7 @@
-/*
- Module dedicated to naming of objects such as Qrlew expressions and relations
-*/
+//! # Naming utilities
+//! 
+//! Module dedicated to naming of objects such as Qrlew expressions and relations
+//!
 
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},

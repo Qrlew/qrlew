@@ -1,3 +1,8 @@
+//! # Methods to transform `Relation`s into differentially private ones
+//! 
+//! This is experimental and little tested yet.
+//! 
+
 use crate::data_type::DataTyped;
 use crate::{
     builder::{Ready, With, WithIterator},

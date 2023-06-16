@@ -1,4 +1,7 @@
-use colored::Colorize;
+//! # Integration tests
+//! 
+//! Various queries are tested against their compiled to Relation + decompiled counterpart.
+
 use itertools::Itertools;
 #[cfg(feature = "sqlite")]
 use qrlew::io::sqlite;

@@ -1,3 +1,5 @@
+//! # Debugging utilities
+//!
 // For debugging purpose
 thread_local! {
     pub static DEPTH: std::cell::RefCell<u32>  = std::cell::RefCell::new(0);

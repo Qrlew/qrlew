@@ -1,3 +1,9 @@
+//! # Hierarchy structure
+//! 
+//! A map with paths as keys.
+//! Suffix of paths are valid keys when non-ambiguous.
+//! 
+
 use core::fmt;
 use itertools::Itertools;
 use std::{
