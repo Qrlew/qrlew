@@ -723,17 +723,10 @@ impl Relation {
 
     ///TODO
     pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
-        // match self {
-        //     Relation::Map(map) => map.filter_field(name, data_type).into(),
-        //     relation => relation.identity_filter_field( name, data_type),
-        // }
-        self.map_fields(|n, e| {
-            if n == name {
-                if
-            } else {
-                e
-            }
-        })
+        match self {
+            Relation::Map(map) => map.filter_field(name, data_type).into(),
+            relation => relation.identity_filter_field( name, data_type),
+        }
     }
 
     ///TODO
