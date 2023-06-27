@@ -8,10 +8,12 @@ use crate::{
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
     DataType,
+    data_type::{self, intervals::{Intervals, Bound}},
+    relation::Field,
 };
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::{ops::Deref, rc::Rc};
+use std::{ops::{self, Deref}, rc::Rc};
 
 /* Reduce
  */
@@ -76,10 +78,13 @@ impl Map {
     pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Map {
         Relation::map().map_with(self, f).build()
     }
-
     /// Rename fields
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Map {
         Relation::map().rename_with(self, f).build()
+    }
+    /// Filter fields
+    pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
+        todo!()
     }
 }
 
@@ -547,9 +552,9 @@ impl Relation {
         }
     }
 
-    /// This transform multiplies the coordinates in self relation by their corresponding weights in weight_relation
-    /// weight_relation contains the coordinates weights and the vectors columns
-    /// self contains the coordinates, the base and vectors columns
+    /// This transform multiplies the coordinates in `self` relation by their corresponding weights in `weight_relation`.
+    /// `weight_relation` contains the coordinates weights and the vectors columns
+    /// `self` contains the coordinates, the base and vectors columns
     pub fn renormalize(
         self,
         weight_relation: Self,
@@ -618,9 +623,9 @@ impl Relation {
             .build()
     }
 
-    /// The `self` relation must contain the vectors, base and coordinates columns
-    /// For each coordinate, it rescale the columns by 1 / max(c, norm_l2(coordinate))
+    /// For each coordinate, rescale the columns by 1 / max(c, norm_l2(coordinate))
     /// where the l2 norm is computed for each elecment of `vectors`
+    /// The `self` relation must contain the vectors, base and coordinates columns
     pub fn clipped_sum(
         self,
         vectors: &str,
@@ -700,6 +705,72 @@ impl Relation {
             }))
             .input(self)
             .build()
+    }
+
+    ///TODO
+    pub fn identity_filter_field(self, name: &str, data_type: DataType) -> Map {
+        Relation::map()
+            .with_iter(self.schema().iter().map(|f| {
+                if f.name() == name {
+                    Field::from_name_data_type(name, data_type)
+                } else {
+                    *f
+                }
+            }))
+            .input(self)
+            .build()
+    }
+
+    ///TODO
+    pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
+        // match self {
+        //     Relation::Map(map) => map.filter_field(name, data_type).into(),
+        //     relation => relation.identity_filter_field( name, data_type),
+        // }
+        self.map_fields(|n, e| {
+            if n == name {
+                Expr::Cast()
+            } else {
+                e
+            }
+        })
+    }
+
+    ///TODO
+    pub fn filter_interval<B: Bound>(self, name: &str, min: B, max: B) -> Map
+    where DataType: From<Intervals<B>> {
+        self.filter_field(name, Intervals::from_interval(min, max).into())
+    }
+
+
+    ///TODO
+    pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Map
+    where DataType: From<Intervals<B>> {
+        self.filter_field(name, DataType::from(Intervals::from_min(min)))
+    }
+
+    ///TODO
+    pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Map
+    where DataType: From<Intervals<B>> {
+        self.filter_field(name, DataType::from(Intervals::from_max(max)))
+    }
+
+    ///TODO
+    pub fn filter_valuex<B: Bound>(self, name: &str, value: B) -> Map
+    where DataType: From<Intervals<B>> {
+        self.filter_field(name, DataType::from(Intervals::from_value(value)))
+    }
+
+    ///TODO
+    pub fn filter_values<B: Bound, A: AsRef<[B]>>(self, name: &str, values: A) -> Map
+    where DataType: From<Intervals<B>> {
+        self.filter_field(name, DataType::from(Intervals::from_values(values)))
+    }
+
+    ///TODO
+    pub fn filter_range<B: Bound, R: ops::RangeBounds<B>>(self, name: &str, range: R) -> Map
+    where DataType: From<Intervals<B>> {
+        self.filter_field(name, DataType::from(Intervals::from_range(range)))
     }
 }
 

@@ -1,9 +1,9 @@
 //! # `Expr` definition and manipulation
-//! 
+//!
 //! `Expr` combine values and columns with functions and aggregations.
-//! 
+//!
 //! `Expr` propagate data types and ranges.
-//! 
+//!
 #[macro_use]
 pub mod dsl;
 pub mod aggregate;
