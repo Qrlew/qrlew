@@ -729,7 +729,7 @@ impl Relation {
         // }
         self.map_fields(|n, e| {
             if n == name {
-                Expr::Cast()
+                if
             } else {
                 e
             }
