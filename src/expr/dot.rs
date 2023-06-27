@@ -5,7 +5,7 @@ use std::{fmt, fs::File, io, process::Command, string};
 use super::{aggregate, function, Column, Error, Expr, Value, Visitor};
 use crate::{
     builder::{WithContext, WithoutContext},
-    data_type::{DataType, DataTyped},
+    data_type::{DataType, DataTyped, injection::{self, Injection}},
     display::{self, colors},
     namer,
     visitor::Acceptor,
@@ -51,6 +51,10 @@ impl<'a> Visitor<'a, DataType> for DotVisitor<'a> {
             .collect();
         DataType::structured(fields)
     }
+
+    fn cast(&self, expr:DataType, data_type: &'a DataType) -> DataType {
+        data_type.clone()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -79,6 +83,13 @@ impl<'a> Visitor<'a, Value> for DotValueVisitor<'a> {
             .map(|(i, v)| (i.split_last().unwrap().0, v))
             .collect();
         Value::structured(fields)
+    }
+
+    fn cast(&self, expr:Value, data_type: &'a DataType) -> Value {
+        let inj = injection::From(
+            DataType::from(expr.clone())
+        ).into(data_type.clone()).unwrap();
+        inj.value(&expr).unwrap()
     }
 }
 
@@ -122,6 +133,11 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 dot::escape_html(&s.to_string()),
                 &node.1
             ),
+            Expr::Cast(c) => format!(
+                "<b>{}</b><br/>{}",
+                dot::escape_html(&c.to_string()),
+                &node.1
+            )
         })
     }
 
@@ -132,6 +148,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Expr::Function(_) => colors::LIGHT_GREEN,
             Expr::Aggregate(_) => colors::DARK_GREEN,
             Expr::Struct(_) => colors::LIGHTER_GREEN,
+            Expr::Cast(_) => colors::DARK_RED,
         }))
     }
 }
@@ -162,6 +179,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
                     .iter()
                     .map(|(_i, e)| Edge(expr, e, t.clone()))
                     .collect(),
+                Expr::Cast(c) => vec![Edge(expr, &c.expr, t)],
             })
             .collect()
     }
@@ -445,5 +463,32 @@ mod tests {
             .with(data_types)
             .display_dot()
             .unwrap();
+    }
+
+    #[test]
+    fn test_expr_cast() {
+        let rel: Rc<Relation> = Rc::new(
+            Relation::table()
+                .schema(
+                    Schema::builder()
+                        .with(("a", DataType::integer_range(1..=10)))
+                        .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                        .with(("c", DataType::float_range(0.0..=5.0)))
+                        .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
+                        .with(("x", DataType::float_range(0.0..=2.0)))
+                        .with(("y", DataType::float_range(0.0..=5.0)))
+                        .with(("z", DataType::float_range(9.0..=11.)))
+                        .with(("t", DataType::float_range(0.9..=1.1)))
+                        .build(),
+                )
+                .build(),
+        );
+
+        Expr::structured([
+            ("a", Rc::new(Expr::cast(Expr::col("a"), DataType::float()))),
+        ])
+        .with(rel.data_type())
+        .display_dot()
+        .unwrap();
     }
 }

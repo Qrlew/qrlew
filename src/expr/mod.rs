@@ -1,9 +1,9 @@
 //! # `Expr` definition and manipulation
-//! 
+//!
 //! `Expr` combine values and columns with functions and aggregations.
-//! 
+//!
 //! `Expr` propagate data types and ranges.
-//! 
+//!
 #[macro_use]
 pub mod dsl;
 pub mod aggregate;
@@ -27,7 +27,7 @@ use std::{
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped},
+    data_type::{self, value, DataType, DataTyped, injection::{self, Injection}},
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
@@ -412,6 +412,30 @@ impl<S: Into<Identifier>, E: Into<Rc<Expr>>> FromIterator<(S, E)> for Struct {
 
 impl Variant for Struct {}
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct Cast {
+    expr: Rc<Expr>,
+    data_type: DataType,
+}
+
+impl Cast {
+    /// Basic constructor
+    pub fn new(expr: Expr, data_type: DataType) -> Cast {
+        Cast {
+            expr: Rc::new(expr),
+            data_type,
+        }
+    }
+}
+
+impl fmt::Display for Cast {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CAST({} AS {})",self.expr, self.data_type)
+    }
+}
+
+impl Variant for Cast {}
+
 /// A Expr enum
 /// inspired by: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.Expr.html
 /// and mostly: https://docs.rs/polars/latest/polars/prelude/enum.Expr.html
@@ -424,6 +448,7 @@ pub enum Expr {
     Function(Function),
     Aggregate(Aggregate),
     Struct(Struct),
+    Cast(Cast),
 }
 
 /// Basic constructors
@@ -452,6 +477,11 @@ impl Expr {
                 .collect(),
         )
     }
+
+    pub fn cast<E: Clone + Into<Expr>, D: Into<DataType>>(expr: E, data_type: D) -> Expr {
+        Expr::Cast(Cast::new(expr.into(), data_type.into()))
+    }
+
 
     // pub fn all<E: Clone+Into<Expr>, F: AsRef<[E]>>(
     //     factors: F,
@@ -510,7 +540,7 @@ macro_rules! impl_traits {
     }
 }
 
-impl_traits!(Column, Value, Function, Aggregate, Struct);
+impl_traits!(Column, Value, Function, Aggregate, Struct, Cast);
 
 impl Variant for Expr {}
 
@@ -604,6 +634,7 @@ impl<'a> Acceptor<'a> for Expr {
             Expr::Function(f) => f.arguments.iter().map(|e| &**e).collect(),
             Expr::Aggregate(a) => visitor::Dependencies::from([&(*a.argument)]),
             Expr::Struct(s) => s.fields.iter().map(|(_, e)| &**e).collect(),
+            Expr::Cast(c) => visitor::Dependencies::from([&(*c.expr)]),
         }
     }
 }
@@ -626,6 +657,7 @@ pub trait Visitor<'a, T: Clone> {
     fn function(&self, function: &'a function::Function, arguments: Vec<T>) -> T;
     fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: T) -> T;
     fn structured(&self, fields: Vec<(Identifier, T)>) -> T;
+    fn cast(&self, expr:T, data_type: &'a DataType) -> T;
 }
 
 /// Implement a specific visitor to dispatch the dependencies more easily
@@ -650,6 +682,10 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Expr, T> for V {
                     .map(|(i, e)| (i.clone(), dependencies.get(&**e).clone()))
                     .collect(),
             ),
+            Expr::Cast(c) => self.cast(
+                dependencies.get(&c.expr).clone(),
+                &c.data_type
+            )
         }
     }
 }
@@ -695,6 +731,10 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
             fields.iter().map(|(i, e)| format!("{i}: {e}")).join(", ")
         )
     }
+
+    fn cast(&self, expr: String, data_type: &'a DataType) -> String {
+        format!("CAST({} AS {})", expr, data_type)
+    }
 }
 
 // Implement the data_type::function::Function trait with visitors
@@ -727,6 +767,11 @@ impl<'a> Visitor<'a, DataType> for DomainVisitor {
     fn structured(&self, fields: Vec<(Identifier, DataType)>) -> DataType {
         DataType::product(fields.into_iter().map(|(_, data_type)| data_type))
     }
+
+    fn cast(&self, expr: DataType, data_type: &DataType) -> DataType {
+        expr
+    }
+
 }
 
 /// A visitor to compute the super_image
@@ -766,6 +811,10 @@ impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
             .collect();
         Ok(DataType::structured(fields?))
     }
+
+    fn cast(&self, expr: Result<DataType>, data_type: &DataType) -> Result<DataType> {
+        Ok(data_type.clone())
+    }
 }
 
 /// A visitor to compute the value
@@ -804,6 +853,13 @@ impl<'a> Visitor<'a, Result<Value>> for ValueVisitor<'a> {
             .map(|(ident, value)| Ok((ident.split_last()?.0, value?)))
             .collect();
         Ok(value::Value::structured(fields?))
+    }
+
+    fn cast(&self, expr: Result<Value>, data_type: &DataType) -> Result<Value> {
+        let inj = injection::From(
+            DataType::from(expr.clone()?)
+        ).into(data_type.clone()).unwrap(); // TODO: add ?
+        Ok(inj.value(&expr?).unwrap())
     }
 }
 
@@ -864,6 +920,10 @@ impl<'a> Visitor<'a, Vec<&'a Column>> for ColumnsVisitor {
             .unique()
             .collect()
     }
+
+    fn cast(&self, expr: Vec<&'a Column>, data_type: &DataType) -> Vec<&'a Column> {
+        expr
+    }
 }
 
 impl Expr {
@@ -896,6 +956,10 @@ impl<'a> Visitor<'a, bool> for HasColumnVisitor {
 
     fn structured(&self, fields: Vec<(Identifier, bool)>) -> bool {
         fields.into_iter().any(|(_, value)| value)
+    }
+
+    fn cast(&self, expr: bool, data_type: &DataType) -> bool {
+        expr
     }
 }
 
@@ -934,6 +998,10 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
         let fields: Vec<(Identifier, Rc<Expr>)> =
             fields.into_iter().map(|(i, e)| (i, Rc::new(e))).collect();
         Expr::Struct(Struct::from_iter(fields))
+    }
+
+    fn cast(&self, expr: Expr, data_type: &DataType) -> Expr {
+        Expr::Cast(Cast::new(expr, data_type.clone()))
     }
 }
 
@@ -1292,6 +1360,20 @@ mod tests {
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    fn test_expr_cast() {
+        let x = Expr::cast(Expr::col("a"), DataType::float());
+        println!("expr = {x}");
+        assert_eq!(
+            x.super_image(
+                &(DataType::unit() & ("a", DataType::integer()))
+            )
+            .unwrap(),
+            DataType::float()
+        );
+        println!("{}", x.value(&Value::structured([("a", Value::integer(1)),])).unwrap())
     }
 
     #[test]

@@ -3,6 +3,7 @@ use crate::{
     expr::{self, Expr},
     visitor::Acceptor,
     ast,
+    data_type::DataType,
 };
 use std::iter::Iterator;
 
@@ -306,6 +307,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
     }
 
     fn structured(&self, _fields: Vec<(expr::identifier::Identifier, ast::Expr)>) -> ast::Expr {
+        todo!()
+    }
+
+    fn cast(&self, expr:ast::Expr , data_type: &'a DataType) -> ast::Expr {
         todo!()
     }
 }

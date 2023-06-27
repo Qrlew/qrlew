@@ -7,6 +7,7 @@ use super::{
 use crate::{
     namer::{self, FIELD},
     And, Factor,
+    data_type::DataType,
 };
 use colored::Colorize;
 use itertools::Itertools;
@@ -758,6 +759,10 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
             reduce.map(|r| *r),
         )
         .into()
+    }
+
+    fn cast(&self, expr: Split, data_type: &'a DataType) -> Split {
+        todo!()
     }
 }
 
