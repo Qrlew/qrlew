@@ -52,7 +52,7 @@ impl<'a> Visitor<'a, DataType> for DotVisitor<'a> {
         DataType::structured(fields)
     }
 
-    fn cast(&self, expr:DataType, data_type: &'a DataType) -> DataType {
+    fn cast(&self, _expr:DataType, data_type: &'a DataType) -> DataType {
         data_type.clone()
     }
 }
@@ -472,20 +472,14 @@ mod tests {
                 .schema(
                     Schema::builder()
                         .with(("a", DataType::integer_range(1..=10)))
-                        .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
-                        .with(("c", DataType::float_range(0.0..=5.0)))
-                        .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
-                        .with(("x", DataType::float_range(0.0..=2.0)))
-                        .with(("y", DataType::float_range(0.0..=5.0)))
-                        .with(("z", DataType::float_range(9.0..=11.)))
-                        .with(("t", DataType::float_range(0.9..=1.1)))
                         .build(),
                 )
                 .build(),
         );
 
         Expr::structured([
-            ("a", Rc::new(Expr::cast(Expr::col("a"), DataType::float()))),
+            ("1", Rc::new(Expr::cast(Expr::col("a"), DataType::float()))),
+            ("2", Rc::new(Expr::cast(Expr::col("a"), DataType::float_range(0.0..=5.0)))),
         ])
         .with(rel.data_type())
         .display_dot()

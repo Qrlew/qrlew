@@ -97,6 +97,12 @@ impl From<Error> for data_type::function::Error {
     }
 }
 
+impl From<data_type::injection::Error> for Error {
+    fn from(err: data_type::injection::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
 pub type Result<T> = result::Result<T, Error>;
 
 /// Each expression variant must comply with this trait
@@ -812,7 +818,7 @@ impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
         Ok(DataType::structured(fields?))
     }
 
-    fn cast(&self, expr: Result<DataType>, data_type: &DataType) -> Result<DataType> {
+    fn cast(&self, _expr: Result<DataType>, data_type: &DataType) -> Result<DataType> {
         Ok(data_type.clone())
     }
 }
@@ -858,8 +864,8 @@ impl<'a> Visitor<'a, Result<Value>> for ValueVisitor<'a> {
     fn cast(&self, expr: Result<Value>, data_type: &DataType) -> Result<Value> {
         let inj = injection::From(
             DataType::from(expr.clone()?)
-        ).into(data_type.clone()).unwrap(); // TODO: add ?
-        Ok(inj.value(&expr?).unwrap())
+        ).into(data_type.clone())?;
+        Ok(inj.value(&expr?)?)
     }
 }
 
@@ -921,7 +927,7 @@ impl<'a> Visitor<'a, Vec<&'a Column>> for ColumnsVisitor {
             .collect()
     }
 
-    fn cast(&self, expr: Vec<&'a Column>, data_type: &DataType) -> Vec<&'a Column> {
+    fn cast(&self, expr: Vec<&'a Column>, _data_type: &DataType) -> Vec<&'a Column> {
         expr
     }
 }
@@ -958,7 +964,7 @@ impl<'a> Visitor<'a, bool> for HasColumnVisitor {
         fields.into_iter().any(|(_, value)| value)
     }
 
-    fn cast(&self, expr: bool, data_type: &DataType) -> bool {
+    fn cast(&self, expr: bool, _data_type: &DataType) -> bool {
         expr
     }
 }
@@ -1364,16 +1370,34 @@ mod tests {
 
     #[test]
     fn test_expr_cast() {
-        let x = Expr::cast(Expr::col("a"), DataType::float());
-        println!("expr = {x}");
+        // integer() => float()
+        let x = Expr::cast(Expr::col("a"), DataType::float_range(0.0..=5.0));
         assert_eq!(
             x.super_image(
                 &(DataType::unit() & ("a", DataType::integer()))
             )
             .unwrap(),
-            DataType::float()
+            DataType::float_range(0.0..=5.0)
         );
-        println!("{}", x.value(&Value::structured([("a", Value::integer(1)),])).unwrap())
+        assert_eq!(
+            x.value(&Value::structured([("a", Value::integer(1)),])).unwrap(),
+            Value::float(1.)
+        );
+
+        // float() => float(0.0..=5.0)
+        let x = Expr::cast(Expr::col("a"), DataType::float_range(0.0..=5.0));
+        assert_eq!(
+            x.super_image(
+                &(DataType::unit() & ("a", DataType::float()))
+            )
+            .unwrap(),
+            DataType::float_range(0.0..=5.0)
+        );
+        assert_eq!(
+            x.value(&Value::structured([("a", Value::float(1.)),])).unwrap(),
+            Value::float(1.)
+        );
+        assert!(x.value(&Value::structured([("a", Value::float(10.)),])).is_err());
     }
 
     #[test]
