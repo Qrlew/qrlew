@@ -28,6 +28,7 @@ pub mod hierarchy;
 pub mod io;
 pub mod namer;
 pub mod protected;
+pub mod multiplicity;
 pub mod relation;
 pub mod sql;
 pub mod types;

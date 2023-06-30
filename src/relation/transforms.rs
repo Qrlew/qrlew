@@ -701,6 +701,11 @@ impl Relation {
             .input(self)
             .build()
     }
+
+    /// Poisson sampling of the Tables
+    pub fn sample_tables(self) -> Relation {
+        todo!()
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
