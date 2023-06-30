@@ -85,7 +85,7 @@ impl Field {
         match predicate {
             Expr::Function(fun) => Self::new(
                 self.name().into(),
-                fun.filter_column_data_type(Column::from_name(self.name()), self.data_type()),
+                fun.filter_column_data_type(&Column::from_name(self.name()), &self.data_type()),
                 self.constraint
             ),
             _ => self.clone(),
