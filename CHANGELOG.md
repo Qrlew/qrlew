@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
+- `filter` by `Expr` in `Schema` and `Field`
 - filter in Relation builder
 
 ### Added
