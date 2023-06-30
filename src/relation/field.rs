@@ -81,7 +81,7 @@ impl Field {
     ///
     /// Note: For the moment, we support only filtering by `Expr::Function`.
     /// In the other case, the return a clone of the current `Field`.
-    pub fn filter(&self, predicate:& Expr) -> Self {
+    pub fn filter(&self, predicate: &Expr) -> Self {
         match predicate {
             Expr::Function(fun) => Self::new(
                 self.name().into(),
