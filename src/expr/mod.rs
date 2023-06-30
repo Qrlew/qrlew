@@ -1,9 +1,9 @@
 //! # `Expr` definition and manipulation
-//! 
+//!
 //! `Expr` combine values and columns with functions and aggregations.
-//! 
+//!
 //! `Expr` propagate data types and ranges.
-//! 
+//!
 #[macro_use]
 pub mod dsl;
 pub mod aggregate;
@@ -27,7 +27,7 @@ use std::{
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped},
+    data_type::{self, value, DataType, DataTyped, Variant as _},
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
@@ -130,6 +130,77 @@ impl Function {
         Function {
             function,
             arguments,
+        }
+    }
+
+    /// Returns the `DataType` of a column filterd by the current `Function`
+    ///
+    /// # Arguments:
+    /// * `column` - The `Column` to be filtered
+    /// * `datatype` - The `DataType` of `column`
+    ///
+    /// For example, we consider the `Column` `my_col` with `datatype = float[0 10]`.
+    ///     -  `self = gt(my_col, 5)` returns `DataType` `float[5 10]`,
+    ///     -  `self = gt(my_col, -5)` returns `DataType` `float[0 10]`,
+    ///     -  `self = gt(another_col, 5)` returns `DataType` `float[0 10]`
+    ///
+    /// Note: for the moment, we support only `Function` made of the composition of:
+    /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
+    /// - `Eq` function comparing a column to any value,
+    /// - `And` function between two supported Expr::Function.
+    pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
+        let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
+        match (self.function, args.as_slice()) {
+            // And
+            (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => {
+                left.filter_column_data_type(
+                    column,
+                    datatype
+                ).super_intersection(
+                    &right.filter_column_data_type(
+                        column,
+                        datatype
+                    )
+                ).unwrap_or(datatype.clone())
+            },
+            // Float, set min
+            (function::Function::Gt, [Expr::Column(col), Expr::Value(Value::Float(f))])
+            | (function::Function::GtEq, [Expr::Column(col), Expr::Value(Value::Float(f))])
+            | (function::Function::Lt, [Expr::Value(Value::Float(f)), Expr::Column(col)])
+            | (function::Function::LtEq, [Expr::Value(Value::Float(f)), Expr::Column(col)])
+            if col == column => {
+                DataType::float_min(**f).super_intersection(&datatype).unwrap_or(datatype.clone())
+            },
+            // Float, set max
+            (function::Function::Lt, [Expr::Column(col), Expr::Value(Value::Float(f))])
+            | (function::Function::LtEq, [Expr::Column(col), Expr::Value(Value::Float(f))])
+            | (function::Function::Gt, [Expr::Value(Value::Float(f)), Expr::Column(col)])
+            | (function::Function::GtEq, [Expr::Value(Value::Float(f)), Expr::Column(col)])
+            if col == column => {
+                DataType::float_max(**f).super_intersection(&datatype).unwrap_or(datatype.clone())
+            },
+            // Integer, set min
+            (function::Function::Gt, [Expr::Column(col), Expr::Value(Value::Integer(i))])
+            | (function::Function::GtEq, [Expr::Column(col), Expr::Value(Value::Integer(i))])
+            | (function::Function::Lt, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
+            | (function::Function::LtEq, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
+            if col == column => {
+                DataType::integer_min(**i).super_intersection(&datatype).unwrap_or(datatype.clone())
+            },
+            // Integer, set max
+            (function::Function::Lt, [Expr::Column(col), Expr::Value(Value::Integer(i))])
+            | (function::Function::LtEq, [Expr::Column(col), Expr::Value(Value::Integer(i))])
+            | (function::Function::Gt, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
+            | (function::Function::GtEq, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
+            if col == column => {
+                DataType::integer_max(**i).super_intersection(&datatype).unwrap_or(datatype.clone())
+            },
+            // Eq
+            (function::Function::Eq, [Expr::Column(col), Expr::Value(val)])
+            if col == column => {
+                DataType::from(val.clone()).super_intersection(&datatype).unwrap_or(datatype.clone())
+            },
+            _ => datatype.clone(),
         }
     }
 }
@@ -1540,6 +1611,200 @@ mod tests {
                     ("y", Value::float(0.5432)),
                 ]))
                 .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_cmp() {
+        let dict = DataType::unit()
+            & ("a", DataType::float_interval(-5., 2.))
+            & ("1", DataType::float_interval(-1., 2.));
+        let left = Expr::col("a");
+        let right = Expr::val(0);
+        // gt
+        let ex = Expr::gt(left.clone(), right.clone());
+        println!("{}", ex);
+        // assert_eq!(
+        //     sum.super_image(&dict).unwrap(),
+        //     DataType::float_interval(-6., 4.)
+        // );
+    }
+
+    #[test]
+    fn test_filter_column_data_type_float() {
+        // set min value
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let value = Expr::val(5.);
+
+        let func = Function::gt(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_min(5.)
+        );
+
+        let func = Function::gt_eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_min(5.)
+        );
+
+        let func = Function::lt(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_min(5.)
+        );
+
+        let func = Function::lt_eq(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_min(5.)
+        );
+
+        // columns do not match
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let func = Function::gt(Expr::col("NotMyCol"), Expr::val(5.));
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float()
+        );
+
+        // set max value
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let value = Expr::val(5.);
+
+        let func = Function::lt(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_max(5.)
+        );
+
+        let func = Function::lt_eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_max(5.)
+        );
+
+        let func = Function::gt(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_max(5.)
+        );
+
+        let func = Function::gt_eq(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_max(5.)
+        );
+
+        // eq
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let value = Expr::val(5.);
+
+        let func = Function::eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_value(5.)
+        );
+    }
+
+    #[test]
+    fn test_filter_column_data_type_integer() {
+        // set min value
+        let col = Column::from("MyCol");
+        let datatype = DataType::integer_interval(0, 10);
+        let value = Expr::val(5);
+
+        let func = Function::gt(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_interval(5, 10)
+        );
+
+        let func = Function::gt_eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_interval(5, 10)
+        );
+
+        let func = Function::lt(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_interval(5, 10)
+        );
+
+        let func = Function::lt_eq(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_interval(5, 10)
+        );
+
+        // columns do not match
+        let col = Column::from("MyCol");
+        let datatype = DataType::integer();
+        let func = Function::gt(Expr::col("NotMyCol"), Expr::val(5));
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            datatype.clone()
+        );
+
+        // set max value
+        let col = Column::from("MyCol");
+        let datatype: DataType = DataType::integer();
+        let value = Expr::val(5);
+
+        let func = Function::lt(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_max(5)
+        );
+
+        let func = Function::lt_eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_max(5)
+        );
+
+        let func = Function::gt(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_max(5)
+        );
+
+        let func = Function::gt_eq(value.clone(), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_max(5)
+        );
+
+        // eq
+        let col = Column::from("MyCol");
+        let datatype = DataType::integer();
+        let value = Expr::val(5);
+
+        let func = Function::eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_value(5)
+        );
+    }
+
+    #[test]
+    fn test_filter_column_data_type_and() {
+        // set min value
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+
+        let func = Function::and(
+            Function::gt(col.clone(), Expr::val(5.)),
+            Function::lt(col.clone(), Expr::val(7.)),
+        );
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_interval(5., 7.)
         );
     }
 }
