@@ -153,11 +153,11 @@ impl Function {
         match (self.function, args.as_slice()) {
             // And
             (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => {
-                left.clone().filter_column_data_type(
+                left.filter_column_data_type(
                     column,
                     datatype
                 ).super_intersection(
-                    &right.clone().filter_column_data_type(
+                    &right.filter_column_data_type(
                         column,
                         datatype
                     )
