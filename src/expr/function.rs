@@ -180,6 +180,7 @@ impl Function {
         };
         Ok(implementation::function(self).value(&arg)?)
     }
+
 }
 
 impl fmt::Display for Function {
