@@ -148,8 +148,8 @@ impl Function {
     /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
     /// - `Eq` function comparing a column to any value,
     /// - `And` function between two supported Expr::Function.
-    pub fn filter_column_data_type(self, column: Column, datatype: DataType) -> DataType {
-        let args: Vec<Expr> = self.arguments.into_iter().map(|x| x.as_ref().clone()).collect();
+    pub fn filter_column_data_type(&self, column: Column, datatype: DataType) -> DataType {
+        let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
         match (self.function, args.as_slice()) {
             // And
             (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => {

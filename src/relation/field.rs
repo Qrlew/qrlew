@@ -81,7 +81,7 @@ impl Field {
     ///
     /// Note: For the moment, we support only filtering by `Expr::Function`.
     /// In the other case, the return a clone of the current `Field`.
-    pub fn filter(&self, predicate: Expr) -> Self {
+    pub fn filter(&self, predicate:& Expr) -> Self {
         match predicate {
             Expr::Function(fun) => Self::new(
                 self.name().into(),
@@ -153,8 +153,8 @@ mod tests {
     fn test_filter() {
         let field = Field::new("a".into(), DataType::float_range(0.0..=10.0), None);
         let expression = expr!(and(and(and(gt(a,5.), gt(a,3.)), lt_eq(a,9.)), lt_eq(a,90.)));
-        assert_eq!(field.filter(expression).data_type(), DataType::float_range(5.0..=9.0));
+        assert_eq!(field.filter(&expression).data_type(), DataType::float_range(5.0..=9.0));
         let expression = expr!(and(and(and(gt(b,5.), gt(b,3.)), lt_eq(a,9.)), lt_eq(b,90.)));
-        assert_eq!(field.filter(expression).data_type(), DataType::float_range(0.0..=9.0))
+        assert_eq!(field.filter(&expression).data_type(), DataType::float_range(0.0..=9.0))
     }
 }
