@@ -1,8 +1,8 @@
 //! An Acceptor and Visitor implementation for ast::Query
 
 use crate::{
-    visitor::{self, Acceptor, Dependencies, Visited},
     ast,
+    visitor::{self, Acceptor, Dependencies, Visited},
 };
 use itertools::Itertools;
 use std::iter::Iterator;

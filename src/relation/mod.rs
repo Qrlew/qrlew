@@ -1,5 +1,5 @@
 //! # `Relation` definition and manipulation
-//! 
+//!
 //! This module defines the `Relation` struct
 //! A `Relation` is the lazy representation of a computation that can be compiled into DP
 //!

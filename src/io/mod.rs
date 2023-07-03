@@ -1,9 +1,9 @@
 //! # Utilities to run tests on real data
-//! 
+//!
 //! For now supports:
 //! - Pstgresql
 //! - SQLite using the ["sqlite"] feature.
-//! 
+//!
 
 pub mod postgresql;
 #[cfg(feature = "sqlite")]

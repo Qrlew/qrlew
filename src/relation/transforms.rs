@@ -706,14 +706,22 @@ impl Relation {
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
     pub fn poisson_sampling(self, proba: f64) -> Relation {
         //make sure proba is between 0 and 1.
-        let proba = if proba >= 1.0 { 1.0 } else if proba <= 0.0 { 0.0 } else { proba };
+        let proba = if proba >= 1.0 {
+            1.0
+        } else if proba <= 0.0 {
+            0.0
+        } else {
+            proba
+        };
         let sampled_relation: Relation = Relation::map()
-        .with_iter(self.schema().iter().map(|f| {
-                (f.name(), Expr::col(f.name()))
-        }))
-        .filter(Expr::lt(Expr::random(0), Expr::val(proba)))
-        .input(self)
-        .build();
+            .with_iter(
+                self.schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(Expr::random(0), Expr::val(proba)))
+            .input(self)
+            .build();
         sampled_relation
     }
 }
@@ -728,11 +736,11 @@ impl With<(&str, Expr)> for Relation {
 mod tests {
     use super::*;
     use crate::{
+        ast,
         data_type::value::List,
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
-        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -1346,7 +1354,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
- 
+
         let reduce: Relation = Relation::reduce()
             .input(table.clone())
             .with(("sum_price", Expr::sum(Expr::col("price"))))
@@ -1358,7 +1366,7 @@ mod tests {
             .with(Expr::abs(Expr::col("order_id")))
             .input(table.clone())
             .build();
-        
+
         let join: Relation = Relation::join()
             .left(relations.get(&["order_table".into()]).unwrap().clone())
             .right(table.clone())
@@ -1367,37 +1375,50 @@ mod tests {
 
         let sampled_table = table.clone().poisson_sampling(proba);
         let expected_sampled_table: Relation = Relation::map()
-            .with_iter(table.clone().schema().iter().map(|f| {
-                    (f.name(), Expr::col(f.name()))
-            }))
+            .with_iter(
+                table
+                    .clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
             .filter(Expr::lt(Expr::random(0 as usize), Expr::val(proba)))
             .input(table.clone())
             .build();
 
-
         let sampled_reduce = reduce.clone().poisson_sampling(proba);
         let expected_sampled_reduce: Relation = Relation::map()
-            .with_iter(reduce.clone().schema().iter().map(|f| {
-                    (f.name(), Expr::col(f.name()))
-            }))
+            .with_iter(
+                reduce
+                    .clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
             .filter(Expr::lt(Expr::random(0), Expr::val(proba)))
             .input(reduce.clone())
             .build();
 
         let sampled_map: Relation = map.clone().poisson_sampling(proba);
         let expected_sampled_map: Relation = Relation::map()
-            .with_iter(map.clone().schema().iter().map(|f| {
-                    (f.name(), Expr::col(f.name()))
-            }))
+            .with_iter(
+                map.clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
             .filter(Expr::lt(Expr::random(0), Expr::val(proba)))
             .input(map.clone())
             .build();
 
         let sampled_join: Relation = join.clone().poisson_sampling(proba);
         let expected_sampled_join: Relation = Relation::map()
-            .with_iter(join.clone().schema().iter().map(|f| {
-                    (f.name(), Expr::col(f.name()))
-            }))
+            .with_iter(
+                join.clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
             .filter(Expr::lt(Expr::random(0), Expr::val(proba)))
             .input(join.clone())
             .build();
@@ -1406,7 +1427,7 @@ mod tests {
         sampled_reduce.display_dot().unwrap();
         sampled_map.display_dot().unwrap();
         sampled_join.display_dot().unwrap();
-        
+
         assert_eq!(expected_sampled_table, sampled_table);
         assert_eq!(expected_sampled_reduce, sampled_reduce);
         assert_eq!(expected_sampled_map, sampled_map);
@@ -1414,7 +1435,7 @@ mod tests {
 
         let sampled_map: Relation = map.clone().poisson_sampling(10.1);
         let filter: Option<Expr> = match sampled_map {
-            Relation::Map(Map{filter, ..}) => filter.clone(),
+            Relation::Map(Map { filter, .. }) => filter.clone(),
             Relation::Table(_) => None,
             Relation::Reduce(_) => None,
             Relation::Join(_) => None,
@@ -1427,7 +1448,7 @@ mod tests {
 
         let sampled_map: Relation = map.clone().poisson_sampling(-10.1);
         let filter: Option<Expr> = match sampled_map {
-            Relation::Map(Map{filter, ..}) => filter.clone(),
+            Relation::Map(Map { filter, .. }) => filter.clone(),
             Relation::Table(_) => None,
             Relation::Reduce(_) => None,
             Relation::Join(_) => None,

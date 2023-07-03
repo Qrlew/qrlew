@@ -9,7 +9,7 @@ use super::{field::Field, Error, Result};
 use crate::{
     builder::{Ready, With},
     data_type::{DataType, DataTyped},
-    expr::{Expr, identifier::Identifier},
+    expr::{identifier::Identifier, Expr},
 };
 
 /// A struct holding Fields as in https://github.com/apache/arrow-datafusion/blob/5b23180cf75ea7155d7c35a40f224ce4d5ad7fb8/datafusion/src/logical_plan/dfschema.rs#L36
@@ -376,7 +376,7 @@ mod tests {
             .with(("c", DataType::text()))
             .with(("d", DataType::float()))
             .build();
-        let expression = expr!(and(and(and(gt(a,5), gt(b,3)), lt_eq(b,9)), lt_eq(a,90)));
+        let expression = expr!(and(and(and(gt(a, 5), gt(b, 3)), lt_eq(b, 9)), lt_eq(a, 90)));
         assert_eq!(schema.filter(&expression), filtered_schema);
 
         let schema = Schema::builder()
@@ -386,8 +386,8 @@ mod tests {
             .with(("d", DataType::float()))
             .build();
         let filtered_schema = Schema::builder()
-        .with(("a", DataType::integer_max(20)))
-        .with(("b", DataType::integer_max(100)))
+            .with(("a", DataType::integer_max(20)))
+            .with(("b", DataType::integer_max(100)))
             .with(("c", DataType::text_value("a".to_string())))
             .with(("d", DataType::float()))
             .build();

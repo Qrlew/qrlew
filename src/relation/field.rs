@@ -2,8 +2,8 @@ use std::fmt;
 
 use crate::{
     data_type::{DataType, DataTyped},
+    expr::{Column, Expr},
     namer,
-    expr::{Expr, Column},
 };
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -86,7 +86,7 @@ impl Field {
             Expr::Function(fun) => Self::new(
                 self.name().into(),
                 fun.filter_column_data_type(&Column::from_name(self.name()), &self.data_type()),
-                self.constraint
+                self.constraint,
             ),
             _ => self.clone(),
         }
@@ -152,9 +152,21 @@ mod tests {
     #[test]
     fn test_filter() {
         let field = Field::new("a".into(), DataType::float_range(0.0..=10.0), None);
-        let expression = expr!(and(and(and(gt(a,5.), gt(a,3.)), lt_eq(a,9.)), lt_eq(a,90.)));
-        assert_eq!(field.filter(&expression).data_type(), DataType::float_range(5.0..=9.0));
-        let expression = expr!(and(and(and(gt(b,5.), gt(b,3.)), lt_eq(a,9.)), lt_eq(b,90.)));
-        assert_eq!(field.filter(&expression).data_type(), DataType::float_range(0.0..=9.0))
+        let expression = expr!(and(
+            and(and(gt(a, 5.), gt(a, 3.)), lt_eq(a, 9.)),
+            lt_eq(a, 90.)
+        ));
+        assert_eq!(
+            field.filter(&expression).data_type(),
+            DataType::float_range(5.0..=9.0)
+        );
+        let expression = expr!(and(
+            and(and(gt(b, 5.), gt(b, 3.)), lt_eq(a, 9.)),
+            lt_eq(b, 90.)
+        ));
+        assert_eq!(
+            field.filter(&expression).data_type(),
+            DataType::float_range(0.0..=9.0)
+        )
     }
 }
