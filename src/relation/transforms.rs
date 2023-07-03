@@ -3,6 +3,7 @@
 
 use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
 use crate::display::Dot;
+use crate::namer;
 use crate::{
     builder::{Ready, With, WithIterator},
     expr::{aggregate, Aggregate, Expr, Value},
@@ -701,6 +702,20 @@ impl Relation {
             .input(self)
             .build()
     }
+
+    /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
+    pub fn poisson_sampling(self, proba: f64) -> Relation {
+        //make sure proba is between 0 and 1.
+        let proba = if proba >= 1.0 { 1.0 } else if proba <= 0.0 { 0.0 } else { proba };
+        let sampled_relation: Relation = Relation::map()
+        .with_iter(self.schema().iter().map(|f| {
+                (f.name(), Expr::col(f.name()))
+        }))
+        .filter(Expr::lt(Expr::random(namer::new_id("RANDOM_COL")), Expr::val(proba)))
+        .input(self)
+        .build();
+        sampled_relation
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -1317,5 +1332,38 @@ mod tests {
             }
         });
         renamed_relation.display_dot();
+    }
+
+    #[test]
+    fn test_possion_sampling() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
+        let reduce: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(("sum_price", Expr::sum(Expr::col("price"))))
+            .with_group_by_column("item")
+            .with_group_by_column("order_id")
+            .build();
+
+        let map: Relation = Relation::map()
+            .with(Expr::cos(Expr::col("order_id")))
+            .input(table.clone())
+            .build();
+
+        let sampled_table = table.poisson_sampling(0.5);
+        let sampled_reduce = reduce.poisson_sampling(0.5);
+        let sampled_map: Relation = map.poisson_sampling(0.5);
+
+        sampled_table.display_dot().unwrap();
+        sampled_reduce.display_dot().unwrap();
+        sampled_map.display_dot().unwrap();
+
     }
 }
