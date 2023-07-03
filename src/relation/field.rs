@@ -3,6 +3,7 @@ use std::fmt;
 use crate::{
     data_type::{DataType, DataTyped},
     namer,
+    expr::{Expr, Column},
 };
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -68,6 +69,28 @@ impl Field {
     pub fn with_constraint(self, constraint: Constraint) -> Field {
         Field::new(self.name, self.data_type, Some(constraint))
     }
+
+    /// Returns a new `Field` where the `data_type` of this `Field`
+    /// has been filtered by predicate `Expr`
+    ///
+    /// For example, we consider the `Field` with `name = my_col` and
+    /// `datatype = float[0 10]`.
+    ///     -  `predicate = gt(my_col, 5)` returns a `Field` with `datatype = float[5 10]`,
+    ///     -  `predicate = gt(my_col, -5)` returns a `Field` with `datatype = float[0 10]`,
+    ///     -  `predicate = gt(another_col, 5)` returns a `Field` with `datatype = float[0 10]`
+    ///
+    /// Note: For the moment, we support only filtering by `Expr::Function`.
+    /// In the other case, the return a clone of the current `Field`.
+    pub fn filter(&self, predicate: &Expr) -> Self {
+        match predicate {
+            Expr::Function(fun) => Self::new(
+                self.name().into(),
+                fun.filter_column_data_type(&Column::from_name(self.name()), &self.data_type()),
+                self.constraint
+            ),
+            _ => self.clone(),
+        }
+    }
 }
 
 impl fmt::Display for Field {
@@ -124,5 +147,14 @@ mod tests {
             .with_constraint(Constraint::PrimaryKey);
         println!("field = {field}");
         assert!(field.has_constraint());
+    }
+
+    #[test]
+    fn test_filter() {
+        let field = Field::new("a".into(), DataType::float_range(0.0..=10.0), None);
+        let expression = expr!(and(and(and(gt(a,5.), gt(a,3.)), lt_eq(a,9.)), lt_eq(a,90.)));
+        assert_eq!(field.filter(&expression).data_type(), DataType::float_range(5.0..=9.0));
+        let expression = expr!(and(and(and(gt(b,5.), gt(b,3.)), lt_eq(a,9.)), lt_eq(b,90.)));
+        assert_eq!(field.filter(&expression).data_type(), DataType::float_range(0.0..=9.0))
     }
 }

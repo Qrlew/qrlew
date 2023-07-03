@@ -9,7 +9,7 @@ use super::{field::Field, Error, Result};
 use crate::{
     builder::{Ready, With},
     data_type::{DataType, DataTyped},
-    expr::identifier::Identifier,
+    expr::{Expr, identifier::Identifier},
 };
 
 /// A struct holding Fields as in https://github.com/apache/arrow-datafusion/blob/5b23180cf75ea7155d7c35a40f224ce4d5ad7fb8/datafusion/src/logical_plan/dfschema.rs#L36
@@ -96,6 +96,12 @@ impl Schema {
     /// Iter over the Schema
     pub fn iter(&self) -> impl Iterator<Item = &Field> {
         self.fields.iter()
+    }
+
+    /// Returns a new `Schema` where the `fields` of this `Schema`
+    /// has been filtered by predicate `Expr`
+    pub fn filter(&self, predicate: &Expr) -> Self {
+        Self::new(self.iter().map(|f| f.filter(predicate)).collect())
     }
 }
 
@@ -354,5 +360,38 @@ mod tests {
         println!(r#"schema["Text"] = {}"#, schema["Text"]);
         assert_eq!(schema["Text"], schema[2]);
         assert_eq!(schema["Text"], schema[&Identifier::from(["Text"])]);
+    }
+
+    #[test]
+    fn test_filter() {
+        let schema = Schema::builder()
+            .with(("a", DataType::integer_max(20)))
+            .with(("b", DataType::integer_max(100)))
+            .with(("c", DataType::text()))
+            .with(("d", DataType::float()))
+            .build();
+        let filtered_schema = Schema::builder()
+            .with(("a", DataType::integer_interval(5, 20)))
+            .with(("b", DataType::integer_interval(3, 9)))
+            .with(("c", DataType::text()))
+            .with(("d", DataType::float()))
+            .build();
+        let expression = expr!(and(and(and(gt(a,5), gt(b,3)), lt_eq(b,9)), lt_eq(a,90)));
+        assert_eq!(schema.filter(&expression), filtered_schema);
+
+        let schema = Schema::builder()
+            .with(("a", DataType::integer_max(20)))
+            .with(("b", DataType::integer_max(100)))
+            .with(("c", DataType::text()))
+            .with(("d", DataType::float()))
+            .build();
+        let filtered_schema = Schema::builder()
+        .with(("a", DataType::integer_max(20)))
+        .with(("b", DataType::integer_max(100)))
+            .with(("c", DataType::text_value("a".to_string())))
+            .with(("d", DataType::float()))
+            .build();
+        let expression = Expr::eq(Expr::col("c"), Expr::val("a".to_string()));
+        assert_eq!(schema.filter(&expression), filtered_schema);
     }
 }
