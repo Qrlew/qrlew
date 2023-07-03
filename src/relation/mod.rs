@@ -262,15 +262,15 @@ impl Map {
 
     /// Compute the schema and exprs of the map
     fn schema_exprs(named_exprs: Vec<(String, Expr)>, input: &Relation, filter: &Option<Expr>) -> (Schema, Vec<Expr>) {
-        let input_schema = match filter {
-            Some(f) => input.schema().filter(f),
-            None => input.schema().clone()
+        let input_data_type = match filter {
+            Some(f) => input.schema().filter(f).data_type(),
+            None => input.data_type()
         };
         let (fields, exprs) = named_exprs
             .into_iter()
             .map(|(name, expr)| {
                 (
-                    Field::new(name, expr.super_image(&input_schema.data_type()).unwrap(), None),
+                    Field::new(name, expr.super_image(&input_data_type).unwrap(), None),
                     expr,
                 )
             })
