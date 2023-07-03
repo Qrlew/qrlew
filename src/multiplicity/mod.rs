@@ -11,9 +11,9 @@ use crate::{
     expr::{identifier::Identifier, Expr, aggregate},
     hierarchy::{Hierarchy, Path},
     relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
-    visitor::Acceptor,
+    visitor::Acceptor, WithIterator,
 };
-use std::{error, fmt, rc::Rc, result};
+use std::{error, fmt, rc::Rc, result, collections::HashMap};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -58,60 +58,45 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
 
     /// take the Map and the weight of the input and generate the RelationWithMultiplicity
     fn map(&self, map: &'a Map, input: RelationWithMultiplicity) -> RelationWithMultiplicity {
-        RelationWithMultiplicity(Relation::from(map.clone()), input.1)
+        let mew_map: Relation = Relation::map()
+            .with(map.clone())
+            .input(input.0)
+            .build();
+        RelationWithMultiplicity(mew_map, input.1)
     }
 
     /// take the weight of the input, create a new reduce with modified aggregate expressions -> RelationWithMultiplicity
     fn reduce(&self, reduce: &'a Reduce, input: RelationWithMultiplicity) -> RelationWithMultiplicity {
-        let (schema, exprs) = reduce.clone().schema_exprs();
-        // let relation = Relation::from(reduce.clone());
-        // print!("{}", &relation);
-        // let new_map = relation.map_fields(|_, expr| {
-        //     match &expr {
-        //         Expr::Aggregate(agg) => {
-        //             match agg.aggregate() {
-        //                 aggregate::Aggregate::Count => Expr::multiply(Expr::val(1.0/input.1), expr.clone()),
-        //                 aggregate::Aggregate::Sum => Expr::multiply(Expr::val(1.0/input.1), expr.clone()),
-        //                 _ => expr
-        //             }
-        //         },
-        //         _ => {print!("{expr}"); expr}
-        //     }
-        // });
-        //RelationWithMultiplicity(new_map, 1.0)
-        // let expr = &reduce.aggregate[0];
+        // get (str, Expr) from reduce
+        let field_aggexpr_map: Vec<(&str, &Expr)> = reduce
+        .schema()
+        .fields()
+        .iter()
+        .map(|field| field.name())
+        .zip((&reduce.aggregate).iter())
+        .collect();
 
+        // map (str, Expr) to -> Expr (1/weight * Expr::col(str))
+        let new_exprs: Vec<(&str, Expr)> = field_aggexpr_map.into_iter().map(|(name, expr)| {
+            match &expr {
+                Expr::Aggregate(agg) => {
+                    match agg.aggregate() {
+                        aggregate::Aggregate::Count => (name, Expr::multiply(Expr::val(input.1), Expr::col(name))),
+                        aggregate::Aggregate::Sum => (name, Expr::multiply(Expr::val(input.1), Expr::col(name))),
+                        _ => (name, Expr::col(name))
+                    }
+                },
+                _ => (name, Expr::col(name))
+            }
+        }).collect();
 
-        // let new_map = Relation::map()
-        //     .with(new_expr)
-        //     .input(reduce.clone().into())
-        //     .build();
-        // If I constuct a new reduce, the expression 1/w * agg will not be allowed, I would need to add a map on top of the reduce.
-        // let new_reduce: Relation = Relation::reduce()
-        //     .with((field, new_expr))
-        //     .group_by_iter(reduce.clone().group_by.into_iter())
-        //     .input(input.0)
-        //     .build();
-
-        // RelationWithMultiplicity(new_map, 1.0)
-        // let input_weight = input.1;
-        // let weighted_aggs = reduce.aggregate.iter()
-        // .map(|expr| match expr {
-        //     Expr::Aggregate(agg) => {
-        //         let match agg.aggregate() {
-        //             aggregate::Aggregate::Count => todo!(),
-        //             _ => _
-        //         }
-        //     }
-        //     _ => expr
-        // });
-
-        // let weighted_reduce: Relation = Relation::reduce()
-        //     .input(input.0)
-        //     .with(("sum_price", Expr::sum(Expr::col("price"))))
-        //     .with_group_by_column("order_id")
-        //     .build();
-
+        // create a Map wich weights Reduce's expressions based on the epxr type.
+        // the Map takes as an imput the reduce.
+        let new_map: Relation = Relation::map()
+            .with_iter(new_exprs.into_iter())
+            .input(Relation::from(reduce.clone()))
+            .build();
+        RelationWithMultiplicity(new_map, 1.0)
     }
 
     /// take the weight the left (wl), the weight of the right (wr) and create a RelationWithMultiplicity with the Join with weight = wl * wr
@@ -153,7 +138,12 @@ mod tests {
         data_type::{value::List, self},
         io::{postgresql, Database},
         sql::parse,
+        ast,
     };
+
+
+    use colored::Colorize;
+    use itertools::Itertools;
 
     #[test]
     fn test_table() {
@@ -186,10 +176,15 @@ mod tests {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
         let relations = database.relations();
+
+        // When it does not work. ok now it works
+        //let query = "SELECT * FROM (SELECT COUNT(id) FROM order_table) AS temp";
+        
+        // When it works
         let query = "SELECT COUNT(id) FROM order_table";
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         let wrelation = relation.uniform_multiplicity_visitor(weight);
-        //relation.display_dot().unwrap();
+        print!("{:?}", wrelation);
         wrelation.0.display_dot().unwrap();
         assert!(wrelation.1 == 1.0)
     }
@@ -220,23 +215,6 @@ mod tests {
         tables: &Vec<Relation>
     ) -> Hierarchy<Rc<Relation>> {
 
-        // let sampled_relations: Vec<Relation> = tables.iter().map(|table| {
-        //     let size = table.size().max().unwrap();
-        //     let limit = (*size as f64 * fraction) as i32;
-        //     let sampled_query = format!("SELECT MD5(CONCAT({}, id)) AS rand_col, * FROM {} ORDER BY rand_col LIMIT {}", sample_number, table.name(), limit);
-        //     let input: Hierarchy<Rc<Relation>> = Hierarchy::from([([table.name().clone()], Rc::new(table.clone()))]);
-        //     let relation = Relation::try_from(parse(&sampled_query[..]).unwrap().with(&input)).unwrap();
-        //     relation
-        // }).collect();
-        // // let name_map: HashMap<&str, &str> = tables
-        // // .iter()
-        // // .map(|tab: &Relation| tab.name().clone())
-        // // .zip(sampled_relations.iter().map(|rel| rel.name().clone()))
-        // // .collect();
-        // Hierarchy::from_iter(sampled_relations.iter().map(|rel| ([rel.name()], Rc::new(rel.clone()))))
-
-        // to remove rand_col column use relation.filter_fields(|n| n != "rand_col");
-
         tables.iter().map(|table| {
                 let size = table.size().max().unwrap();
                 let limit = (*size as f64 * fraction) as i32;
@@ -244,7 +222,6 @@ mod tests {
                 let input: Hierarchy<Rc<Relation>> = Hierarchy::from([([table.name().clone()], Rc::new(table.clone()))]);
                 let relation = Relation::try_from(parse(&sampled_query[..]).unwrap().with(&input)).unwrap();
                 let path = relation.name().path();
-                // I can't let a &str created in this scope to get out from it
                 (path, Rc::new(relation))
             }).collect()
     }
@@ -254,97 +231,60 @@ mod tests {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
         let fraction: f64 = 1.0 / weight;
-        //let sampled_query = format!("SELECT * FROM user_table WHERE random() > {}", fraction);
-        // print!("{}", sampled_query);
-        // print!("\n");
-        // let mut sampled_results: Vec<f64> = vec![];
-        // let sampled_query = "WITH cte1 AS (SELECT MD5(CONCAT(2, id)) AS rand_col, * FROM order_table ORDER BY rand_col LIMIT 10), cte2 AS (SELECT MD5(CONCAT(2, order_id)) AS rand_col, * FROM item_table ORDER BY rand_col LIMIT 10) SELECT * FROM cte1";
-        // let my_res = database.query(&sampled_query[..]).unwrap();
-        // print!("{:?}", my_res[0]);
+
         let relations: Hierarchy<Rc<Relation>> = database.relations();
+
+        // Query on the sampled relataion. Propagate weights
+        // TODO: sampling should be a Relation transform. 
         let table_name = "order_table";
         let tables = vec![relations
             .get(&[table_name.into()])
             .unwrap()
             .as_ref()
             .clone()];
+        // sampled_relations
         let sampled_relations = sample_relations(1, fraction, &tables);
-        
+        // table name mapping.
         let name_map: HashMap<&str, &str> = tables
             .iter()
             .map(|tab: &Relation| tab.name().clone())
             .zip(sampled_relations.iter().map(|(_, rel)| rel.name().clone()))
             .collect();
-
-        println!("{}", sampled_relations);
-        println!("{:?}", name_map);
-
+        // table name for the sampled relation 
         let rel_name: &str =  match name_map.get(table_name) {
             Some(&name) => name,
             _ => panic!(),
         };
+        let sampled_query = format!("SELECT * FROM (SELECT COUNT(id) AS count_id FROM {}) AS subtable", rel_name);
+        let relation_from_sampled_query = Relation::try_from(parse(&sampled_query[..]).unwrap().with(&sampled_relations)).unwrap();
+        let weighted_relation_from_sampled_query = relation_from_sampled_query.uniform_multiplicity_visitor(weight);
+        weighted_relation_from_sampled_query.0.display_dot().unwrap();
+        let query_from_weighted_relation: &str = &ast::Query::from(&(weighted_relation_from_sampled_query.0)).to_string();
+        println!(
+            "On Sampled: \n{}\n{}",
+            format!("{query_from_weighted_relation}").yellow(),
+            database
+                .query(query_from_weighted_relation)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
 
-        let query = format!("SELECT * FROM (SELECT COUNT(id) AS count_id FROM {}) AS subtable", rel_name);
-        println!("{:?}", query);
-
-        let final_relation_from_sampled = Relation::try_from(parse(&query[..]).unwrap().with(&sampled_relations)).unwrap();
-        // apply multiplicity
-        // execute
-        // TODO: implement LIMIT on the dot
-        let weighted_relation = final_relation_from_sampled.uniform_multiplicity_visitor(weight);
-        print!("{:?}", weighted_relation);
-        final_relation_from_sampled.display_dot().unwrap();
-
-        // let query = format!("SELECT * FROM (SELECT COUNT(id) AS count_id FROM {}) AS subtable", table_name);
-        // println!("{:?}", query);
-        // let final_relation_from_source = Relation::try_from(parse(&query[..]).unwrap().with(&relations)).unwrap();
-
-
-        // final_relation_from_source.display_dot().unwrap();
-        //let query = format!("SELECT COUNT(*) FROM {}", 
-        // the idea: 
-        // query with at least 1 redue -> complex relation
-        // results <- execute the query on the database
-        // use sample_relations() -> sampled_relations: Hierarchy<Rc<Relation>> 
-        // relation from query (with input sampled_relations) -> we need to change the source name; 
-        // apply multiplicity (it will change the reduce expressions)
-        // results <- execute the relaion
-        // repeat and average the results and compare them with results on original source.
-
-
-        // print!("{:?}", relations);
-        // let relation = Relation::try_from(parse(sampled_query).unwrap().with(&relations)).unwrap();
-        // relation.display_dot().unwrap();
-        // for _ in 0..100 { sampled_results.append(database.query(sampled_query).unwrap()[0][0])}
-        // for row in database.query(sampled_query).unwrap() {
-        //     println!("{}", row[0]);
-        // }
-
-        // let table = relations
-        //     .get(&["item_table".into()])
-        //     .unwrap()
-        //     .as_ref()
-        //     .clone();
-
-        // // let sampled_relation = sample_relations(1, fraction, &vec![table]);
-
-        // let n = 1;
-        // let sampled_query = format!("SELECT id, user_id, description FROM (SELECT MD5(CONCAT({}, id)) AS rand_col, * FROM order_table ORDER BY rand_col LIMIT 10) )", n);
-        // let relation = Relation::try_from(parse(&sampled_query[..]).unwrap().with(&relations)).unwrap();
-        
-        // let name = relation.name();
-        // let new_rc = Rc::new(relation.clone());
-        // let hier = Hierarchy::from([([name], new_rc)]);
-
-        // let new_relations: Hierarchy<Rc<Relation>> = Hierarchy::from([
-        //     (vec![relation.name().clone()], Rc::new(relation.clone())),
-        // ]);
-        
-        // let sampled_relation = Relation::try_from(
-        //     parse("SELECT * FROM map_lddf").unwrap().with(&new_relations)
-        // ).unwrap();
-        // sampled_relation.display_dot().unwrap();
-        //print!("{:?}", hier);
+        // Query witout sampling.
+        let source_query = format!("SELECT * FROM (SELECT COUNT(id) AS count_id FROM {}) AS subtable", table_name); 
+        let source_relation =  Relation::try_from(parse(&source_query[..]).unwrap().with(&relations)).unwrap();
+        source_relation.display_dot().unwrap();
+        let query_source_relation: &str = &ast::Query::from(&(source_relation)).to_string();
+        println!(
+            "On Source: \n{}\n{}",
+            format!("{query_source_relation}").yellow(),
+            database
+                .query(query_source_relation)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
-
 }

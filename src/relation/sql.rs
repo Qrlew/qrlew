@@ -239,7 +239,8 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         nulls_first: None,
                     })
                     .collect(),
-                None,
+                    map.limit
+                    .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
             ),
         ));
         query(

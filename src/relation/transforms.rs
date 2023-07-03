@@ -703,7 +703,7 @@ impl Relation {
     }
 
     /// Poisson sampling of the Tables
-    pub fn sample_tables(self) -> Relation {
+    pub fn sample_tables(self, fraction: f64) -> Relation {
         todo!()
     }
 }
@@ -739,8 +739,10 @@ mod tests {
         let table = table.identity_with_field("peid", expr!(a + b));
         assert!(table.schema()[0].name() == "peid");
         // Relation
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() != "peid");
         let relation = relation.identity_with_field("peid", expr!(cos(a)));
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() == "peid");
     }
 
