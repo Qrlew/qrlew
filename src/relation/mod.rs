@@ -1008,40 +1008,6 @@ impl Relation {
         Builder::set()
     }
 
-    // tODO: Filter
-    pub fn identity_filter(self, name: &str, data_type: DataType) -> Map {
-        todo!()
-    }
-
-    pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
-        todo!()
-    }
-    /// Convenience methods
-    pub fn filter_interval<B: Bound + >(self, name: &str, min: B, max: B) -> Map {
-        self.filter_field(name, DataType::from(Intervals::from_interval(min, max)))
-    }
-
-    pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Map {
-        self.filter_field(name, DataType::from(Intervals::from_min(min)))
-    }
-
-    pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Map {
-        self.filter_field(name, DataType::from(Intervals::from_max(max)))
-    }
-
-    pub fn filter_value<B: Bound>(self, name: &str, value: B) -> Map {
-        self.filter_field(name, DataType::from(Intervals::from_value(value)))
-    }
-
-    pub fn filter_values<A: AsRef<[B]>, B: Bound>(self, name: &str, values: A) -> Map {
-        self.filter_field(name, DataType::from(Intervals::from_values(values)))
-    }
-
-    pub fn filter_range<R: RangeBounds<B>, B: Bound>(self, name: &str, range: R) -> Map {
-        self.filter_field(name, DataType::from(Intervals::from_range(min, max)))
-    }
-
-
 }
 
 // Implements Acceptor, Visitor and derive an iterator and a few other Visitor driven functions

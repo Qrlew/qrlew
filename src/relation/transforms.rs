@@ -72,7 +72,7 @@ impl Map {
     }
     /// Filter fields
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Map {
-        Relation::map().filter_with(self, predicate).build()
+        Relation::map().filter_fields_with(self, predicate).build()
     }
     /// Map fields
     pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Map {
@@ -82,9 +82,22 @@ impl Map {
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Map {
         Relation::map().rename_with(self, f).build()
     }
-    /// Filter fields
-    pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
-        todo!()
+    /// TODO
+    pub fn filter_field(self, predicate: Expr) -> Map {
+        if self.projection.iter().all(|x| matches!(x, Expr::Column(_))) {
+            Relation::map().filter_field_with(self, predicate).build()
+        } else {
+            let relation = Relation::from(self);
+            Map::builder()
+                .with_iter(
+                    relation.schema()
+                        .iter()
+                        .map(|f| (f.name(), Expr::col(f.name()))),
+                )
+                .filter(predicate)
+                .input(relation)
+                .build()
+        }
     }
 }
 
@@ -708,63 +721,78 @@ impl Relation {
     }
 
     ///TODO
-    pub fn identity_filter_field(self, name: &str, data_type: DataType) -> Map {
-        Relation::map()
-            .with_iter(self.schema().iter().map(|f| {
-                if f.name() == name {
-                    Field::from_name_data_type(name, data_type)
-                } else {
-                    *f
-                }
-            }))
-            .input(self)
-            .build()
-    }
-
-    ///TODO
-    pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
+    pub fn filter_field(self, predicate: Expr) -> Relation {
         match self {
-            Relation::Map(map) => map.filter_field(name, data_type).into(),
-            relation => relation.identity_filter_field( name, data_type),
+            Relation::Map(map) => map.filter_field(predicate).into(),
+            relation => {
+                Relation::map()
+                    .with_iter(
+                        relation.schema()
+                            .iter()
+                            .map(|f| (f.name(), Expr::col(f.name()))),
+                    )
+                    .filter(predicate)
+                    .input(relation)
+                    .build()
+            },
         }
     }
 
-    ///TODO
-    pub fn filter_interval<B: Bound>(self, name: &str, min: B, max: B) -> Map
-    where DataType: From<Intervals<B>> {
-        self.filter_field(name, Intervals::from_interval(min, max).into())
-    }
+    // ///TODO
+    // pub fn identity_filter_field(self, name: &str, data_type: DataType) -> Map {
+    //     Relation::map()
+    //         .with_iter(
+    //             self.schema()
+    //                 .iter()
+    //                 .map(|f| (f.name(), Expr::col(f.name()))),
+    //         )
+    //         .input(self)
+    //         .build()
+    // }
 
+    // ///TODO
+    // pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
+    //     match self {
+    //         Relation::Map(map) => map.filter_field(name, data_type).into(),
+    //         relation => relation.identity_filter_field( name, data_type),
+    //     }
+    // }
 
-    ///TODO
-    pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Map
-    where DataType: From<Intervals<B>> {
-        self.filter_field(name, DataType::from(Intervals::from_min(min)))
-    }
+    // ///TODO
+    // pub fn filter_interval<B: Bound>(self, name: &str, min: B, max: B) -> Map
+    // where DataType: From<Intervals<B>> {
+    //     self.filter_field(name, Intervals::from_interval(min, max).into())
+    // }
 
-    ///TODO
-    pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Map
-    where DataType: From<Intervals<B>> {
-        self.filter_field(name, DataType::from(Intervals::from_max(max)))
-    }
+    // ///TODO
+    // pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Map
+    // where DataType: From<Intervals<B>> {
+    //     self.filter_field(name, DataType::from(Intervals::from_min(min)))
+    // }
 
-    ///TODO
-    pub fn filter_valuex<B: Bound>(self, name: &str, value: B) -> Map
-    where DataType: From<Intervals<B>> {
-        self.filter_field(name, DataType::from(Intervals::from_value(value)))
-    }
+    // ///TODO
+    // pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Map
+    // where DataType: From<Intervals<B>> {
+    //     self.filter_field(name, DataType::from(Intervals::from_max(max)))
+    // }
 
-    ///TODO
-    pub fn filter_values<B: Bound, A: AsRef<[B]>>(self, name: &str, values: A) -> Map
-    where DataType: From<Intervals<B>> {
-        self.filter_field(name, DataType::from(Intervals::from_values(values)))
-    }
+    // ///TODO
+    // pub fn filter_value<B: Bound>(self, name: &str, value: B) -> Map
+    // where DataType: From<Intervals<B>> {
+    //     self.filter_field(name, DataType::from(Intervals::from_value(value)))
+    // }
 
-    ///TODO
-    pub fn filter_range<B: Bound, R: ops::RangeBounds<B>>(self, name: &str, range: R) -> Map
-    where DataType: From<Intervals<B>> {
-        self.filter_field(name, DataType::from(Intervals::from_range(range)))
-    }
+    // ///TODO
+    // pub fn filter_values<B: Bound, A: AsRef<[B]>>(self, name: &str, values: A) -> Map
+    // where DataType: From<Intervals<B>> {
+    //     self.filter_field(name, DataType::from(Intervals::from_values(values)))
+    // }
+
+    // ///TODO
+    // pub fn filter_range<B: Bound, R: ops::RangeBounds<B>>(self, name: &str, range: R) -> Map
+    // where DataType: From<Intervals<B>> {
+    //     self.filter_field(name, DataType::from(Intervals::from_range(range)))
+    // }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -777,7 +805,7 @@ impl With<(&str, Expr)> for Relation {
 mod tests {
     use super::*;
     use crate::{
-        data_type::value::List,
+        data_type::{value::List, DataTyped},
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
@@ -1381,5 +1409,58 @@ mod tests {
             }
         });
         renamed_relation.display_dot();
+    }
+
+    #[test]
+    fn test_filter_field() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation =
+            Relation::try_from(parse("SELECT exp(a) AS my_a, b As my_b FROM table_1").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter_field(Expr::gt(Expr::col("my_a"), Expr::val(5.)))
+            .filter_field(Expr::lt(Expr::col("my_b"), Expr::val(0.)))
+            .filter_field(Expr::lt(Expr::col("my_a"), Expr::val(100.)));
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field("my_a").unwrap().data_type(), DataType::float_interval(5., 100.));
+        assert_eq!(filtered_relation.schema().field("my_b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.)));
+        if let Relation::Map(m) = filtered_relation {
+            assert_eq!(
+                m.filter.unwrap(),
+                Expr::and(
+                    Expr::and(
+                        Expr::gt(Expr::col("my_a"), Expr::val(5.)),
+                        Expr::lt(Expr::col("my_b"), Expr::val(0.))
+                    ),
+                    Expr::lt(Expr::col("my_a"), Expr::val(100.))
+                )
+            )
+        }
+
+        let relation =
+            Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter_field(Expr::gt(Expr::col("a"), Expr::val(5.)))
+            .filter_field(Expr::lt(Expr::col("b"), Expr::val(0.5)));
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
+        assert_eq!(filtered_relation.schema().field("b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.5)));
+        if let Relation::Map(m) = filtered_relation {
+            assert_eq!(
+                m.filter.unwrap(),
+                Expr::and(
+                    Expr::gt(Expr::col("a"), Expr::val(5.)),
+                    Expr::lt(Expr::col("b"), Expr::val(0.5))
+                )
+            )
+        }
+
+        let relation =
+            Relation::try_from(parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter_field(Expr::gt(Expr::col("a"), Expr::val(5.)))
+            .filter_field(Expr::lt(Expr::col("sum_d"), Expr::val(15)))
+        ;
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
+        assert_eq!(filtered_relation.schema().field("sum_d").unwrap().data_type(), DataType::integer_interval(0, 15));
     }
 }
