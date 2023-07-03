@@ -82,7 +82,7 @@ impl Map {
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Map {
         Relation::map().rename_with(self, f).build()
     }
-    /// TODO
+    /// Returns a `Map` that inputs `Relation::Map(self)` and filter by `predicate`
     pub fn filter_field(self, predicate: Expr) -> Map {
         if self.projection.iter().all(|x| matches!(x, Expr::Column(_))) {
             Relation::map().filter_field_with(self, predicate).build()
@@ -720,7 +720,7 @@ impl Relation {
             .build()
     }
 
-    ///TODO
+    ///Returns a `Relation::Map` that inputs `self` and filter by `predicate`
     pub fn filter_field(self, predicate: Expr) -> Relation {
         match self {
             Relation::Map(map) => map.filter_field(predicate).into(),
@@ -737,62 +737,6 @@ impl Relation {
             },
         }
     }
-
-    // ///TODO
-    // pub fn identity_filter_field(self, name: &str, data_type: DataType) -> Map {
-    //     Relation::map()
-    //         .with_iter(
-    //             self.schema()
-    //                 .iter()
-    //                 .map(|f| (f.name(), Expr::col(f.name()))),
-    //         )
-    //         .input(self)
-    //         .build()
-    // }
-
-    // ///TODO
-    // pub fn filter_field(self, name: &str, data_type: DataType) -> Map {
-    //     match self {
-    //         Relation::Map(map) => map.filter_field(name, data_type).into(),
-    //         relation => relation.identity_filter_field( name, data_type),
-    //     }
-    // }
-
-    // ///TODO
-    // pub fn filter_interval<B: Bound>(self, name: &str, min: B, max: B) -> Map
-    // where DataType: From<Intervals<B>> {
-    //     self.filter_field(name, Intervals::from_interval(min, max).into())
-    // }
-
-    // ///TODO
-    // pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Map
-    // where DataType: From<Intervals<B>> {
-    //     self.filter_field(name, DataType::from(Intervals::from_min(min)))
-    // }
-
-    // ///TODO
-    // pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Map
-    // where DataType: From<Intervals<B>> {
-    //     self.filter_field(name, DataType::from(Intervals::from_max(max)))
-    // }
-
-    // ///TODO
-    // pub fn filter_value<B: Bound>(self, name: &str, value: B) -> Map
-    // where DataType: From<Intervals<B>> {
-    //     self.filter_field(name, DataType::from(Intervals::from_value(value)))
-    // }
-
-    // ///TODO
-    // pub fn filter_values<B: Bound, A: AsRef<[B]>>(self, name: &str, values: A) -> Map
-    // where DataType: From<Intervals<B>> {
-    //     self.filter_field(name, DataType::from(Intervals::from_values(values)))
-    // }
-
-    // ///TODO
-    // pub fn filter_range<B: Bound, R: ops::RangeBounds<B>>(self, name: &str, range: R) -> Map
-    // where DataType: From<Intervals<B>> {
-    //     self.filter_field(name, DataType::from(Intervals::from_range(range)))
-    // }
 }
 
 impl With<(&str, Expr)> for Relation {

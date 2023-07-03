@@ -246,7 +246,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         builder
     }
 
-     /// Initialize a builder with an existing map and add a filtering expression
+    /// Initialize a builder with an existing map and filter by an `Expr` that depends on the input columns
     pub fn filter_field_with(self, map: Map, predicate: Expr) -> MapBuilder<WithInput> {
         let Map {
             name,

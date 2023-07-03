@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `filter` by `Expr` in `Schema` and `Field`
 - filter in Relation builder
 - Used `filter` field in `Map` when computing the schema
+- Added `filter_field`
 
 ### Added
 - filter_iter in Relation builder
