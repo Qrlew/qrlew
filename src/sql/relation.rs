@@ -8,16 +8,19 @@ use super::{
     Error, Result,
 };
 use crate::{
+    ast,
     builder::{Ready, With, WithoutContext},
+    dialect::{Dialect, GenericDialect},
     expr::{Expr, Identifier, Split},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
+    parser::Parser,
     relation::{
         Join, JoinConstraint, JoinOperator, MapBuilder, Relation, Set, SetOperator, SetQuantifier,
         Variant as _, WithInput,
     },
+    tokenizer::Tokenizer,
     visitor::{Acceptor, Dependencies, Visited},
-    ast, dialect::{Dialect, GenericDialect}, parser::Parser, tokenizer::Tokenizer,
 };
 use itertools::Itertools;
 use std::{
