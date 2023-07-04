@@ -738,28 +738,37 @@ impl Relation {
         }
     }
 
-
-
     /// Convenience methods
     pub fn filter_interval<B: Bound>(self, name: &str, min: B, max: B) -> Relation
-    where Into<data_type::value::Value> {
+    where B: Into<data_type::value::Value> {
+        let predicate = Expr::and(
+            Expr::gt(Expr::col(name), Expr::val(min)),
+            Expr::lt(Expr::col(name), Expr::val(max)),
+        );
+        self.filter_field(predicate)
+    }
+
+    pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Relation
+    where B: Into<data_type::value::Value> {
         let predicate = Expr::gt(Expr::col(name), Expr::val(min));
         self.filter_field(predicate)
     }
 
-    // pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Relation {
-    //     self.filter_field(name, DataType::from(Intervals::from_min(min, max)))
-    // }
+    pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Relation
+    where B: Into<data_type::value::Value> {
+        let predicate = Expr::lt(Expr::col(name), Expr::val(max));
+        self.filter_field(predicate)
+    }
 
-    // pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Relation {
-    //     self.filter_field(name, DataType::from(Intervals::from_max(min, max)))
-    // }
+    pub fn filter_value<B: Bound>(self, name: &str, value: B) -> Relation
+    where B: Into<data_type::value::Value> {
+        let predicate = Expr::eq(Expr::col(name), Expr::val(value));
+        self.filter_field(predicate)
+    }
 
-    // pub fn filter_range<R: ops::RangeBounds<B>>(self, name: &str, range: R) -> Relation {
-    //     self.filter_field(name, DataType::from(Intervals::from_range(min, max)))
-    // }
-
-    // pub fn filter_values<A: AsRef<[B]>>(self, name: &str, values: A) -> Relation {
+    // pub fn filter_values<A: AsRef<[B]>, B:Bound>(self, name: &str, values: A) -> Relation
+    // where B: Into<data_type::value::Value> {
+    //     let predicate = Expr::eq(Expr::col(name), Expr::val(max));
     //     self.filter_field(name, DataType::from(Intervals::from_values(values)))
     // }
 }
@@ -1431,5 +1440,61 @@ mod tests {
         _ = filtered_relation.display_dot();
         assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
         assert_eq!(filtered_relation.schema().field("sum_d").unwrap().data_type(), DataType::integer_interval(0, 15));
+    }
+
+    #[test]
+    fn test_filter_interval() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation =
+            Relation::try_from(parse("SELECT exp(a) AS my_a, d FROM table_1 WHERE a < 5").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter_interval("my_a", 0., 40.)
+            .filter_interval("d", 3, 5);
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field_from_index(0).unwrap().data_type(), DataType::float_interval(1., 40.));
+        assert_eq!(filtered_relation.schema().field_from_index(1).unwrap().data_type(), DataType::integer_interval(3, 5));
+    }
+
+    #[test]
+    fn test_filter_min() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation =
+            Relation::try_from(parse("SELECT 2 * a AS my_a, d FROM table_1").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter_min("my_a", 4.0)
+            .filter_min("d", 5);
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field_from_index(0).unwrap().data_type(), DataType::float_interval(4., 20.));
+        assert_eq!(filtered_relation.schema().field_from_index(1).unwrap().data_type(), DataType::integer_interval(5, 10));
+    }
+
+    #[test]
+    fn test_filter_max() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation =
+            Relation::try_from(parse("SELECT 2 * a AS my_a, d FROM table_1").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter_max("my_a", 4.0)
+            .filter_max("d", 5);
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field_from_index(0).unwrap().data_type(), DataType::float_interval(0., 4.));
+        assert_eq!(filtered_relation.schema().field_from_index(1).unwrap().data_type(), DataType::integer_interval(0, 5));
+    }
+
+    #[test]
+    fn test_filter_value() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation =
+            Relation::try_from(parse("SELECT 2 * a AS my_a, d FROM table_1").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter_value("my_a", 4.0)
+            .filter_value("d", 5);
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field_from_index(0).unwrap().data_type(), DataType::float_value(4.));
+        assert_eq!(filtered_relation.schema().field_from_index(1).unwrap().data_type(), DataType::integer_value(5));
     }
 }
