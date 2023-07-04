@@ -1494,4 +1494,94 @@ mod tests {
             None => assert!(true),
         }
     }
+
+    #[test]
+    fn test_sampling_query() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        // relation with reduce
+        let relation = Relation::try_from(
+            parse("SELECT 0.0 as z, sum(price) as a, sum(price) as b FROM item_table GROUP BY order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+
+        let proba = 0.5;
+        namer::reset();
+        let sampled_relation = relation.poisson_sampling(proba);
+
+        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+
+        let expected_query = r#"WITH
+        map_qcqr (field_z650, field_08wv) AS (SELECT price AS field_z650, order_id AS field_08wv FROM item_table),
+        reduce_8knj (field_glfp) AS (SELECT sum(field_z650) AS field_glfp FROM map_qcqr GROUP BY field_08wv),
+        map_xyv8 (z, a, b) AS (SELECT 0 AS z, field_glfp AS a, field_glfp AS b FROM reduce_8knj),
+        map_bfzk (z, a, b) AS (SELECT z AS z, a AS a, b AS b FROM map_xyv8 WHERE (random()) < (0.5))
+        SELECT * FROM map_bfzk"#;
+
+        assert_eq!(
+            expected_query.replace('\n', " ").replace(' ', ""),
+            (&query_sampled_relation[..]).replace(' ', "")
+        );
+        print!("{}\n", query_sampled_relation);
+
+        // relation with map
+        let relation = Relation::try_from(
+            parse("SELECT LOG(price) FROM item_table")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+
+        let proba = 0.5;
+        namer::reset();
+        let sampled_relation = relation.poisson_sampling(proba);
+
+        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+
+        let expected_query = r#"WITH map_gj2u (field_uy24) AS (SELECT log(price) AS field_uy24 FROM item_table),
+        map_upop (field_uy24) AS (SELECT field_uy24 AS field_uy24 FROM map_gj2u WHERE (random()) < (0.5))
+        SELECT * FROM map_upop"#;
+
+        assert_eq!(
+            expected_query.replace('\n', " ").replace(' ', ""),
+            (&query_sampled_relation[..]).replace(' ', "")
+        );
+        print!("{}\n", query_sampled_relation);
+
+        // relation with join
+        let relation = Relation::try_from(
+            parse("SELECT * FROM order_table JOIN item_table ON(id=order_id)")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+
+        let proba = 0.5;
+        namer::reset();
+        let sampled_relation = relation.poisson_sampling(proba);
+
+        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+
+        let expected_query = r#"WITH
+        join__e_y (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
+            SELECT * FROM order_table JOIN item_table ON (order_table.id) = (item_table.order_id)
+        ), map_8r2s (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
+            SELECT field_eygr AS field_eygr, field_0wjz AS field_0wjz, field_cg0j AS field_cg0j,
+                field_idxm AS field_idxm, field_0eqn AS field_0eqn, field_3ned AS field_3ned, field_gwco AS field_gwco
+            FROM join__e_y
+        ), map_yko1 (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
+            SELECT field_eygr AS field_eygr, field_0wjz AS field_0wjz, field_cg0j AS field_cg0j,
+                field_idxm AS field_idxm, field_0eqn AS field_0eqn, field_3ned AS field_3ned, field_gwco AS field_gwco
+            FROM map_8r2s WHERE (random()) < (0.5)
+        ) SELECT * FROM map_yko1"#;
+
+        assert_eq!(
+            expected_query.replace('\n', " ").replace(' ', ""),
+            (&query_sampled_relation[..]).replace(' ', "")
+        );
+        print!("{}\n", query_sampled_relation)
+    }
 }
