@@ -247,7 +247,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     /// Initialize a builder with an existing map and filter by an `Expr` that depends on the input columns
-    pub fn filter_field_with(self, map: Map, predicate: Expr) -> MapBuilder<WithInput> {
+    pub fn filter_with(self, map: Map, predicate: Expr) -> MapBuilder<WithInput> {
         let Map {
             name,
             projection,
@@ -1030,7 +1030,7 @@ mod tests {
     }
 
     #[test]
-    fn test_map_filter_field_with() {
+    fn test_map_filter_with() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -1050,7 +1050,7 @@ mod tests {
             .build();
         if let Relation::Map(m) = map {
             println!("Map = {}", m);
-            let filtered_map:Map = Relation::map().filter_field_with(
+            let filtered_map:Map = Relation::map().filter_with(
                 m,
                 Expr::lt(Expr::col("A"), Expr::val(0.9))
             ).build();
@@ -1067,7 +1067,7 @@ mod tests {
             .build();
         if let Relation::Map(m) = map {
             println!("Map = {}", m);
-            let filtered_map:Map = Relation::map().filter_field_with(
+            let filtered_map:Map = Relation::map().filter_with(
                 m,
                 Expr::lt(Expr::col("A"), Expr::val(0.9))
             ).build();
@@ -1084,7 +1084,7 @@ mod tests {
             .build();
         if let Relation::Map(m) = map {
             println!("Map = {}", m);
-            let filtered_map:Map = Relation::map().filter_field_with(
+            let filtered_map:Map = Relation::map().filter_with(
                 m,
                 Expr::lt(Expr::col("a"), Expr::val(0.9))
             ).build();

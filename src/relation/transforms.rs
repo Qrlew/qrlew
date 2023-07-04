@@ -85,7 +85,7 @@ impl Map {
     /// Returns a `Map` that inputs `Relation::Map(self)` and filter by `predicate`
     pub fn filter_field(self, predicate: Expr) -> Map {
         if self.projection.iter().all(|x| matches!(x, Expr::Column(_))) {
-            Relation::map().filter_field_with(self, predicate).build()
+            Relation::map().filter_with(self, predicate).build()
         } else {
             let relation = Relation::from(self);
             Map::builder()
