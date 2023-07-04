@@ -868,11 +868,11 @@ mod tests {
         for (x, t) in ast_expr.iter_with(DisplayVisitor) {
             println!("{x} ({t})");
         }
-        let true_expr = expr!(in_list(a, 3, 4, 5));
+        let true_expr = Expr::in_list(vec![Expr::col("a"), Expr::val(3), Expr::val(4), Expr::val(5)]);
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(
             expr.to_string(),
-            String::from("a in (3, 4, 5)")
+            String::from("a IN (3, 4, 5)")
         );
     }
 }
