@@ -512,8 +512,8 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         format!("POSITION({} IN {})", expr, r#in)
     }
 
-    fn in_list(&self, expr: String, r#in: String) -> String {
-        format!("POSITION({} IN {})", expr, r#in)
+    fn in_list(&self, expr: String, list: Vec<String>) -> String {
+        format!("{} IN ({})", expr, list.into_iter().map(|x| format!("{x}")).join(", "))
     }
 }
 
@@ -868,7 +868,7 @@ mod tests {
         for (x, t) in ast_expr.iter_with(DisplayVisitor) {
             println!("{x} ({t})");
         }
-        let true_expr = expr!(case(gt(a, 5), 5, case(lt(a, 2), 2, a)));
+        let true_expr = expr!(in_list(a, 3, 4, 5));
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(
             expr.to_string(),
