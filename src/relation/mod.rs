@@ -11,7 +11,12 @@ pub mod schema;
 pub mod sql;
 pub mod transforms;
 
-use std::{cmp, error, fmt, hash, ops::{RangeBounds, Index}, rc::Rc, result};
+use std::{
+    cmp, error, fmt, hash,
+    ops::{Index, RangeBounds},
+    rc::Rc,
+    result,
+};
 
 use colored::Colorize;
 use itertools::Itertools;
@@ -21,9 +26,8 @@ use crate::{
     data_type::{
         self,
         function::Function,
-        intervals::{Intervals, Bound},
-        DataType, DataTyped, Integer, Struct,
-        Variant as _,
+        intervals::{Bound, Intervals},
+        DataType, DataTyped, Integer, Struct, Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
     hierarchy::Hierarchy,
@@ -250,7 +254,7 @@ impl Map {
     ) -> Self {
         assert!(Split::from_iter(named_exprs.clone()).len() == 1);
         let (schema, exprs) = Map::schema_exprs(named_exprs, &filter, &input);
-        let size = Map::size(&input);
+        let size = Map::size(&input, limit);
         Map {
             name,
             projection: exprs,
@@ -264,8 +268,12 @@ impl Map {
     }
 
     /// Compute the schema and exprs of the map
-    fn schema_exprs(named_exprs: Vec<(String, Expr)>, filter: &Option<Expr>, input: &Relation) -> (Schema, Vec<Expr>) {
-        let input_data_type = if let Some(f) =  filter {
+    fn schema_exprs(
+        named_exprs: Vec<(String, Expr)>,
+        filter: &Option<Expr>,
+        input: &Relation,
+    ) -> (Schema, Vec<Expr>) {
+        let input_data_type = if let Some(f) = filter {
             input.schema().filter(f).data_type()
         } else {
             input.data_type()
@@ -284,10 +292,18 @@ impl Map {
 
     /// Compute the size of the map
     /// The size of the map has the same upper bound but no positive lower bound
-    fn size(input: &Relation) -> Integer {
+    fn size(input: &Relation, limit: Option<usize>) -> Integer {
         input.size().max().map_or_else(
             || Integer::from_min(0),
-            |&max| Integer::from_interval(0, max),
+            |&max| {
+                Integer::from_interval(
+                    0,
+                    match limit {
+                        Some(limit_val) => std::cmp::min(limit_val as i64, max),
+                        None => max,
+                    },
+                )
+            },
         )
     }
 
