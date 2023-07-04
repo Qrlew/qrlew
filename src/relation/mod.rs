@@ -265,11 +265,10 @@ impl Map {
 
     /// Compute the schema and exprs of the map
     fn schema_exprs(named_exprs: Vec<(String, Expr)>, filter: &Option<Expr>, input: &Relation) -> (Schema, Vec<Expr>) {
-        let input_data_type:DataType;
-        if let Some(f) =  filter {
-            input_data_type = input.schema().filter(f).data_type()
+        let input_data_type = if let Some(f) =  filter {
+            input.schema().filter(f).data_type()
         } else {
-            input_data_type = input.data_type()
+            input.data_type()
         };
         let (fields, exprs) = named_exprs
             .into_iter()
