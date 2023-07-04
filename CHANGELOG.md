@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `filter` by `Expr` in `Schema` and `Field`
 - filter in Relation builder
 - Used `filter` field in `Map` when computing the schema
+- Show `LIMIT` in the relation graph
+- Include `LIMIT` in the query when the derived from a Relation with a Map with a limit.
 
 ### Added
 - filter_iter in Relation builder
@@ -17,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Computation of the norm
 - Add `clipped_sum` transform
 - poisson_sampling transform [MR46](https://github.com/Qrlew/qrlew/pull/46)
+- Map size propagation now takes into account `limit`.
 
 ## [0.1.2] - 2023-06-01
 ### Added
