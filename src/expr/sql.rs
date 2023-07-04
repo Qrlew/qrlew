@@ -188,6 +188,11 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 results: vec![arguments[1].clone()],
                 else_result: Some(Box::new(arguments[2].clone())),
             },
+            expr::function::Function::InOp => ast::Expr::InList {
+                expr: arguments[0].clone().into(),
+                list: arguments[1..].to_vec(),
+                negated: false
+            },
             expr::function::Function::Position => ast::Expr::Position {
                 expr: arguments[0].clone().into(),
                 r#in: arguments[1].clone().into(),
@@ -409,6 +414,23 @@ mod tests {
         assert_eq!(
             gen_expr.to_string(),
             "CASE WHEN (a) = (5) THEN 0 ELSE a END".to_string(),
+        );
+    }
+
+    #[test]
+    fn test_in() {
+        let str_expr = "a IN (4, 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("ast::expr = {ast_expr}");
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {}", gen_expr.to_string());
+        assert_eq!(
+            gen_expr.to_string(),
+            "a IN (4, 5)".to_string(),
         );
     }
 }

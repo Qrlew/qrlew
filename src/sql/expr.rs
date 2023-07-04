@@ -235,6 +235,7 @@ pub trait Visitor<'a, T: Clone> {
         else_result: Option<T>,
     ) -> T;
     fn position(&self, expr: T, r#in: T) -> T;
+    fn in_list(&self, expr: T, list: Vec<T>) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -271,7 +272,19 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 list,
                 negated,
-            } => todo!(),
+            } => {
+                let in_expr = self.in_list(
+                    dependencies.get(expr).clone(),
+                    list.iter()
+                        .map(|x| dependencies.get(x).clone())
+                        .collect()
+                );
+                if *negated {
+                    self.unary_op(&ast::UnaryOperator::Not, in_expr)
+                } else {
+                    in_expr
+                }
+            },
             ast::Expr::InSubquery {
                 expr,
                 subquery,
@@ -494,8 +507,13 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         case_str.push_str("END");
         case_str
     }
+
     fn position(&self, expr: String, r#in: String) -> String {
         format!("POSITION({} IN {})", expr, r#in)
+    }
+
+    fn in_list(&self, expr: String, list: Vec<String>) -> String {
+        format!("{} IN ({})", expr, list.into_iter().map(|x| format!("{x}")).join(", "))
     }
 }
 
@@ -697,6 +715,20 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     fn position(&self, expr: Result<Expr>, r#in: Result<Expr>) -> Result<Expr> {
         Ok(Expr::position(expr?, r#in?))
     }
+
+    fn in_list(&self, expr: Result<Expr>, list: Vec<Result<Expr>>) -> Result<Expr> {
+        let list:Result<Vec<Value>> = list.into_iter()
+            .map(
+                |x|
+                if let Ok(Expr::Value(v)) = x {
+                    Ok(v)
+                } else {
+                    Err(Error::Other("Listed expression in IN expression must be Expr::Value".into()))
+                }
+            )
+            .collect();
+        Ok(Expr::in_op(expr?, Expr::val(Value::list(list?))))
+    }
 }
 
 /// Based on the TryIntoExprVisitor implement the TryFrom trait
@@ -831,6 +863,41 @@ mod tests {
             String::from(
                 "CASE WHEN (a = 5) THEN (a + 3) ELSE CASE WHEN (a = 2) THEN (a - 4) ELSE a END END"
             )
+        );
+    }
+
+    #[test]
+    fn test_in_list() {
+        // IN
+        let ast_expr: ast::Expr =
+            parse_expr("a in (3, 4, 5)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::in_op(Expr::col("a"), Expr::val(Value::list([3.into(), 4.into(), 5.into()])));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(
+            expr.to_string(),
+            String::from("(a in (3, 4, 5))")
+        );
+
+        // NOT IN
+        let ast_expr: ast::Expr =
+            parse_expr("a not in (3, 4, 5)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::not(Expr::in_op(Expr::col("a"), Expr::val(Value::list([3.into(), 4.into(), 5.into()]))));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(
+            expr.to_string(),
+            String::from("(not (a in (3, 4, 5)))")
         );
     }
 }

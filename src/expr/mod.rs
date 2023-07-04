@@ -330,7 +330,8 @@ impl_binary_function_constructors!(
     BitwiseAnd,
     BitwiseXor,
     Pow,
-    Position
+    Position,
+    InOp
 );
 
 /// Implement ternary function constructors
