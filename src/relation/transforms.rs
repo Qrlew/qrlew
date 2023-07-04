@@ -706,13 +706,9 @@ impl Relation {
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
     pub fn poisson_sampling(self, proba: f64) -> Relation {
         //make sure proba is between 0 and 1.
-        let proba = if proba >= 1.0 {
-            1.0
-        } else if proba <= 0.0 {
-            0.0
-        } else {
-            proba
-        };
+        assert!(proba <= 1.0);
+        assert!(proba >= 0.0);
+
         let sampled_relation: Relation = Relation::map()
             .with_iter(
                 self.schema()
@@ -1451,48 +1447,6 @@ mod tests {
         assert_eq!(expected_sampled_reduce, sampled_reduce);
         assert_eq!(expected_sampled_map, sampled_map);
         assert_eq!(expected_sampled_join, sampled_join);
-
-        namer::reset();
-        let sampled_map: Relation = map.clone().poisson_sampling(10.1);
-        let filter: Option<Expr> = match sampled_map {
-            Relation::Map(Map { filter, .. }) => filter.clone(),
-            Relation::Table(_) => None,
-            Relation::Reduce(_) => None,
-            Relation::Join(_) => None,
-            Relation::Set(_) => None,
-        };
-        namer::reset();
-        match filter {
-            Some(expr) => assert_eq!(
-                expr,
-                Expr::lt(
-                    Expr::random(namer::new_id("POISSON_SAMPLING")),
-                    Expr::val(1.0)
-                )
-            ),
-            None => assert!(true),
-        }
-
-        namer::reset();
-        let sampled_map: Relation = map.clone().poisson_sampling(-10.1);
-        let filter: Option<Expr> = match sampled_map {
-            Relation::Map(Map { filter, .. }) => filter.clone(),
-            Relation::Table(_) => None,
-            Relation::Reduce(_) => None,
-            Relation::Join(_) => None,
-            Relation::Set(_) => None,
-        };
-        namer::reset();
-        match filter {
-            Some(expr) => assert_eq!(
-                expr,
-                Expr::lt(
-                    Expr::random(namer::new_id("POISSON_SAMPLING")),
-                    Expr::val(0.0)
-                )
-            ),
-            None => assert!(true),
-        }
     }
 
     #[test]
