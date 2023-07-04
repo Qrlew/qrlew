@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - filter in Relation builder
 - Used `filter` field in `Map` when computing the schema
 
-
 ### Added
 - filter_iter in Relation builder
 - Conversion for `Case` expression [MR1](https://github.com/Qrlew/qrlew/pull/1)
