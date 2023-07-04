@@ -706,8 +706,7 @@ impl Relation {
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
     pub fn poisson_sampling(self, proba: f64) -> Relation {
         //make sure proba is between 0 and 1.
-        assert!(proba <= 1.0);
-        assert!(proba >= 0.0);
+        assert!(0.0 <= proba && proba <= 1.0);
 
         let sampled_relation: Relation = Relation::map()
             .with_iter(
