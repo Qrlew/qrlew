@@ -507,7 +507,12 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         case_str.push_str("END");
         case_str
     }
+
     fn position(&self, expr: String, r#in: String) -> String {
+        format!("POSITION({} IN {})", expr, r#in)
+    }
+
+    fn in_list(&self, expr: String, r#in: String) -> String {
         format!("POSITION({} IN {})", expr, r#in)
     }
 }
