@@ -83,23 +83,6 @@ impl Map {
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Map {
         Relation::map().rename_with(self, f).build()
     }
-    /// Returns a `Map` that inputs `Relation::Map(self)` and filter by `predicate`
-    fn filter(self, predicate: Expr) -> Map {
-        if self.projection.iter().all(|x| matches!(x, Expr::Column(_))) {
-            Relation::map().filter_with(self, predicate).build()
-        } else {
-            let relation = Relation::from(self);
-            Map::builder()
-                .with_iter(
-                    relation.schema()
-                        .iter()
-                        .map(|f| (f.name(), Expr::col(f.name()))),
-                )
-                .filter(predicate)
-                .input(relation)
-                .build()
-        }
-    }
 }
 
 // A few utility objects
@@ -721,22 +704,17 @@ impl Relation {
             .build()
     }
 
-    ///Returns a `Relation::Map` that inputs `self` and filter by `predicate`
+    /// Returns a `Relation::Map` that inputs `self` and filter by `predicate`
     pub fn filter(self, predicate: Expr) -> Relation {
-        match self {
-            Relation::Map(map) => map.filter(predicate).into(),
-            relation => {
-                Relation::map()
-                    .with_iter(
-                        relation.schema()
-                            .iter()
-                            .map(|f| (f.name(), Expr::col(f.name()))),
-                    )
-                    .filter(predicate)
-                    .input(relation)
-                    .build()
-            },
-        }
+        Relation::map()
+            .with_iter(
+                self.schema()
+                        .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(predicate)
+            .input(self)
+            .build()
     }
 
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
@@ -1383,9 +1361,15 @@ mod tests {
 
         let relation =
             Relation::try_from(parse("SELECT exp(a) AS my_a, b As my_b FROM table_1").unwrap().with(&relations)).unwrap();
-        let filtered_relation = relation.filter(Expr::gt(Expr::col("my_a"), Expr::val(5.)))
-            .filter(Expr::lt(Expr::col("my_b"), Expr::val(0.)))
-            .filter(Expr::lt(Expr::col("my_a"), Expr::val(100.)));
+        let filtered_relation = relation.filter(
+            Expr::and(
+                Expr::and(
+                    Expr::gt(Expr::col("my_a"), Expr::val(5.)),
+                    Expr::lt(Expr::col("my_b"), Expr::val(0.))
+                ),
+                Expr::lt(Expr::col("my_a"), Expr::val(100.))
+            )
+        );
         _ = filtered_relation.display_dot();
         assert_eq!(filtered_relation.schema().field("my_a").unwrap().data_type(), DataType::float_interval(5., 100.));
         assert_eq!(filtered_relation.schema().field("my_b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.)));
@@ -1404,8 +1388,12 @@ mod tests {
 
         let relation =
             Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
-        let filtered_relation = relation.filter(Expr::gt(Expr::col("a"), Expr::val(5.)))
-            .filter(Expr::lt(Expr::col("b"), Expr::val(0.5)));
+        let filtered_relation = relation.filter(
+            Expr::and(
+                Expr::gt(Expr::col("a"), Expr::val(5.)),
+                Expr::lt(Expr::col("b"), Expr::val(0.5))
+            )
+        );
         _ = filtered_relation.display_dot();
         assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
         assert_eq!(filtered_relation.schema().field("b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.5)));
@@ -1421,9 +1409,12 @@ mod tests {
 
         let relation =
             Relation::try_from(parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a").unwrap().with(&relations)).unwrap();
-        let filtered_relation = relation.filter(Expr::gt(Expr::col("a"), Expr::val(5.)))
-            .filter(Expr::lt(Expr::col("sum_d"), Expr::val(15)))
-        ;
+        let filtered_relation = relation.filter(
+            Expr::and(
+                Expr::gt(Expr::col("a"), Expr::val(5.)),
+                Expr::lt(Expr::col("sum_d"), Expr::val(15))
+            )
+        );
         _ = filtered_relation.display_dot();
         assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
         assert_eq!(filtered_relation.schema().field("sum_d").unwrap().data_type(), DataType::integer_interval(0, 15));

@@ -271,14 +271,10 @@ impl<RequireInput> MapBuilder<RequireInput> {
             )
             .input(input);
         // Filter
-        let replace_map = schema.iter()
-            .zip(projection)
-            .map(|(f, x)| (Expr::col(f.name()), x))
-            .collect();
-        let predicate = predicate.replace(replace_map).0;
-        let filter = match filter{
-            Some(x) => Expr::and(x, predicate),
-            None => predicate,
+        let filter = if let Some(x) = filter {
+            Expr::and(x, predicate)
+        } else {
+            predicate
         };
         let builder = builder.filter(filter);
         // Order by
@@ -1058,7 +1054,7 @@ mod tests {
             println!("Map = {}", m);
             let filtered_map:Map = Relation::map().filter_with(
                 m,
-                Expr::lt(Expr::col("A"), Expr::val(0.9))
+                Expr::lt(Expr::col("a"), Expr::val(0.9))
             ).build();
             assert_eq!(
                 filtered_map.filter.unwrap(),
@@ -1075,7 +1071,7 @@ mod tests {
             println!("Map = {}", m);
             let filtered_map:Map = Relation::map().filter_with(
                 m,
-                Expr::lt(Expr::col("A"), Expr::val(0.9))
+                Expr::lt(Expr::col("a"), Expr::val(0.9))
             ).build();
             assert_eq!(
                 filtered_map.filter.unwrap(),
