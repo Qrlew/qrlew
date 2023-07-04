@@ -1,10 +1,10 @@
 //! # Some utilities to ease the implementation of Visitor / Acceptor in rust
-//! 
+//!
 //! Visited structure do not have to be trees, they can be simple Directed Acyclic Graphs (DAGs).
 //! The `accept` code will make sure the same node is not visited more than once.
-//! 
+//!
 //! Use this code whenever possible.
-//! 
+//!
 
 use std::{
     cmp::{Eq, PartialEq},

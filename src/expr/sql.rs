@@ -1,8 +1,8 @@
 //! Convert Expr into ast::Expr
 use crate::{
+    ast,
     expr::{self, Expr},
     visitor::Acceptor,
-    ast,
 };
 use std::iter::Iterator;
 

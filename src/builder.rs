@@ -1,5 +1,5 @@
 //! # Builder utilities
-//! 
+//!
 //! This module contains utilities to ease and standardize the writing of builders
 //! such as: [MapBuilder](qrlew::relation::builder::MapBuilder)
 //!

@@ -5,11 +5,12 @@ use super::{
     SetOperator, SetQuantifier, Table, Variant,
 };
 use crate::{
+    ast,
     builder::{Ready, With, WithIterator},
     data_type::Integer,
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
-    And, ast,
+    And,
 };
 
 // A Table builder
@@ -121,7 +122,9 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     pub fn filter_iter(mut self, iter: Vec<Expr>) -> Self {
-        let filter = iter.into_iter().fold(Expr::val(true), |f, x| Expr::and(f, x));
+        let filter = iter
+            .into_iter()
+            .fold(Expr::val(true), |f, x| Expr::and(f, x));
         self.filter(filter)
     }
 
@@ -149,7 +152,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     /// Initialize a builder with filtered existing map
-    pub fn filter_with<P: Fn(&str) -> bool>(self, map: Map, predicate: P) -> MapBuilder<WithInput> {
+    pub fn filter_fields_with<P: Fn(&str) -> bool>(self, map: Map, predicate: P) -> MapBuilder<WithInput> {
         let Map {
             name,
             projection,
@@ -237,6 +240,43 @@ impl<RequireInput> MapBuilder<RequireInput> {
             .input(input);
         // Filter
         let builder = filter.into_iter().fold(builder, |b, f| b.filter(f));
+        // Order by
+        let builder = order_by
+            .into_iter()
+            .fold(builder, |b, o| b.order_by(o.expr, o.asc));
+        // Limit
+        let builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        builder
+    }
+
+    /// Initialize a builder with an existing map and filter by an `Expr` that depends on the input columns
+    pub fn filter_with(self, map: Map, predicate: Expr) -> MapBuilder<WithInput> {
+        let Map {
+            name,
+            projection,
+            filter,
+            order_by,
+            limit,
+            schema,
+            input,
+            ..
+        } = map;
+        let builder = self
+            .name(name)
+            .with_iter(
+                schema
+                    .iter()
+                    .zip(projection.clone())
+                    .map(|(field, expr)| (field.name().to_string(), expr))
+            )
+            .input(input);
+        // Filter
+        let filter = if let Some(x) = filter {
+            Expr::and(x, predicate)
+        } else {
+            predicate
+        };
+        let builder = builder.filter(filter);
         // Order by
         let builder = order_by
             .into_iter()
@@ -395,7 +435,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     }
 
     /// Initialize a builder with filtered existing reduce
-    pub fn filter_with<P: Fn(&str) -> bool>(
+    pub fn filter_fields_with<P: Fn(&str) -> bool>(
         self,
         reduce: Reduce,
         predicate: P,
@@ -914,10 +954,10 @@ mod tests {
     #[test]
     fn test_join_building() {
         use crate::{
+            ast,
             display::Dot,
             hierarchy::Path,
             io::{postgresql, Database},
-            ast,
         };
         use itertools::Itertools;
         let mut database = postgresql::test_database();
@@ -967,24 +1007,94 @@ mod tests {
             .filter(Expr::eq(Expr::col("b"), Expr::val(0.5)))
             .input(table.clone())
             .build();
-        if let  Relation::Map(m) = map {
+        if let Relation::Map(m) = map {
+            assert_eq!(m.filter.unwrap(), expr!(eq(b, 0.5)))
+        }
+
+        let map: Relation = Relation::map()
+            .with(("A", Expr::col("a")))
+            .with(("B", Expr::col("b")))
+            .filter_iter(vec![
+                Expr::gt(Expr::col("a"), Expr::val(0.5)),
+                Expr::eq(Expr::col("b"), Expr::val(0.6)),
+            ])
+            .input(table)
+            .build();
+        if let Relation::Map(m) = map {
             assert_eq!(
                 m.filter.unwrap(),
-                expr!(eq(b, 0.5))
+                Expr::and(
+                    Expr::and(Expr::val(true), Expr::gt(Expr::col("a"), Expr::val(0.5))),
+                    Expr::eq(Expr::col("b"), Expr::val(0.6))
+                )
+            )
+        }
+    }
+
+    #[test]
+    fn test_map_filter_with() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .build(),
+            )
+            .build();
+
+        let map: Relation = Relation::map()
+            .with(("A", Expr::col("a")))
+            .with(("B", Expr::col("b")))
+            .filter(Expr::gt(Expr::col("a"), Expr::val(0.5)))
+            .input(table.clone())
+            .build();
+        if let Relation::Map(m) = map {
+            println!("Map = {}", m);
+            let filtered_map:Map = Relation::map().filter_with(
+                m,
+                Expr::lt(Expr::col("a"), Expr::val(0.9))
+            ).build();
+            assert_eq!(
+                filtered_map.filter.unwrap(),
+                Expr::and(Expr::gt(Expr::col("a"), Expr::val(0.5)), Expr::lt(Expr::col("a"), Expr::val(0.9)))
             )
         }
 
         let map: Relation = Relation::map()
             .with(("A", Expr::col("a")))
             .with(("B", Expr::col("b")))
-            .filter_iter(vec![Expr::gt(Expr::col("a"), Expr::val(0.5)), Expr::eq(Expr::col("b"), Expr::val(0.6))])
-            .input(table)
+            .input(table.clone())
             .build();
-        if let  Relation::Map(m) = map {
+        if let Relation::Map(m) = map {
+            println!("Map = {}", m);
+            let filtered_map:Map = Relation::map().filter_with(
+                m,
+                Expr::lt(Expr::col("a"), Expr::val(0.9))
+            ).build();
             assert_eq!(
-                m.filter.unwrap(),
-                Expr::and(Expr::and(Expr::val(true), Expr::gt(Expr::col("a"), Expr::val(0.5))), Expr::eq(Expr::col("b"), Expr::val(0.6)))
+                filtered_map.filter.unwrap(),
+                Expr::lt(Expr::col("a"), Expr::val(0.9))
             )
         }
+
+        let map: Relation = Relation::map()
+            .with(("a", Expr::col("a")))
+            .with(("b", Expr::col("b")))
+            .input(table.clone())
+            .build();
+        if let Relation::Map(m) = map {
+            println!("Map = {}", m);
+            let filtered_map:Map = Relation::map().filter_with(
+                m,
+                Expr::lt(Expr::col("a"), Expr::val(0.9))
+            ).build();
+            assert_eq!(
+                filtered_map.filter.unwrap(),
+                Expr::lt(Expr::col("a"), Expr::val(0.9))
+            )
+        }
+
     }
 }

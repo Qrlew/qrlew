@@ -1,7 +1,7 @@
 //! # Methods to define `Relation`s' protected entity and propagate it
-//! 
+//!
 //! This is experimental and little tested yet.
-//! 
+//!
 
 use crate::{
     builder::{self, Ready, With},
@@ -318,11 +318,11 @@ impl Relation {
 mod tests {
     use super::*;
     use crate::{
+        ast,
         display::Dot,
         io::{postgresql, Database},
         relation::Variant,
         sql::parse,
-        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
