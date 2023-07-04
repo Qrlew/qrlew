@@ -231,7 +231,17 @@ impl fmt::Display for Function {
                     "CASE WHEN {} THEN {} ELSE {} END",
                     self.arguments[0], self.arguments[1], self.arguments[2]
                 )
-            }
+            },
+            function::Style::In => {
+                write!(
+                    f,
+                    "{} IN ({})",
+                    self.arguments[0],
+                    self.arguments[1..].iter()
+                    .map(|expr| expr.to_string())
+                    .join(", ")
+                )
+            },
         }
     }
 }
@@ -379,7 +389,7 @@ macro_rules! impl_nary_function_constructors {
     };
 }
 
-impl_nary_function_constructors!(Concat);
+impl_nary_function_constructors!(Concat, InList);
 
 /// An aggregate function expression
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -753,6 +763,15 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
                     arguments[0], arguments[1], arguments[2]
                 )
             }
+            function::Style::In => {
+                format!(
+                    "{} IN ({})",
+                    arguments[0],
+                    arguments[1..].iter()
+                    .map(|expr| expr.to_string())
+                    .join(", ")
+                )
+            },
         }
     }
 

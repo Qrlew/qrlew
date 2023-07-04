@@ -192,6 +192,11 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 expr: arguments[0].clone().into(),
                 r#in: arguments[1].clone().into(),
             },
+            expr::function::Function::InList(_) => ast::Expr::InList {
+                expr: arguments[0].clone().into(),
+                list: arguments[1..].iter().cloned().collect(),
+                negated: false
+            }
         }
     }
     // TODO implement this properly

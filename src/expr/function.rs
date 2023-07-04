@@ -48,6 +48,7 @@ pub enum Function {
     Position,
     Upper,
     Random(usize),
+    InList(usize)
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -56,6 +57,7 @@ pub enum Style {
     BinaryOperator,
     Function,
     Case,
+    In,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -111,6 +113,8 @@ impl Function {
             | Function::Concat(_) => Style::Function,
             // Case Function
             Function::Case => Style::Case,
+            // In Functions
+            Function::InList(_) => Style::In,
         }
     }
 
@@ -157,7 +161,7 @@ impl Function {
             // Ternary Function
             Function::Case => Arity::Nary(3),
             // Nary Function
-            Function::Concat(_) => Arity::Varying,
+            Function::Concat(_) | Function::InList(_) => Arity::Varying,
         }
     }
 
@@ -220,14 +224,15 @@ impl fmt::Display for Function {
             Function::CharLength => "char_length",
             Function::Lower => "lower",
             Function::Upper => "upper",
+            Function::Md5 => "md5",
             // Binary Functions
             Function::Pow => "pow",
-            Function::Concat(_) => "concat",
             Function::Position => "position",
             // Ternary Functions
             Function::Case => "case",
             // Nary Functions
-            Function::Md5 => "md5",
+            Function::Concat(_) => "concat",
+            Function::InList(_) => "in_list",
         })
     }
 }

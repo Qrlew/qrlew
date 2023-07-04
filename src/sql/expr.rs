@@ -235,6 +235,7 @@ pub trait Visitor<'a, T: Clone> {
         else_result: Option<T>,
     ) -> T;
     fn position(&self, expr: T, r#in: T) -> T;
+    fn in_list(&self, expr: T, list: Vec<T>) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -271,7 +272,19 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 list,
                 negated,
-            } => todo!(),
+            } => {
+                let list_expr = self.in_list(
+                    dependencies.get(expr).clone(),
+                    list.iter()
+                        .map(|x| dependencies.get(x).clone())
+                        .collect(),
+                );
+                if *negated {
+                    self.unary_op(&ast::UnaryOperator::Not, list_expr)
+                } else {
+                    list_expr
+                }
+            },
             ast::Expr::InSubquery {
                 expr,
                 subquery,
@@ -697,6 +710,12 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     fn position(&self, expr: Result<Expr>, r#in: Result<Expr>) -> Result<Expr> {
         Ok(Expr::position(expr?, r#in?))
     }
+
+    fn in_list(&self, expr: Result<Expr>, list: Vec<Result<Expr>>) -> Result<Expr> {
+        let mut args = vec![expr?];
+        args.extend(list.into_iter().collect::<Result<Vec<Expr>>>()?);
+        Ok(Expr::in_list(args))
+    }
 }
 
 /// Based on the TryIntoExprVisitor implement the TryFrom trait
@@ -831,6 +850,24 @@ mod tests {
             String::from(
                 "CASE WHEN (a = 5) THEN (a + 3) ELSE CASE WHEN (a = 2) THEN (a - 4) ELSE a END END"
             )
+        );
+    }
+
+    #[test]
+    fn test_in_list() {
+        let ast_expr: ast::Expr =
+            parse_expr("a in (3, 4, 5)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = expr!(case(gt(a, 5), 5, case(lt(a, 2), 2, a)));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(
+            expr.to_string(),
+            String::from("a in (3, 4, 5)")
         );
     }
 }
