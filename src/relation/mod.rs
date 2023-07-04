@@ -292,6 +292,8 @@ impl Map {
 
     /// Compute the size of the map
     /// The size of the map has the same upper bound but no positive lower bound
+    /// In the case of a `limit` the uuper bound, the minimum between
+    /// the limit and the input max size is taken.
     fn size(input: &Relation, limit: Option<usize>) -> Integer {
         input.size().max().map_or_else(
             || Integer::from_min(0),
