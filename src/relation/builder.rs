@@ -5,11 +5,12 @@ use super::{
     SetOperator, SetQuantifier, Table, Variant,
 };
 use crate::{
+    ast,
     builder::{Ready, With, WithIterator},
     data_type::Integer,
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
-    And, ast,
+    And,
 };
 
 // A Table builder
@@ -121,7 +122,9 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     pub fn filter_iter(mut self, iter: Vec<Expr>) -> Self {
-        let filter = iter.into_iter().fold(Expr::val(true), |f, x| Expr::and(f, x));
+        let filter = iter
+            .into_iter()
+            .fold(Expr::val(true), |f, x| Expr::and(f, x));
         self.filter(filter)
     }
 
@@ -955,10 +958,10 @@ mod tests {
     #[test]
     fn test_join_building() {
         use crate::{
+            ast,
             display::Dot,
             hierarchy::Path,
             io::{postgresql, Database},
-            ast,
         };
         use itertools::Itertools;
         let mut database = postgresql::test_database();
@@ -1008,23 +1011,26 @@ mod tests {
             .filter(Expr::eq(Expr::col("b"), Expr::val(0.5)))
             .input(table.clone())
             .build();
-        if let  Relation::Map(m) = map {
-            assert_eq!(
-                m.filter.unwrap(),
-                expr!(eq(b, 0.5))
-            )
+        if let Relation::Map(m) = map {
+            assert_eq!(m.filter.unwrap(), expr!(eq(b, 0.5)))
         }
 
         let map: Relation = Relation::map()
             .with(("A", Expr::col("a")))
             .with(("B", Expr::col("b")))
-            .filter_iter(vec![Expr::gt(Expr::col("a"), Expr::val(0.5)), Expr::eq(Expr::col("b"), Expr::val(0.6))])
+            .filter_iter(vec![
+                Expr::gt(Expr::col("a"), Expr::val(0.5)),
+                Expr::eq(Expr::col("b"), Expr::val(0.6)),
+            ])
             .input(table)
             .build();
-        if let  Relation::Map(m) = map {
+        if let Relation::Map(m) = map {
             assert_eq!(
                 m.filter.unwrap(),
-                Expr::and(Expr::and(Expr::val(true), Expr::gt(Expr::col("a"), Expr::val(0.5))), Expr::eq(Expr::col("b"), Expr::val(0.6)))
+                Expr::and(
+                    Expr::and(Expr::val(true), Expr::gt(Expr::col("a"), Expr::val(0.5))),
+                    Expr::eq(Expr::col("b"), Expr::val(0.6))
+                )
             )
         }
     }

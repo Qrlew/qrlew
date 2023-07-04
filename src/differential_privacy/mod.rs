@@ -1,7 +1,7 @@
 //! # Methods to transform `Relation`s into differentially private ones
-//! 
+//!
 //! This is experimental and little tested yet.
-//! 
+//!
 
 use crate::data_type::DataTyped;
 use crate::{
@@ -113,12 +113,13 @@ impl Relation {
 mod tests {
     use super::*;
     use crate::{
+        ast,
         builder::With,
         display::Dot,
         io::{postgresql, Database},
         relation::Variant as _,
         sql::parse,
-        Relation, ast,
+        Relation,
     };
     use colored::Colorize;
     use itertools::Itertools;

@@ -1,11 +1,11 @@
 //! Data structures and visitor to collect object names and the queries they refer to.
 
 use crate::{
+    ast,
     expr::Identifier,
     hierarchy::Path,
     sql::visitor::{TableWithJoins, Visitor},
     visitor::Visited,
-    ast,
 };
 use colored::Colorize;
 use itertools::Itertools;

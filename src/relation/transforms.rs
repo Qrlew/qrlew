@@ -3,6 +3,7 @@
 
 use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
 use crate::display::Dot;
+use crate::namer;
 use crate::{
     builder::{Ready, With, WithIterator},
     expr::{aggregate, Aggregate, Expr, Value},
@@ -737,6 +738,26 @@ impl Relation {
             },
         }
     }
+
+    /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
+    pub fn poisson_sampling(self, proba: f64) -> Relation {
+        //make sure proba is between 0 and 1.
+        assert!(0.0 <= proba && proba <= 1.0);
+
+        let sampled_relation: Relation = Relation::map()
+            .with_iter(
+                self.schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(
+                Expr::random(namer::new_id("POISSON_SAMPLING")),
+                Expr::val(proba),
+            ))
+            .input(self)
+            .build();
+        sampled_relation
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -749,11 +770,11 @@ impl With<(&str, Expr)> for Relation {
 mod tests {
     use super::*;
     use crate::{
+        ast,
         data_type::{value::List, DataTyped},
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
-        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -1406,5 +1427,202 @@ mod tests {
         _ = filtered_relation.display_dot();
         assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
         assert_eq!(filtered_relation.schema().field("sum_d").unwrap().data_type(), DataType::integer_interval(0, 15));
+    }
+
+    fn test_possion_sampling() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let proba = 0.5;
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
+        let reduce: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(("sum_price", Expr::sum(Expr::col("price"))))
+            .with_group_by_column("item")
+            .with_group_by_column("order_id")
+            .build();
+
+        let map: Relation = Relation::map()
+            .with(Expr::abs(Expr::col("order_id")))
+            .input(table.clone())
+            .build();
+
+        let join: Relation = Relation::join()
+            .left(relations.get(&["order_table".into()]).unwrap().clone())
+            .right(table.clone())
+            .on(Expr::eq(Expr::col("id"), Expr::col("order_id")))
+            .build();
+
+        let sampled_table = table.clone().poisson_sampling(proba);
+        namer::reset();
+        let expected_sampled_table: Relation = Relation::map()
+            .with_iter(
+                table
+                    .clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(
+                Expr::random(namer::new_id("POISSON_SAMPLING")),
+                Expr::val(proba),
+            ))
+            .input(table.clone())
+            .build();
+        namer::reset();
+        let sampled_reduce = reduce.clone().poisson_sampling(proba);
+        namer::reset();
+        let expected_sampled_reduce: Relation = Relation::map()
+            .with_iter(
+                reduce
+                    .clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(
+                Expr::random(namer::new_id("POISSON_SAMPLING")),
+                Expr::val(proba),
+            ))
+            .input(reduce.clone())
+            .build();
+        namer::reset();
+        let sampled_map: Relation = map.clone().poisson_sampling(proba);
+        namer::reset();
+        let expected_sampled_map: Relation = Relation::map()
+            .with_iter(
+                map.clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(
+                Expr::random(namer::new_id("POISSON_SAMPLING")),
+                Expr::val(proba),
+            ))
+            .input(map.clone())
+            .build();
+        namer::reset();
+        let sampled_join: Relation = join.clone().poisson_sampling(proba);
+        namer::reset();
+        let expected_sampled_join: Relation = Relation::map()
+            .with_iter(
+                join.clone()
+                    .schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(
+                Expr::random(namer::new_id("POISSON_SAMPLING")),
+                Expr::val(proba),
+            ))
+            .input(join.clone())
+            .build();
+
+        sampled_table.display_dot().unwrap();
+        sampled_reduce.display_dot().unwrap();
+        sampled_map.display_dot().unwrap();
+        sampled_join.display_dot().unwrap();
+
+        assert_eq!(expected_sampled_table, sampled_table);
+        assert_eq!(expected_sampled_reduce, sampled_reduce);
+        assert_eq!(expected_sampled_map, sampled_map);
+        assert_eq!(expected_sampled_join, sampled_join);
+    }
+
+    #[test]
+    fn test_sampling_query() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        // relation with reduce
+        let relation = Relation::try_from(
+            parse("SELECT 0.0 as z, sum(price) as a, sum(price) as b FROM item_table GROUP BY order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+
+        let proba = 0.5;
+        namer::reset();
+        let sampled_relation = relation.poisson_sampling(proba);
+
+        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+
+        let expected_query = r#"WITH
+        map_qcqr (field_z650, field_08wv) AS (SELECT price AS field_z650, order_id AS field_08wv FROM item_table),
+        reduce_8knj (field_glfp) AS (SELECT sum(field_z650) AS field_glfp FROM map_qcqr GROUP BY field_08wv),
+        map_xyv8 (z, a, b) AS (SELECT 0 AS z, field_glfp AS a, field_glfp AS b FROM reduce_8knj),
+        map_bfzk (z, a, b) AS (SELECT z AS z, a AS a, b AS b FROM map_xyv8 WHERE (random()) < (0.5))
+        SELECT * FROM map_bfzk"#;
+
+        assert_eq!(
+            expected_query.replace('\n', " ").replace(' ', ""),
+            (&query_sampled_relation[..]).replace(' ', "")
+        );
+        print!("{}\n", query_sampled_relation);
+
+        // relation with map
+        let relation = Relation::try_from(
+            parse("SELECT LOG(price) FROM item_table")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+
+        let proba = 0.5;
+        namer::reset();
+        let sampled_relation = relation.poisson_sampling(proba);
+
+        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+
+        let expected_query = r#"WITH map_gj2u (field_uy24) AS (SELECT log(price) AS field_uy24 FROM item_table),
+        map_upop (field_uy24) AS (SELECT field_uy24 AS field_uy24 FROM map_gj2u WHERE (random()) < (0.5))
+        SELECT * FROM map_upop"#;
+
+        assert_eq!(
+            expected_query.replace('\n', " ").replace(' ', ""),
+            (&query_sampled_relation[..]).replace(' ', "")
+        );
+        print!("{}\n", query_sampled_relation);
+
+        // relation with join
+        let relation = Relation::try_from(
+            parse("SELECT * FROM order_table JOIN item_table ON(id=order_id)")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+
+        let proba = 0.5;
+        namer::reset();
+        let sampled_relation = relation.poisson_sampling(proba);
+
+        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+
+        let expected_query = r#"WITH
+        join__e_y (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
+            SELECT * FROM order_table JOIN item_table ON (order_table.id) = (item_table.order_id)
+        ), map_8r2s (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
+            SELECT field_eygr AS field_eygr, field_0wjz AS field_0wjz, field_cg0j AS field_cg0j,
+                field_idxm AS field_idxm, field_0eqn AS field_0eqn, field_3ned AS field_3ned, field_gwco AS field_gwco
+            FROM join__e_y
+        ), map_yko1 (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
+            SELECT field_eygr AS field_eygr, field_0wjz AS field_0wjz, field_cg0j AS field_cg0j,
+                field_idxm AS field_idxm, field_0eqn AS field_0eqn, field_3ned AS field_3ned, field_gwco AS field_gwco
+            FROM map_8r2s WHERE (random()) < (0.5)
+        ) SELECT * FROM map_yko1"#;
+
+        assert_eq!(
+            expected_query.replace('\n', " ").replace(' ', ""),
+            (&query_sampled_relation[..]).replace(' ', "")
+        );
+        print!("{}\n", query_sampled_relation)
     }
 }
