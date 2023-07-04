@@ -860,6 +860,7 @@ mod tests {
 
     #[test]
     fn test_in_list() {
+        // IN
         let ast_expr: ast::Expr =
             parse_expr("a in (3, 4, 5)").unwrap();
         println!("ast::expr = {ast_expr}");
@@ -873,6 +874,22 @@ mod tests {
         assert_eq!(
             expr.to_string(),
             String::from("a IN (3, 4, 5)")
+        );
+
+        // NOT IN
+        let ast_expr: ast::Expr =
+            parse_expr("a not in (3, 4, 5)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::not(Expr::in_list(vec![Expr::col("a"), Expr::val(3), Expr::val(4), Expr::val(5)]));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(
+            expr.to_string(),
+            String::from("(not a IN (3, 4, 5))")
         );
     }
 }
