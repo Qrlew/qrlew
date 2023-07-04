@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Computation of the norm
 - Add `clipped_sum` transform
 - poisson_sampling transform [MR46](https://github.com/Qrlew/qrlew/pull/46)
+- Added `filter` method in `Map` builder and `filter` transform [MR43](https://github.com/Qrlew/qrlew/pull/43)
 - Map size propagation now takes into account `limit`. [MR49](https://github.com/Qrlew/qrlew/pull/49)
 
 ## [0.1.2] - 2023-06-01

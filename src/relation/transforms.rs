@@ -9,10 +9,12 @@ use crate::{
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
     DataType,
+    data_type::{self, intervals::{Intervals, Bound}},
+    relation::Field,
 };
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::{ops::Deref, rc::Rc};
+use std::{ops::{self, Deref}, rc::Rc};
 
 /* Reduce
  */
@@ -71,13 +73,12 @@ impl Map {
     }
     /// Filter fields
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Map {
-        Relation::map().filter_with(self, predicate).build()
+        Relation::map().filter_fields_with(self, predicate).build()
     }
     /// Map fields
     pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Map {
         Relation::map().map_with(self, f).build()
     }
-
     /// Rename fields
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Map {
         Relation::map().rename_with(self, f).build()
@@ -548,9 +549,9 @@ impl Relation {
         }
     }
 
-    /// This transform multiplies the coordinates in self relation by their corresponding weights in weight_relation
-    /// weight_relation contains the coordinates weights and the vectors columns
-    /// self contains the coordinates, the base and vectors columns
+    /// This transform multiplies the coordinates in `self` relation by their corresponding weights in `weight_relation`.
+    /// `weight_relation` contains the coordinates weights and the vectors columns
+    /// `self` contains the coordinates, the base and vectors columns
     pub fn renormalize(
         self,
         weight_relation: Self,
@@ -619,9 +620,9 @@ impl Relation {
             .build()
     }
 
-    /// The `self` relation must contain the vectors, base and coordinates columns
-    /// For each coordinate, it rescale the columns by 1 / max(c, norm_l2(coordinate))
+    /// For each coordinate, rescale the columns by 1 / max(c, norm_l2(coordinate))
     /// where the l2 norm is computed for each elecment of `vectors`
+    /// The `self` relation must contain the vectors, base and coordinates columns
     pub fn clipped_sum(
         self,
         vectors: &str,
@@ -703,6 +704,19 @@ impl Relation {
             .build()
     }
 
+    /// Returns a `Relation::Map` that inputs `self` and filter by `predicate`
+    pub fn filter(self, predicate: Expr) -> Relation {
+        Relation::map()
+            .with_iter(
+                self.schema()
+                        .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(predicate)
+            .input(self)
+            .build()
+    }
+
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
     pub fn poisson_sampling(self, proba: f64) -> Relation {
         //make sure proba is between 0 and 1.
@@ -735,7 +749,7 @@ mod tests {
     use super::*;
     use crate::{
         ast,
-        data_type::value::List,
+        data_type::{value::List, DataTyped},
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
@@ -1341,6 +1355,71 @@ mod tests {
     }
 
     #[test]
+    fn test_filter() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+
+        let relation =
+            Relation::try_from(parse("SELECT exp(a) AS my_a, b As my_b FROM table_1").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter(
+            Expr::and(
+                Expr::and(
+                    Expr::gt(Expr::col("my_a"), Expr::val(5.)),
+                    Expr::lt(Expr::col("my_b"), Expr::val(0.))
+                ),
+                Expr::lt(Expr::col("my_a"), Expr::val(100.))
+            )
+        );
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field("my_a").unwrap().data_type(), DataType::float_interval(5., 100.));
+        assert_eq!(filtered_relation.schema().field("my_b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.)));
+        if let Relation::Map(m) = filtered_relation {
+            assert_eq!(
+                m.filter.unwrap(),
+                Expr::and(
+                    Expr::and(
+                        Expr::gt(Expr::col("my_a"), Expr::val(5.)),
+                        Expr::lt(Expr::col("my_b"), Expr::val(0.))
+                    ),
+                    Expr::lt(Expr::col("my_a"), Expr::val(100.))
+                )
+            )
+        }
+
+        let relation =
+            Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter(
+            Expr::and(
+                Expr::gt(Expr::col("a"), Expr::val(5.)),
+                Expr::lt(Expr::col("b"), Expr::val(0.5))
+            )
+        );
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
+        assert_eq!(filtered_relation.schema().field("b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.5)));
+        if let Relation::Map(m) = filtered_relation {
+            assert_eq!(
+                m.filter.unwrap(),
+                Expr::and(
+                    Expr::gt(Expr::col("a"), Expr::val(5.)),
+                    Expr::lt(Expr::col("b"), Expr::val(0.5))
+                )
+            )
+        }
+
+        let relation =
+            Relation::try_from(parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a").unwrap().with(&relations)).unwrap();
+        let filtered_relation = relation.filter(
+            Expr::and(
+                Expr::gt(Expr::col("a"), Expr::val(5.)),
+                Expr::lt(Expr::col("sum_d"), Expr::val(15))
+            )
+        );
+        _ = filtered_relation.display_dot();
+        assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
+        assert_eq!(filtered_relation.schema().field("sum_d").unwrap().data_type(), DataType::integer_interval(0, 15));
+    }
+
     fn test_possion_sampling() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
