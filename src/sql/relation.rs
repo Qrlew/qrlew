@@ -847,7 +847,7 @@ mod tests {
     #[test]
     fn test_in_list() {
         let query =
-            parse("SELECT a FROM table_1 WHERE a in (1.").unwrap();
+            parse("SELECT a FROM table_1 WHERE a in (1., 2., 3.)").unwrap();
         let schema_1: Schema = vec![("a", DataType::float_interval(0., 10.))]
             .into_iter()
             .collect();
