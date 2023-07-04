@@ -247,12 +247,13 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     /// Initialize a builder with an existing map and filter by an `Expr` of the fields.
-    /// All the field columns in `predicate` are replaced by their expressions in `self.predicate`.
+    /// All the field columns in `predicate` are replaced by their expressions in `self.predicate` and
+    /// the results is saved into `translated_predicate`.
     /// Then we return a `Map` whose `filter` field is Èxpr::and(self.filter, translated_predicate)`.
     ///
     /// # Arguments
     ///  - self: the current Map
-    ///  - predicate: an Èxpr`that depends on the fields of the current Map (AND NOT ON THE INPUT COLUMNS)
+    ///  - predicate: an `Expr`that depends on the field columns of the current Map (AND NOT ON THE INPUT COLUMNS)
     ///
     pub fn filter_field_with(self, map: Map, predicate: Expr) -> MapBuilder<WithInput> {
         let Map {
