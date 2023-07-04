@@ -4,10 +4,10 @@ use super::{
     SetOperator, SetQuantifier, Table, Variant as _, Visitor,
 };
 use crate::{
+    ast,
     data_type::{DataType, DataTyped},
     expr::identifier::Identifier,
     visitor::Acceptor,
-    ast,
 };
 use std::{collections::HashSet, convert::TryFrom, iter::Iterator};
 

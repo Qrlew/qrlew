@@ -6,10 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- `filter` by `Expr` in `Schema` and `Field`
+- filter in Relation builder
+- Used `filter` field in `Map` when computing the schema
+
 ### Added
+- filter_iter in Relation builder
 - Conversion for `Case` expression [MR1](https://github.com/Qrlew/qrlew/pull/1)
 - Computation of the norm
 - Add `clipped_sum` transform
+- poisson_sampling transform [MR46](https://github.com/Qrlew/qrlew/pull/46)
 
 ## [0.1.2] - 2023-06-01
 ### Added
@@ -19,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - String functions `POSITION`, `LOWER`, `UPPER` and `CHAR_LENGTH` [PR9](https://github.com/Qrlew/qrlew/pull/9)
 - Optional handling in or [PR6](https://github.com/Qrlew/qrlew/pull/6)
 
-### Fixed
 ## [0.1.1] - 2023-05-26
 ### Changed
 - Made sqlite optional

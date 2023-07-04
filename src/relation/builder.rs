@@ -5,11 +5,12 @@ use super::{
     SetOperator, SetQuantifier, Table, Variant,
 };
 use crate::{
+    ast,
     builder::{Ready, With, WithIterator},
     data_type::Integer,
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
-    And, ast,
+    And,
 };
 
 // A Table builder
@@ -118,6 +119,13 @@ impl<RequireInput> MapBuilder<RequireInput> {
             )),
         });
         self
+    }
+
+    pub fn filter_iter(mut self, iter: Vec<Expr>) -> Self {
+        let filter = iter
+            .into_iter()
+            .fold(Expr::val(true), |f, x| Expr::and(f, x));
+        self.filter(filter)
     }
 
     // TODO Does order by applies to the top split?
@@ -909,10 +917,10 @@ mod tests {
     #[test]
     fn test_join_building() {
         use crate::{
+            ast,
             display::Dot,
             hierarchy::Path,
             io::{postgresql, Database},
-            ast,
         };
         use itertools::Itertools;
         let mut database = postgresql::test_database();
@@ -941,5 +949,48 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
+    }
+
+    #[test]
+    fn test_map_filter() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .build(),
+            )
+            .build();
+        let map: Relation = Relation::map()
+            .with(("A", Expr::col("a")))
+            .with(("B", Expr::col("b")))
+            .filter(Expr::gt(Expr::col("a"), Expr::val(0.5)))
+            .filter(Expr::eq(Expr::col("b"), Expr::val(0.5)))
+            .input(table.clone())
+            .build();
+        if let Relation::Map(m) = map {
+            assert_eq!(m.filter.unwrap(), expr!(eq(b, 0.5)))
+        }
+
+        let map: Relation = Relation::map()
+            .with(("A", Expr::col("a")))
+            .with(("B", Expr::col("b")))
+            .filter_iter(vec![
+                Expr::gt(Expr::col("a"), Expr::val(0.5)),
+                Expr::eq(Expr::col("b"), Expr::val(0.6)),
+            ])
+            .input(table)
+            .build();
+        if let Relation::Map(m) = map {
+            assert_eq!(
+                m.filter.unwrap(),
+                Expr::and(
+                    Expr::and(Expr::val(true), Expr::gt(Expr::col("a"), Expr::val(0.5))),
+                    Expr::eq(Expr::col("b"), Expr::val(0.6))
+                )
+            )
+        }
     }
 }

@@ -1,5 +1,5 @@
 //! # `Relation` definition and manipulation
-//! 
+//!
 //! This module defines the `Relation` struct
 //! A `Relation` is the lazy representation of a computation that can be compiled into DP
 //!
@@ -11,7 +11,7 @@ pub mod schema;
 pub mod sql;
 pub mod transforms;
 
-use std::{cmp, error, fmt, hash, ops::Index, rc::Rc, result};
+use std::{cmp, error, fmt, hash, ops::{RangeBounds, Index}, rc::Rc, result};
 
 use colored::Colorize;
 use itertools::Itertools;
@@ -19,7 +19,10 @@ use itertools::Itertools;
 use crate::{
     builder::Ready,
     data_type::{
-        self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct,
+        self,
+        function::Function,
+        intervals::{Intervals, Bound},
+        DataType, DataTyped, Integer, Struct,
         Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
@@ -218,7 +221,7 @@ pub struct Map {
     pub name: String,
     /// The list of expressions (SELECT items)
     pub projection: Vec<Expr>,
-    /// The predicate expression, which must have Boolean type (WHERE clause).
+    /// The predicate expression, which must have Boolean type (WHERE clause). It is applied on the input columns.
     pub filter: Option<Expr>,
     /// The sort expressions (SORT)
     pub order_by: Vec<OrderBy>,
@@ -246,7 +249,7 @@ impl Map {
         input: Rc<Relation>,
     ) -> Self {
         assert!(Split::from_iter(named_exprs.clone()).len() == 1);
-        let (schema, exprs) = Map::schema_exprs(named_exprs, &input);
+        let (schema, exprs) = Map::schema_exprs(named_exprs, &filter, &input);
         let size = Map::size(&input);
         Map {
             name,
@@ -260,13 +263,18 @@ impl Map {
         }
     }
 
-    /// Compute the schema and exprs of the reduce
-    fn schema_exprs(named_exprs: Vec<(String, Expr)>, input: &Relation) -> (Schema, Vec<Expr>) {
+    /// Compute the schema and exprs of the map
+    fn schema_exprs(named_exprs: Vec<(String, Expr)>, filter: &Option<Expr>, input: &Relation) -> (Schema, Vec<Expr>) {
+        let input_data_type = if let Some(f) =  filter {
+            input.schema().filter(f).data_type()
+        } else {
+            input.data_type()
+        };
         let (fields, exprs) = named_exprs
             .into_iter()
             .map(|(name, expr)| {
                 (
-                    Field::new(name, expr.super_image(&input.data_type()).unwrap(), None),
+                    Field::new(name, expr.super_image(&input_data_type).unwrap(), None),
                     expr,
                 )
             })
@@ -1303,10 +1311,18 @@ mod tests {
             .with(Expr::exp(Expr::col("a")))
             .input(table)
             .with(Expr::col("b") + Expr::col("d"))
+            .filter(Expr::gt(Expr::col("a"), Expr::val(0.)))
             .build();
         println!("map = {}", map);
-        println!("map.data_type() = {}", map.data_type());
-        println!("map.schema() = {}", map.schema());
+        println!("map.data_type() = {:?}", map.data_type());
+        assert_eq!(
+            map.schema().field_from_index(0).unwrap().data_type(),
+            DataType::float_min(1.)
+        );
+        assert_eq!(
+            map.schema().field_from_index(1).unwrap().data_type(),
+            DataType::float_interval(-2., 3.)
+        );
     }
 
     #[test]

@@ -1,5 +1,5 @@
 //! # SQL parsing and conversion into Relation
-//! 
+//!
 //! This module contains everything needed to parse an SQL query and build a Relation out of it
 //!
 
@@ -108,11 +108,11 @@ mod tests {
     #[cfg(feature = "sqlite")]
     use crate::io::sqlite;
     use crate::{
+        ast,
         builder::With,
         display::Dot,
         io::{postgresql, Database},
         relation::Relation,
-        ast,
     };
     use colored::Colorize;
     use itertools::Itertools;

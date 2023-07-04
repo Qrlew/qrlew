@@ -286,7 +286,7 @@ impl And<Self> for Map {
                     .into_iter()
                     .chain(other.named_exprs)
                     .collect(),
-                self.filter.into_iter().chain(other.filter).next(),
+                self.filter.into_iter().chain(other.filter).last(),
                 self.order_by.into_iter().chain(other.order_by).collect(),
                 None,
             ),
@@ -295,7 +295,7 @@ impl And<Self> for Map {
                     .into_iter()
                     .chain(other.named_exprs)
                     .collect(),
-                self.filter.into_iter().chain(other.filter).next(),
+                self.filter.into_iter().chain(other.filter).last(),
                 self.order_by.into_iter().chain(other.order_by).collect(),
                 Some(s.and(*o)),
             ),
@@ -325,7 +325,7 @@ impl And<Self> for Map {
                 );
                 Map::new(
                     named_exprs.into_iter().chain(other.named_exprs).collect(),
-                    filter.into_iter().chain(other.filter).next(),
+                    filter.into_iter().chain(other.filter).last(),
                     order_by.into_iter().chain(other.order_by).collect(),
                     Some(reduce),
                 )
@@ -357,7 +357,7 @@ impl And<Self> for Map {
                 );
                 Map::new(
                     self.named_exprs.into_iter().chain(named_exprs).collect(),
-                    self.filter.into_iter().chain(filter).next(),
+                    self.filter.into_iter().chain(filter).last(),
                     self.order_by.into_iter().chain(order_by).collect(),
                     Some(reduce),
                 )
