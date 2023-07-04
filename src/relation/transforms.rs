@@ -737,6 +737,31 @@ impl Relation {
             },
         }
     }
+
+
+
+    /// Convenience methods
+    pub fn filter_interval<B: Bound>(self, name: &str, min: B, max: B) -> Relation
+    where Into<data_type::value::Value> {
+        let predicate = Expr::gt(Expr::col(name), Expr::val(min));
+        self.filter_field(predicate)
+    }
+
+    // pub fn filter_min<B: Bound>(self, name: &str, min: B) -> Relation {
+    //     self.filter_field(name, DataType::from(Intervals::from_min(min, max)))
+    // }
+
+    // pub fn filter_max<B: Bound>(self, name: &str, max: B) -> Relation {
+    //     self.filter_field(name, DataType::from(Intervals::from_max(min, max)))
+    // }
+
+    // pub fn filter_range<R: ops::RangeBounds<B>>(self, name: &str, range: R) -> Relation {
+    //     self.filter_field(name, DataType::from(Intervals::from_range(min, max)))
+    // }
+
+    // pub fn filter_values<A: AsRef<[B]>>(self, name: &str, values: A) -> Relation {
+    //     self.filter_field(name, DataType::from(Intervals::from_values(values)))
+    // }
 }
 
 impl With<(&str, Expr)> for Relation {
