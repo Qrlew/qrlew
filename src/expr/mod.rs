@@ -519,6 +519,10 @@ impl Expr {
         Expr::Value(value.into())
     }
 
+    pub fn list<L: IntoIterator<Item = V>, V: Into<Value>>(values: L) -> Expr {
+        Expr::Value(Value::list(values.into_iter().map(|v| v.into()).collect::<Vec<Value>>()))
+    }
+
     pub fn structured<S: Clone + Into<String>, E: Clone + Into<Rc<Expr>>, F: AsRef<[(S, E)]>>(
         fields: F,
     ) -> Expr {
@@ -1507,6 +1511,60 @@ mod tests {
     #[test]
     fn test_case() {
         let expression = expr!(case(gt(x, 5), x, y));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("x", DataType::float_interval(1., 10.)),
+            ("y", DataType::float_values([-2., 0.5])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+
+        let expression = Expr::case(
+            Expr::gt(Expr::col(stringify!(x)), Expr::val(5)),
+            Expr::col("x"),
+            Expr::Value(Value::unit()),
+        );
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([("x", DataType::float_interval(1., 10.))]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+
+        let expression = expr!(case(gt(x, 1), x, 1));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::float_interval(0., 2.)
+                ),]))
+                .unwrap()
+        );
+
+        let expression = expr!(gt(x, 1) * x + lt_eq(x, 1));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        println!(
+            "expression super image = {}",
+            expression
+                .super_image(&DataType::structured([(
+                    "x",
+                    DataType::float_interval(0., 2.)
+                ),]))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_in_op() {
+        let expression = Expr::in_op(Expr::col("a"), Expr::list([1, 2, 3]));
         println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
         let set = DataType::structured([

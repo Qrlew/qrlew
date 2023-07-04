@@ -955,6 +955,67 @@ impl Function for Case {
     }
 }
 
+// IN (..)
+#[derive(Clone, Debug)]
+pub struct InOp;
+
+impl fmt::Display for InOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "in")
+    }
+}
+
+impl Function for InOp {
+    fn domain(&self) -> DataType {
+        DataType::from(data_type::Struct::from_data_types(&[
+            DataType::Any,
+            DataType::list(DataType::Any, 1, i64::MAX as usize),
+        ]))
+    }
+
+    fn super_image(&self, set: &DataType) -> Result<DataType> {
+        if !set.is_subset_of(&self.domain()) {
+            Err(Error::set_out_of_range(set, self.domain()))
+        } else {
+            if let DataType::Struct(struct_data_type) = set {
+                assert_eq!(struct_data_type.len(), 2);
+                if let DataType::List(List{data_type, ..}) = struct_data_type[1].as_ref() {
+                    Ok(
+                        if data_type.as_ref().super_intersection(data_type)? == DataType::Null {
+                            DataType::boolean_value(false)
+                        } else {
+                            DataType::boolean()
+                        }
+                    )
+                } else {
+                    Err(Error::argument_out_of_range(set, self.domain()))
+                }
+            } else {
+                Err(Error::argument_out_of_range(set, self.domain()))
+            }
+        }
+    }
+
+    fn value(&self, arg: &Value) -> Result<Value> {
+        if let Value::Struct(struct_data_type) = arg {
+            assert_eq!(struct_data_type.len(), 2);
+            if let Value::List(list) = struct_data_type[1].as_ref() {
+                Ok(
+                    if list.iter().any(|v| v == struct_data_type[0].as_ref()) {
+                        Value::boolean(true)
+                    } else {
+                        Value::boolean(false)
+                    }
+                )
+            } else {
+                Err(Error::argument_out_of_range(arg, self.domain()))
+            }
+        } else {
+            Err(Error::argument_out_of_range(arg, self.domain()))
+        }
+    }
+}
+
 /*
 We list here all the functions to expose
 */
@@ -1510,6 +1571,11 @@ pub fn position() -> impl Function + Clone {
 // Case function
 pub fn case() -> impl Function + Clone {
     Case
+}
+
+// In operator
+pub fn in_op() -> impl Function + Clone {
+    InOp
 }
 
 /*
@@ -2292,6 +2358,33 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::Any);
+    }
+
+    #[test]
+    fn test_in_op() {
+        println!("Test in_op");
+        let fun = in_op();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer_value(10),
+            DataType::list(DataType::integer_values(vec![10, 15, 30]), 3, 3),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(
+            im == DataType::boolean()
+        );
+        let arg = Value::structured_from_values([
+            Value::from(10),
+            Value::list([Value::from(10)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(true)); // TODO: continue these tests
+
     }
 
     #[test]

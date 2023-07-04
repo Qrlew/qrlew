@@ -68,7 +68,8 @@ function_implementations!(
         Pow,
         CharLength,
         Lower,
-        Upper
+        Upper,
+        InOp
     ],
     [Case, Position],
     x,
