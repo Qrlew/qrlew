@@ -239,7 +239,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         nulls_first: None,
                     })
                     .collect(),
-                    map.limit
+                map.limit
                     .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
             ),
         ));
@@ -476,6 +476,7 @@ mod tests {
     use crate::{
         builder::{Ready, With},
         data_type::DataType,
+        display::Dot,
         expr::Expr,
         namer,
         relation::schema::Schema,
@@ -521,6 +522,7 @@ mod tests {
                 .with(Expr::exp(Expr::col(join[4].name())))
                 .input(join.clone())
                 .with(Expr::col(join[0].name()) + Expr::col(join[1].name()))
+                .limit(100)
                 .build(),
         );
         let join_2: Rc<Relation> = Rc::new(
@@ -557,6 +559,7 @@ mod tests {
     fn test_from_complex_relation() {
         let relation = build_complex_relation();
         let relation = relation.as_ref();
+        relation.display_dot().unwrap();
         let query = ast::Query::from(relation);
         println!("query = {query}");
     }

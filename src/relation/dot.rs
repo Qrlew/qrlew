@@ -180,8 +180,11 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     )
                 };
                 let limit = match map.limit {
-                    Some(limit) => format!("<br/>LIMIT {}", dot::escape_html(limit.to_string().as_str())),
-                    _ => "".to_string()
+                    Some(limit) => format!(
+                        "<br/>LIMIT {}",
+                        dot::escape_html(limit.to_string().as_str())
+                    ),
+                    _ => "".to_string(),
                 };
                 format!(
                     "<b>{} size ∈ {}</b><br/>{}{filter}{order_by}{limit}",
