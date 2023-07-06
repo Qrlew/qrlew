@@ -723,6 +723,16 @@ impl Relation {
             .build()
     }
 
+    pub fn filter_schema <B: Bound> (self, columns: Vec<(String, Option<B>, Option<B>, Vec<B>)>) -> Relation {
+        let predicate = columns.into_iter()
+            .fold(Expr::val(true), |f, (c, min, max, values)| {
+                let mut p = Expr::val(true);
+                if
+                Expr::and(f, p)
+            });
+        self.filter(predicate)
+    }
+
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
     pub fn poisson_sampling(self, proba: f64) -> Relation {
         //make sure proba is between 0 and 1.
