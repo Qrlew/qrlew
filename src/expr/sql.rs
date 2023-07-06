@@ -38,7 +38,12 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             crate::data_type::value::Value::Struct(_) => todo!(),
             crate::data_type::value::Value::Union(_) => todo!(),
             crate::data_type::value::Value::Optional(_) => todo!(),
-            crate::data_type::value::Value::List(l) => ast::Expr::Tuple(l.to_vec().iter().map(|v| self.value(v)).collect::<Vec<ast::Expr>>()),
+            crate::data_type::value::Value::List(l) => ast::Expr::Tuple(
+                l.to_vec()
+                    .iter()
+                    .map(|v| self.value(v))
+                    .collect::<Vec<ast::Expr>>(),
+            ),
             crate::data_type::value::Value::Set(_) => todo!(),
             crate::data_type::value::Value::Array(_) => todo!(),
             crate::data_type::value::Value::Date(_) => todo!(),
@@ -198,7 +203,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 } else {
                     todo!()
                 }
-            },
+            }
             // a,
             expr::function::Function::Position => ast::Expr::Position {
                 expr: arguments[0].clone().into(),
