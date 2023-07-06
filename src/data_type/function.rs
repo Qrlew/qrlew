@@ -612,7 +612,6 @@ where
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
-        println!("{} : {}", arg, self.domain());
         // First try to convert into the right datatype
         let converted_arg = &arg.as_data_type(&self.domain())?;
         // Then express in a more suitable form
