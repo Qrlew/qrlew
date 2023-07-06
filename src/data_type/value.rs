@@ -805,12 +805,6 @@ impl Variant for List {
     type Wrapped = Vec<Value>;
 }
 
-impl List {
-    pub fn to_vec(&self) -> Vec<Value> {
-        self.0.clone()
-    }
-}
-
 impl_variant_conversions!(List);
 
 /// Build a List value out of many values
