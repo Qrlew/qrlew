@@ -1040,7 +1040,7 @@ impl Injection for Base<Set, Set> {
                         .into(self.co_domain.data_type().clone())?
                         .value(a)
                 })
-                .map(|v| v.unwrap()),
+                .collect::<Result<Vec<_>>>()?,
         ))
     }
 }
@@ -1078,8 +1078,7 @@ impl Injection for Base<Array, Array> {
                         .into(self.co_domain.data_type().clone())?
                         .value(a)
                 })
-                .map(|v| v.unwrap())
-                .collect(),
+                .collect::<Result<Vec<_>>>()?,
             shape.clone(),
         )))
     }
