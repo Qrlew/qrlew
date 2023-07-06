@@ -2511,7 +2511,7 @@ mod tests {
 
     #[test]
     fn test_upper() {
-        println!("Test uppeer");
+        println!("Test upper");
         let fun = upper();
         println!("type = {}", fun);
         println!("domain = {}", fun.domain());

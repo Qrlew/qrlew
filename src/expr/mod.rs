@@ -1565,59 +1565,236 @@ mod tests {
     }
 
     #[test]
-    fn test_in_list() {
+    fn test_in_list_integer() {
+        // a IN (1, 2, 3)
         let expression = Expr::in_list(Expr::col("a"), Expr::list([1, 2, 3]));
         println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
+
+        // a ∈ integer([1, 100])
         let set = DataType::structured([
-            ("x", DataType::float_interval(1., 10.)),
-            ("y", DataType::float_values([-2., 0.5])),
+            ("a", DataType::integer_interval(1, 100)),
         ]);
-        println!(
-            "expression super image = {}",
-            expression.super_image(&set).unwrap()
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
         );
-
-        let expression = Expr::case(
-            Expr::gt(Expr::col(stringify!(x)), Expr::val(5)),
-            Expr::col("x"),
-            Expr::Value(Value::unit()),
-        );
-        println!("\nexpression = {}", expression);
-        println!("expression data type = {}", expression.data_type());
-        let set = DataType::structured([("x", DataType::float_interval(1., 10.))]);
-        println!(
-            "expression super image = {}",
-            expression.super_image(&set).unwrap()
-        );
-
-        let expression = expr!(case(gt(x, 1), x, 1));
-        println!("\nexpression = {}", expression);
-        println!("expression data type = {}", expression.data_type());
-        println!(
-            "expression super image = {}",
+        assert_eq!(
             expression
-                .super_image(&DataType::structured([(
-                    "x",
-                    DataType::float_interval(0., 2.)
-                ),]))
-                .unwrap()
+                .value(&Value::structured([("a", Value::integer(1)),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::integer(20)),]))
+                .unwrap(),
+            Value::boolean(false)
         );
 
-        let expression = expr!(gt(x, 1) * x + lt_eq(x, 1));
-        println!("\nexpression = {}", expression);
-        println!("expression data type = {}", expression.data_type());
-        println!(
-            "expression super image = {}",
+        // a ∈ integer([10, 100])
+        let set = DataType::structured([
+            ("a", DataType::integer_interval(10, 100)),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::from(Value::from(false))
+        );
+
+        // a ∈ float([1, 100])
+        let set = DataType::structured([
+            ("a", DataType::float_interval(1., 100.)),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
             expression
-                .super_image(&DataType::structured([(
-                    "x",
-                    DataType::float_interval(0., 2.)
-                ),]))
-                .unwrap()
+                .value(&Value::structured([("a", Value::float(1.)),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::float(20.5)),]))
+                .unwrap(),
+            Value::boolean(false)
+        );
+
+        // a ∈ text()
+        let set = DataType::structured([
+            ("a", DataType::text_values(["1".to_string(), "a".to_string()])),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::text("1".to_string())),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::text("a".to_string())),]))
+                .unwrap(),
+            Value::boolean(false)
         );
     }
 
+
+    #[test]
+    fn test_in_list_float() {
+        // a IN (10.5, 2.)
+        let expression = Expr::in_list(Expr::col("a"), Expr::list([10.5, 2.]));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+
+        // a ∈ float([1, 100])
+        let set = DataType::structured([
+            ("a", DataType::float_interval(1., 100.)),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::float(10.5)),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::float(20.)),]))
+                .unwrap(),
+            Value::boolean(false)
+        );
+
+        // a ∈ float([100., 150])
+        let set = DataType::structured([
+            ("a", DataType::float_interval(100., 150.)),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean_value(false)
+        );
+
+        // a ∈ integer([1, 100])
+        let set = DataType::structured([
+            ("a", DataType::integer_interval(1, 100)),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::integer(2)),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::integer(20)),]))
+                .unwrap(),
+            Value::boolean(false)
+        );
+
+        // a ∈ text()
+        let set = DataType::structured([
+            ("a", DataType::text_values(["1".to_string(), "a".to_string()])),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::text("10.5".to_string())),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::text("a".to_string())),]))
+                .unwrap(),
+            Value::boolean(false)
+        );
+    }
+
+    #[test]
+    fn test_in_list_text() {
+        // a IN ("a", "10", "2.")
+        let expression = Expr::in_list(Expr::col("a"), Expr::list(["a".to_string(), "10".to_string()]));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+
+        // a ∈ text()
+        let set = DataType::structured([
+            ("a", DataType::text_values(["1".to_string(), "a".to_string()])),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::text("a".to_string())),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::text("1".to_string())),]))
+                .unwrap(),
+            Value::boolean(false)
+        );
+
+        // a ∈ float([1, 100])
+        let set = DataType::structured([
+            ("a", DataType::float_interval(1., 100.)),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::float(10.)),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::float(20.)),]))
+                .unwrap(),
+            Value::boolean(false)
+        );
+
+        // a ∈ integer([1, 100])
+        let set = DataType::structured([
+            ("a", DataType::integer_interval(1, 100)),
+        ]);
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::integer(10)),]))
+                .unwrap(),
+            Value::boolean(true)
+        );
+        assert_eq!(
+            expression
+                .value(&Value::structured([("a", Value::integer(20)),]))
+                .unwrap(),
+            Value::boolean(false)
+        );
+    }
     #[test]
     fn test_std() {
         let expression = expr!(std(x));
