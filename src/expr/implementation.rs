@@ -69,7 +69,7 @@ function_implementations!(
         CharLength,
         Lower,
         Upper,
-        InOp
+        InList
     ],
     [Case, Position],
     x,

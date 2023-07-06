@@ -188,7 +188,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 results: vec![arguments[1].clone()],
                 else_result: Some(Box::new(arguments[2].clone())),
             },
-            expr::function::Function::InOp => ast::Expr::InList {
+            expr::function::Function::InList => ast::Expr::InList {
                 expr: arguments[0].clone().into(),
                 list: arguments[1..].to_vec(),
                 negated: false

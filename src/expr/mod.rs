@@ -331,7 +331,7 @@ impl_binary_function_constructors!(
     BitwiseXor,
     Pow,
     Position,
-    InOp
+    InList
 );
 
 /// Implement ternary function constructors
@@ -1563,8 +1563,8 @@ mod tests {
     }
 
     #[test]
-    fn test_in_op() {
-        let expression = Expr::in_op(Expr::col("a"), Expr::list([1, 2, 3]));
+    fn test_in_list() {
+        let expression = Expr::in_list(Expr::col("a"), Expr::list([1, 2, 3]));
         println!("\nexpression = {}", expression);
         println!("expression data type = {}", expression.data_type());
         let set = DataType::structured([

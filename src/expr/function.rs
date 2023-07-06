@@ -31,7 +31,7 @@ pub enum Function {
     BitwiseOr,
     BitwiseAnd,
     BitwiseXor,
-    InOp,
+    InList,
     // Functions
     Exp,
     Ln,
@@ -91,7 +91,7 @@ impl Function {
             | Function::BitwiseOr
             | Function::BitwiseAnd
             | Function::BitwiseXor
-            | Function::InOp => Style::BinaryOperator,
+            | Function::InList => Style::BinaryOperator,
             // Zero arg Functions
             Function::Random(_)
             // Unary Functions
@@ -140,7 +140,7 @@ impl Function {
             | Function::BitwiseOr
             | Function::BitwiseAnd
             | Function::BitwiseXor
-            | Function::InOp => Arity::Nary(2),
+            | Function::InList => Arity::Nary(2),
             // Zero arg Functions
             Function::Random(_) => Arity::Nary(0),
             // Unary Functions
@@ -210,7 +210,7 @@ impl fmt::Display for Function {
             Function::BitwiseOr => "|",
             Function::BitwiseAnd => "&",
             Function::BitwiseXor => "^",
-            Function::InOp => "in",
+            Function::InList => "in",
             // Zero arg Functions
             Function::Random(_) => "random",
             // Unary Functions

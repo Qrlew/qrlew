@@ -727,7 +727,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 }
             )
             .collect();
-        Ok(Expr::in_op(expr?, Expr::val(Value::list(list?))))
+        Ok(Expr::in_list(expr?, Expr::val(Value::list(list?))))
     }
 }
 
@@ -877,7 +877,7 @@ mod tests {
         for (x, t) in ast_expr.iter_with(DisplayVisitor) {
             println!("{x} ({t})");
         }
-        let true_expr = Expr::in_op(Expr::col("a"), Expr::val(Value::list([3.into(), 4.into(), 5.into()])));
+        let true_expr = Expr::in_list(Expr::col("a"), Expr::list([3, 4, 5]));
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(
             expr.to_string(),
@@ -893,7 +893,7 @@ mod tests {
         for (x, t) in ast_expr.iter_with(DisplayVisitor) {
             println!("{x} ({t})");
         }
-        let true_expr = Expr::not(Expr::in_op(Expr::col("a"), Expr::val(Value::list([3.into(), 4.into(), 5.into()]))));
+        let true_expr = Expr::not(Expr::in_list(Expr::col("a"), Expr::list([3, 4, 5])));
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(
             expr.to_string(),

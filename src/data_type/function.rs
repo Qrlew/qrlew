@@ -957,19 +957,19 @@ impl Function for Case {
 
 // IN (..)
 #[derive(Clone, Debug)]
-pub struct InOp;
+pub struct InList(DataType);
 
-impl fmt::Display for InOp {
+impl fmt::Display for InList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "in")
     }
 }
 
-impl Function for InOp {
+impl Function for InList {
     fn domain(&self) -> DataType {
         DataType::from(data_type::Struct::from_data_types(&[
-            DataType::Any,
-            DataType::list(DataType::Any, 1, i64::MAX as usize),
+            self.0.clone(),
+            DataType::list(self.0.clone(), 1, i64::MAX as usize),
         ]))
     }
 
@@ -981,7 +981,7 @@ impl Function for InOp {
                 assert_eq!(struct_data_type.len(), 2);
                 if let DataType::List(List{data_type, ..}) = struct_data_type[1].as_ref() {
                     Ok(
-                        if data_type.as_ref().super_intersection(data_type)? == DataType::Null {
+                        if struct_data_type[0].as_ref().super_intersection(data_type)? == DataType::Null {
                             DataType::boolean_value(false)
                         } else {
                             DataType::boolean()
@@ -1574,8 +1574,11 @@ pub fn case() -> impl Function + Clone {
 }
 
 // In operator
-pub fn in_op() -> impl Function + Clone {
-    InOp
+pub fn in_list() -> impl Function + Clone {
+    Polymorphic::from((
+        InList(data_type::Integer::default().into()),
+        InList(data_type::Float::default().into()),
+    ))
 }
 
 /*
@@ -1987,6 +1990,19 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Float(_)));
+
+        // float + integer
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::from(data_type::Integer::from_intervals([
+                [0, 2],
+                [5, 5],
+                [10, 10],
+            ])),
+            DataType::float_interval(2.9, 3.),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Float(_)));
     }
 
     #[test]
@@ -2361,19 +2377,30 @@ mod tests {
     }
 
     #[test]
-    fn test_in_op() {
-        println!("Test in_op");
-        let fun = in_op();
+    fn test_in_list() {
+        let val = Value::from(4.);
+        let my_list = Value::list([1.into(), 4.into(), 5.into()]);
+        // if let Value::List(l) = my_list {
+        //     let dt = DataType::from(l.to_vec());
+        //     println!("dt = {}", dt);
+        // }
+
+        //let contained = dt.contains(val);
+        assert!(false);
+
+        println!("Test in_list");
+        let fun = in_list();
         println!("type = {}", fun);
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
+        // 10 in (10)
         let set = DataType::from(Struct::from_data_types(&[
             DataType::integer_value(10),
-            DataType::list(DataType::integer_values(vec![10, 15, 30]), 3, 3),
+            DataType::list(DataType::integer_values(vec![8, 10, 15, 30]), 3, 3),
         ]));
         let im = fun.super_image(&set).unwrap();
-        println!("im({}) = {}", set, im);
+        println!("\nim({}) = {}", set, im);
         assert!(
             im == DataType::boolean()
         );
@@ -2383,7 +2410,100 @@ mod tests {
         ]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
-        assert_eq!(val, Value::from(true)); // TODO: continue these tests
+        assert_eq!(val, Value::from(true));
+
+        // integer in (integer[8, 30])
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer(),
+            DataType::list(DataType::integer_interval(8, 30), 3, 3),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert!(
+            im == DataType::boolean()
+        );
+        let arg = Value::structured_from_values([
+            Value::from(10),
+            Value::list([Value::from(10)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(true));
+        let arg = Value::structured_from_values([
+            Value::from(100),
+            Value::list([Value::from(10)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(false));
+
+        // integer[1, 5] in (integer[8, 30])
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer_interval(1, 5),
+            DataType::list(DataType::integer_interval(8, 30), 3, 3),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert!(
+            im == DataType::boolean_value(false)
+        );
+        let arg = Value::structured_from_values([
+            Value::from(1),
+            Value::list([Value::from(10)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(false));
+
+        // integer[1, 5] in (float[2., 30.])
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer_interval(1, 5),
+            DataType::list(DataType::float_interval(2., 30.), 3, 3),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(
+            im, DataType::boolean()
+        );
+        let arg = Value::structured_from_values([
+            Value::from(3),
+            Value::list([Value::from(2.), Value::from(3)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(true));
+        let arg = Value::structured_from_values([
+            Value::from(1),
+            Value::list([Value::from(3.)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(false));
+
+        // float[1., 5.] in (integer[2, 30])
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::float_interval(1., 5.),
+            DataType::list(DataType::integer_interval(2, 30), 3, 3),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(
+            im, DataType::boolean()
+        );
+        let arg = Value::structured_from_values([
+            Value::from(3.),
+            Value::list([Value::from(2), Value::from(3)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(true));
+        let arg = Value::structured_from_values([
+            Value::from(1.),
+            Value::list([Value::from(15)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(false));
 
     }
 
