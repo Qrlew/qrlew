@@ -997,11 +997,11 @@ impl Function for InList {
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
-        if let Value::Struct(struct_data_type) = arg {
-            assert_eq!(struct_data_type.len(), 2);
-            if let Value::List(list) = struct_data_type[1].as_ref() {
+        if let Value::Struct(args) = arg {
+            assert_eq!(args.len(), 2);
+            if let Value::List(list) = args[1].as_ref() {
                 Ok(
-                    if list.iter().any(|v| v == struct_data_type[0].as_ref()) {
+                    if list.iter().any(|v| v == args[0].as_ref()) {
                         Value::boolean(true)
                     } else {
                         Value::boolean(false)
@@ -2378,16 +2378,6 @@ mod tests {
 
     #[test]
     fn test_in_list() {
-        let val = Value::from(4.);
-        let my_list = Value::list([1.into(), 4.into(), 5.into()]);
-        // if let Value::List(l) = my_list {
-        //     let dt = DataType::from(l.to_vec());
-        //     println!("dt = {}", dt);
-        // }
-
-        //let contained = dt.contains(val);
-        assert!(false);
-
         println!("Test in_list");
         let fun = in_list();
         println!("type = {}", fun);
