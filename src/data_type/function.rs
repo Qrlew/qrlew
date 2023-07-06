@@ -919,7 +919,7 @@ impl Function for Case {
             if let DataType::Struct(struct_data_type) = set {
                 let when_condition = match struct_data_type.field_from_index(0).1.as_ref().clone() {
                     DataType::Boolean(bool_datatype) => bool_datatype,
-                    _ => return Err(Error::argument_out_of_range(set, self.domain())),
+                    _ => return Err(Error::set_out_of_range(set, self.domain())),
                 };
 
                 if when_condition.is_empty() {
@@ -937,7 +937,7 @@ impl Function for Case {
                         .super_union(struct_data_type.field_from_index(2).1.as_ref())?)
                 }
             } else {
-                Err(Error::argument_out_of_range(set, self.domain()))
+                Err(Error::set_out_of_range(set, self.domain()))
             }
         }
     }
@@ -990,10 +990,10 @@ impl Function for InList {
                         },
                     )
                 } else {
-                    Err(Error::argument_out_of_range(set, self.domain()))
+                    Err(Error::set_out_of_range(set, self.domain()))
                 }
             } else {
-                Err(Error::argument_out_of_range(set, self.domain()))
+                Err(Error::set_out_of_range(set, self.domain()))
             }
         }
     }
