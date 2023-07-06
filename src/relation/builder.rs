@@ -152,7 +152,11 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     /// Initialize a builder with filtered existing map
-    pub fn filter_fields_with<P: Fn(&str) -> bool>(self, map: Map, predicate: P) -> MapBuilder<WithInput> {
+    pub fn filter_fields_with<P: Fn(&str) -> bool>(
+        self,
+        map: Map,
+        predicate: P,
+    ) -> MapBuilder<WithInput> {
         let Map {
             name,
             projection,
@@ -267,7 +271,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
                 schema
                     .iter()
                     .zip(projection.clone())
-                    .map(|(field, expr)| (field.name().to_string(), expr))
+                    .map(|(field, expr)| (field.name().to_string(), expr)),
             )
             .input(input);
         // Filter
@@ -1052,13 +1056,15 @@ mod tests {
             .build();
         if let Relation::Map(m) = map {
             println!("Map = {}", m);
-            let filtered_map:Map = Relation::map().filter_with(
-                m,
-                Expr::lt(Expr::col("a"), Expr::val(0.9))
-            ).build();
+            let filtered_map: Map = Relation::map()
+                .filter_with(m, Expr::lt(Expr::col("a"), Expr::val(0.9)))
+                .build();
             assert_eq!(
                 filtered_map.filter.unwrap(),
-                Expr::and(Expr::gt(Expr::col("a"), Expr::val(0.5)), Expr::lt(Expr::col("a"), Expr::val(0.9)))
+                Expr::and(
+                    Expr::gt(Expr::col("a"), Expr::val(0.5)),
+                    Expr::lt(Expr::col("a"), Expr::val(0.9))
+                )
             )
         }
 
@@ -1069,10 +1075,9 @@ mod tests {
             .build();
         if let Relation::Map(m) = map {
             println!("Map = {}", m);
-            let filtered_map:Map = Relation::map().filter_with(
-                m,
-                Expr::lt(Expr::col("a"), Expr::val(0.9))
-            ).build();
+            let filtered_map: Map = Relation::map()
+                .filter_with(m, Expr::lt(Expr::col("a"), Expr::val(0.9)))
+                .build();
             assert_eq!(
                 filtered_map.filter.unwrap(),
                 Expr::lt(Expr::col("a"), Expr::val(0.9))
@@ -1086,15 +1091,13 @@ mod tests {
             .build();
         if let Relation::Map(m) = map {
             println!("Map = {}", m);
-            let filtered_map:Map = Relation::map().filter_with(
-                m,
-                Expr::lt(Expr::col("a"), Expr::val(0.9))
-            ).build();
+            let filtered_map: Map = Relation::map()
+                .filter_with(m, Expr::lt(Expr::col("a"), Expr::val(0.9)))
+                .build();
             assert_eq!(
                 filtered_map.filter.unwrap(),
                 Expr::lt(Expr::col("a"), Expr::val(0.9))
             )
         }
-
     }
 }

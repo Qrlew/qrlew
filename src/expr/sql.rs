@@ -38,7 +38,12 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             crate::data_type::value::Value::Struct(_) => todo!(),
             crate::data_type::value::Value::Union(_) => todo!(),
             crate::data_type::value::Value::Optional(_) => todo!(),
-            crate::data_type::value::Value::List(_) => todo!(),
+            crate::data_type::value::Value::List(l) => ast::Expr::Tuple(
+                l.to_vec()
+                    .iter()
+                    .map(|v| self.value(v))
+                    .collect::<Vec<ast::Expr>>(),
+            ),
             crate::data_type::value::Value::Set(_) => todo!(),
             crate::data_type::value::Value::Array(_) => todo!(),
             crate::data_type::value::Value::Date(_) => todo!(),
@@ -188,6 +193,18 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 results: vec![arguments[1].clone()],
                 else_result: Some(Box::new(arguments[2].clone())),
             },
+            expr::function::Function::InList => {
+                if let ast::Expr::Tuple(t) = &arguments[1] {
+                    ast::Expr::InList {
+                        expr: arguments[0].clone().into(),
+                        list: t.clone(),
+                        negated: false,
+                    }
+                } else {
+                    todo!()
+                }
+            }
+            // a,
             expr::function::Function::Position => ast::Expr::Position {
                 expr: arguments[0].clone().into(),
                 r#in: arguments[1].clone().into(),
@@ -410,5 +427,21 @@ mod tests {
             gen_expr.to_string(),
             "CASE WHEN (a) = (5) THEN 0 ELSE a END".to_string(),
         );
+    }
+
+    #[test]
+    fn test_in() {
+        let str_expr = "a IN (4, 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("ast::expr = {ast_expr}");
+        println!("ast::expr = {:?}", ast_expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        println!("expr = {:?}", expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {}", gen_expr.to_string());
+        assert_eq!(gen_expr.to_string(), "a IN (4, 5)".to_string(),);
     }
 }

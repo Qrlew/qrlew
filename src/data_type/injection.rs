@@ -1005,7 +1005,7 @@ impl Injection for Base<List, List> {
                         .into(self.co_domain.data_type().clone())?
                         .value(a)
                 })
-                .map(|v| v.unwrap()),
+                .collect::<Result<Vec<_>>>()?,
         ))
     }
 }
@@ -1040,7 +1040,7 @@ impl Injection for Base<Set, Set> {
                         .into(self.co_domain.data_type().clone())?
                         .value(a)
                 })
-                .map(|v| v.unwrap()),
+                .collect::<Result<Vec<_>>>()?,
         ))
     }
 }
@@ -1078,8 +1078,7 @@ impl Injection for Base<Array, Array> {
                         .into(self.co_domain.data_type().clone())?
                         .value(a)
                 })
-                .map(|v| v.unwrap())
-                .collect(),
+                .collect::<Result<Vec<_>>>()?,
             shape.clone(),
         )))
     }
@@ -2425,6 +2424,16 @@ mod tests {
         .unwrap();
         println!("{inj}");
         let val = value::Union::from_field("1", 0.5);
+        println!("{} -> {}", val, inj.value(&val).unwrap());
+    }
+
+    #[test]
+    fn test_injection_list_list() {
+        let inj = From(DataType::list(DataType::integer(), 1, i64::MAX as usize))
+            .into(DataType::list(DataType::float(), 1, i64::MAX as usize))
+            .unwrap();
+        println!("{inj}");
+        let val = Value::list([Value::from(2), Value::from(3)]);
         println!("{} -> {}", val, inj.value(&val).unwrap());
     }
 
