@@ -806,7 +806,7 @@ impl Variant for List {
 }
 
 impl List {
-    pub fn to_vec(&self) -> Vec<Value>{
+    pub fn to_vec(&self) -> Vec<Value> {
         self.0.clone()
     }
 }

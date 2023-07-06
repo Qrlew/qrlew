@@ -275,16 +275,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             } => {
                 let in_expr = self.in_list(
                     dependencies.get(expr).clone(),
-                    list.iter()
-                        .map(|x| dependencies.get(x).clone())
-                        .collect()
+                    list.iter().map(|x| dependencies.get(x).clone()).collect(),
                 );
                 if *negated {
                     self.unary_op(&ast::UnaryOperator::Not, in_expr)
                 } else {
                     in_expr
                 }
-            },
+            }
             ast::Expr::InSubquery {
                 expr,
                 subquery,
@@ -513,7 +511,11 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
     }
 
     fn in_list(&self, expr: String, list: Vec<String>) -> String {
-        format!("{} IN ({})", expr, list.into_iter().map(|x| format!("{x}")).join(", "))
+        format!(
+            "{} IN ({})",
+            expr,
+            list.into_iter().map(|x| format!("{x}")).join(", ")
+        )
     }
 }
 
@@ -717,15 +719,17 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 
     fn in_list(&self, expr: Result<Expr>, list: Vec<Result<Expr>>) -> Result<Expr> {
-        let list:Result<Vec<Value>> = list.into_iter()
-            .map(
-                |x|
+        let list: Result<Vec<Value>> = list
+            .into_iter()
+            .map(|x| {
                 if let Ok(Expr::Value(v)) = x {
                     Ok(v)
                 } else {
-                    Err(Error::Other("Listed expression in IN expression must be Expr::Value".into()))
+                    Err(Error::Other(
+                        "Listed expression in IN expression must be Expr::Value".into(),
+                    ))
                 }
-            )
+            })
             .collect();
         Ok(Expr::in_list(expr?, Expr::val(Value::list(list?))))
     }
@@ -869,8 +873,7 @@ mod tests {
     #[test]
     fn test_in_list() {
         // IN
-        let ast_expr: ast::Expr =
-            parse_expr("a in (3, 4, 5)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("a in (3, 4, 5)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
@@ -879,14 +882,10 @@ mod tests {
         }
         let true_expr = Expr::in_list(Expr::col("a"), Expr::list([3, 4, 5]));
         assert_eq!(true_expr.to_string(), expr.to_string());
-        assert_eq!(
-            expr.to_string(),
-            String::from("(a in (3, 4, 5))")
-        );
+        assert_eq!(expr.to_string(), String::from("(a in (3, 4, 5))"));
 
         // NOT IN
-        let ast_expr: ast::Expr =
-            parse_expr("a not in (3, 4, 5)").unwrap();
+        let ast_expr: ast::Expr = parse_expr("a not in (3, 4, 5)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
@@ -895,9 +894,6 @@ mod tests {
         }
         let true_expr = Expr::not(Expr::in_list(Expr::col("a"), Expr::list([3, 4, 5])));
         assert_eq!(true_expr.to_string(), expr.to_string());
-        assert_eq!(
-            expr.to_string(),
-            String::from("(not (a in (3, 4, 5)))")
-        );
+        assert_eq!(expr.to_string(), String::from("(not (a in (3, 4, 5)))"));
     }
 }

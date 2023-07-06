@@ -980,13 +980,15 @@ impl Function for InList {
         } else {
             if let DataType::Struct(struct_data_type) = set {
                 assert_eq!(struct_data_type.len(), 2);
-                if let DataType::List(List{data_type, ..}) = struct_data_type[1].as_ref() {
+                if let DataType::List(List { data_type, .. }) = struct_data_type[1].as_ref() {
                     Ok(
-                        if struct_data_type[0].as_ref().super_intersection(data_type)? == DataType::Null {
+                        if struct_data_type[0].as_ref().super_intersection(data_type)?
+                            == DataType::Null
+                        {
                             DataType::boolean_value(false)
                         } else {
                             DataType::boolean()
-                        }
+                        },
                     )
                 } else {
                     Err(Error::argument_out_of_range(set, self.domain()))
@@ -1007,13 +1009,11 @@ impl Function for InList {
         if let Value::Struct(args) = arg {
             assert_eq!(args.len(), 2);
             if let Value::List(list) = args[1].as_ref() {
-                Ok(
-                    if list.iter().any(|v| v == args[0].as_ref()) {
-                        Value::boolean(true)
-                    } else {
-                        Value::boolean(false)
-                    }
-                )
+                Ok(if list.iter().any(|v| v == args[0].as_ref()) {
+                    Value::boolean(true)
+                } else {
+                    Value::boolean(false)
+                })
             } else {
                 Err(Error::argument_out_of_range(arg, self.domain()))
             }
@@ -2399,13 +2399,8 @@ mod tests {
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert!(
-            im == DataType::boolean()
-        );
-        let arg = Value::structured_from_values([
-            Value::from(10),
-            Value::list([Value::from(10)])
-        ]);
+        assert!(im == DataType::boolean());
+        let arg = Value::structured_from_values([Value::from(10), Value::list([Value::from(10)])]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(true));
@@ -2417,20 +2412,12 @@ mod tests {
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert!(
-            im == DataType::boolean()
-        );
-        let arg = Value::structured_from_values([
-            Value::from(10),
-            Value::list([Value::from(10)])
-        ]);
+        assert!(im == DataType::boolean());
+        let arg = Value::structured_from_values([Value::from(10), Value::list([Value::from(10)])]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(true));
-        let arg = Value::structured_from_values([
-            Value::from(100),
-            Value::list([Value::from(10)])
-        ]);
+        let arg = Value::structured_from_values([Value::from(100), Value::list([Value::from(10)])]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(false));
@@ -2442,13 +2429,8 @@ mod tests {
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert!(
-            im == DataType::boolean_value(false)
-        );
-        let arg = Value::structured_from_values([
-            Value::from(1),
-            Value::list([Value::from(10)])
-        ]);
+        assert!(im == DataType::boolean_value(false));
+        let arg = Value::structured_from_values([Value::from(1), Value::list([Value::from(10)])]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(false));
@@ -2460,20 +2442,15 @@ mod tests {
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert_eq!(
-            im, DataType::boolean()
-        );
+        assert_eq!(im, DataType::boolean());
         let arg = Value::structured_from_values([
             Value::from(3),
-            Value::list([Value::from(2.), Value::from(3.)])
+            Value::list([Value::from(2.), Value::from(3.)]),
         ]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(true));
-        let arg = Value::structured_from_values([
-            Value::from(1),
-            Value::list([Value::from(3.)])
-        ]);
+        let arg = Value::structured_from_values([Value::from(1), Value::list([Value::from(3.)])]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(false));
@@ -2485,20 +2462,15 @@ mod tests {
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert_eq!(
-            im, DataType::boolean()
-        );
+        assert_eq!(im, DataType::boolean());
         let arg = Value::structured_from_values([
             Value::from(3.),
-            Value::list([Value::from(2), Value::from(3)])
+            Value::list([Value::from(2), Value::from(3)]),
         ]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(true));
-        let arg = Value::structured_from_values([
-            Value::from(1.),
-            Value::list([Value::from(15)])
-        ]);
+        let arg = Value::structured_from_values([Value::from(1.), Value::list([Value::from(15)])]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(false));
@@ -2510,24 +2482,21 @@ mod tests {
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert_eq!(
-            im, DataType::boolean()
-        );
+        assert_eq!(im, DataType::boolean());
         let arg = Value::structured_from_values([
             Value::from("3".to_string()),
-            Value::list([Value::from(2), Value::from(3)])
+            Value::list([Value::from(2), Value::from(3)]),
         ]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(true));
         let arg = Value::structured_from_values([
             Value::from("a".to_string()),
-            Value::list([Value::from(15)])
+            Value::list([Value::from(15)]),
         ]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
         assert_eq!(val, Value::from(false));
-
     }
 
     #[test]

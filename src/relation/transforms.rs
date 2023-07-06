@@ -6,15 +6,21 @@ use crate::display::Dot;
 use crate::namer;
 use crate::{
     builder::{Ready, With, WithIterator},
+    data_type::{
+        self,
+        intervals::{Bound, Intervals},
+    },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    DataType,
-    data_type::{self, intervals::{Intervals, Bound}},
     relation::Field,
+    DataType,
 };
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::{ops::{self, Deref}, rc::Rc};
+use std::{
+    ops::{self, Deref},
+    rc::Rc,
+};
 
 /* Reduce
  */
@@ -709,7 +715,7 @@ impl Relation {
         Relation::map()
             .with_iter(
                 self.schema()
-                        .iter()
+                    .iter()
                     .map(|f| (f.name(), Expr::col(f.name()))),
             )
             .filter(predicate)
@@ -1359,20 +1365,36 @@ mod tests {
         let database = postgresql::test_database();
         let relations = database.relations();
 
-        let relation =
-            Relation::try_from(parse("SELECT exp(a) AS my_a, b As my_b FROM table_1").unwrap().with(&relations)).unwrap();
-        let filtered_relation = relation.filter(
+        let relation = Relation::try_from(
+            parse("SELECT exp(a) AS my_a, b As my_b FROM table_1")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        let filtered_relation = relation.filter(Expr::and(
             Expr::and(
-                Expr::and(
-                    Expr::gt(Expr::col("my_a"), Expr::val(5.)),
-                    Expr::lt(Expr::col("my_b"), Expr::val(0.))
-                ),
-                Expr::lt(Expr::col("my_a"), Expr::val(100.))
-            )
-        );
+                Expr::gt(Expr::col("my_a"), Expr::val(5.)),
+                Expr::lt(Expr::col("my_b"), Expr::val(0.)),
+            ),
+            Expr::lt(Expr::col("my_a"), Expr::val(100.)),
+        ));
         _ = filtered_relation.display_dot();
-        assert_eq!(filtered_relation.schema().field("my_a").unwrap().data_type(), DataType::float_interval(5., 100.));
-        assert_eq!(filtered_relation.schema().field("my_b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.)));
+        assert_eq!(
+            filtered_relation
+                .schema()
+                .field("my_a")
+                .unwrap()
+                .data_type(),
+            DataType::float_interval(5., 100.)
+        );
+        assert_eq!(
+            filtered_relation
+                .schema()
+                .field("my_b")
+                .unwrap()
+                .data_type(),
+            DataType::optional(DataType::float_interval(-1., 0.))
+        );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
                 m.filter.unwrap(),
@@ -1388,15 +1410,19 @@ mod tests {
 
         let relation =
             Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
-        let filtered_relation = relation.filter(
-            Expr::and(
-                Expr::gt(Expr::col("a"), Expr::val(5.)),
-                Expr::lt(Expr::col("b"), Expr::val(0.5))
-            )
-        );
+        let filtered_relation = relation.filter(Expr::and(
+            Expr::gt(Expr::col("a"), Expr::val(5.)),
+            Expr::lt(Expr::col("b"), Expr::val(0.5)),
+        ));
         _ = filtered_relation.display_dot();
-        assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
-        assert_eq!(filtered_relation.schema().field("b").unwrap().data_type(), DataType::optional(DataType::float_interval(-1., 0.5)));
+        assert_eq!(
+            filtered_relation.schema().field("a").unwrap().data_type(),
+            DataType::float_interval(5., 10.)
+        );
+        assert_eq!(
+            filtered_relation.schema().field("b").unwrap().data_type(),
+            DataType::optional(DataType::float_interval(-1., 0.5))
+        );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
                 m.filter.unwrap(),
@@ -1407,17 +1433,29 @@ mod tests {
             )
         }
 
-        let relation =
-            Relation::try_from(parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a").unwrap().with(&relations)).unwrap();
-        let filtered_relation = relation.filter(
-            Expr::and(
-                Expr::gt(Expr::col("a"), Expr::val(5.)),
-                Expr::lt(Expr::col("sum_d"), Expr::val(15))
-            )
-        );
+        let relation = Relation::try_from(
+            parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        let filtered_relation = relation.filter(Expr::and(
+            Expr::gt(Expr::col("a"), Expr::val(5.)),
+            Expr::lt(Expr::col("sum_d"), Expr::val(15)),
+        ));
         _ = filtered_relation.display_dot();
-        assert_eq!(filtered_relation.schema().field("a").unwrap().data_type(), DataType::float_interval(5., 10.));
-        assert_eq!(filtered_relation.schema().field("sum_d").unwrap().data_type(), DataType::integer_interval(0, 15));
+        assert_eq!(
+            filtered_relation.schema().field("a").unwrap().data_type(),
+            DataType::float_interval(5., 10.)
+        );
+        assert_eq!(
+            filtered_relation
+                .schema()
+                .field("sum_d")
+                .unwrap()
+                .data_type(),
+            DataType::integer_interval(0, 15)
+        );
     }
 
     fn test_possion_sampling() {

@@ -191,7 +191,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             expr::function::Function::InList => ast::Expr::InList {
                 expr: arguments[0].clone().into(),
                 list: arguments[1..].to_vec(),
-                negated: false
+                negated: false,
             },
             expr::function::Function::Position => ast::Expr::Position {
                 expr: arguments[0].clone().into(),
@@ -428,9 +428,6 @@ mod tests {
         assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {}", gen_expr.to_string());
-        assert_eq!(
-            gen_expr.to_string(),
-            "a IN (4, 5)".to_string(),
-        );
+        assert_eq!(gen_expr.to_string(), "a IN (4, 5)".to_string(),);
     }
 }

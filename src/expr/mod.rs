@@ -520,7 +520,9 @@ impl Expr {
     }
 
     pub fn list<L: IntoIterator<Item = V>, V: Into<Value>>(values: L) -> Expr {
-        Expr::Value(Value::list(values.into_iter().map(|v| v.into()).collect::<Vec<Value>>()))
+        Expr::Value(Value::list(
+            values.into_iter().map(|v| v.into()).collect::<Vec<Value>>(),
+        ))
     }
 
     pub fn structured<S: Clone + Into<String>, E: Clone + Into<Rc<Expr>>, F: AsRef<[(S, E)]>>(
