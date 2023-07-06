@@ -612,6 +612,7 @@ where
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
+        println!("{} : {}", arg, self.domain());
         // First try to convert into the right datatype
         let converted_arg = &arg.as_data_type(&self.domain())?;
         // Then express in a more suitable form
@@ -997,6 +998,12 @@ impl Function for InList {
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
+        let domain = self.domain();
+        println!("\nDataType: {}", self.0);
+        println!("DataType: {}", &domain);
+        println!("arg = {}", arg);
+        let arg = &arg.as_data_type(&domain)?;
+        println!("converted arg = {:?}", arg);
         if let Value::Struct(args) = arg {
             assert_eq!(args.len(), 2);
             if let Value::List(list) = args[1].as_ref() {
@@ -1578,6 +1585,7 @@ pub fn in_list() -> impl Function + Clone {
     Polymorphic::from((
         InList(data_type::Integer::default().into()),
         InList(data_type::Float::default().into()),
+        InList(data_type::Text::default().into()),
     ))
 }
 
@@ -2457,7 +2465,7 @@ mod tests {
         );
         let arg = Value::structured_from_values([
             Value::from(3),
-            Value::list([Value::from(2.), Value::from(3)])
+            Value::list([Value::from(2.), Value::from(3.)])
         ]);
         let val = fun.value(&arg).unwrap();
         println!("value({}) = {}", arg, val);
@@ -2489,6 +2497,31 @@ mod tests {
         assert_eq!(val, Value::from(true));
         let arg = Value::structured_from_values([
             Value::from(1.),
+            Value::list([Value::from(15)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(false));
+
+        // text['1', '5'] in (integer[2, '30])
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["3".to_string(), "a".to_string()]),
+            DataType::list(DataType::integer_interval(2, 30), 3, 3),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(
+            im, DataType::boolean()
+        );
+        let arg = Value::structured_from_values([
+            Value::from("3".to_string()),
+            Value::list([Value::from(2), Value::from(3)])
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("value({}) = {}", arg, val);
+        assert_eq!(val, Value::from(true));
+        let arg = Value::structured_from_values([
+            Value::from("a".to_string()),
             Value::list([Value::from(15)])
         ]);
         let val = fun.value(&arg).unwrap();
