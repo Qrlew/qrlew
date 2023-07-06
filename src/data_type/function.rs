@@ -1000,11 +1000,7 @@ impl Function for InList {
 
     fn value(&self, arg: &Value) -> Result<Value> {
         let domain = self.domain();
-        println!("\nDataType: {}", self.0);
-        println!("DataType: {}", &domain);
-        println!("arg = {}", arg);
         let arg = &arg.as_data_type(&domain)?;
-        println!("converted arg = {:?}", arg);
         if let Value::Struct(args) = arg {
             assert_eq!(args.len(), 2);
             if let Value::List(list) = args[1].as_ref() {
