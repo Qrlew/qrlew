@@ -256,6 +256,33 @@ impl Expr {
     pub fn random(n: usize) -> Expr {
         Expr::from(Function::random(n))
     }
+
+    /// Returns an expression for filtering the columns
+    ///
+    /// # Arguments
+    /// - `columns`: `Vec<(column_name, minimal_value, maximal_value, possible_values)>`
+    ///
+    /// For example,
+    /// - `filter(vec![("my_col", 2..into(), 10.into(), vec![])])` ≡ `(my_col > 2.) and (my_col < 10)`
+    /// - `filter(vec![("my_col", None, 10.into(), vec![1.into(), 2.into(), 5.into()])])` ≡ `(my_col < 10) and (my_col in (1, 2, 5))`
+    /// - `filter(vec![("my_col1", None, 10.into(), vec![]), ("my_col2", 1., None, vec![])])])` ≡ `(my_col1 < 10) and (my_col2 > 1.)`
+    pub fn filter (columns: Vec<(&str, Option<data_type::value::Value>, Option<data_type::value::Value>, Vec<data_type::value::Value>)>) -> Expr {
+        let predicate = columns.into_iter()
+            .fold(Expr::val(true), |f, (c, min, max, values)| {
+                let mut p = Expr::val(true);
+                if let Some(m) = min {
+                    p = Expr::and(p, Expr::gt(Expr::col(c.to_string()), Expr::val(m)))
+                }
+                if let Some(m) = max {
+                    p = Expr::and(p, Expr::lt(Expr::col(c.to_string()), Expr::val(m)))
+                }
+                if !values.is_empty() {
+                    p = Expr::and(p, Expr::in_list(Expr::col(c.to_string()), Expr::list(values)))
+                }
+                Expr::and(f, p)
+            });
+        predicate
+    }
 }
 
 /// Implement unary function constructors
@@ -2013,6 +2040,56 @@ mod tests {
         assert_eq!(
             func.filter_column_data_type(&col, &datatype),
             DataType::float_interval(5., 7.)
+        );
+    }
+
+    #[test]
+    fn test_filter() {
+        let columns = vec![
+            ("col1", Some(Value::integer(1)), Some(Value::integer(10)), vec![Value::integer(1), Value::integer(3),Value::integer(6), Value::integer(7)]),
+            ("col2", None, Some(Value::float(10.0)), vec![]),
+            ("col3", Some(Value::float(0.0)), None, vec![]),
+            ("col4", None, None, vec![Value::text("a"),Value::text("b"), Value::text("c")]),
+        ];
+        let col1_expr = Expr::and(
+            Expr::and(
+                Expr::and(
+                    Expr::val(true),
+                    Expr::gt(Expr::col("col1"), Expr::val(1))
+                ),
+                Expr::lt(Expr::col("col1"), Expr::val(10))
+            ),
+            Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7]))
+        );
+        let col2_expr = Expr::and(
+            Expr::val(true),
+            Expr::lt(Expr::col("col2"), Expr::val(10.))
+        );
+        let col3_expr = Expr::and(
+            Expr::val(true),
+            Expr::gt(Expr::col("col3"), Expr::val(0.))
+        );
+        let col4_expr = Expr::and(
+            Expr::val(true),
+            Expr::in_list(Expr::col("col4"), Expr::list(["a".to_string(), "b".to_string(), "c".to_string()]))
+        );
+
+        let true_expr = Expr::and(
+            Expr::and(
+                Expr::and(
+                    Expr::and(
+                        Expr::val(true),
+                        col1_expr
+                    ),
+                    col2_expr
+                ),
+                col3_expr
+            ),
+            col4_expr
+        );
+        assert_eq!(
+            Expr::filter(columns),
+            true_expr
         );
     }
 }
