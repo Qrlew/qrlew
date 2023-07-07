@@ -208,7 +208,9 @@ impl Function {
                     .unwrap_or(datatype.clone())
             }
             // InList
-            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) if col == column => {
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))])
+                if col == column =>
+            {
                 DataType::from_iter(l.to_vec().clone())
                     .super_intersection(&datatype)
                     .unwrap_or(datatype.clone())
