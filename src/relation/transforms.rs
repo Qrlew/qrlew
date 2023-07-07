@@ -1,7 +1,7 @@
 //! A few transforms for relations
 //!
 
-use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _, ReduceBuilder};
+use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
 use crate::display::Dot;
 use crate::namer;
 use crate::{
@@ -1745,6 +1745,5 @@ mod tests {
         let distinct_rel = table.distinct_aggregates(aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
-
     }
 }
