@@ -777,6 +777,12 @@ impl_variant_conversions!(Optional);
 #[derive(Clone, Hash, PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
 pub struct List(Vec<Value>);
 
+impl List {
+    pub fn to_vec(&self) -> &Vec<Value> {
+        &self.0
+    }
+}
+
 impl DataTyped for List {
     fn data_type(&self) -> DataType {
         DataType::from(data_type::List::from(self.clone()))

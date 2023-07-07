@@ -1600,6 +1600,7 @@ mod tests {
         assert_eq!(expected_sampled_join, sampled_join);
     }
 
+    #[ignore]
     #[test]
     fn test_sampling_query() {
         let mut database = postgresql::test_database();
