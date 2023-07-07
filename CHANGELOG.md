@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `filter` method in `Map` builder and `filter` transform [MR43](https://github.com/Qrlew/qrlew/pull/43)
 - Map size propagation now takes into account `limit`. [MR49](https://github.com/Qrlew/qrlew/pull/49)
 - Implement `IN` operator [MR50](https://github.com/Qrlew/qrlew/pull/50)
-- Propagate fine grained `DataType` when `Expr::InList` in `Relation::Map` filter field [MR52](https://github.com/Qrlew/qrlew/pull/52)
+- Propagate fine grained `DataType` when `Expr::InList` in `Relation::Map` filter field [MR53](https://github.com/Qrlew/qrlew/pull/53)
 
 ## [0.1.2] - 2023-06-01
 ### Added
