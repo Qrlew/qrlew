@@ -723,6 +723,22 @@ impl Relation {
             .build()
     }
 
+    /// Returns a filtered `Relation`
+    ///
+    /// # Arguments
+    /// - `columns`: `Vec<(column_name, minimal_value, maximal_value, possible_values)>`
+    ///
+    /// For example,
+    /// `filter_columns(vec![("my_col", Value::float(2.), Value::float(10.), vec![Value::integer(4), Value::integer(9)])])`
+    /// returns a filtered `Relation` whose `filter` is equivalent to `(my_col > 2.) and (my_col < 10) and (my_col in (4, 9)`
+    pub fn filter_columns(
+        self,
+        columns: Vec<(&str, Option<data_type::value::Value>, Option<data_type::value::Value>, Vec<data_type::value::Value>)>
+    ) -> Relation {
+        let predicate = Expr::filter(columns);
+        self.filter(predicate)
+    }
+
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
     pub fn poisson_sampling(self, proba: f64) -> Relation {
         //make sure proba is between 0 and 1.

@@ -257,15 +257,18 @@ impl Expr {
         Expr::from(Function::random(n))
     }
 
-    /// Returns an expression for filtering the columns
+    /// Returns an `Expr` for filtering the columns
     ///
     /// # Arguments
     /// - `columns`: `Vec<(column_name, minimal_value, maximal_value, possible_values)>`
     ///
     /// For example,
-    /// - `filter(vec![("my_col", 2..into(), 10.into(), vec![])])` ≡ `(my_col > 2.) and (my_col < 10)`
-    /// - `filter(vec![("my_col", None, 10.into(), vec![1.into(), 2.into(), 5.into()])])` ≡ `(my_col < 10) and (my_col in (1, 2, 5))`
-    /// - `filter(vec![("my_col1", None, 10.into(), vec![]), ("my_col2", 1., None, vec![])])])` ≡ `(my_col1 < 10) and (my_col2 > 1.)`
+    /// - `filter(vec![("my_col", Value::float(2.), Value::float(10.), vec![])])`
+    ///         ≡ `(my_col > 2.) and (my_col < 10)`
+    /// - `filter(vec![("my_col", None, Value::float(10.), vec![Value::integer(1), Value::integer(2), Value::integer(5)])])`
+    ///         ≡ `(my_col < 10.) and (my_col in (1, 2, 5))`
+    /// - `filter(vec![("my_col1", None, Value::integer(10), vec![]), ("my_col2", Value::float(1.), None, vec![])])])`
+    ///         ≡ `(my_col1 < 10) and (my_col2 > 1.)`
     pub fn filter (columns: Vec<(&str, Option<data_type::value::Value>, Option<data_type::value::Value>, Vec<data_type::value::Value>)>) -> Expr {
         let predicate = columns.into_iter()
             .fold(Expr::val(true), |f, (c, min, max, values)| {
