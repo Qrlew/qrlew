@@ -1,7 +1,7 @@
 //! A few transforms for relations
 //!
 
-use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
+use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _, ReduceBuilder};
 use crate::display::Dot;
 use crate::namer;
 use crate::{
@@ -742,6 +742,64 @@ impl Relation {
             .build();
         sampled_relation
     }
+
+    //TODO
+    pub fn distinct_aggregates(self, aggregates: Vec<(&str, Aggregate)>) -> Relation {
+        // check that
+        // - we have only columns in the aggregations
+        // - the columns in the aggregations (out of First) are the same
+        let columns:Vec<&str> = aggregates.iter()
+            .filter_map(|(_, agg)| if agg.aggregate() != aggregate::Aggregate::First {
+                Some(agg.argument_name().unwrap().as_str())
+            } else {
+                None
+            })
+            .collect();
+        assert!(columns.iter().all(|c| c == &columns[0]));
+        let column = columns[0]; // the `DISTINCT` column
+
+        // Build the first reduce
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates.iter().map(|(_, agg)| (
+                agg.argument_name().unwrap(),
+                Expr::Aggregate(Aggregate::first(Expr::col(agg.argument_name().unwrap()))
+                )
+            )))
+            .group_by_iter(
+                aggregates.iter()
+                .cloned()
+                .filter_map(|(_, agg)| if agg.aggregate() == aggregate::Aggregate::First {
+                    Some(Expr::Aggregate(agg))
+                } else {
+                    None
+                }).collect::<Vec<Expr>>()
+            )
+            .group_by(Expr::Aggregate(Aggregate::first(Expr::col(column))))
+            .input(self)
+            .build();
+
+        // Build the second reduce
+        let red2: Relation = Relation::reduce()
+            .with_iter(aggregates.iter().cloned().map(|(f, agg)| (
+                (f.to_string(), Expr::Aggregate(agg))
+            )))
+            .group_by_iter(
+                aggregates.into_iter()
+                .filter_map(|(f, agg)| if agg.aggregate() == aggregate::Aggregate::First {
+                    Some(
+                        Expr::Aggregate(Aggregate::new(
+                            agg.aggregate(),
+                            Rc::new(Expr::col(f))
+                        ))
+                    )
+                } else {
+                    None
+                }).collect::<Vec<Expr>>()
+            )
+            .input(red)
+            .build();
+        red2
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -759,6 +817,7 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
+        relation::schema::Schema,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -1654,5 +1713,38 @@ mod tests {
             (&query_sampled_relation[..]).replace(' ', "")
         );
         print!("{}\n", query_sampled_relation)
+    }
+
+    #[test]
+    fn test_distinct_aggregates() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // With group by
+        let aggregates = vec![
+            ("sum_distinct_a", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a")))),
+            ("b", Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col("b")))),
+        ];
+        let distinct_rel = table.clone().distinct_aggregates(aggregates);
+        println!("{}", distinct_rel);
+        _ = distinct_rel.display_dot();
+
+        // Without group by
+        let aggregates = vec![
+            ("sum_distinct_a", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a")))),
+            ("count_distinct_a", Aggregate::new(aggregate::Aggregate::Count, Rc::new(Expr::col("a")))),
+        ];
+        let distinct_rel = table.distinct_aggregates(aggregates);
+        println!("{}", distinct_rel);
+        _ = distinct_rel.display_dot();
+
     }
 }
