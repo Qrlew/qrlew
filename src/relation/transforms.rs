@@ -750,11 +750,13 @@ impl Relation {
     /// - aggregates: contains the aggregations and their field name
     ///
     /// For example,
-    /// `self.distinct_aggregates(vec![
-    ///    ("a", Aggregate::first("a")),
-    ///    ("distinct_count", Aggregate::count("d")),
-    ///    ("distinct_sum", Aggregate::sum("d")),
-    ///])`
+    /// `self.distinct_aggregates(
+    ///    vec![
+    ///       ("a", Aggregate::first("a")),
+    ///       ("distinct_count", Aggregate::count("d")),
+    ///       ("distinct_sum", Aggregate::sum("d")),
+    ///    ]
+    /// )`
     /// builds a relation equivalent to the SQL
     /// `SELECT a, COUNT(DISTINCT b) AS distinct_count, SUM(DISTINCT b) AS distinct_sum FROM xxx GROUP BY a`
     ///
