@@ -765,11 +765,9 @@ impl Relation {
                 Expr::Aggregate(Aggregate::first(Expr::col(agg.argument_name().unwrap()))
                 )
             )))
-            .group_by_iter(
-                aggregates.iter()
-                .cloned()
+            .group_by_iter(aggregates.iter()
                 .filter_map(|(_, agg)| if agg.aggregate() == aggregate::Aggregate::First {
-                    Some(Expr::Aggregate(agg))
+                    Some(Expr::Aggregate(agg.clone()))
                 } else {
                     None
                 }).collect::<Vec<Expr>>()
@@ -779,26 +777,29 @@ impl Relation {
             .build();
 
         // Build the second reduce
+        let grouping_exprs:Vec<Expr> = aggregates.iter()
+            .filter_map(|(f, agg)| if agg.aggregate() == aggregate::Aggregate::First {
+                Some(Expr::Aggregate(Aggregate::first(Expr::col(*f))))
+            } else {
+                None
+            }).collect();
         let red2: Relation = Relation::reduce()
             .with_iter(aggregates.iter().cloned().map(|(f, agg)| (
                 (f.to_string(), Expr::Aggregate(agg))
             )))
-            .group_by_iter(
-                aggregates.into_iter()
-                .filter_map(|(f, agg)| if agg.aggregate() == aggregate::Aggregate::First {
-                    Some(
-                        Expr::Aggregate(Aggregate::new(
-                            agg.aggregate(),
-                            Rc::new(Expr::col(f))
-                        ))
-                    )
-                } else {
-                    None
-                }).collect::<Vec<Expr>>()
-            )
+            .group_by_iter(grouping_exprs.clone())
             .input(red)
             .build();
-        red2
+
+        if aggregates.is_empty() {
+            red2
+        } else {
+            Relation::map()
+                .with_iter(aggregates.iter().cloned().map(|(f, _)| (f, Expr::col(f))))
+                .order_by_iter(grouping_exprs.into_iter().map(|x| (x, true)).collect())
+                .input(red2)
+                .build()
+        }
     }
 }
 
@@ -1728,19 +1729,19 @@ mod tests {
             )
             .build();
 
-        // With group by
+        // Without group by
         let aggregates = vec![
-            ("sum_distinct_a", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a")))),
-            ("b", Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col("b")))),
+            ("sum_distinct_a", Aggregate::sum(Expr::col("a"))),
+            ("count_distinct_a", Aggregate::count(Expr::col("a"))),
         ];
         let distinct_rel = table.clone().distinct_aggregates(aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
 
-        // Without group by
+        // With group by
         let aggregates = vec![
             ("sum_distinct_a", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a")))),
-            ("count_distinct_a", Aggregate::new(aggregate::Aggregate::Count, Rc::new(Expr::col("a")))),
+            ("b", Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col("b")))),
         ];
         let distinct_rel = table.distinct_aggregates(aggregates);
         println!("{}", distinct_rel);
