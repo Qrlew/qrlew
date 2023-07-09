@@ -743,7 +743,24 @@ impl Relation {
         sampled_relation
     }
 
-    //TODO
+    /// Build a relation that is equivalent to adding the sql 'DISTINCT' keyword
+    /// into the aggregations.
+    ///
+    /// # Arguments
+    /// - aggregates: contains the aggregations and their field name
+    ///
+    /// For example,
+    /// `self.distinct_aggregates(vec![
+    ///    ("a", Aggregate::first("a")),
+    ///    ("distinct_count", Aggregate::count("d")),
+    ///    ("distinct_sum", Aggregate::sum("d")),
+    ///])`
+    /// builds a relation equivalent to the SQL
+    /// `SELECT a, COUNT(DISTINCT b) AS distinct_count, SUM(DISTINCT b) AS distinct_sum FROM xxx GROUP BY a`
+    ///
+    // For the moment, we support only the same column in the aggregations.
+    /// i.e., `aggregates = vec![("a", Aggregate::count("a")),("b", Aggregate::sum("b"))]`
+    ///is not supported
     pub fn distinct_aggregates(self, aggregates: Vec<(&str, Aggregate)>) -> Relation {
         // check that
         // - we have only columns in the aggregations
@@ -755,7 +772,7 @@ impl Relation {
                 None
             })
             .collect();
-        assert!(columns.iter().all(|c| c == &columns[0]));
+        assert!(columns.iter().all(|c| c == &columns[0])); // TODO: recussive call when this is false
         let column = columns[0]; // the `DISTINCT` column
 
         // Build the first reduce
