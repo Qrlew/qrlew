@@ -147,7 +147,8 @@ impl Function {
     /// Note: for the moment, we support only `Function` made of the composition of:
     /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
     /// - `Eq` function comparing a column to any value,
-    /// - `And` function between two supported Expr::Function.
+    /// - `And` function between two supported Expr::Function,
+    /// - 'InList` test if a column value belongs to a list
     pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
         let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
         match (self.function, args.as_slice()) {
@@ -203,6 +204,14 @@ impl Function {
             // Eq
             (function::Function::Eq, [Expr::Column(col), Expr::Value(val)]) if col == column => {
                 DataType::from(val.clone())
+                    .super_intersection(&datatype)
+                    .unwrap_or(datatype.clone())
+            }
+            // InList
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))])
+                if col == column =>
+            {
+                DataType::from_iter(l.to_vec().clone())
                     .super_intersection(&datatype)
                     .unwrap_or(datatype.clone())
             }
@@ -1958,6 +1967,17 @@ mod tests {
             func.filter_column_data_type(&col, &datatype),
             DataType::float_value(5.)
         );
+
+        // in
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let values = Expr::list([1., 3., 4.]);
+
+        let func = Function::in_list(col.clone(), values.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_values([1., 3., 4.])
+        );
     }
 
     #[test]
@@ -2039,11 +2059,22 @@ mod tests {
             func.filter_column_data_type(&col, &datatype),
             DataType::integer_value(5)
         );
+
+        // in
+        let col = Column::from("MyCol");
+        let datatype = DataType::integer();
+        let values = Expr::list([1, 3, 4]);
+
+        let func = Function::in_list(col.clone(), values.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_values([1, 3, 4])
+        );
     }
 
     #[test]
     fn test_filter_column_data_type_and() {
-        // set min value
+        // set min and max values
         let col = Column::from("MyCol");
         let datatype = DataType::float();
 
@@ -2054,6 +2085,19 @@ mod tests {
         assert_eq!(
             func.filter_column_data_type(&col, &datatype),
             DataType::float_interval(5., 7.)
+        );
+
+        // set min and possible values
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+
+        let func = Function::and(
+            Function::gt(col.clone(), Expr::val(5.)),
+            Function::in_list(col.clone(), Expr::list([2., 5., 7.])),
+        );
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_values([5., 7.])
         );
     }
 
