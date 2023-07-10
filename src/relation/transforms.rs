@@ -12,7 +12,7 @@ use crate::{
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    relation::Field,
+    relation,
     DataType,
 };
 use itertools::Itertools;
@@ -20,7 +20,61 @@ use std::collections::HashMap;
 use std::{
     ops::{self, Deref},
     rc::Rc,
+    error,
+    fmt,
+    result,
+    num::ParseFloatError
 };
+
+
+#[derive(Debug, PartialEq)]
+pub enum Error {
+    InvalidRelation(String),
+    InvalidArguments(String),
+    Other(String),
+}
+
+impl Error {
+    pub fn invalid_relation(relation: impl fmt::Display) -> Error {
+        Error::InvalidRelation(format!("{} is invalid", relation))
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::InvalidRelation(desc) => writeln!(f, "InvalidRelation: {}", desc),
+            Error::InvalidArguments(desc) => writeln!(f, "InvalidArguments: {}", desc),
+            Error::Other(err) => writeln!(f, "{}", err),
+        }
+    }
+}
+
+impl error::Error for Error {}
+
+impl From<relation::Error> for Error {
+    fn from(err: relation::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+impl From<crate::expr::Error> for Error {
+    fn from(err: crate::expr::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+impl From<crate::io::Error> for Error {
+    fn from(err: crate::io::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl From<ParseFloatError> for Error {
+    fn from(err: ParseFloatError) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+pub type Result<T> = result::Result<T, Error>;
 
 /* Reduce
  */
@@ -119,8 +173,8 @@ impl Reduce {
         self
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Relation {
-        let (map_names, vectors, base, coordinates): (
+    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Relation> {
+        let (map_names, out_vectors, base, coordinates): (
             Vec<(String, String)>,
             Option<String>,
             Vec<String>,
@@ -158,15 +212,27 @@ impl Reduce {
                 }
             });
 
-        assert_eq!(clipping_values.len(), coordinates.len());
+        let vectors = if let Some(v) = out_vectors {
+            Ok(v)
+        } else {
+            Err(Error::InvalidArguments(format!("{vectors} should be in the input `Relation`")))
+        };
+        let len_clipping_values = clipping_values.len();
+        let len_coordinates = coordinates.len();
+        if len_clipping_values != len_coordinates {
+            return Err(Error::InvalidArguments(format!(
+                "You must provide one clipping_value for each output field. \n \
+                Got {len_clipping_values} clipping values for {len_coordinates} output fields"
+            )))
+        }
         let clipped_relation = self.input.as_ref().clone().clipped_sum(
-            vectors.unwrap().as_str(),
+            vectors?.as_str(),
             base.iter().map(|s| s.as_str()).collect(),
             coordinates.iter().map(|s| s.as_str()).collect(),
             clipping_values,
         );
         let map_names: HashMap<String, String> = map_names.into_iter().collect();
-        clipped_relation.rename_fields(|n, _| map_names[n].to_string())
+        Ok(clipped_relation.rename_fields(|n, _| map_names[n].to_string()))
     }
 
     /// Rename fields
@@ -684,7 +750,7 @@ impl Relation {
         weighted_relation.sum_by(base, coordinates)
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Self {
+    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Self> {
         match self {
             Relation::Reduce(reduce) => reduce.clip_aggregates(vectors, clipping_values),
             _ => todo!(),
@@ -940,8 +1006,7 @@ mod tests {
         for row in results {
             let mut str_row = vec![];
             for i in 0..size {
-                let float_i: Result<f64, _> = row[i].to_string().parse();
-                str_row.push(match float_i {
+                str_row.push(match row[i].to_string().parse::<f64>() {
                     Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
                     Err(_) => row[i].to_string(),
                 })
@@ -1284,7 +1349,7 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
+        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum_price"]);
         clipped_relation.display_dot();
@@ -1312,7 +1377,7 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
+        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["sum_price"]);
         clipped_relation.display_dot();
@@ -1354,7 +1419,7 @@ mod tests {
         let price = schema.field_from_index(2).unwrap().name();
         let std_price = schema.field_from_index(3).unwrap().name();
         let clipped_relation =
-            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]);
+            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]).unwrap();
         clipped_relation.display_dot();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
