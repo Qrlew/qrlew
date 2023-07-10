@@ -68,7 +68,7 @@ impl fmt::Display for Aggregate {
             Aggregate::Max => write!(f, "max"),
             Aggregate::Median => write!(f, "median"),
             Aggregate::NUnique => write!(f, "n_unique"),
-            Aggregate::First => write!(f, ""),
+            Aggregate::First => write!(f, "first"),
             Aggregate::Last => write!(f, "last"),
             Aggregate::Mean => write!(f, "mean"),
             Aggregate::List => write!(f, "list"),

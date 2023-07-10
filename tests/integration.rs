@@ -128,7 +128,7 @@ fn test_on_postgresql() {
 }
 
 #[test]
-fn test_distinct() {
+fn test_distinct_aggregates() {
     let mut database = postgresql::test_database();
     let table = database.relations().get(&["table_1".to_string()]).unwrap().as_ref().clone();
 

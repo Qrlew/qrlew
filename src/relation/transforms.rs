@@ -810,6 +810,7 @@ impl Relation {
             .input(red)
             .build();
 
+        // Add an order by if their are grouping expressions
         if aggregates.is_empty() {
             red2
         } else {
