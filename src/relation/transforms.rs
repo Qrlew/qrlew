@@ -823,6 +823,13 @@ impl Relation {
             ;
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
+
+    pub fn tau_thresholding(self, column: &str, tau: f64) {
+        match self {
+            Relation::Reduce() => todo!(),
+            _ =>
+        }
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
