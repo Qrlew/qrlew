@@ -133,21 +133,24 @@ fn test_distinct_aggregates() {
     let table = database.relations().get(&["table_1".to_string()]).unwrap().as_ref().clone();
 
     let true_query = "SELECT COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1";
+    let column = "d";
+    let group_by = vec![];
     let aggregates = vec![
-            ("count_d", expr::Aggregate::count(expr::Expr::col("d"))),
-            ("sum_d", expr::Aggregate::sum(expr::Expr::col("d"))),
-        ];
-    let distinct_rel = table.clone().distinct_aggregates(aggregates);
+            ("count_d", expr::aggregate::Aggregate::Count),
+            ("sum_d",  expr::aggregate::Aggregate::Sum),
+    ];
+    let distinct_rel = table.clone().distinct_aggregates(column, group_by, aggregates);
     let rewriten_query:&str = &ast::Query::from(&distinct_rel).to_string();
     assert!(test_eq(&mut database, true_query, rewriten_query));
 
     let true_query = "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c";
+    let column = "d";
+    let group_by = vec!["c"];
     let aggregates = vec![
-            ("c", expr::Aggregate::first(expr::Expr::col("c"))),
-            ("count_d", expr::Aggregate::count(expr::Expr::col("d"))),
-            ("sum_d", expr::Aggregate::sum(expr::Expr::col("d"))),
+            ("count_d", expr::aggregate::Aggregate::Count),
+            ("sum_d",  expr::aggregate::Aggregate::Sum),
         ];
-    let distinct_rel = table.distinct_aggregates(aggregates);
+    let distinct_rel = table.distinct_aggregates(column, group_by, aggregates);
     let rewriten_query:&str = &ast::Query::from(&distinct_rel).to_string();
     assert!(test_eq(&mut database, true_query, rewriten_query));
 }
