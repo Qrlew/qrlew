@@ -12,20 +12,17 @@ use crate::{
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    relation,
-    DataType,
+    relation, DataType,
 };
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::{
+    error, fmt,
+    num::ParseFloatError,
     ops::{self, Deref},
     rc::Rc,
-    error,
-    fmt,
     result,
-    num::ParseFloatError
 };
-
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -173,7 +170,11 @@ impl Reduce {
         self
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Relation> {
+    pub fn clip_aggregates(
+        self,
+        vectors: &str,
+        clipping_values: Vec<(&str, f64)>,
+    ) -> Result<Relation> {
         let (map_names, out_vectors, base, coordinates): (
             Vec<(String, String)>,
             Option<String>,
@@ -215,7 +216,9 @@ impl Reduce {
         let vectors = if let Some(v) = out_vectors {
             Ok(v)
         } else {
-            Err(Error::InvalidArguments(format!("{vectors} should be in the input `Relation`")))
+            Err(Error::InvalidArguments(format!(
+                "{vectors} should be in the input `Relation`"
+            )))
         };
         let len_clipping_values = clipping_values.len();
         let len_coordinates = coordinates.len();
@@ -223,7 +226,7 @@ impl Reduce {
             return Err(Error::InvalidArguments(format!(
                 "You must provide one clipping_value for each output field. \n \
                 Got {len_clipping_values} clipping values for {len_coordinates} output fields"
-            )))
+            )));
         }
         let clipped_relation = self.input.as_ref().clone().clipped_sum(
             vectors?.as_str(),
@@ -832,15 +835,15 @@ impl Relation {
 
     /// Returns a Relation whose fields have unique values
     fn unique(self, columns: Vec<&str>) -> Relation {
-        let named_columns:Vec<(&str, Expr)> = columns.into_iter()
-            .map(|c| (c, Expr::col(c)))
-            .collect();
+        let named_columns: Vec<(&str, Expr)> =
+            columns.into_iter().map(|c| (c, Expr::col(c))).collect();
 
         Relation::reduce()
             .group_by_iter(named_columns.iter().cloned().map(|(_, col)| col))
             .with_iter(
-                named_columns.into_iter()
-                .map(|(name, col)| (name, Expr::first(col)))
+                named_columns
+                    .into_iter()
+                    .map(|(name, col)| (name, Expr::first(col))),
             )
             .input(self)
             .build()
@@ -849,7 +852,11 @@ impl Relation {
     /// Returns a `Relation` whose output fields correspond to the `aggregates`
     /// grouped by the expressions in `grouping_exprs`.
     /// If `grouping_exprs` is not empty, we order by the grouping expressions.
-    fn build_ordered_reduce(self, grouping_exprs: Vec<Expr>, aggregates: Vec<(&str, Expr)>) -> Relation{
+    fn build_ordered_reduce(
+        self,
+        grouping_exprs: Vec<Expr>,
+        aggregates: Vec<(&str, Expr)>,
+    ) -> Relation {
         let red: Relation = Relation::reduce()
             .with_iter(aggregates.clone())
             .group_by_iter(grouping_exprs.clone())
@@ -870,7 +877,12 @@ impl Relation {
     /// Build a relation whose output fields are to the aggregations in `aggregates`
     /// applied on the UNIQUE values of the column `column` and grouped by the columns in `group_by`.
     /// If `grouping_by` is not empty, we order by the grouping expressions.
-    pub fn distinct_aggregates(self, column: &str, group_by: Vec<&str>, aggregates: Vec<(&str, aggregate::Aggregate)>) -> Relation {
+    pub fn distinct_aggregates(
+        self,
+        column: &str,
+        group_by: Vec<&str>,
+        aggregates: Vec<(&str, aggregate::Aggregate)>,
+    ) -> Relation {
         let mut columns = vec![column];
         columns.extend(group_by.iter());
         let red = self.unique(columns);
@@ -878,15 +890,17 @@ impl Relation {
         // Build the second reduce
         let mut aggregates_exprs: Vec<(&str, Expr)> = vec![];
         let mut grouping_exprs: Vec<Expr> = vec![];
-        group_by.into_iter()
-            .for_each(|c| {
-                let col = Expr::col(c);
-                aggregates_exprs.push((c, Expr::first(col.clone())));
-                grouping_exprs.push(col);
-            });
-        aggregates.into_iter()
-            .for_each(|(c, agg)| aggregates_exprs.push((c, Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))))))
-            ;
+        group_by.into_iter().for_each(|c| {
+            let col = Expr::col(c);
+            aggregates_exprs.push((c, Expr::first(col.clone())));
+            grouping_exprs.push(col);
+        });
+        aggregates.into_iter().for_each(|(c, agg)| {
+            aggregates_exprs.push((
+                c,
+                Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))),
+            ))
+        });
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 }
@@ -905,8 +919,8 @@ mod tests {
         data_type::{value::List, DataTyped},
         display::Dot,
         io::{postgresql, Database},
-        sql::parse,
         relation::schema::Schema,
+        sql::parse,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -1349,7 +1363,9 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
+        let clipped_relation = my_relation
+            .clip_aggregates("order_id", vec![(price, 45.)])
+            .unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum_price"]);
         clipped_relation.display_dot();
@@ -1377,7 +1393,9 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
+        let clipped_relation = my_relation
+            .clip_aggregates("order_id", vec![(price, 45.)])
+            .unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["sum_price"]);
         clipped_relation.display_dot();
@@ -1418,8 +1436,9 @@ mod tests {
         let schema = relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(2).unwrap().name();
         let std_price = schema.field_from_index(3).unwrap().name();
-        let clipped_relation =
-            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]).unwrap();
+        let clipped_relation = relation
+            .clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)])
+            .unwrap();
         clipped_relation.display_dot();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
@@ -1841,7 +1860,9 @@ mod tests {
             ("sum_a", Expr::sum(Expr::col("a"))),
             ("count_b", Expr::count(Expr::col("a"))),
         ];
-        let rel = table.clone().build_ordered_reduce(grouping_exprs, aggregates);
+        let rel = table
+            .clone()
+            .build_ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
         _ = rel.display_dot();
 
@@ -1852,7 +1873,7 @@ mod tests {
             ("count_b", Expr::count(Expr::col("a"))),
         ];
         let rel = table.build_ordered_reduce(grouping_exprs, aggregates);
-        println!("{}",rel);
+        println!("{}", rel);
         _ = rel.display_dot();
     }
 
@@ -1874,9 +1895,11 @@ mod tests {
         let group_by = vec![];
         let aggregates = vec![
             ("sum_distinct_a", aggregate::Aggregate::Sum),
-            ("count_distinct_a", aggregate::Aggregate::Count)
+            ("count_distinct_a", aggregate::Aggregate::Count),
         ];
-        let distinct_rel = table.clone().distinct_aggregates(column, group_by, aggregates);
+        let distinct_rel = table
+            .clone()
+            .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
 
@@ -1885,9 +1908,11 @@ mod tests {
         let group_by = vec!["b", "c"];
         let aggregates = vec![
             ("sum_distinct_a", aggregate::Aggregate::Sum),
-            ("count_distinct_a", aggregate::Aggregate::Count)
+            ("count_distinct_a", aggregate::Aggregate::Count),
         ];
-        let distinct_rel = table.clone().distinct_aggregates(column, group_by, aggregates);
+        let distinct_rel = table
+            .clone()
+            .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
     }
