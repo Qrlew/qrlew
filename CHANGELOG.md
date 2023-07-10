@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `filter` method in `Map` builder and `filter` transform [MR43](https://github.com/Qrlew/qrlew/pull/43)
 - Map size propagation now takes into account `limit`. [MR49](https://github.com/Qrlew/qrlew/pull/49)
 - Implement `IN` operator [MR50](https://github.com/Qrlew/qrlew/pull/50)
+- Implement `distinct_aggregates` transform that build `Relation` containing aggregates with the `DISTINCT` keyword [MR57](https://github.com/Qrlew/qrlew/pull/57)
 
 ## [0.1.2] - 2023-06-01
 ### Added
