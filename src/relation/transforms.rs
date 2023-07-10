@@ -821,6 +821,19 @@ impl Relation {
                 .build()
         }
     }
+
+    ///TODO
+    /// We take the current Relation, We add a COUNT(DISTINCT vectors) with a Where
+    /// The vectors column must be among the fields
+    pub fn tau_thresolding(self, vectors: &str) -> Relation {
+        match self {
+            Relation::Table(t) => todo!(),
+            Relation::Map(m) => todo!(),
+            Relation::Reduce(r) => todo!(),
+            Relation::Join(j) => todo!(),
+            Relation::Set(s) => todo!(),
+        }
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
