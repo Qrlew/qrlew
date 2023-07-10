@@ -242,6 +242,50 @@ impl Reduce {
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Reduce {
         Relation::reduce().rename_with(self, f).build()
     }
+
+    /// TODO
+    pub fn tau_thresholding(self, column: &str, tau: f64) -> Result<Relation> {
+        // compute distinct relation
+        let group_by = self.group_by.iter()
+            .cloned()
+            .map(|x| if let Expr::Column(c) = x {Ok(c.clone().last().unwrap().as_str())} else {Err(Error::InvalidArguments("todo".into()))})
+            .collect::<Result<Vec<&str>>>()?;
+        let aggregates = vec![("_PROTECTED_COUNT", aggregate::Aggregate::Count)]; //TODO
+        let right = self.input.as_ref().clone().distinct_aggregates(column, group_by.clone(), aggregates);
+
+        // Join
+        let left = Relation::from(self);
+        let on = group_by.iter()
+            .fold(
+                Expr::eq(
+                    Expr::qcol(left.to_string(), group_by[0].to_string()),
+                    Expr::qcol(right.to_string(), group_by[0].to_string())
+                ),
+                |f, c| Expr::and(
+                    f,
+                    Expr::eq(
+                        Expr::qcol(left.to_string(), c.to_string()),
+                        Expr::qcol(right.to_string(), c.to_string())
+                    )
+                )
+            )
+            ;
+        let joined_rel:Relation = Relation::join()
+            .left(left)
+            .right(right)
+            .on(on)
+            .left_outer()
+            .build();
+
+        // Returns Map with the right field names and with count(distinct) > tau
+        Ok(
+            Relation::map()
+                .filter(Expr::gt(Expr::col("_PROTECTED_COUNT"), Expr::val(tau)))
+                .with_iter(joined_rel.schema().iter().map(|f| (f.name(), Expr::col(f.name()))))
+                .input(joined_rel)
+                .build()
+        )
+    }
 }
 
 /* Join
@@ -904,10 +948,11 @@ impl Relation {
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    pub fn tau_thresholding(self, column: &str, tau: f64) {
+    /// TODO
+    pub fn tau_thresholding(self, column: &str, tau: f64) -> Result<Relation> {
         match self {
-            Relation::Reduce() => todo!(),
-            _ =>
+            Relation::Reduce(r) => r.tau_thresholding(column, tau),
+            _ => Err(Error::InvalidRelation("Can apply tau-threshodling only to to `Relation::Reduce`".into()))
         }
     }
 }
