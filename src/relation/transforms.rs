@@ -12,21 +12,11 @@ use crate::{
     },
     expr::{aggregate, Aggregate, Expr},
     hierarchy::Hierarchy,
-    relation,
-    DataType,
+    relation, DataType,
 };
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
-use std::{
-    ops::Deref,
-    rc::Rc,
-    fmt,
-    error,
-    result,
-    num::ParseFloatError,
-};
-
-
+use std::{error, fmt, num::ParseFloatError, ops::Deref, rc::Rc, result};
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -171,7 +161,11 @@ impl Reduce {
         self
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Relation> {
+    pub fn clip_aggregates(
+        self,
+        vectors: &str,
+        clipping_values: Vec<(&str, f64)>,
+    ) -> Result<Relation> {
         let (map_names, vectors, base, coordinates): (
             Vec<(String, String)>,
             Option<String>,
@@ -212,41 +206,47 @@ impl Reduce {
             //         }
             //     }
             // )?
-            .try_fold(
-                (vec![], None, vec![], vec![]),
-                |(mn, v, b, c), (f, x)| {
+            .try_fold((vec![], None, vec![], vec![]), |(mn, v, b, c), (f, x)| {
                 if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
-                        let argname = agg.argument_name()?.clone();
-                        let mut mn = mn;
-                        mn.push((argname.clone(), name.to_string()));
-                        Ok::<(Vec<(std::string::String, std::string::String)>, std::option::Option<std::string::String>, Vec<std::string::String>, Vec<std::string::String>), Error>(match agg.aggregate() {
-                            aggregate::Aggregate::Sum => {
-                                let mut c = c;
-                                c.push(argname);
+                    let argname = agg.argument_name()?.clone();
+                    let mut mn = mn;
+                    mn.push((argname.clone(), name.to_string()));
+                    Ok::<
+                        (
+                            Vec<(std::string::String, std::string::String)>,
+                            std::option::Option<std::string::String>,
+                            Vec<std::string::String>,
+                            Vec<std::string::String>,
+                        ),
+                        Error,
+                    >(match agg.aggregate() {
+                        aggregate::Aggregate::Sum => {
+                            let mut c = c;
+                            c.push(argname);
+                            (mn, v, b, c)
+                        }
+                        aggregate::Aggregate::First => {
+                            if name == vectors {
+                                let v = Some(argname);
+                                (mn, v, b, c)
+                            } else {
+                                let mut b = b;
+                                b.push(argname);
                                 (mn, v, b, c)
                             }
-                            aggregate::Aggregate::First => {
-                                if name == vectors {
-                                    let v = Some(argname);
-                                    (mn, v, b, c)
-                                } else {
-                                    let mut b = b;
-                                    b.push(argname);
-                                    (mn, v, b, c)
-                                }
-                            }
-                            _ => (mn, v, b, c),
-                        })
-                    } else {
-                        Ok((mn, v, b, c))
-                    }
+                        }
+                        _ => (mn, v, b, c),
+                    })
+                } else {
+                    Ok((mn, v, b, c))
                 }
-            )?
-            ;
+            })?;
 
         assert_eq!(clipping_values.len(), coordinates.len());
         let clipped_relation = self.input.as_ref().clone().clipped_sum(
-            vectors.unwrap_or("Cannot find `vectors`".to_string()).as_str(),
+            vectors
+                .unwrap_or("Cannot find `vectors`".to_string())
+                .as_str(),
             base.iter().map(|s| s.as_str()).collect(),
             coordinates.iter().map(|s| s.as_str()).collect(),
             clipping_values,
@@ -874,17 +874,20 @@ impl Relation {
         // check that
         // - we have only columns in the aggregations
         // - the columns in the aggregations (out of First) are the same
-        let columns:Vec<&str> = aggregates.iter()
-            .filter_map(|(_, agg)| if agg.aggregate() != aggregate::Aggregate::First {
-                Some(
-                    if let Ok(name) = agg.argument_name() {
+        let columns: Vec<&str> = aggregates
+            .iter()
+            .filter_map(|(_, agg)| {
+                if agg.aggregate() != aggregate::Aggregate::First {
+                    Some(if let Ok(name) = agg.argument_name() {
                         Ok(name.as_str())
                     } else {
-                        Err(Error::Other("The `Expr` in the aggregates must be `Column`".to_string()))
-                    }
-                )
-            } else {
-                None
+                        Err(Error::Other(
+                            "The `Expr` in the aggregates must be `Column`".to_string(),
+                        ))
+                    })
+                } else {
+                    None
+                }
             })
             .collect::<Result<_>>()?;
         println!("Columns = {columns:?}");
@@ -893,8 +896,8 @@ impl Relation {
             let unique_cols = columns.into_iter().collect::<HashSet<_>>();
             let len = unique_cols.len();
             let cols = unique_cols.into_iter().join(", ");
-            return Err(Error::Other(
-                format!("The aggregates must be applied on the same column. \
+            return Err(Error::Other(format!(
+                "The aggregates must be applied on the same column. \
                     Got {len} different columns: [{cols}]"
             )));
         }
@@ -903,57 +906,66 @@ impl Relation {
         // Build the first reduce
         let red: Relation = Relation::reduce()
             .with_iter(
-                aggregates.iter()
+                aggregates
+                    .iter()
                     .map(|(_, agg)| {
                         let argname = agg.argument_name()?;
                         Ok((
                             argname,
-                            Expr::Aggregate(Aggregate::first(Expr::col(argname))
-                            )
+                            Expr::Aggregate(Aggregate::first(Expr::col(argname))),
                         ))
                     })
-                    .collect::<Result<Vec<(&String, Expr)>>>()?
+                    .collect::<Result<Vec<(&String, Expr)>>>()?,
             )
-            .group_by_iter(aggregates.iter()
-                .filter_map(|(_, agg)| if agg.aggregate() == aggregate::Aggregate::First {
-                    Some(Expr::Aggregate(agg.clone()))
-                } else {
-                    None
-                }).collect::<Vec<Expr>>()
+            .group_by_iter(
+                aggregates
+                    .iter()
+                    .filter_map(|(_, agg)| {
+                        if agg.aggregate() == aggregate::Aggregate::First {
+                            Some(Expr::Aggregate(agg.clone()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<Expr>>(),
             )
             .group_by(Expr::Aggregate(Aggregate::first(Expr::col(column))))
             .input(self)
             .build();
 
         // Build the second reduce
-        let grouping_exprs:Vec<Expr> = aggregates.iter()
-            .filter_map(|(f, agg)| if agg.aggregate() == aggregate::Aggregate::First {
-                Some(Expr::Aggregate(Aggregate::first(Expr::col(*f))))
-            } else {
-                None
-            }).collect();
+        let grouping_exprs: Vec<Expr> = aggregates
+            .iter()
+            .filter_map(|(f, agg)| {
+                if agg.aggregate() == aggregate::Aggregate::First {
+                    Some(Expr::Aggregate(Aggregate::first(Expr::col(*f))))
+                } else {
+                    None
+                }
+            })
+            .collect();
         let red2: Relation = Relation::reduce()
-            .with_iter(aggregates.iter().cloned().map(|(f, agg)| (
-                (f.to_string(), Expr::Aggregate(agg))
-            )))
+            .with_iter(
+                aggregates
+                    .iter()
+                    .cloned()
+                    .map(|(f, agg)| ((f.to_string(), Expr::Aggregate(agg)))),
+            )
             .group_by_iter(grouping_exprs.clone())
             .input(red)
             .build();
 
         // Add an order by if their are grouping expressions
-        Ok(
-                if aggregates.is_empty() {
-                red2
-            } else {
-                Relation::map()
-                    .with_iter(aggregates.iter().cloned().map(|(f, _)| (f, Expr::col(f))))
-                    .order_by_iter(grouping_exprs.into_iter().map(|x| (x, true)).collect())
-                    .input(red2)
-                    .build()
-            }
-        )
+        Ok(if aggregates.is_empty() {
+            red2
+        } else {
+            Relation::map()
+                .with_iter(aggregates.iter().cloned().map(|(f, _)| (f, Expr::col(f))))
+                .order_by_iter(grouping_exprs.into_iter().map(|x| (x, true)).collect())
+                .input(red2)
+                .build()
+        })
     }
-
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -970,8 +982,8 @@ mod tests {
         data_type::{value::List, DataTyped},
         display::Dot,
         io::{postgresql, Database},
-        sql::parse,
         relation::schema::Schema,
+        sql::parse,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -1414,7 +1426,9 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
+        let clipped_relation = my_relation
+            .clip_aggregates("order_id", vec![(price, 45.)])
+            .unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum_price"]);
         clipped_relation.display_dot();
@@ -1442,7 +1456,9 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
+        let clipped_relation = my_relation
+            .clip_aggregates("order_id", vec![(price, 45.)])
+            .unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["sum_price"]);
         clipped_relation.display_dot();
@@ -1483,8 +1499,9 @@ mod tests {
         let schema = relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(2).unwrap().name();
         let std_price = schema.field_from_index(3).unwrap().name();
-        let clipped_relation =
-            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]).unwrap();
+        let clipped_relation = relation
+            .clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)])
+            .unwrap();
         clipped_relation.display_dot();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
@@ -1892,8 +1909,14 @@ mod tests {
 
         // With group by
         let aggregates = vec![
-            ("sum_distinct_a", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a")))),
-            ("b", Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col("b")))),
+            (
+                "sum_distinct_a",
+                Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a"))),
+            ),
+            (
+                "b",
+                Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col("b"))),
+            ),
         ];
         let distinct_rel = table.clone().distinct_aggregates(aggregates).unwrap();
         println!("{}", distinct_rel);
@@ -1901,8 +1924,14 @@ mod tests {
 
         // Error when asking for aggregates applied on different columns
         let aggregates = vec![
-            ("sum_distinct_a", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a")))),
-            ("sum_distinct_b", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("b")))),
+            (
+                "sum_distinct_a",
+                Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("a"))),
+            ),
+            (
+                "sum_distinct_b",
+                Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::col("b"))),
+            ),
         ];
         let distinct_rel = table.clone().distinct_aggregates(aggregates);
         assert_eq!(
@@ -1911,13 +1940,19 @@ mod tests {
         );
 
         // Error when asking for aggregates applied on an `Expr` taht is not a `Column` variant
-        let aggregates = vec![
-            ("sum_distinct_a", Aggregate::new(aggregate::Aggregate::Sum, Rc::new(Expr::plus(Expr::col("a"), Expr::val(3.))))),
-        ];
+        let aggregates = vec![(
+            "sum_distinct_a",
+            Aggregate::new(
+                aggregate::Aggregate::Sum,
+                Rc::new(Expr::plus(Expr::col("a"), Expr::val(3.))),
+            ),
+        )];
         let distinct_rel = table.distinct_aggregates(aggregates);
         assert_eq!(
             distinct_rel,
-            Err(Error::Other("The `Expr` in the aggregates must be `Column`".into()))
+            Err(Error::Other(
+                "The `Expr` in the aggregates must be `Column`".into()
+            ))
         );
     }
 }
