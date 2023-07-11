@@ -51,8 +51,12 @@ const QUERIES: &[&str] = &[
     "SELECT AVG(x) as a FROM table_2",
     "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
     "SELECT 1+SUM(a), count(b) FROM table_1",
+    // Some WHERE
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
+    "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
+    // Some GROUP BY
     "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
+    // Some WHERE and GROUP BY
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
     "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
     "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
@@ -86,6 +90,7 @@ const QUERIES: &[&str] = &[
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
     "SELECT UPPER(z) FROM table_2 LIMIT 5",
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
+    
 ];
 
 #[cfg(feature = "sqlite")]
