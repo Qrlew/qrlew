@@ -22,6 +22,7 @@ use std::{
     ops::{self, Deref},
     rc::Rc,
     result,
+    convert::Infallible,
 };
 
 #[derive(Debug, PartialEq)]
@@ -67,6 +68,12 @@ impl From<crate::io::Error> for Error {
 
 impl From<ParseFloatError> for Error {
     fn from(err: ParseFloatError) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl From<Infallible> for Error {
+    fn from(err: Infallible) -> Self {
         Error::Other(err.to_string())
     }
 }
@@ -245,46 +252,41 @@ impl Reduce {
 
     /// TODO
     pub fn tau_thresholding(self, column: &str, tau: f64) -> Result<Relation> {
+        let count_col = format!("COUNT_DISTINCT_{column}");
+
         // compute distinct relation
-        let group_by = self.group_by.iter()
-            .cloned()
-            .map(|x| if let Expr::Column(c) = x {Ok(c.clone().last().unwrap().as_str())} else {Err(Error::InvalidArguments("todo".into()))})
-            .collect::<Result<Vec<&str>>>()?;
-        let aggregates = vec![("_PROTECTED_COUNT", aggregate::Aggregate::Count)]; //TODO
-        let right = self.input.as_ref().clone().distinct_aggregates(column, group_by.clone(), aggregates);
+        let group_by:Vec<&str> = self.group_by.iter().cloned()
+            .map(|x| {
+                if let Expr::Column(name) = x {
+                    Ok(&name.to_string().into())
+                } else {
+                    Err(Error::InvalidArguments("todo".into()))
+                }
+            })
+            .collect::<Result<_>>()?;
+        let group_by:Vec<&str> = group_by.iter()
+            .map(|s| s.as_str())
+            .collect();
+        let aggregates = vec![
+            (count_col.as_str(), aggregate::Aggregate::Count)
+        ];
+        let right = self.input.as_ref().clone().distinct_aggregates(
+            column,
+            group_by.clone(),
+            aggregates
+        );
 
         // Join
-        let left = Relation::from(self);
-        let on = group_by.iter()
-            .fold(
-                Expr::eq(
-                    Expr::qcol(left.to_string(), group_by[0].to_string()),
-                    Expr::qcol(right.to_string(), group_by[0].to_string())
-                ),
-                |f, c| Expr::and(
-                    f,
-                    Expr::eq(
-                        Expr::qcol(left.to_string(), c.to_string()),
-                        Expr::qcol(right.to_string(), c.to_string())
-                    )
-                )
-            )
-            ;
-        let joined_rel:Relation = Relation::join()
-            .left(left)
-            .right(right)
-            .on(on)
-            .left_outer()
-            .build();
+        let on: Vec<(&str, &str)> = group_by.into_iter()
+            .map(|s| (s, s))
+            .collect();
+        let joined_rel:Relation = Relation::from(self).left_join(right, on)?;
 
         // Returns Map with the right field names and with count(distinct) > tau
-        Ok(
-            Relation::map()
-                .filter(Expr::gt(Expr::col("_PROTECTED_COUNT"), Expr::val(tau)))
-                .with_iter(joined_rel.schema().iter().map(|f| (f.name(), Expr::col(f.name()))))
-                .input(joined_rel)
-                .build()
-        )
+        let columns = vec![
+            (count_col.as_str(), Some(tau.into()), None, vec![])
+        ];
+        Ok(joined_rel.filter_columns(columns))
     }
 }
 
@@ -946,6 +948,35 @@ impl Relation {
             ))
         });
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
+    }
+
+    pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
+        if on.is_empty() {
+            return Err(Error::InvalidArguments("Vector `on` cannot be empty".to_string()))
+        }
+
+        let on = on.iter()
+            .fold(
+                Expr::eq(
+                    Expr::qcol(self.to_string(), on[0].0.to_string()),
+                    Expr::qcol(right.to_string(), on[0].1.to_string())
+                ),
+                |f, (c0, c1)| Expr::and(
+                    f,
+                    Expr::eq(
+                        Expr::qcol(self.to_string(), c0.to_string()),
+                        Expr::qcol(right.to_string(), c1.to_string())
+                    )
+                )
+            );
+        Ok(
+            Relation::join()
+            .left(self)
+            .right(right)
+            .on(on)
+            .left_outer()
+            .build()
+        )
     }
 
     /// TODO

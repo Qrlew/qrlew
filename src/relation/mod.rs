@@ -1026,6 +1026,7 @@ impl Relation {
     pub fn set() -> SetBuilder<WithoutInput, WithoutInput> {
         Builder::set()
     }
+
 }
 
 // Implements Acceptor, Visitor and derive an iterator and a few other Visitor driven functions

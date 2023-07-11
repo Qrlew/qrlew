@@ -41,6 +41,10 @@ pub fn gaussian_noise(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
     (2. * (1.25_f64.ln() / delta)).sqrt() * sensitivity / epsilon
 }
 
+pub fn gaussian_tau(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
+    todo!()
+}
+
 /* Reduce
  */
 impl Reduce {
