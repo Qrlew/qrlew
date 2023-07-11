@@ -763,6 +763,66 @@ impl Relation {
             .build();
         sampled_relation
     }
+
+    /// Returns a Relation whose fields have unique values
+    fn unique(self, columns: Vec<&str>) -> Relation {
+        let named_columns:Vec<(&str, Expr)> = columns.into_iter()
+            .map(|c| (c, Expr::col(c)))
+            .collect();
+
+        Relation::reduce()
+            .group_by_iter(named_columns.iter().cloned().map(|(_, col)| col))
+            .with_iter(
+                named_columns.into_iter()
+                .map(|(name, col)| (name, Expr::first(col)))
+            )
+            .input(self)
+            .build()
+    }
+
+    /// Returns a `Relation` whose output fields correspond to the `aggregates`
+    /// grouped by the expressions in `grouping_exprs`.
+    /// If `grouping_exprs` is not empty, we order by the grouping expressions.
+    fn build_ordered_reduce(self, grouping_exprs: Vec<Expr>, aggregates: Vec<(&str, Expr)>) -> Relation{
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates.clone())
+            .group_by_iter(grouping_exprs.clone())
+            .input(self)
+            .build();
+
+        if grouping_exprs.is_empty() {
+            red
+        } else {
+            Relation::map()
+                .with_iter(aggregates.into_iter().map(|(f, _)| (f, Expr::col(f))))
+                .order_by_iter(grouping_exprs.into_iter().map(|x| (x, true)).collect())
+                .input(red)
+                .build()
+        }
+    }
+
+    /// Build a relation whose output fields are to the aggregations in `aggregates`
+    /// applied on the UNIQUE values of the column `column` and grouped by the columns in `group_by`.
+    /// If `grouping_by` is not empty, we order by the grouping expressions.
+    pub fn distinct_aggregates(self, column: &str, group_by: Vec<&str>, aggregates: Vec<(&str, aggregate::Aggregate)>) -> Relation {
+        let mut columns = vec![column];
+        columns.extend(group_by.iter());
+        let red = self.unique(columns);
+
+        // Build the second reduce
+        let mut aggregates_exprs: Vec<(&str, Expr)> = vec![];
+        let mut grouping_exprs: Vec<Expr> = vec![];
+        group_by.into_iter()
+            .for_each(|c| {
+                let col = Expr::col(c);
+                aggregates_exprs.push((c, Expr::first(col.clone())));
+                grouping_exprs.push(col);
+            });
+        aggregates.into_iter()
+            .for_each(|(c, agg)| aggregates_exprs.push((c, Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))))))
+            ;
+        red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -780,6 +840,7 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
+        relation::schema::Schema,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -1675,5 +1736,94 @@ mod tests {
             (&query_sampled_relation[..]).replace(' ', "")
         );
         print!("{}\n", query_sampled_relation)
+    }
+
+    #[test]
+    fn test_unique() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // Without group by
+        let unique_rel = table.unique(vec!["a", "b"]);
+        println!("{}", unique_rel);
+        _ = unique_rel.display_dot();
+    }
+
+    #[test]
+    fn test_build_ordered_reduce() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // Without group by
+        let grouping_exprs = vec![];
+        let aggregates = vec![
+            ("sum_a", Expr::sum(Expr::col("a"))),
+            ("count_b", Expr::count(Expr::col("a"))),
+        ];
+        let rel = table.clone().build_ordered_reduce(grouping_exprs, aggregates);
+        println!("{}", rel);
+        _ = rel.display_dot();
+
+        // With group by
+        let grouping_exprs = vec![Expr::col("c")];
+        let aggregates = vec![
+            ("sum_a", Expr::sum(Expr::col("a"))),
+            ("count_b", Expr::count(Expr::col("a"))),
+        ];
+        let rel = table.build_ordered_reduce(grouping_exprs, aggregates);
+        println!("{}",rel);
+        _ = rel.display_dot();
+    }
+
+    #[test]
+    fn test_distinct_aggregates() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // Without group by
+        let column = "a";
+        let group_by = vec![];
+        let aggregates = vec![
+            ("sum_distinct_a", aggregate::Aggregate::Sum),
+            ("count_distinct_a", aggregate::Aggregate::Count)
+        ];
+        let distinct_rel = table.clone().distinct_aggregates(column, group_by, aggregates);
+        println!("{}", distinct_rel);
+        _ = distinct_rel.display_dot();
+
+        // With group by
+        let column = "a";
+        let group_by = vec!["b", "c"];
+        let aggregates = vec![
+            ("sum_distinct_a", aggregate::Aggregate::Sum),
+            ("count_distinct_a", aggregate::Aggregate::Count)
+        ];
+        let distinct_rel = table.clone().distinct_aggregates(column, group_by, aggregates);
+        println!("{}", distinct_rel);
+        _ = distinct_rel.display_dot();
     }
 }
