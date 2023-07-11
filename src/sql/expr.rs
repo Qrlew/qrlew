@@ -364,35 +364,32 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 if function.distinct {
                     todo!()
                 }
-                self.function(
-                    function,
-                    {
-                        let mut result = Vec::new();
-                        for function_arg in function.args.iter() {
-                            result.push(match function_arg {
-                                ast::FunctionArg::Named { name, arg } => FunctionArg::Named {
-                                    name: name.clone(),
-                                    arg: match arg {
-                                        ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
-                                        ast::FunctionArgExpr::QualifiedWildcard(idents) => {
-                                            self.qualified_wildcard(&idents.0)
-                                        }
-                                        ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                                    },
-                                },
-                                ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
+                self.function(function, {
+                    let mut result = Vec::new();
+                    for function_arg in function.args.iter() {
+                        result.push(match function_arg {
+                            ast::FunctionArg::Named { name, arg } => FunctionArg::Named {
+                                name: name.clone(),
+                                arg: match arg {
                                     ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
                                     ast::FunctionArgExpr::QualifiedWildcard(idents) => {
                                         self.qualified_wildcard(&idents.0)
                                     }
                                     ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                                }),
-                            });
-                        }
-                        result
+                                },
+                            },
+                            ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
+                                ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
+                                ast::FunctionArgExpr::QualifiedWildcard(idents) => {
+                                    self.qualified_wildcard(&idents.0)
+                                }
+                                ast::FunctionArgExpr::Wildcard => self.wildcard(),
+                            }),
+                        });
                     }
-                )
-            },
+                    result
+                })
+            }
             ast::Expr::AggregateExpressionWithFilter { expr, filter } => todo!(),
             ast::Expr::Case {
                 operand,
