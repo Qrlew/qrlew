@@ -5,19 +5,36 @@
 
 use crate::data_type::DataTyped;
 use crate::{
-    builder::{Ready, With, WithIterator},
-    data_type::intervals::{Bound, Intervals},
-    display::Dot,
-    expr::{aggregate, Aggregate, Expr, Value},
+    data_type::intervals::Bound,
+    expr::{aggregate, Expr},
     hierarchy::Hierarchy,
     protected::PE_ID,
-    relation::{field::Field, Join, Map, Reduce, Relation, Set, Table, Variant as _},
+    relation::{field::Field, transforms, Reduce, Relation, Variant as _},
     DataType,
 };
-use itertools::Itertools;
-use std::cmp;
-use std::collections::HashMap;
-use std::{ops::Deref, rc::Rc};
+use std::{cmp, error, fmt, rc::Rc, result};
+
+#[derive(Debug, PartialEq)]
+pub enum Error {
+    Other(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Other(err) => writeln!(f, "{}", err),
+        }
+    }
+}
+
+impl From<transforms::Error> for Error {
+    fn from(err: transforms::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl error::Error for Error {}
+pub type Result<T> = result::Result<T, Error>;
 
 impl Field {
     pub fn clipping_value(self, multiplicity: i64) -> f64 {
@@ -50,7 +67,7 @@ impl Reduce {
         protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
         epsilon: f64,
         delta: f64,
-    ) -> Relation {
+    ) -> Result<Relation> {
         let multiplicity = 1; // TODO
         let (clipping_values, name_sigmas): (Vec<(String, f64)>, Vec<(String, f64)>) = self
             .schema()
@@ -85,10 +102,10 @@ impl Reduce {
             .iter()
             .map(|(n, v)| (n.as_str(), *v))
             .collect();
-        let clipped_relation = self.clip_aggregates(PE_ID, clipping_values).unwrap();
+        let clipped_relation = self.clip_aggregates(PE_ID, clipping_values)?;
 
         let name_sigmas = name_sigmas.iter().map(|(n, v)| (n.as_str(), *v)).collect();
-        clipped_relation.add_gaussian_noise(name_sigmas)
+        Ok(clipped_relation.add_gaussian_noise(name_sigmas))
     }
 }
 
@@ -99,7 +116,7 @@ impl Relation {
         protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
         epsilon: f64,
         delta: f64,
-    ) -> Relation {
+    ) -> Result<Relation> {
         let protected_relation = self.force_protect_from_field_paths(relations, protected_entity);
         match protected_relation {
             Relation::Reduce(reduce) => {
@@ -114,7 +131,7 @@ mod tests {
     use super::*;
     use crate::{
         ast,
-        builder::With,
+        builder::{Ready, With},
         display::Dot,
         io::{postgresql, Database},
         relation::Variant as _,
@@ -167,23 +184,25 @@ mod tests {
 
         let epsilon = 1.;
         let delta = 1e-3;
-        let dp_relation = relation.dp_compilation(
-            &relations,
-            &[
-                (
-                    "item_table",
-                    &[
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
-                    ],
-                    "name",
-                ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
-            ],
-            epsilon,
-            delta,
-        );
+        let dp_relation = relation
+            .dp_compilation(
+                &relations,
+                &[
+                    (
+                        "item_table",
+                        &[
+                            ("order_id", "order_table", "id"),
+                            ("user_id", "user_table", "id"),
+                        ],
+                        "name",
+                    ),
+                    ("order_table", &[("user_id", "user_table", "id")], "name"),
+                    ("user_table", &[], "name"),
+                ],
+                epsilon,
+                delta,
+            )
+            .unwrap();
         dp_relation.display_dot().unwrap();
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
