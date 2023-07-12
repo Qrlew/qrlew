@@ -15,6 +15,7 @@ use crate::{
     relation, DataType,
 };
 use itertools::Itertools;
+use sqlparser::test_utils::join;
 use std::collections::HashMap;
 use std::{
     error, fmt,
@@ -248,45 +249,6 @@ impl Reduce {
     /// Rename fields
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Reduce {
         Relation::reduce().rename_with(self, f).build()
-    }
-
-    /// TODO
-    pub fn tau_thresholding(self, column: &str, tau: f64) -> Result<Relation> {
-        let count_col = format!("COUNT_DISTINCT_{column}");
-
-        // compute distinct relation
-        let group_by:Vec<&str> = self.group_by.iter().cloned()
-            .map(|x| {
-                if let Expr::Column(name) = x {
-                    Ok(&name.to_string().into())
-                } else {
-                    Err(Error::InvalidArguments("todo".into()))
-                }
-            })
-            .collect::<Result<_>>()?;
-        let group_by:Vec<&str> = group_by.iter()
-            .map(|s| s.as_str())
-            .collect();
-        let aggregates = vec![
-            (count_col.as_str(), aggregate::Aggregate::Count)
-        ];
-        let right = self.input.as_ref().clone().distinct_aggregates(
-            column,
-            group_by.clone(),
-            aggregates
-        );
-
-        // Join
-        let on: Vec<(&str, &str)> = group_by.into_iter()
-            .map(|s| (s, s))
-            .collect();
-        let joined_rel:Relation = Relation::from(self).left_join(right, on)?;
-
-        // Returns Map with the right field names and with count(distinct) > tau
-        let columns = vec![
-            (count_col.as_str(), Some(tau.into()), None, vec![])
-        ];
-        Ok(joined_rel.filter_columns(columns))
     }
 }
 
@@ -947,44 +909,49 @@ impl Relation {
                 Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))),
             ))
         });
+
+        // Add order by
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
-        if on.is_empty() {
-            return Err(Error::InvalidArguments("Vector `on` cannot be empty".to_string()))
-        }
-
-        let on = on.iter()
-            .fold(
-                Expr::eq(
-                    Expr::qcol(self.to_string(), on[0].0.to_string()),
-                    Expr::qcol(right.to_string(), on[0].1.to_string())
-                ),
-                |f, (c0, c1)| Expr::and(
-                    f,
-                    Expr::eq(
-                        Expr::qcol(self.to_string(), c0.to_string()),
-                        Expr::qcol(right.to_string(), c1.to_string())
-                    )
-                )
-            );
+    pub fn cross_join(self, right: Self) -> Result<Relation> {
+        let left_names = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names = right.schema().iter().map(|f| f.name().to_string()).collect();
         Ok(
             Relation::join()
-            .left(self)
-            .right(right)
-            .on(on)
-            .left_outer()
+            .left(self.clone())
+            .right(right.clone())
+            .cross()
+            .left_names(left_names)
+            .right_names(right_names)
             .build()
         )
     }
 
-    /// TODO
-    pub fn tau_thresholding(self, column: &str, tau: f64) -> Result<Relation> {
-        match self {
-            Relation::Reduce(r) => r.tau_thresholding(column, tau),
-            _ => Err(Error::InvalidRelation("Can apply tau-threshodling only to to `Relation::Reduce`".into()))
+    pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
+        if on.is_empty() {
+            return Err(Error::InvalidArguments("Vector `on` cannot be empty.".into()))
         }
+        let left_names = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names = right.schema().iter().map(|f| f.name().to_string()).collect();
+        let on: Vec<Expr> = on.into_iter()
+            .map(|(l, r)| Expr::eq(
+                Expr::qcol(self.name(), l),
+                Expr::qcol(right.name(), r)
+            ))
+            .collect();
+
+
+        Ok(
+            Relation::join()
+            .left(self.clone())
+            .right(right.clone())
+            .left_outer()
+            .on_iter(on)
+            .left_names(left_names)
+            .right_names(right_names)
+            .build()
+        )
     }
 }
 
@@ -1007,6 +974,7 @@ mod tests {
     };
     use colored::Colorize;
     use itertools::Itertools;
+    use sqlparser::keywords::RIGHT;
 
     #[test]
     fn test_with_computed_field() {
@@ -1998,5 +1966,31 @@ mod tests {
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
+    }
+
+    #[test]
+    fn test_left_join() {
+        let table1: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .build(),
+            )
+            .build();
+
+        let table2: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("d", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        let joined_rel = table1.clone().left_join(table2.clone(), vec![("a", "c")]).unwrap();
+        _ = joined_rel.display_dot();
     }
 }

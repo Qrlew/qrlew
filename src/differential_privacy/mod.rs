@@ -3,6 +3,8 @@
 //! This is experimental and little tested yet.
 //!
 
+pub mod tau_thresholding;
+
 use crate::data_type::DataTyped;
 use crate::{
     builder::{Ready, With, WithIterator},

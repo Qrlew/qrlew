@@ -13,6 +13,7 @@ use qrlew::{
     io::{postgresql, Database},
     sql::parse,
     Relation, With,
+    protected::PE_ID,
 };
 
 pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> bool {
@@ -26,9 +27,9 @@ pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> boo
             .map(ToString::to_string)
             .join("\n")
     );
+    println!("{}", format!("{query2}").yellow());
     println!(
-        "{}\n{}",
-        format!("{query2}").yellow(),
+        "{}",
         database
             .query(query2)
             .unwrap()
@@ -159,5 +160,32 @@ fn test_distinct_aggregates() {
     ];
     let distinct_rel = table.distinct_aggregates(column, group_by, aggregates);
     let rewriten_query: &str = &ast::Query::from(&distinct_rel).to_string();
+    assert!(test_eq(&mut database, true_query, rewriten_query));
+}
+
+
+#[test]
+fn test_tau_thresholding() {
+    let mut database = postgresql::test_database();
+
+    let query = "SELECT SUM(x) FROM table_2";
+    let true_query = "SELECT SUM(x) FROM table_2 HAVING COUNT(DISTINCT z) > 1";
+    let rel = Relation::try_from(parse(query).unwrap().with(&database.relations()))
+        .unwrap();
+    //rel.display_dot();
+    let rel = rel.force_protect_from_field_paths(
+        &database.relations(),
+        &[
+            (
+                "table_2",
+                &[],
+                "z",
+            ),
+        ],
+    );
+    rel.display_dot();
+    let rel = rel.tau_thresholding(PE_ID, 1.).unwrap();
+    rel.display_dot();
+    let rewriten_query: &str = &ast::Query::from(&rel).to_string();
     assert!(test_eq(&mut database, true_query, rewriten_query));
 }

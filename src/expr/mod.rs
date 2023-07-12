@@ -303,7 +303,8 @@ impl Expr {
                     )
                 }
                 Expr::and(f, p)
-            });
+            })
+            ;
         predicate
     }
 }

@@ -42,7 +42,7 @@ impl Bound for i64 {
     fn name() -> String {
         "int".to_string()
     }
-    fn min() -> Self {
+    fn min() -> Self { // todo: why not a const ?
         i64::MIN
     }
     fn max() -> Self {
