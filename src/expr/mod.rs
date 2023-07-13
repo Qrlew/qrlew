@@ -266,13 +266,6 @@ impl Expr {
         Expr::from(Function::random(n))
     }
 
-    pub fn optional_and(self, left: Option<Expr>) -> Expr {
-        match left {
-            Some(l) => Expr::and(self, l),
-            None => self,
-        }
-    }
-
     pub fn filter_column(
         name: &str,
         min: Option<data_type::value::Value>,
@@ -281,15 +274,18 @@ impl Expr {
     ) -> Option<Expr> {
         let column = Expr::col(name.to_string());
         let mut p = None;
-        if !possible_values.is_empty() {
-            p = Some(Expr::in_list(column.clone(), Expr::list(possible_values)).optional_and(p))
+        if let Some(m) = min {
+            let expr = Expr::gt(column.clone(), Expr::val(m));
+            p = Some(p.map_or(expr.clone(), |x| Expr::and(x, expr)))
         }
         if let Some(m) = max {
-            p = Some(Expr::lt(column.clone(), Expr::val(m)).optional_and(p))
-        }
-        if let Some(m) = min {
-            p = Some(Expr::gt(column.clone(), Expr::val(m)).optional_and(p))
+            let expr = Expr::lt(column.clone(), Expr::val(m));
+            p = Some(p.map_or(expr.clone(), |x| Expr::and(x, expr)))
         };
+        if !possible_values.is_empty() {
+            let expr = Expr::in_list(column.clone(), Expr::list(possible_values));
+            p = Some(p.map_or(expr.clone(), |x| Expr::and(x, expr)))
+        }
         p
     }
 
@@ -323,6 +319,7 @@ impl Expr {
             .into_iter()
             .filter_map(|(name, min, max, values)| Expr::filter_column(name, min, max, values))
             .collect();
+        println!("predicates = {predicates:?}");
         Self::and_iter(predicates)
     }
 }
@@ -2121,6 +2118,25 @@ mod tests {
     }
 
     #[test]
+    fn test_filter_column() {
+        let x = Expr::filter_column(
+            "col1",
+            Some(1.into()),
+            Some(10.into()),
+            vec![1.into(), 4.into(), 5.into()]
+        ).unwrap();
+        let true_expr = Expr::and(
+            Expr::and(
+                Expr::gt(Expr::col("col1"), Expr::val(1)),
+                Expr::lt(Expr::col("col1"), Expr::val(10))
+            ),
+                Expr::in_list(Expr::col("col1"), Expr::list([1, 4, 5])),
+        );
+        assert_eq!(x, true_expr)
+    }
+
+
+    #[test]
     fn test_filter() {
         let columns = vec![
             (
@@ -2144,11 +2160,11 @@ mod tests {
             ),
         ];
         let col1_expr = Expr::and(
-            Expr::gt(Expr::col("col1"), Expr::val(1)),
             Expr::and(
+            Expr::gt(Expr::col("col1"), Expr::val(1)),
                 Expr::lt(Expr::col("col1"), Expr::val(10)),
-                Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7])),
             ),
+                Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7])),
         );
         let col2_expr = Expr::lt(Expr::col("col2"), Expr::val(10.));
         let col3_expr = Expr::gt(Expr::col("col3"), Expr::val(0.));
