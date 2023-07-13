@@ -9,10 +9,10 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     display::Dot,
+    expr,
     io::{postgresql, Database},
     sql::parse,
     Relation, With,
-    expr
 };
 
 pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> bool {
@@ -90,7 +90,6 @@ const QUERIES: &[&str] = &[
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
     "SELECT UPPER(z) FROM table_2 LIMIT 5",
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
-    
 ];
 
 #[cfg(feature = "sqlite")]
@@ -135,29 +134,34 @@ fn test_on_postgresql() {
 #[test]
 fn test_distinct_aggregates() {
     let mut database = postgresql::test_database();
-    let table = database.relations().get(&["table_1".to_string()]).unwrap().as_ref().clone();
+    let table = database
+        .relations()
+        .get(&["table_1".to_string()])
+        .unwrap()
+        .as_ref()
+        .clone();
 
     let true_query = "SELECT COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1";
     let column = "d";
     let group_by = vec![];
     let aggregates = vec![
-            ("count_d", expr::aggregate::Aggregate::Count),
-            ("sum_d",  expr::aggregate::Aggregate::Sum),
+        ("count_d", expr::aggregate::Aggregate::Count),
+        ("sum_d", expr::aggregate::Aggregate::Sum),
     ];
-    let distinct_rel = table.clone().distinct_aggregates(column, group_by, aggregates);
-    let rewriten_query:&str = &ast::Query::from(&distinct_rel).to_string();
+    let distinct_rel = table
+        .clone()
+        .distinct_aggregates(column, group_by, aggregates);
+    let rewriten_query: &str = &ast::Query::from(&distinct_rel).to_string();
     assert!(test_eq(&mut database, true_query, rewriten_query));
 
     let true_query = "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c";
     let column = "d";
     let group_by = vec!["c"];
     let aggregates = vec![
-            ("count_d", expr::aggregate::Aggregate::Count),
-            ("sum_d",  expr::aggregate::Aggregate::Sum),
-        ];
+        ("count_d", expr::aggregate::Aggregate::Count),
+        ("sum_d", expr::aggregate::Aggregate::Sum),
+    ];
     let distinct_rel = table.distinct_aggregates(column, group_by, aggregates);
-    let rewriten_query:&str = &ast::Query::from(&distinct_rel).to_string();
+    let rewriten_query: &str = &ast::Query::from(&distinct_rel).to_string();
     assert!(test_eq(&mut database, true_query, rewriten_query));
 }
-
-
