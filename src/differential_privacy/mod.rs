@@ -88,7 +88,7 @@ impl Reduce {
         let clipped_relation = self.clip_aggregates(PE_ID, clipping_values);
 
         let name_sigmas = name_sigmas.iter().map(|(n, v)| (n.as_str(), *v)).collect();
-        clipped_relation.add_gaussian_noise(name_sigmas)
+        clipped_relation.unwrap().add_gaussian_noise(name_sigmas)
     }
 }
 
