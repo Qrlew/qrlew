@@ -50,7 +50,7 @@ impl Reduce {
     /// Returns a Relation that output the categories for which the noisy count
     /// of DISTINCT PE_ID is greater that tau(epsilon, delat, sensitivty)
     pub fn tau_thresholded_values(
-        &self,
+        self,
         epsilon: f64,
         delta: f64,
         sensitivity: f64,
@@ -95,17 +95,18 @@ impl Reduce {
         Ok(rel.filter_columns(columns))
     }
 
-    pub fn public_values(&self, colname: &str) -> Result<Relation> {
+    pub fn public_values(self, colname: &str) -> Result<Relation> {
         todo!()
     }
 
     pub fn possible_values(
-        &self,
+        self,
         epsilon: f64,
         delta: f64,
         sensitivity: f64
     ) -> Result<Relation> {
-        todo!()
+        // TODO: add public_values
+        self.tau_thresholded_values(epsilon, delta, sensitivity)
     }
 
     fn join_with_possible_values(self, possible_values: Relation) -> Result<Relation> {
@@ -117,24 +118,20 @@ impl Reduce {
                 )
             )
             .collect();
-
-
-        let left = Relation::from(self);
-
-        let right_names:Vec<String> = left.schema()
+        let right = Relation::from(self);
+        let fields:Vec<(String, Expr)> = right.schema()
             .iter()
-            .map(|f| f.name().to_string())
+            .map(|f| (f.name().to_string(), Expr::col(f.name())))
             .collect();
         let join_rel:Relation = Relation::join()
-            .left(left)
-            .right(possible_values)
+            .left(possible_values)
+            .right(right)
             .left_outer()
             .on_iter(on)
-            .right_names(right_names)
+            .right_names(
+                fields.iter().map(|(c, _)| c).collect()
+            )
             .build();
-        let fields:Vec<(String, Expr)> = right_names.iter()
-            .map(|c| (c.to_string(), Expr::col(c)))
-            .collect();
         let map = Relation::map()
             .input(join_rel)
             .with_iter(fields)
@@ -151,7 +148,7 @@ impl Reduce {
         if self.group_by.is_empty() { // TODO: vec![PE_ID] ?
             return Ok(Relation::from(self))
         }
-        self.join_with_possible_values(self.possible_values(epsilon, delta, sensitivity)?)
+        self.clone().join_with_possible_values(self.possible_values(epsilon, delta, sensitivity)?)
     }
 
 
@@ -197,6 +194,57 @@ mod tests {
             Rc::new(table.clone()),
         );
         let rel = red.tau_thresholded_values(1.0, 0.003, 1.).unwrap();
+        rel.display_dot();
+        assert_eq!(rel.schema().fields().len(), 2);
+    }
+
+    #[test]
+    fn test_protect_grouping_keys() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with((PE_ID, DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        // Without GROUPBY
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![("sum_a".to_string(), Expr::sum(Expr::col("a")))],
+            vec![],
+            Rc::new(table.clone()),
+        );
+        let rel = red.protect_grouping_keys(1., 0.003, 5.).unwrap();
+        rel.display_dot();
+        assert_eq!(rel.schema().fields().len(), 1);
+
+        // With GROUPBY
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![("sum_a".to_string(), Expr::sum(Expr::col("a")))],
+            vec![Expr::col("b")],
+            Rc::new(table.clone()),
+        );
+        let rel = red.protect_grouping_keys(1.0, 0.003, 1.).unwrap();
+        rel.display_dot();
+        assert_eq!(rel.schema().fields().len(), 1);
+
+        // With GROUPBY
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("sum_a".to_string(), Expr::sum(Expr::col("a"))),
+                ("b".to_string(), Expr::first(Expr::col("a"))),
+            ],
+            vec![Expr::col("b")],
+            Rc::new(table.clone()),
+        );
+        let rel = red.protect_grouping_keys(1.0, 0.003, 1.).unwrap();
         rel.display_dot();
         assert_eq!(rel.schema().fields().len(), 2);
     }
