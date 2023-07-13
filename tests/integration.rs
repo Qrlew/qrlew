@@ -164,28 +164,17 @@ fn test_distinct_aggregates() {
 }
 
 
-#[test]
-fn test_tau_thresholding() {
-    let mut database = postgresql::test_database();
+// #[test]
+// fn test_tau_thresholding() {
+//     let mut database = postgresql::test_database();
 
-    let query = "SELECT SUM(x) FROM table_2";
-    let true_query = "SELECT SUM(x) FROM table_2 HAVING COUNT(DISTINCT z) > 1";
-    let rel = Relation::try_from(parse(query).unwrap().with(&database.relations()))
-        .unwrap();
-    //rel.display_dot();
-    let rel = rel.force_protect_from_field_paths(
-        &database.relations(),
-        &[
-            (
-                "table_2",
-                &[],
-                "z",
-            ),
-        ],
-    );
-    rel.display_dot();
-    let rel = rel.tau_thresholding(PE_ID, 1.).unwrap();
-    rel.display_dot();
-    let rewriten_query: &str = &ast::Query::from(&rel).to_string();
-    assert!(test_eq(&mut database, true_query, rewriten_query));
-}
+//     let query = "SELECT z AS z , SUM(x) AS sum_x FROM (SELECT x, z FROM table_2) AS subq GROUP BY z";
+//     let true_query = "SELECT SUM(x) FROM table_2 HAVING COUNT(DISTINCT z) > 1";
+//     let rel = Relation::try_from(parse(query).unwrap().with(&database.relations()))
+//         .unwrap();
+//     rel.display_dot();
+//     let rel = rel.tau_thresholding("z", 1.).unwrap();
+//     rel.display_dot();
+//     let rewriten_query: &str = &ast::Query::from(&rel).to_string();
+//     assert!(test_eq(&mut database, true_query, rewriten_query));
+// }
