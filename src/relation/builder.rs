@@ -108,7 +108,6 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
-    // TODO filter should maybe be possible on aggregates
     pub fn filter(mut self, filter: Expr) -> Self {
         self.split = self.split.map_last(|split| match split {
             Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
@@ -128,7 +127,6 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self.filter(filter)
     }
 
-    // TODO Does order by applies to the top split?
     pub fn order_by(mut self, expr: Expr, asc: bool) -> Self {
         self.split = self.split.and(Split::order_by(expr, asc).into());
         self
@@ -428,6 +426,18 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
 
     pub fn group_by_iter<I: IntoIterator<Item = Expr>>(self, iter: I) -> Self {
         iter.into_iter().fold(self, |w, i| w.group_by(i))
+    }
+
+    pub fn filter(mut self, filter: Expr) -> Self {
+        self.split = self.split.map_last(|split| match split {
+            Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
+            Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
+                reduce.named_exprs,
+                reduce.group_by,
+                Some(Split::filter(filter.into())),
+            )),
+        });
+        self
     }
 
     pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> ReduceBuilder<WithInput> {

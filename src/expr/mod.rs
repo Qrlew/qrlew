@@ -296,10 +296,7 @@ impl Expr {
     pub fn and_iter(exprs: Vec<Expr>) -> Expr {
         exprs[1..]
             .iter()
-            .fold(
-                exprs[0].clone(),
-                |f, p| Expr::and(f, p.clone())
-            )
+            .fold(exprs[0].clone(), |f, p| Expr::and(f, p.clone()))
     }
 
     /// Returns an `Expr` for filtering the columns
@@ -322,7 +319,8 @@ impl Expr {
             Vec<data_type::value::Value>,
         )>,
     ) -> Expr {
-        let predicates:Vec<Expr> = columns.into_iter()
+        let predicates: Vec<Expr> = columns
+            .into_iter()
             .filter_map(|(name, min, max, values)| Expr::filter_column(name, min, max, values))
             .collect();
         Self::and_iter(predicates)
@@ -2146,10 +2144,10 @@ mod tests {
             ),
         ];
         let col1_expr = Expr::and(
-                Expr::gt(Expr::col("col1"), Expr::val(1)),
+            Expr::gt(Expr::col("col1"), Expr::val(1)),
             Expr::and(
                 Expr::lt(Expr::col("col1"), Expr::val(10)),
-                Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7]))
+                Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7])),
             ),
         );
         let col2_expr = Expr::lt(Expr::col("col2"), Expr::val(10.));
@@ -2160,10 +2158,7 @@ mod tests {
         );
 
         let true_expr = Expr::and(
-            Expr::and(
-                Expr::and(col1_expr, col2_expr),
-                col3_expr,
-            ),
+            Expr::and(Expr::and(col1_expr, col2_expr), col3_expr),
             col4_expr,
         );
         assert_eq!(Expr::filter(columns), true_expr);

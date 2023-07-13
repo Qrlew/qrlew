@@ -361,6 +361,7 @@ impl<'a> VisitedQueryRelations<'a> {
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
+                let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
@@ -797,6 +798,38 @@ mod tests {
         let query = parse(
             "
             SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4;
+        ",
+        )
+        .unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::float_interval(-1., 3.)),
+            ("b", DataType::float_interval(-2., 2.)),
+            ("c", DataType::float()),
+            ("d", DataType::float_interval(0., 1.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation:#?}");
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_reduce_where() {
+        let query = parse(
+            "
+            SELECT SUM(a), count(b) FROM table_1 WHERE a>4;
         ",
         )
         .unwrap();
