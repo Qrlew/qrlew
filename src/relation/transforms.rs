@@ -913,6 +913,15 @@ impl Relation {
         // Add order by
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
+
+    pub fn left_join(self, right: Relation, on: Vec<(Expr, Expr)>) -> Result<Relation> {
+        todo!()
+    }
+
+    pub fn cross_join(self, right: Relation) -> Result<Relation> {
+        todo!()
+    }
+
 }
 
 impl With<(&str, Expr)> for Relation {

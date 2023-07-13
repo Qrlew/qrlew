@@ -674,10 +674,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
     }
 
     pub fn on_iter<I: IntoIterator<Item = Expr>>(mut self, exprs: I) -> Self {
-        let exprs: Vec<Expr> = exprs.into_iter().collect();
-        self = exprs[1..]
-            .into_iter()
-            .fold(self.on(exprs[0].clone()), |f, x| f.and(x.clone()));
+        self = self.on(Expr::and_iter(exprs));
         self
     }
 
