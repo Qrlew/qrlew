@@ -13,10 +13,7 @@ use qrlew::{
     io::{postgresql, Database},
     sql::parse,
     Relation, With,
-<<<<<<< HEAD
     protected::PE_ID,
-=======
->>>>>>> filter_fix
 };
 
 pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> bool {
