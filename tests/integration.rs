@@ -11,9 +11,9 @@ use qrlew::{
     display::Dot,
     expr,
     io::{postgresql, Database},
+    protected::PE_ID,
     sql::parse,
     Relation, With,
-    protected::PE_ID,
 };
 
 pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> bool {
@@ -166,19 +166,3 @@ fn test_distinct_aggregates() {
     let rewriten_query: &str = &ast::Query::from(&distinct_rel).to_string();
     assert!(test_eq(&mut database, true_query, rewriten_query));
 }
-
-
-// #[test]
-// fn test_tau_thresholding() {
-//     let mut database = postgresql::test_database();
-
-//     let query = "SELECT z AS z , SUM(x) AS sum_x FROM (SELECT x, z FROM table_2) AS subq GROUP BY z";
-//     let true_query = "SELECT SUM(x) FROM table_2 HAVING COUNT(DISTINCT z) > 1";
-//     let rel = Relation::try_from(parse(query).unwrap().with(&database.relations()))
-//         .unwrap();
-//     rel.display_dot();
-//     let rel = rel.tau_thresholding("z", 1.).unwrap();
-//     rel.display_dot();
-//     let rewriten_query: &str = &ast::Query::from(&rel).to_string();
-//     assert!(test_eq(&mut database, true_query, rewriten_query));
-// }

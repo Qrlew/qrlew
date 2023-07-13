@@ -673,13 +673,11 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         self
     }
 
-    pub fn  on_iter<I: IntoIterator<Item = Expr>>(mut self, exprs: I) -> Self {
+    pub fn on_iter<I: IntoIterator<Item = Expr>>(mut self, exprs: I) -> Self {
         let exprs: Vec<Expr> = exprs.into_iter().collect();
-        self = exprs[1..].into_iter()
-            .fold(
-                self.on(exprs[0].clone()),
-                |f, x| f.and(x.clone())
-            );
+        self = exprs[1..]
+            .into_iter()
+            .fold(self.on(exprs[0].clone()), |f, x| f.and(x.clone()));
         self
     }
 
@@ -775,7 +773,9 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
     }
 }
 
-impl<RequireLeftInput, RequireRightInput> With<Join, JoinBuilder<WithInput, WithInput>> for JoinBuilder<RequireLeftInput, RequireRightInput> {
+impl<RequireLeftInput, RequireRightInput> With<Join, JoinBuilder<WithInput, WithInput>>
+    for JoinBuilder<RequireLeftInput, RequireRightInput>
+{
     fn with(self, join: Join) -> JoinBuilder<WithInput, WithInput> {
         let Join {
             name,
@@ -785,11 +785,7 @@ impl<RequireLeftInput, RequireRightInput> With<Join, JoinBuilder<WithInput, With
             left,
             right,
         } = join;
-        let builder = self
-            .name(name)
-            .operator(operator)
-            .left(left)
-            .right(right);
+        let builder = self.name(name).operator(operator).left(left).right(right);
         builder
     }
 }
@@ -920,7 +916,9 @@ impl<RequireLeftInput, RequireRightInput> SetBuilder<RequireLeftInput, RequireRi
     }
 }
 
-impl<RequireLeftInput, RequireRightInput> With<Set, SetBuilder<WithInput, WithInput>> for SetBuilder<RequireLeftInput, RequireRightInput> {
+impl<RequireLeftInput, RequireRightInput> With<Set, SetBuilder<WithInput, WithInput>>
+    for SetBuilder<RequireLeftInput, RequireRightInput>
+{
     fn with(self, set: Set) -> SetBuilder<WithInput, WithInput> {
         let Set {
             name,
@@ -929,7 +927,7 @@ impl<RequireLeftInput, RequireRightInput> With<Set, SetBuilder<WithInput, WithIn
             schema: _,
             size: _,
             left,
-            right
+            right,
         } = set;
         let builder = self
             .name(name)
@@ -982,10 +980,7 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        DataType,
-        display::Dot
-    };
+    use crate::{display::Dot, DataType};
 
     #[test]
     fn test_map_building() {

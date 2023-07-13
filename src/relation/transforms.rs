@@ -18,12 +18,12 @@ use itertools::Itertools;
 use sqlparser::test_utils::join;
 use std::collections::HashMap;
 use std::{
+    convert::Infallible,
     error, fmt,
     num::ParseFloatError,
     ops::{self, Deref},
     rc::Rc,
     result,
-    convert::Infallible,
 };
 
 #[derive(Debug, PartialEq)]
@@ -916,42 +916,45 @@ impl Relation {
 
     pub fn cross_join(self, right: Self) -> Result<Relation> {
         let left_names = self.schema().iter().map(|f| f.name().to_string()).collect();
-        let right_names = right.schema().iter().map(|f| f.name().to_string()).collect();
-        Ok(
-            Relation::join()
+        let right_names = right
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect();
+        Ok(Relation::join()
             .left(self.clone())
             .right(right.clone())
             .cross()
             .left_names(left_names)
             .right_names(right_names)
-            .build()
-        )
+            .build())
     }
 
     pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
         if on.is_empty() {
-            return Err(Error::InvalidArguments("Vector `on` cannot be empty.".into()))
+            return Err(Error::InvalidArguments(
+                "Vector `on` cannot be empty.".into(),
+            ));
         }
         let left_names = self.schema().iter().map(|f| f.name().to_string()).collect();
-        let right_names = right.schema().iter().map(|f| f.name().to_string()).collect();
-        let on: Vec<Expr> = on.into_iter()
-            .map(|(l, r)| Expr::eq(
-                Expr::qcol(self.name(), l),
-                Expr::qcol(right.name(), r)
-            ))
+        let right_names = right
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect();
+        let on: Vec<Expr> = on
+            .into_iter()
+            .map(|(l, r)| Expr::eq(Expr::qcol(self.name(), l), Expr::qcol(right.name(), r)))
             .collect();
 
-
-        Ok(
-            Relation::join()
+        Ok(Relation::join()
             .left(self.clone())
             .right(right.clone())
             .left_outer()
             .on_iter(on)
             .left_names(left_names)
             .right_names(right_names)
-            .build()
-        )
+            .build())
     }
 }
 
@@ -1990,7 +1993,10 @@ mod tests {
             )
             .build();
 
-        let joined_rel = table1.clone().left_join(table2.clone(), vec![("a", "c")]).unwrap();
+        let joined_rel = table1
+            .clone()
+            .left_join(table2.clone(), vec![("a", "c")])
+            .unwrap();
         _ = joined_rel.display_dot();
     }
 }
