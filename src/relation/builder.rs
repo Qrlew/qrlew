@@ -691,6 +691,10 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         };
         self
     }
+    pub fn on_iter<I: IntoIterator<Item = Expr>>(mut self, exprs: I) -> Self {
+        self = self.on(Expr::and_iter(exprs));
+        self
+    }
     /// Add a using condition
     pub fn using<I: Into<Identifier>>(mut self, using: I) -> Self {
         let using: Identifier = using.into();
@@ -761,6 +765,23 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
             left: self.left,
             right: WithInput(input.into()),
         }
+    }
+}
+
+impl<RequireLeftInput, RequireRightInput> With<Join, JoinBuilder<WithInput, WithInput>>
+    for JoinBuilder<RequireLeftInput, RequireRightInput>
+{
+    fn with(self, join: Join) -> JoinBuilder<WithInput, WithInput> {
+        let Join {
+            name,
+            operator,
+            schema: _,
+            size: _,
+            left,
+            right,
+        } = join;
+        let builder = self.name(name).operator(operator).left(left).right(right);
+        builder
     }
 }
 
@@ -890,6 +911,29 @@ impl<RequireLeftInput, RequireRightInput> SetBuilder<RequireLeftInput, RequireRi
     }
 }
 
+impl<RequireLeftInput, RequireRightInput> With<Set, SetBuilder<WithInput, WithInput>>
+    for SetBuilder<RequireLeftInput, RequireRightInput>
+{
+    fn with(self, set: Set) -> SetBuilder<WithInput, WithInput> {
+        let Set {
+            name,
+            operator,
+            quantifier,
+            schema: _,
+            size: _,
+            left,
+            right,
+        } = set;
+        let builder = self
+            .name(name)
+            .operator(operator)
+            .quantifier(quantifier)
+            .left(left)
+            .right(right);
+        builder
+    }
+}
+
 impl Ready<Set> for SetBuilder<WithInput, WithInput> {
     type Error = Error;
 
@@ -931,7 +975,7 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DataType;
+    use crate::{display::Dot, DataType};
 
     #[test]
     fn test_map_building() {
@@ -1000,6 +1044,39 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
+    }
+
+    #[test]
+    fn test_join() {
+        let table1: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .build(),
+            )
+            .build();
+
+        let table2: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("d", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        let join: Relation = Relation::join()
+            .left(table1)
+            .right(table2)
+            .left_outer()
+            .on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c"))])
+            .left_names(vec!["a1", "b1"])
+            //.on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c")), Expr::eq(Expr::col("b"), Expr::col("d"))])
+            .build();
+        join.display_dot();
     }
 
     #[test]

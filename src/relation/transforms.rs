@@ -12,7 +12,7 @@ use crate::{
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    relation::Field,
+    relation,
     DataType,
 };
 use itertools::Itertools;
@@ -20,9 +20,70 @@ use std::collections::HashMap;
 use std::{
     ops::{self, Deref},
     rc::Rc,
+    fmt,
+    error,
+    result,
+    convert::Infallible,
+    num::ParseFloatError,
 };
 
-/* Reduce
+
+#[derive(Debug, PartialEq)]
+pub enum Error {
+    InvalidRelation(String),
+    InvalidArguments(String),
+    Other(String),
+}
+
+impl Error {
+    pub fn invalid_relation(relation: impl fmt::Display) -> Error {
+        Error::InvalidRelation(format!("{} is invalid", relation))
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::InvalidRelation(desc) => writeln!(f, "InvalidRelation: {}", desc),
+            Error::InvalidArguments(desc) => writeln!(f, "InvalidArguments: {}", desc),
+            Error::Other(err) => writeln!(f, "{}", err),
+        }
+    }
+}
+
+impl error::Error for Error {}
+
+impl From<relation::Error> for Error {
+    fn from(err: relation::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+impl From<crate::expr::Error> for Error {
+    fn from(err: crate::expr::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+impl From<crate::io::Error> for Error {
+    fn from(err: crate::io::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl From<ParseFloatError> for Error {
+    fn from(err: ParseFloatError) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl From<Infallible> for Error {
+    fn from(err: Infallible) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+pub type Result<T> = result::Result<T, Error>;
+
+/* Table
  */
 
 impl Table {
@@ -119,8 +180,8 @@ impl Reduce {
         self
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Relation {
-        let (map_names, vectors, base, coordinates): (
+    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Relation> {
+        let (map_names, out_vectors, base, coordinates): (
             Vec<(String, String)>,
             Option<String>,
             Vec<String>,
@@ -158,15 +219,29 @@ impl Reduce {
                 }
             });
 
-        assert_eq!(clipping_values.len(), coordinates.len());
+        let vectors = if let Some(v) = out_vectors {
+            Ok(v)
+        } else {
+            Err(Error::InvalidArguments(format!(
+                "{vectors} should be in the input `Relation`"
+            )))
+        };
+        let len_clipping_values = clipping_values.len();
+        let len_coordinates = coordinates.len();
+        if len_clipping_values != len_coordinates {
+            return Err(Error::InvalidArguments(format!(
+                "You must provide one clipping_value for each output field. \n \
+                Got {len_clipping_values} clipping values for {len_coordinates} output fields"
+            )));
+        }
         let clipped_relation = self.input.as_ref().clone().clipped_sum(
-            vectors.unwrap().as_str(),
+            vectors?.as_str(),
             base.iter().map(|s| s.as_str()).collect(),
             coordinates.iter().map(|s| s.as_str()).collect(),
             clipping_values,
         );
         let map_names: HashMap<String, String> = map_names.into_iter().collect();
-        clipped_relation.rename_fields(|n, _| map_names[n].to_string())
+        Ok(clipped_relation.rename_fields(|n, _| map_names[n].to_string()))
     }
 
     /// Rename fields
@@ -684,7 +759,7 @@ impl Relation {
         weighted_relation.sum_by(base, coordinates)
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Self {
+    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Self> {
         match self {
             Relation::Reduce(reduce) => reduce.clip_aggregates(vectors, clipping_values),
             _ => todo!(),
@@ -834,6 +909,66 @@ impl Relation {
         });
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
+
+    // Returns the cross join between `self` and `right` where
+    // the output names of the fields are conserved.
+    // This fails if one column name is contained in both relations
+    pub fn cross_join(self, right: Self) -> Result<Relation> {
+        let left_names:Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names:Vec<String> = right
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect();
+
+        if left_names.iter().any(|item| right_names.contains(item)) {
+            return Err(
+                Error::InvalidArguments(
+                    "Cannot use `cross_join` method for joining two relations containing fields with the same names.".to_string()
+                )
+            )
+        }
+        Ok(Relation::join()
+            .left(self.clone())
+            .right(right.clone())
+            .cross()
+            .left_names(left_names)
+            .right_names(right_names)
+            .build())
+    }
+
+    pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
+        if on.is_empty() {
+            return Err(Error::InvalidArguments(
+                "Vector `on` cannot be empty.".into(),
+            ));
+        }
+        let left_names:Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names:Vec<String> = right
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect();
+        if left_names.iter().any(|item| right_names.contains(item)) {
+            return Err(
+                Error::InvalidArguments(
+                    "Cannot use `left_join` method for joining two relations containing fields with the same names.".to_string()
+                )
+            )
+        }
+        let on: Vec<Expr> = on
+            .into_iter()
+            .map(|(l, r)| Expr::eq(Expr::qcol(self.name(), l), Expr::qcol(right.name(), r)))
+            .collect();
+        Ok(Relation::join()
+            .left(self.clone())
+            .right(right.clone())
+            .left_outer()
+            .on_iter(on)
+            .left_names(left_names)
+            .right_names(right_names)
+            .build())
+    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -855,6 +990,7 @@ mod tests {
     };
     use colored::Colorize;
     use itertools::Itertools;
+    use sqlparser::keywords::RIGHT;
 
     #[test]
     fn test_with_computed_field() {
@@ -951,8 +1087,7 @@ mod tests {
         for row in results {
             let mut str_row = vec![];
             for i in 0..size {
-                let float_i: Result<f64, _> = row[i].to_string().parse();
-                str_row.push(match float_i {
+                str_row.push(match row[i].to_string().parse::<f64>() {
                     Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
                     Err(_) => row[i].to_string(),
                 })
@@ -1295,7 +1430,9 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
+        let clipped_relation = my_relation
+        .clip_aggregates("order_id", vec![(price, 45.)])
+        .unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum_price"]);
         clipped_relation.display_dot();
@@ -1323,7 +1460,7 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]);
+        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["sum_price"]);
         clipped_relation.display_dot();
@@ -1365,7 +1502,7 @@ mod tests {
         let price = schema.field_from_index(2).unwrap().name();
         let std_price = schema.field_from_index(3).unwrap().name();
         let clipped_relation =
-            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]);
+            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]).unwrap();
         clipped_relation.display_dot();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
@@ -1842,5 +1979,63 @@ mod tests {
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
+    }
+
+    #[test]
+    fn test_left_join() {
+        let table1: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .build(),
+            )
+            .build();
+
+        let table2: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("d", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        let joined_rel = table1
+            .clone()
+            .left_join(table2.clone(), vec![("a", "c")])
+            .unwrap();
+        _ = joined_rel.display_dot();
+    }
+
+    #[test]
+    fn test_cross_join() {
+        let table1: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .build(),
+            )
+            .build();
+
+        let table2: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("d", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        let joined_rel = table1
+            .clone()
+            .cross_join(table2.clone())
+            .unwrap();
+        _ = joined_rel.display_dot();
     }
 }
