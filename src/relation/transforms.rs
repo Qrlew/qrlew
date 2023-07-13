@@ -949,6 +949,10 @@ impl Relation {
             .iter()
             .map(|f| f.name().to_string())
             .collect();
+        let on: Vec<Expr> = on
+            .into_iter()
+            .map(|(l, r)| Expr::eq(Expr::qcol(self.name(), l), Expr::qcol(right.name(), r)))
+            .collect();
         if left_names.iter().any(|item| right_names.contains(item)) {
             return Err(
                 Error::InvalidArguments(
@@ -956,10 +960,6 @@ impl Relation {
                 )
             )
         }
-        let on: Vec<Expr> = on
-            .into_iter()
-            .map(|(l, r)| Expr::eq(Expr::qcol(self.name(), l), Expr::qcol(right.name(), r)))
-            .collect();
         Ok(Relation::join()
             .left(self.clone())
             .right(right.clone())
