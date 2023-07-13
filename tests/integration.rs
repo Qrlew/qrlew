@@ -9,45 +9,55 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     display::Dot,
+    expr,
     io::{postgresql, Database},
+    protected::PE_ID,
     sql::parse,
     Relation, With,
 };
+
+pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> bool {
+    println!(
+        "{}\n{}",
+        format!("{query1}").red(),
+        database
+            .query(query1)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
+            .join("\n")
+    );
+    println!("{}", format!("{query2}").yellow());
+    println!(
+        "{}",
+        database
+            .query(query2)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
+            .join("\n")
+    );
+    database.eq(query1, query2)
+}
 
 pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     let relations = database.relations();
     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
     let rewriten_query: &str = &ast::Query::from(&relation).to_string();
     relation.display_dot().unwrap();
-    println!(
-        "{}\n{}",
-        format!("{query}").red(),
-        database
-            .query(query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string)
-            .join("\n")
-    );
-    println!("{}", format!("{rewriten_query}").yellow());
-    println!(
-        "{}",
-        database
-            .query(rewriten_query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string)
-            .join("\n")
-    );
-    database.eq(query, rewriten_query)
+    test_eq(database, query, rewriten_query)
 }
 
 const QUERIES: &[&str] = &[
     "SELECT AVG(x) as a FROM table_2",
     "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
     "SELECT 1+SUM(a), count(b) FROM table_1",
+    // Some WHERE
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
+    "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
+    // Some GROUP BY
     "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
+    // Some WHERE and GROUP BY
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
     "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
     "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
@@ -120,4 +130,39 @@ fn test_on_postgresql() {
     for &query in POSTGRESQL_QUERIES.iter().chain(QUERIES) {
         assert!(test_rewritten_eq(&mut database, query));
     }
+}
+
+#[test]
+fn test_distinct_aggregates() {
+    let mut database = postgresql::test_database();
+    let table = database
+        .relations()
+        .get(&["table_1".to_string()])
+        .unwrap()
+        .as_ref()
+        .clone();
+
+    let true_query = "SELECT COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1";
+    let column = "d";
+    let group_by = vec![];
+    let aggregates = vec![
+        ("count_d", expr::aggregate::Aggregate::Count),
+        ("sum_d", expr::aggregate::Aggregate::Sum),
+    ];
+    let distinct_rel = table
+        .clone()
+        .distinct_aggregates(column, group_by, aggregates);
+    let rewriten_query: &str = &ast::Query::from(&distinct_rel).to_string();
+    assert!(test_eq(&mut database, true_query, rewriten_query));
+
+    let true_query = "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c";
+    let column = "d";
+    let group_by = vec!["c"];
+    let aggregates = vec![
+        ("count_d", expr::aggregate::Aggregate::Count),
+        ("sum_d", expr::aggregate::Aggregate::Sum),
+    ];
+    let distinct_rel = table.distinct_aggregates(column, group_by, aggregates);
+    let rewriten_query: &str = &ast::Query::from(&distinct_rel).to_string();
+    assert!(test_eq(&mut database, true_query, rewriten_query));
 }

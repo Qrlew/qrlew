@@ -360,31 +360,36 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Value(value) => self.value(value),
             ast::Expr::TypedString { data_type, value } => todo!(),
             ast::Expr::MapAccess { column, keys } => todo!(),
-            ast::Expr::Function(function) => self.function(function, {
-                let mut result = Vec::new();
-                for function_arg in function.args.iter() {
-                    result.push(match function_arg {
-                        ast::FunctionArg::Named { name, arg } => FunctionArg::Named {
-                            name: name.clone(),
-                            arg: match arg {
+            ast::Expr::Function(function) => {
+                if function.distinct {
+                    todo!()
+                }
+                self.function(function, {
+                    let mut result = Vec::new();
+                    for function_arg in function.args.iter() {
+                        result.push(match function_arg {
+                            ast::FunctionArg::Named { name, arg } => FunctionArg::Named {
+                                name: name.clone(),
+                                arg: match arg {
+                                    ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
+                                    ast::FunctionArgExpr::QualifiedWildcard(idents) => {
+                                        self.qualified_wildcard(&idents.0)
+                                    }
+                                    ast::FunctionArgExpr::Wildcard => self.wildcard(),
+                                },
+                            },
+                            ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
                                 ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
                                 ast::FunctionArgExpr::QualifiedWildcard(idents) => {
                                     self.qualified_wildcard(&idents.0)
                                 }
                                 ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                            },
-                        },
-                        ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
-                            ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
-                            ast::FunctionArgExpr::QualifiedWildcard(idents) => {
-                                self.qualified_wildcard(&idents.0)
-                            }
-                            ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                        }),
-                    });
-                }
-                result
-            }),
+                            }),
+                        });
+                    }
+                    result
+                })
+            }
             ast::Expr::AggregateExpressionWithFilter { expr, filter } => todo!(),
             ast::Expr::Case {
                 operand,

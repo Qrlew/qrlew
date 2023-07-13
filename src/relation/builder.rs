@@ -108,7 +108,6 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
-    // TODO filter should maybe be possible on aggregates
     pub fn filter(mut self, filter: Expr) -> Self {
         self.split = self.split.map_last(|split| match split {
             Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
@@ -128,7 +127,6 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self.filter(filter)
     }
 
-    // TODO Does order by applies to the top split?
     pub fn order_by(mut self, expr: Expr, asc: bool) -> Self {
         self.split = self.split.and(Split::order_by(expr, asc).into());
         self
@@ -430,6 +428,18 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         iter.into_iter().fold(self, |w, i| w.group_by(i))
     }
 
+    pub fn filter(mut self, filter: Expr) -> Self {
+        self.split = self.split.map_last(|split| match split {
+            Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
+            Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
+                reduce.named_exprs,
+                reduce.group_by,
+                Some(Split::filter(filter.into())),
+            )),
+        });
+        self
+    }
+
     pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> ReduceBuilder<WithInput> {
         ReduceBuilder {
             name: self.name,
@@ -662,6 +672,15 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         };
         self
     }
+
+    pub fn on_iter<I: IntoIterator<Item = Expr>>(mut self, exprs: I) -> Self {
+        let exprs: Vec<Expr> = exprs.into_iter().collect();
+        self = exprs[1..]
+            .into_iter()
+            .fold(self.on(exprs[0].clone()), |f, x| f.and(x.clone()));
+        self
+    }
+
     /// Add a condition to the ON
     pub fn and(mut self, expr: Expr) -> Self {
         self.operator = match self.operator {
@@ -751,6 +770,23 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
             left: self.left,
             right: WithInput(input.into()),
         }
+    }
+}
+
+impl<RequireLeftInput, RequireRightInput> With<Join, JoinBuilder<WithInput, WithInput>>
+    for JoinBuilder<RequireLeftInput, RequireRightInput>
+{
+    fn with(self, join: Join) -> JoinBuilder<WithInput, WithInput> {
+        let Join {
+            name,
+            operator,
+            schema: _,
+            size: _,
+            left,
+            right,
+        } = join;
+        let builder = self.name(name).operator(operator).left(left).right(right);
+        builder
     }
 }
 
@@ -880,6 +916,29 @@ impl<RequireLeftInput, RequireRightInput> SetBuilder<RequireLeftInput, RequireRi
     }
 }
 
+impl<RequireLeftInput, RequireRightInput> With<Set, SetBuilder<WithInput, WithInput>>
+    for SetBuilder<RequireLeftInput, RequireRightInput>
+{
+    fn with(self, set: Set) -> SetBuilder<WithInput, WithInput> {
+        let Set {
+            name,
+            operator,
+            quantifier,
+            schema: _,
+            size: _,
+            left,
+            right,
+        } = set;
+        let builder = self
+            .name(name)
+            .operator(operator)
+            .quantifier(quantifier)
+            .left(left)
+            .right(right);
+        builder
+    }
+}
+
 impl Ready<Set> for SetBuilder<WithInput, WithInput> {
     type Error = Error;
 
@@ -921,7 +980,7 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DataType;
+    use crate::{display::Dot, DataType};
 
     #[test]
     fn test_map_building() {
@@ -977,8 +1036,8 @@ mod tests {
             .on(Expr::eq(Expr::col("d"), Expr::col("x")))
             .and(Expr::lt(Expr::col("a"), Expr::col("x")))
             .build();
+        join.display_dot();
         println!("Join = {join}");
-        join.display_dot().unwrap();
         let query = &ast::Query::from(&join).to_string();
         println!(
             "{}\n{}",
@@ -990,6 +1049,39 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
+    }
+
+    #[test]
+    fn test_join() {
+        let table1: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .build(),
+            )
+            .build();
+
+        let table2: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("d", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        let join: Relation = Relation::join()
+            .left(table1)
+            .right(table2)
+            .left_outer()
+            .on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c"))])
+            .left_names(vec!["a1", "b1"])
+            //.on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c")), Expr::eq(Expr::col("b"), Expr::col("d"))])
+            .build();
+        join.display_dot();
     }
 
     #[test]

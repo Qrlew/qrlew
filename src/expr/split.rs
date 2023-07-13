@@ -275,7 +275,7 @@ impl fmt::Display for Map {
     }
 }
 
-// TODO so when concatenating a single split, its sub-expressions should be substituted
+/// Concatenate two Reduce split into one
 impl And<Self> for Map {
     type Product = Self;
 
@@ -542,6 +542,7 @@ impl fmt::Display for Reduce {
     }
 }
 
+/// Concatenate two Reduce split into one
 impl And<Self> for Reduce {
     type Product = Self;
 
@@ -776,6 +777,8 @@ impl<S: Into<String>> FromIterator<(S, Expr)> for Split {
 
 #[cfg(test)]
 mod tests {
+    use crate::expr::implementation::aggregate;
+
     use super::*;
 
     #[test]
@@ -790,6 +793,10 @@ mod tests {
             None,
         );
         println!("map = {map}");
+        // Extend the map
+        let map = map.and(Split::filter(expr!(gt(x, 2))));
+        println!("Extended map = {map}");
+        assert_eq!(map.len(), 1);
     }
 
     #[test]
@@ -800,10 +807,12 @@ mod tests {
             None,
         );
         println!("reduce = {reduce}");
-        let reduce = reduce.into_map();
-        println!("reduce into map = {}", reduce);
         let reduce = reduce.and(Reduce::new(Vec::new(), vec![Expr::col("z")], None));
         println!("reduce and group by = {}", reduce);
+        assert_eq!(reduce.len(), 1);
+        let reduce = reduce.into_map();
+        println!("reduce into map = {}", reduce);
+        assert_eq!(reduce.len(), 2);
     }
 
     #[test]
@@ -814,7 +823,9 @@ mod tests {
         let b = Split::from(("b", expr!(exp(a))));
         println!("b = {b}");
         println!("b = {b:?}");
-        println!("a & b = {}", a.and(b));
+        let c = a.and(b);
+        println!("a & b = {}", c);
+        assert_eq!(c.len(), 1);
     }
 
     #[test]
@@ -823,7 +834,9 @@ mod tests {
         println!("u = {u}");
         let v = Split::from(("v", expr!(sin(y))));
         println!("v = {v}");
-        println!("u & v = {}", u.and(v));
+        let w = u.and(v);
+        println!("u & v = {}", w);
+        assert_eq!(w.len(), 3);
     }
 
     #[test]
@@ -832,9 +845,11 @@ mod tests {
         println!("u = {u}");
         let v = Split::from(("v", expr!(y)));
         println!("v = {v}");
-        let u_v: Split = u.and(v);
-        println!("u & v = {u_v}");
-        if let Split::Map(m) = u_v {
+        let w = Split::filter(expr!(lt(x, 5))).into();
+        println!("w = {w}");
+        let fact: Split = Factor::all([u, v, w]);
+        println!("u & v & w = {fact}");
+        if let Split::Map(m) = fact {
             assert!(m.reduce == None)
         }
     }
@@ -865,6 +880,22 @@ mod tests {
         println!("reduce = {}", reduce);
         let (reduce, expr) = reduce.and(expr!(sum(1 + a)));
         println!("reduce = {}, expr = {}", reduce, expr);
+    }
+
+    #[test]
+    fn test_reduce_and_where() {
+        let reduce = Reduce::new(
+            vec![("a".into(), expr!(count(x))), ("b".into(), expr!(sum(y)))],
+            vec![],
+            None,
+        );
+        println!("reduce = {}", reduce);
+        let filter: Split = Split::filter(expr!(lt(x, 5)))
+            .into_reduce(aggregate::Aggregate::First)
+            .into();
+        let split: Split = reduce.into();
+        let split = split.and(filter);
+        println!("split = {}", split);
     }
 
     #[test]

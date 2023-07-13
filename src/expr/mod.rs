@@ -147,7 +147,8 @@ impl Function {
     /// Note: for the moment, we support only `Function` made of the composition of:
     /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
     /// - `Eq` function comparing a column to any value,
-    /// - `And` function between two supported Expr::Function.
+    /// - `And` function between two supported Expr::Function,
+    /// - 'InList` test if a column value belongs to a list
     pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
         let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
         match (self.function, args.as_slice()) {
@@ -206,6 +207,14 @@ impl Function {
                     .super_intersection(&datatype)
                     .unwrap_or(datatype.clone())
             }
+            // InList
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))])
+                if col == column =>
+            {
+                DataType::from_iter(l.to_vec().clone())
+                    .super_intersection(&datatype)
+                    .unwrap_or(datatype.clone())
+            }
             _ => datatype.clone(),
         }
     }
@@ -255,6 +264,62 @@ impl Function {
 impl Expr {
     pub fn random(n: usize) -> Expr {
         Expr::from(Function::random(n))
+    }
+
+    pub fn filter_column(
+        name: &str,
+        min: Option<data_type::value::Value>,
+        max: Option<data_type::value::Value>,
+        possible_values: Vec<data_type::value::Value>,
+    ) -> Option<Expr> {
+        let column = Expr::col(name.to_string());
+        let mut p = None;
+        if let Some(m) = min {
+            let expr = Expr::gt(column.clone(), Expr::val(m));
+            p = Some(p.map_or(expr.clone(), |x| Expr::and(x, expr)))
+        }
+        if let Some(m) = max {
+            let expr = Expr::lt(column.clone(), Expr::val(m));
+            p = Some(p.map_or(expr.clone(), |x| Expr::and(x, expr)))
+        };
+        if !possible_values.is_empty() {
+            let expr = Expr::in_list(column.clone(), Expr::list(possible_values));
+            p = Some(p.map_or(expr.clone(), |x| Expr::and(x, expr)))
+        }
+        p
+    }
+
+    pub fn and_iter(exprs: Vec<Expr>) -> Expr {
+        exprs[1..]
+            .iter()
+            .fold(exprs[0].clone(), |f, p| Expr::and(f, p.clone()))
+    }
+
+    /// Returns an `Expr` for filtering the columns
+    ///
+    /// # Arguments
+    /// - `columns`: `Vec<(column_name, minimal_value, maximal_value, possible_values)>`
+    ///
+    /// For example,
+    /// - `filter(vec![("my_col", Value::float(2.), Value::float(10.), vec![])])`
+    ///         ≡ `(my_col > 2.) and (my_col < 10)`
+    /// - `filter(vec![("my_col", None, Value::float(10.), vec![Value::integer(1), Value::integer(2), Value::integer(5)])])`
+    ///         ≡ `(my_col < 10.) and (my_col in (1, 2, 5))`
+    /// - `filter(vec![("my_col1", None, Value::integer(10), vec![]), ("my_col2", Value::float(1.), None, vec![])])])`
+    ///         ≡ `(my_col1 < 10) and (my_col2 > 1.)`
+    pub fn filter(
+        columns: Vec<(
+            &str,
+            Option<data_type::value::Value>,
+            Option<data_type::value::Value>,
+            Vec<data_type::value::Value>,
+        )>,
+    ) -> Expr {
+        let predicates: Vec<Expr> = columns
+            .into_iter()
+            .filter_map(|(name, min, max, values)| Expr::filter_column(name, min, max, values))
+            .collect();
+        Self::and_iter(predicates)
     }
 }
 
@@ -1917,6 +1982,17 @@ mod tests {
             func.filter_column_data_type(&col, &datatype),
             DataType::float_value(5.)
         );
+
+        // in
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let values = Expr::list([1., 3., 4.]);
+
+        let func = Function::in_list(col.clone(), values.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_values([1., 3., 4.])
+        );
     }
 
     #[test]
@@ -1998,11 +2074,22 @@ mod tests {
             func.filter_column_data_type(&col, &datatype),
             DataType::integer_value(5)
         );
+
+        // in
+        let col = Column::from("MyCol");
+        let datatype = DataType::integer();
+        let values = Expr::list([1, 3, 4]);
+
+        let func = Function::in_list(col.clone(), values.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_values([1, 3, 4])
+        );
     }
 
     #[test]
     fn test_filter_column_data_type_and() {
-        // set min value
+        // set min and max values
         let col = Column::from("MyCol");
         let datatype = DataType::float();
 
@@ -2014,5 +2101,81 @@ mod tests {
             func.filter_column_data_type(&col, &datatype),
             DataType::float_interval(5., 7.)
         );
+
+        // set min and possible values
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+
+        let func = Function::and(
+            Function::gt(col.clone(), Expr::val(5.)),
+            Function::in_list(col.clone(), Expr::list([2., 5., 7.])),
+        );
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_values([5., 7.])
+        );
+    }
+
+    #[test]
+    fn test_filter_column() {
+        let x = Expr::filter_column(
+            "col1",
+            Some(1.into()),
+            Some(10.into()),
+            vec![1.into(), 4.into(), 5.into()],
+        )
+        .unwrap();
+        let true_expr = Expr::and(
+            Expr::and(
+                Expr::gt(Expr::col("col1"), Expr::val(1)),
+                Expr::lt(Expr::col("col1"), Expr::val(10)),
+            ),
+            Expr::in_list(Expr::col("col1"), Expr::list([1, 4, 5])),
+        );
+        assert_eq!(x, true_expr)
+    }
+
+    #[test]
+    fn test_filter() {
+        let columns = vec![
+            (
+                "col1",
+                Some(Value::integer(1)),
+                Some(Value::integer(10)),
+                vec![
+                    Value::integer(1),
+                    Value::integer(3),
+                    Value::integer(6),
+                    Value::integer(7),
+                ],
+            ),
+            ("col2", None, Some(Value::float(10.0)), vec![]),
+            ("col3", Some(Value::float(0.0)), None, vec![]),
+            (
+                "col4",
+                None,
+                None,
+                vec![Value::text("a"), Value::text("b"), Value::text("c")],
+            ),
+        ];
+        let col1_expr = Expr::and(
+            Expr::and(
+                Expr::gt(Expr::col("col1"), Expr::val(1)),
+                Expr::lt(Expr::col("col1"), Expr::val(10)),
+            ),
+            Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7])),
+        );
+        let col2_expr = Expr::lt(Expr::col("col2"), Expr::val(10.));
+        let col3_expr = Expr::gt(Expr::col("col3"), Expr::val(0.));
+        let col4_expr = Expr::in_list(
+            Expr::col("col4"),
+            Expr::list(["a".to_string(), "b".to_string(), "c".to_string()]),
+        );
+
+        let true_expr = Expr::and(
+            Expr::and(Expr::and(col1_expr, col2_expr), col3_expr),
+            col4_expr,
+        );
+        assert_eq!(Expr::filter(columns), true_expr);
     }
 }
