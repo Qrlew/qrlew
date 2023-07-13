@@ -1,8 +1,7 @@
 use statrs::{
+    distribution::{ContinuousCDF, Normal},
     prec::F64_PREC,
-    distribution::{ContinuousCDF, Normal}
 };
-
 
 pub fn gaussian_noise(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
     (2. * (1.25_f64.ln() / delta)).sqrt() * sensitivity / epsilon

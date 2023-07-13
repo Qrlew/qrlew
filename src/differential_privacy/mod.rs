@@ -4,7 +4,7 @@
 //!
 
 pub mod mechanisms;
-pub mod tau_thresholding;
+pub mod protect_grouping_keys;
 
 use crate::data_type::DataTyped;
 use crate::{
