@@ -794,7 +794,7 @@ mod tests {
         );
         println!("map = {map}");
         // Extend the map
-        let map = map.and(Split::filter(expr!(gt(x,2))));
+        let map = map.and(Split::filter(expr!(gt(x, 2))));
         println!("Extended map = {map}");
         assert_eq!(map.len(), 1);
     }
@@ -845,7 +845,7 @@ mod tests {
         println!("u = {u}");
         let v = Split::from(("v", expr!(y)));
         println!("v = {v}");
-        let w = Split::filter(expr!(lt(x,5))).into();
+        let w = Split::filter(expr!(lt(x, 5))).into();
         println!("w = {w}");
         let fact: Split = Factor::all([u, v, w]);
         println!("u & v & w = {fact}");
@@ -890,7 +890,9 @@ mod tests {
             None,
         );
         println!("reduce = {}", reduce);
-        let filter: Split = Split::filter(expr!(lt(x,5))).into_reduce(aggregate::Aggregate::First).into();
+        let filter: Split = Split::filter(expr!(lt(x, 5)))
+            .into_reduce(aggregate::Aggregate::First)
+            .into();
         let split: Split = reduce.into();
         let split = split.and(filter);
         println!("split = {}", split);
