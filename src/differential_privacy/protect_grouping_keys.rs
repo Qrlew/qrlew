@@ -99,6 +99,7 @@ impl Reduce {
         todo!()
     }
 
+    // Returns a `Relation` outputing all grouping keys that can be safely released
     pub fn possible_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
         // TODO: add public_values
         self.tau_thresholded_values(epsilon, delta, sensitivity)
@@ -133,6 +134,9 @@ impl Reduce {
         Ok(map)
     }
 
+    // Convert the current `Reduce` to a `Relation` and join it to a Relation that output all the
+    // grouping keys that can be released.
+    // For the moment, the grouping keys list is computed with tau-thresholding.
     pub fn protect_grouping_keys(
         self,
         epsilon: f64,
