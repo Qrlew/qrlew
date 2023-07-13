@@ -43,7 +43,8 @@ pub type Result<T> = result::Result<T, Error>;
 pub const PE_DISTINCT_COUNT: &str = "_PROTECTED_DISTINCT_COUNT_";
 
 impl Reduce {
-    /// TODO
+    /// Returns a Relation that output the categories for which the noisy count
+    /// of DISTINCT PE_ID is greater that tau(epsilon, delat, sensitivty)
     pub fn tau_thresholded_values(
         &self,
         epsilon: f64,
