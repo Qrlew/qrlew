@@ -11,6 +11,7 @@ use qrlew::{
     display::Dot,
     expr,
     io::{postgresql, Database},
+    protected::PE_ID,
     sql::parse,
     Relation, With,
 };
@@ -26,9 +27,9 @@ pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> boo
             .map(ToString::to_string)
             .join("\n")
     );
+    println!("{}", format!("{query2}").yellow());
     println!(
-        "{}\n{}",
-        format!("{query2}").yellow(),
+        "{}",
         database
             .query(query2)
             .unwrap()

@@ -319,7 +319,6 @@ impl Expr {
             .into_iter()
             .filter_map(|(name, min, max, values)| Expr::filter_column(name, min, max, values))
             .collect();
-        println!("predicates = {predicates:?}");
         Self::and_iter(predicates)
     }
 }
