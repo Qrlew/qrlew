@@ -913,49 +913,6 @@ impl Relation {
         // Add order by
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
-
-    pub fn cross_join(self, right: Self) -> Result<Relation> {
-        let left_names = self.schema().iter().map(|f| f.name().to_string()).collect();
-        let right_names = right
-            .schema()
-            .iter()
-            .map(|f| f.name().to_string())
-            .collect();
-        Ok(Relation::join()
-            .left(self.clone())
-            .right(right.clone())
-            .cross()
-            .left_names(left_names)
-            .right_names(right_names)
-            .build())
-    }
-
-    pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
-        if on.is_empty() {
-            return Err(Error::InvalidArguments(
-                "Vector `on` cannot be empty.".into(),
-            ));
-        }
-        let left_names = self.schema().iter().map(|f| f.name().to_string()).collect();
-        let right_names = right
-            .schema()
-            .iter()
-            .map(|f| f.name().to_string())
-            .collect();
-        let on: Vec<Expr> = on
-            .into_iter()
-            .map(|(l, r)| Expr::eq(Expr::qcol(self.name(), l), Expr::qcol(right.name(), r)))
-            .collect();
-
-        Ok(Relation::join()
-            .left(self.clone())
-            .right(right.clone())
-            .left_outer()
-            .on_iter(on)
-            .left_names(left_names)
-            .right_names(right_names)
-            .build())
-    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -1969,34 +1926,5 @@ mod tests {
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
-    }
-
-    #[test]
-    fn test_left_join() {
-        let table1: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .build(),
-            )
-            .build();
-
-        let table2: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with(("d", DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-
-        let joined_rel = table1
-            .clone()
-            .left_join(table2.clone(), vec![("a", "c")])
-            .unwrap();
-        _ = joined_rel.display_dot();
     }
 }
