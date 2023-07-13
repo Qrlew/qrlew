@@ -4,6 +4,7 @@
 //!
 
 pub mod tau_thresholding;
+pub mod mechanisms;
 
 use crate::data_type::DataTyped;
 use crate::{
@@ -39,14 +40,6 @@ impl Field {
     }
 }
 
-pub fn gaussian_noise(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
-    (2. * (1.25_f64.ln() / delta)).sqrt() * sensitivity / epsilon
-}
-
-pub fn gaussian_tau(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
-    todo!()
-}
-
 /* Reduce
  */
 impl Reduce {
@@ -77,7 +70,7 @@ impl Reduce {
                                 .clipping_value(multiplicity);
                             c.push((agg.argument_name().unwrap().to_string(), cvalue));
                             let mut s = s;
-                            s.push((name.to_string(), gaussian_noise(epsilon, delta, cvalue)));
+                            s.push((name.to_string(), mechanisms::gaussian_noise(epsilon, delta, cvalue)));
                             (c, s)
                         }
                         _ => (c, s),
