@@ -99,43 +99,37 @@ impl Reduce {
         todo!()
     }
 
-    pub fn possible_values(
-        self,
-        epsilon: f64,
-        delta: f64,
-        sensitivity: f64
-    ) -> Result<Relation> {
+    pub fn possible_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
         // TODO: add public_values
         self.tau_thresholded_values(epsilon, delta, sensitivity)
     }
 
     fn join_with_possible_values(self, possible_values: Relation) -> Result<Relation> {
-        let on:Vec<Expr> = self.group_by.clone().into_iter()
-            .map(|c|
+        let on: Vec<Expr> = self
+            .group_by
+            .clone()
+            .into_iter()
+            .map(|c| {
                 Expr::eq(
                     Expr::qcol(self.name().to_string(), c.to_string()),
-                    Expr::qcol(possible_values.name().to_string(), c.to_string())
+                    Expr::qcol(possible_values.name().to_string(), c.to_string()),
                 )
-            )
+            })
             .collect();
         let right = Relation::from(self);
-        let fields:Vec<(String, Expr)> = right.schema()
+        let fields: Vec<(String, Expr)> = right
+            .schema()
             .iter()
             .map(|f| (f.name().to_string(), Expr::col(f.name())))
             .collect();
-        let join_rel:Relation = Relation::join()
+        let join_rel: Relation = Relation::join()
             .left(possible_values)
             .right(right)
             .left_outer()
             .on_iter(on)
-            .right_names(
-                fields.iter().map(|(c, _)| c).collect()
-            )
+            .right_names(fields.iter().map(|(c, _)| c).collect())
             .build();
-        let map = Relation::map()
-            .input(join_rel)
-            .with_iter(fields)
-            .build();
+        let map = Relation::map().input(join_rel).with_iter(fields).build();
         Ok(map)
     }
 
@@ -145,15 +139,14 @@ impl Reduce {
         delta: f64,
         sensitivity: f64,
     ) -> Result<Relation> {
-        if self.group_by.is_empty() { // TODO: vec![PE_ID] ?
-            return Ok(Relation::from(self))
+        if self.group_by.is_empty() {
+            // TODO: vec![PE_ID] ?
+            return Ok(Relation::from(self));
         }
-        self.clone().join_with_possible_values(self.possible_values(epsilon, delta, sensitivity)?)
+        self.clone()
+            .join_with_possible_values(self.possible_values(epsilon, delta, sensitivity)?)
     }
-
-
 }
-
 
 #[cfg(test)]
 mod tests {
