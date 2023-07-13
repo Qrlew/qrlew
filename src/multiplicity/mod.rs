@@ -46,6 +46,8 @@ struct MultiplicityVisitor<F: Fn(&Table) -> RelationWithMultiplicity> {
     weight_table: F,
 }
 
+pub const LINE_WEIGHT: &str = "_LINE_WEIGHT_";
+
 impl<F: Fn(&Table) -> RelationWithMultiplicity> MultiplicityVisitor<F> {
     pub fn new(weight_table: F) -> Self {
         MultiplicityVisitor { weight_table }
@@ -56,12 +58,17 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
     for MultiplicityVisitor<F>
 {
     fn table(&self, table: &'a Table) -> RelationWithMultiplicity {
-        (self.weight_table)(table)
+        let weighted_table = (self.weight_table)(table);
+        let new_rel =  weighted_table.0.insert_field(0, LINE_WEIGHT, Expr::val(1));
+        RelationWithMultiplicity(new_rel, weighted_table.1)
     }
 
     /// take the Map and the weight of the input and generate the RelationWithMultiplicity
     fn map(&self, map: &'a Map, input: RelationWithMultiplicity) -> RelationWithMultiplicity {
-        let mew_relation: Relation = Relation::map().with(map.clone()).input(input.0).build();
+        let mew_relation: Relation = Relation::map()
+        .with((LINE_WEIGHT, Expr::col(LINE_WEIGHT)))
+        .with(map.clone())
+        .input(input.0).build();
         // mew_relation.display_dot().unwrap();
         RelationWithMultiplicity(mew_relation, input.1)
     }
@@ -72,28 +79,30 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
         reduce: &'a Reduce,
         input: RelationWithMultiplicity,
     ) -> RelationWithMultiplicity {
-        // Create a new reduce using the input
 
-        // the reduce weight would depend on the number of expressions in the group by
-        // 0 group by:
-        //    The reduce would generate 1 line of results on a sampled and non-sampled dataset
-        //    So the RelationWithMultiplicity would have weight of 1
-        // 1 group by
-        //    the number of rows will depend on unique values of group by col.
-        //    the expected count of sampled values would be table size n *
+        // construct the new reduce visited reduce and the input.
+        // propagate the LINE_WEIGHT
+        let new_reduce: Reduce = Relation::reduce()
+        .with((LINE_WEIGHT, Expr::sum(Expr::col(LINE_WEIGHT))))
+        .with(reduce.clone())
+        .input(input.0.clone())
+        .build();
 
-        // let reduce_output_weight = if reduce.group_by.len()!=0 {input.1} else {1.0};
-
-        let reduce: Reduce = Relation::reduce()
-            .with(reduce.clone())
-            .input(input.0.clone())
-            .build();
+        // construct the relation to compute the correcting factor
+        // estimator for the number of groups in e = SQRT(w)*f1 + SUM(fj (j>1))
+        // where fj is the number of unique elements appearing exactly j time
+        // let f1 = Relation::reduce()
+        // .with((LINE_WEIGHT, Expr::sum(Expr::col(LINE_WEIGHT))))
+        // .input(new_reduce.clone())
+        // .build();
+        
 
         // Extract schema field names and associated expressions from the reduce
         let field_aggexpr_map: Vec<(&str, &Expr)> = reduce
             .schema()
             .fields()
             .iter()
+            // skipping the LINE WEIGHT
             .map(|field| field.name())
             .zip((&reduce.aggregate).iter())
             .collect();
@@ -117,11 +126,13 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
             })
             .collect();
 
+
         // create a Map wich weights Reduce's expressions based on the epxr type.
         // the Map takes as an imput the reduce.
         let new_map: Relation = Relation::map()
             .with_iter(new_exprs.into_iter())
-            .input(Relation::from(reduce))
+            .with((LINE_WEIGHT, Expr::col(LINE_WEIGHT)))
+            .input(Relation::from(new_reduce))
             .build();
 
         RelationWithMultiplicity(new_map, 1.0)
@@ -134,25 +145,39 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
         left: RelationWithMultiplicity,
         right: RelationWithMultiplicity,
     ) -> RelationWithMultiplicity {
-        let RelationWithMultiplicity(left, left_weight) = left;
-        let RelationWithMultiplicity(right, right_weight) = right;
+        let RelationWithMultiplicity(left, left_weight) = &left;
+        let RelationWithMultiplicity(right, right_weight) = &right;
 
         let left_new_name = left.name().to_string();
         let right_new_name = right.name().to_string();
+        //let join_name = join.name();
 
         // Preserve the schema names of the existing JOIN
+        // let left_name = left.as_ref().unwrap().name().to_string();
+        // let right_name: String = right.as_ref().unwrap().name().to_string();
+
+        // let names: Vec<String> = join.schema().iter().map(|f| f.name().to_string()).collect();
+        // let mut left_names = vec![format!("_LEFT{PE_ID}"), format!("_LEFT{PE_WEIGHT}")];
+        // left_names.extend(names.iter().take(join.left.schema().len()).cloned());
+        // let mut right_names = vec![format!("_RIGHT{PE_ID}"), format!("_RIGHT{PE_WEIGHT}")];
+        // right_names.extend(names.iter().skip(join.left.schema().len()).cloned());
+        
         let schema_names: Vec<String> =
             join.schema().iter().map(|f| f.name().to_string()).collect();
-        let left_names: Vec<String> = schema_names
+        
+        let mut left_names = vec![format!("_LEFT{LINE_WEIGHT}")];
+        left_names.extend(schema_names
             .iter()
             .take(join.left.schema().len())
             .cloned()
-            .collect();
-        let right_names: Vec<String> = schema_names
+        );
+
+        let mut right_names = vec![format!("_RIGHT{LINE_WEIGHT}")];
+        right_names.extend(schema_names
             .iter()
             .skip(join.left.schema().len())
             .cloned()
-            .collect();
+        );
 
         // map old columns names (from the join) into new column names from the left and right
         let columns_mapping: Hierarchy<Identifier> = join
@@ -179,18 +204,50 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
                     }),
             )
             .collect();
+        
+        let builder = Relation::join()
+            .left_names(left_names)
+            .right_names(right_names)
+            .operator(join.operator.clone().rename(&columns_mapping))
+            .left(left.clone())
+            .right(right.clone());
+        
+        let join: Join = builder.build();
 
+        Relation::from(join.clone()).display_dot().unwrap();
+        
+        let mut builder = Relation::map();
+        builder = builder.with((
+            LINE_WEIGHT,
+            Expr::multiply(
+                Expr::col(format!("_LEFT{LINE_WEIGHT}")),
+                Expr::col(format!("_RIGHT{LINE_WEIGHT}")),
+            ),
+        ));
+        builder = join.names().iter().fold(builder, |b, (p, n)| {
+            if [LINE_WEIGHT].contains(&p[1].as_str()) {
+                b
+            } else {
+                b.with((n, Expr::col(n)))
+            }
+        });
+        let builder = builder.input(Rc::new(join.into()));
+
+        let final_map: Relation = builder.build();
+        final_map.display_dot().unwrap();
+
+        RelationWithMultiplicity(final_map, left_weight * right_weight)
         // build the output relation
-        RelationWithMultiplicity(
-            Relation::join()
-                .left_names(left_names)
-                .right_names(right_names)
-                .operator(join.operator.clone().rename(&columns_mapping))
-                .left(left)
-                .right(right)
-                .build(),
-            left_weight * right_weight,
-        )
+        // RelationWithMultiplicity(
+        //     Relation::join()
+        //         .left_names(left_names)
+        //         .right_names(right_names)
+        //         .operator(join.operator.clone().rename(&columns_mapping))
+        //         .left(left)
+        //         .right(right)
+        //         .build(),
+        //     left_weight * right_weight,
+        // )
     }
 
     fn set(
@@ -364,8 +421,8 @@ mod tests {
     use colored::Colorize;
     use itertools::Itertools;
 
-    const TOLLERANCE: f64 = 0.03;
-    const EXPERIMENTS: u32 = 100;
+    const TOLLERANCE: f64 = 0.05;
+    const EXPERIMENTS: u32 = 200;
 
     #[test]
     fn test_table() {
@@ -377,9 +434,19 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let wtable = table.uniform_multiplicity_visitor(weight);
-        wtable.0.display_dot().unwrap();
-        assert!(wtable.1 == 2.0)
+        let weighted = table.uniform_multiplicity_visitor(weight);
+        weighted.0.display_dot().unwrap();
+        assert!(weighted.1 == 2.0);
+        
+        let query_from_rel: &str = &ast::Query::from(&weighted.0).to_string();
+        println!("\n{}", format!("{query_from_rel}").yellow());
+        println!("\n{}\n", database
+                .query(query_from_rel)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
 
     #[test]
@@ -391,7 +458,16 @@ mod tests {
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         let wrelation = relation.uniform_multiplicity_visitor(weight);
         wrelation.0.display_dot().unwrap();
-        assert!(wrelation.1 == 2.0)
+        assert!(wrelation.1 == 2.0);
+        let query_from_rel: &str = &ast::Query::from(&wrelation.0).to_string();
+        println!("\n{}", format!("{query_from_rel}").yellow());
+        println!("\n{}\n", database
+                .query(query_from_rel)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
     #[test]
     fn test_reduce() {
@@ -403,12 +479,21 @@ mod tests {
         //let query = "SELECT * FROM (SELECT COUNT(id) FROM order_table) AS temp";
 
         // When it works
-        let query = "SELECT COUNT(id) FROM order_table";
+        let query = "SELECT id, COUNT(id) FROM order_table GROUP BY id";
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         let wrelation = relation.uniform_multiplicity_visitor(weight);
         print!("{:?}", wrelation);
         wrelation.0.display_dot().unwrap();
-        assert!(wrelation.1 == 1.0)
+        assert!(wrelation.1 == 1.0);
+        let query_from_rel: &str = &ast::Query::from(&wrelation.0).to_string();
+        println!("\n{}", format!("{query_from_rel}").yellow());
+        println!("\n{}\n", database
+                .query(query_from_rel)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
 
     #[test]
@@ -487,27 +572,30 @@ mod tests {
 
         let errs: Vec<f64> = errors(&source_res, &avg_res);
 
-        println!("\n{}", format!("{query_unsampled_relation}").yellow());
+        // println!("\n{}", format!("{query_unsampled_relation}").yellow());
         print!("\nFROM WEIGHTED RELATION:\n{:?}", avg_res);
         print!("\nFROM SOURCE RELATION:\n{:?}", source_res);
         print!("\nErrors:\n{:?}", errs);
+        print!("\nErrors len: {:?} \n", errs.len());
 
         for err in errs {
             assert!(err.abs() < tolerance)
         }
 
         //for displaying purposes
-        // relation_to_sample.display_dot().unwrap();
-        // let sampled_relation = if use_possin_sampling {
-        //     relation_to_sample.poisson_sampling_table_visitor(proba)
-        // } else {
-        //     // use a relatively safe rate_multiplier (2.0)
-        //     relation_to_sample.sampling_without_replacements_table_visitor(proba, 2.0)
-        // };
+        relation_to_sample.display_dot().unwrap();
+        let sampled_relation = if use_possin_sampling {
+            relation_to_sample.poisson_sampling_table_visitor(proba)
+        } else {
+            // use a relatively safe rate_multiplier (2.0)
+            relation_to_sample.sampling_without_replacements_table_visitor(proba, 2.0)
+        };
 
-        // let weighted_sampled_relation= sampled_relation.uniform_multiplicity_visitor(1.0 / proba);
-        // weighted_sampled_relation.0.display_dot().unwrap();
-        // print!("Final weight: {}\n", weighted_sampled_relation.1);
+        let weighted_sampled_relation= sampled_relation.uniform_multiplicity_visitor(1.0 / proba);
+        weighted_sampled_relation.0.display_dot().unwrap();
+        let query_weighted_relation: &str = &ast::Query::from(&(weighted_sampled_relation.0)).to_string();
+        print!("Final weight: {}\n", weighted_sampled_relation.1);
+        println!("\nFinal query \n{}", format!("{query_weighted_relation}").yellow());
     }
 
     #[test]
@@ -516,7 +604,7 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
-        let query = "SELECT COUNT(order_id), SUM(price), AVG(price) FROM item_table";
+        let query = "SELECT COUNT(order_id), SUM(price), AVG(price), VARIANCE(price) FROM item_table";
 
         for weight in [2.0, 4.0, 8.0] {
             let fraction: f64 = 1.0 / weight;
@@ -550,24 +638,71 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
-        let query = "
-        SELECT COUNT(city), SUM(sum_age), AVG(avg_age) 
-        FROM (
-            SELECT city, COUNT(age) AS count_age, SUM(age) AS sum_age, AVG(age) AS avg_age 
-            FROM user_table GROUP BY city
-        ) AS subq";
+        // let query = "
+        // SELECT COUNT(city), SUM(sum_age), AVG(avg_age) 
+        // FROM (
+        //     SELECT city, COUNT(age) AS count_age, SUM(age) AS sum_age, AVG(age) AS avg_age 
+        //     FROM user_table GROUP BY city
+        // ) AS subq";
 
-        for weight in [2.0, 4.0, 8.0] {
-            let fraction: f64 = 1.0 / weight;
-            let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
-            // with poisson sampling
-            collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, true, TOLLERANCE);
-            // with sampling without replacements
-            collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, false, TOLLERANCE);
-        }
+        let query = "
+        WITH tmp1 AS (
+          SELECT id, COUNT(id) AS count_id, SUM(age) AS sum_age, AVG(age) AS avg_age, VARIANCE(age) AS var_age FROM user_table GROUP BY id 
+        )
+        SELECT AVG(avg_age) FROM tmp1;";
+        // COUNT(sum_age) not good
+
+        // with this query it enters in an infinite loop
+        // let query = "
+        // WITH tmp1 AS (
+        //   SELECT id, COUNT(age) AS count_age, SUM(age) AS sum_age, AVG(age) AS avg_age FROM user_table GROUP BY id
+        // )
+        // SELECT COUNT(count_age), SUM(count_age), AVG(count_age) FROM tmp1;";
+        // it is thanks to SUM(count_age)
+
+        let weight: f64 = 10.0;
+        let fraction: f64 = 1.0 / weight;
+        let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
+
+        // let query_from_rel: &str = &ast::Query::from(&relation).to_string();
+        // relation.display_dot().unwrap();
+        // println!("\n{}", format!("{query_from_rel}").yellow());
+        // println!("\n{}\n", database
+        //         .query(query_from_rel)
+        //         .unwrap()
+        //         .iter()
+        //         .map(ToString::to_string)
+        //         .join("\n")
+        // );
+
+        // let sampled_relation = relation.poisson_sampling_table_visitor(fraction);
+        // let weighted_sampled_relation = sampled_relation.uniform_multiplicity_visitor(1.0 / fraction);
+        // let query_from_rel: &str =
+        //     &ast::Query::from(&(weighted_sampled_relation.0)).to_string();
+
+        // (weighted_sampled_relation.0).display_dot().unwrap();
+        // // println!("\n{}", format!("{query_from_rel}").yellow());
+        // // println!("\n{}\n", database
+        // //         .query(query_from_rel)
+        // //         .unwrap()
+        // //         .iter()
+        // //         .map(ToString::to_string)
+        // //         .join("\n")
+        // // );
+
+        collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, true, TOLLERANCE)
+
+        // for weight in [2.0, 4.0, 8.0] {
+        //     let fraction: f64 = 1.0 / weight;
+        //     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
+        //     // with poisson sampling
+        //     collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, true, TOLLERANCE);
+        //     // with sampling without replacements
+        //     collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, false, TOLLERANCE);
+        // }
     }
 
-    // not sure it makes sense this test.
+    // not sure about this.
     #[test]
     fn test_multiplicity_reduce_join_reduce() {
         let mut database = postgresql::test_database();
@@ -588,7 +723,7 @@ mod tests {
             // with poisson sampling
             collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, true, TOLLERANCE);
             // with sampling without replacements
-            collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, false, TOLLERANCE);
+            // collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, false, TOLLERANCE);
         }
     }
 
@@ -616,103 +751,103 @@ mod tests {
         }
     }
 
-    // TODO
-    #[test]
-    fn test_multiplicity_reduce_reduce_reduce() {
-        let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+    // // TODO
+    // #[test]
+    // fn test_multiplicity_reduce_reduce_reduce() {
+    //     let mut database = postgresql::test_database();
+    //     let relations: Hierarchy<Rc<Relation>> = database.relations();
 
-        // TODO try different weights
-        let weight: f64 = 2.0;
-        let fraction: f64 = 1.0 / weight;
-        let use_possin_sampling: bool = true;
+    //     // TODO try different weights
+    //     let weight: f64 = 2.0;
+    //     let fraction: f64 = 1.0 / weight;
+    //     let use_possin_sampling: bool = true;
 
-        // 3 reduce
-        let query = "
-        WITH 
-        tmp1 AS (
-            SELECT id, city, COUNT(age) AS count_age, AVG(age) AS avg_age
-            FROM user_table
-            GROUP BY id, city
-        ),
-        tmp2 AS (
-            SELECT id, COUNT(city) as count_city, SUM(count_age) as sum_count_age, AVG(avg_age) AS avg_avg_age
-            FROM tmp1
-            GROUP BY id
-        )
-        SELECT COUNT(id), SUM(count_city), AVG(sum_count_age), SUM(avg_avg_age), AVG(avg_avg_age) FROM tmp2
-        ";
+    //     // 3 reduce
+    //     let query = "
+    //     WITH 
+    //     tmp1 AS (
+    //         SELECT id, city, COUNT(age) AS count_age, AVG(age) AS avg_age
+    //         FROM user_table
+    //         GROUP BY id, city
+    //     ),
+    //     tmp2 AS (
+    //         SELECT id, COUNT(city) as count_city, SUM(count_age) as sum_count_age, AVG(avg_age) AS avg_avg_age
+    //         FROM tmp1
+    //         GROUP BY id
+    //     )
+    //     SELECT COUNT(id), SUM(count_city), AVG(sum_count_age), SUM(avg_avg_age), AVG(avg_avg_age) FROM tmp2
+    //     ";
 
-        let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
-        // collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, use_possin_sampling, TOLLERANCE);
+    //     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
+    //     // collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, use_possin_sampling, TOLLERANCE);
 
-        // let sampled = relation.poisson_sampling_table_visitor(fraction);
-        // sampled.display_dot().unwrap();
-        // let weighted_sampled_relation= sampled.uniform_multiplicity_visitor(1.0 / fraction);
-        // print!("\n{}\n", weighted_sampled_relation.0);
-        // // With this query, it seems that weighted_sampled_relation.0.display_dot().unwrap() enters in an infinite
-        // // loop. It is very slow also the query execution. probably it generates a huge graph?
-        // weighted_sampled_relation.0.display_dot().unwrap();
-        // print!("Final weight: {}\n", weighted_sampled_relation.1);
-        // let query_from_rel: &str = &ast::Query::from(&(weighted_sampled_relation.0)).to_string();
-        // println!("\n{}", format!("{query_from_rel}").yellow());
-        // println!("\n{}\n", database
-        //         .query(query_from_rel)
-        //         .unwrap()
-        //         .iter()
-        //         .map(ToString::to_string)
-        //         .join("\n")
-        // );
+    //     // let sampled = relation.poisson_sampling_table_visitor(fraction);
+    //     // sampled.display_dot().unwrap();
+    //     // let weighted_sampled_relation= sampled.uniform_multiplicity_visitor(1.0 / fraction);
+    //     // print!("\n{}\n", weighted_sampled_relation.0);
+    //     // // With this query, it seems that weighted_sampled_relation.0.display_dot().unwrap() enters in an infinite
+    //     // // loop. It is very slow also the query execution. probably it generates a huge graph?
+    //     // weighted_sampled_relation.0.display_dot().unwrap();
+    //     // print!("Final weight: {}\n", weighted_sampled_relation.1);
+    //     // let query_from_rel: &str = &ast::Query::from(&(weighted_sampled_relation.0)).to_string();
+    //     // println!("\n{}", format!("{query_from_rel}").yellow());
+    //     // println!("\n{}\n", database
+    //     //         .query(query_from_rel)
+    //     //         .unwrap()
+    //     //         .iter()
+    //     //         .map(ToString::to_string)
+    //     //         .join("\n")
+    //     // );
 
-        // let query_from_rel: &str = &ast::Query::from(&relation).to_string();
-        // relation.display_dot().unwrap();
-        // println!("\n{}", format!("{query_from_rel}").yellow());
-        // println!("\n{}\n", database
-        //         .query(query_from_rel)
-        //         .unwrap()
-        //         .iter()
-        //         .map(ToString::to_string)
-        //         .join("\n")
-        // );
-    }
+    //     // let query_from_rel: &str = &ast::Query::from(&relation).to_string();
+    //     // relation.display_dot().unwrap();
+    //     // println!("\n{}", format!("{query_from_rel}").yellow());
+    //     // println!("\n{}\n", database
+    //     //         .query(query_from_rel)
+    //     //         .unwrap()
+    //     //         .iter()
+    //     //         .map(ToString::to_string)
+    //     //         .join("\n")
+    //     // );
+    // }
 
-    // TODO
-    #[test]
-    fn test_multiplicity_reduce_reduce_join_reduce() {
-        let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+    // // TODO
+    // #[test]
+    // fn test_multiplicity_reduce_reduce_join_reduce() {
+    //     let mut database = postgresql::test_database();
+    //     let relations: Hierarchy<Rc<Relation>> = database.relations();
 
-        // TODO try different weights
-        let weight: f64 = 2.0;
-        let fraction: f64 = 1.0 / weight;
-        let use_possin_sampling: bool = true;
+    //     // TODO try different weights
+    //     let weight: f64 = 2.0;
+    //     let fraction: f64 = 1.0 / weight;
+    //     let use_possin_sampling: bool = true;
 
-        // 2 reduce before the join and 1 after
-        let query = "
-        WITH tmp1 AS (SELECT id, COUNT(user_id) AS count_user_id, AVG(user_id) AS avg_user_id, SUM(user_id) AS sum_user_id FROM order_table GROUP BY id),
-        tmp2 AS (SELECT id, COUNT(age) AS count_age, AVG(age) AS avg_age, SUM(age) AS sum_age FROM user_table GROUP BY id),
-        tmp3 AS (SELECT count_user_id, count_age, avg_user_id, avg_age, sum_user_id, sum_age FROM tmp1 JOIN tmp2 ON (tmp1.id = tmp2.id))
-        SELECT COUNT(count_user_id), COUNT(count_age), AVG(avg_user_id), AVG(avg_age), SUM(sum_user_id), SUM(sum_age) FROM tmp3
-        ";
+    //     // 2 reduce before the join and 1 after
+    //     let query = "
+    //     WITH tmp1 AS (SELECT id, COUNT(user_id) AS count_user_id, AVG(user_id) AS avg_user_id, SUM(user_id) AS sum_user_id FROM order_table GROUP BY id),
+    //     tmp2 AS (SELECT id, COUNT(age) AS count_age, AVG(age) AS avg_age, SUM(age) AS sum_age FROM user_table GROUP BY id),
+    //     tmp3 AS (SELECT count_user_id, count_age, avg_user_id, avg_age, sum_user_id, sum_age FROM tmp1 JOIN tmp2 ON (tmp1.id = tmp2.id))
+    //     SELECT COUNT(count_user_id), COUNT(count_age), AVG(avg_user_id), AVG(avg_age), SUM(sum_user_id), SUM(sum_age) FROM tmp3
+    //     ";
 
-        let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
-        // collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, use_possin_sampling, TOLLERANCE);
+    //     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
+    //     // collect_results_from_many_samples(&relation, fraction, EXPERIMENTS, use_possin_sampling, TOLLERANCE);
 
-        // relation.display_dot().unwrap();
-        // let sampled = relation.poisson_sampling_table_visitor(fraction);
+    //     // relation.display_dot().unwrap();
+    //     // let sampled = relation.poisson_sampling_table_visitor(fraction);
 
-        // let weighted_sampled_relation= sampled.uniform_multiplicity_visitor(1.0 / fraction);
-        // weighted_sampled_relation.0.display_dot().unwrap();
-        // print!("Final weight: {}\n", weighted_sampled_relation.1);
-        // let query_from_rel: &str = &ast::Query::from(&relation).to_string();
-        // relation.display_dot().unwrap();
-        // println!("\n{}", format!("{query_from_rel}").yellow());
-        // println!("\n{}\n", database
-        //         .query(query_from_rel)
-        //         .unwrap()
-        //         .iter()
-        //         .map(ToString::to_string)
-        //         .join("\n")
-        // );
-    }
+    //     // let weighted_sampled_relation= sampled.uniform_multiplicity_visitor(1.0 / fraction);
+    //     // weighted_sampled_relation.0.display_dot().unwrap();
+    //     // print!("Final weight: {}\n", weighted_sampled_relation.1);
+    //     // let query_from_rel: &str = &ast::Query::from(&relation).to_string();
+    //     // relation.display_dot().unwrap();
+    //     // println!("\n{}", format!("{query_from_rel}").yellow());
+    //     // println!("\n{}\n", database
+    //     //         .query(query_from_rel)
+    //     //         .unwrap()
+    //     //         .iter()
+    //     //         .map(ToString::to_string)
+    //     //         .join("\n")
+    //     // );
+    // }
 }

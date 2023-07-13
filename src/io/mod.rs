@@ -198,8 +198,8 @@ pub trait Database: Sized {
                 )
                 .build(),
             TableBuilder::new()
-                .name("user_table_bis")
-                .size(200)
+                .name("large_user_table")
+                .size(1000)
                 .schema(
                     Schema::empty()
                         .with(("id", DataType::integer_interval(0, 100)))

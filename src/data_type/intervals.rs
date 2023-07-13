@@ -157,7 +157,7 @@ pub struct Intervals<B: Bound> {
     intervals: Vec<[B; 2]>,
 }
 
-const CAPACITY: usize = 1 << 7; // Above 128 we shorten the structure
+const CAPACITY: usize = 1 << 5; // Above 128 we shorten the structure
 
 impl<B: Bound> Intervals<B> {
     /// The only way to build `Intervals`
