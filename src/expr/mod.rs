@@ -2123,18 +2123,18 @@ mod tests {
             "col1",
             Some(1.into()),
             Some(10.into()),
-            vec![1.into(), 4.into(), 5.into()]
-        ).unwrap();
+            vec![1.into(), 4.into(), 5.into()],
+        )
+        .unwrap();
         let true_expr = Expr::and(
             Expr::and(
                 Expr::gt(Expr::col("col1"), Expr::val(1)),
-                Expr::lt(Expr::col("col1"), Expr::val(10))
+                Expr::lt(Expr::col("col1"), Expr::val(10)),
             ),
-                Expr::in_list(Expr::col("col1"), Expr::list([1, 4, 5])),
+            Expr::in_list(Expr::col("col1"), Expr::list([1, 4, 5])),
         );
         assert_eq!(x, true_expr)
     }
-
 
     #[test]
     fn test_filter() {
@@ -2161,10 +2161,10 @@ mod tests {
         ];
         let col1_expr = Expr::and(
             Expr::and(
-            Expr::gt(Expr::col("col1"), Expr::val(1)),
+                Expr::gt(Expr::col("col1"), Expr::val(1)),
                 Expr::lt(Expr::col("col1"), Expr::val(10)),
             ),
-                Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7])),
+            Expr::in_list(Expr::col("col1"), Expr::list([1, 3, 6, 7])),
         );
         let col2_expr = Expr::lt(Expr::col("col2"), Expr::val(10.));
         let col3_expr = Expr::gt(Expr::col("col3"), Expr::val(0.));
