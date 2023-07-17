@@ -289,10 +289,11 @@ impl Expr {
         p
     }
 
-    pub fn and_iter(exprs: Vec<Expr>) -> Expr {
-        exprs[1..]
-            .iter()
-            .fold(exprs[0].clone(), |f, p| Expr::and(f, p.clone()))
+    pub fn and_iter<I: IntoIterator<Item = Expr>>(exprs: I) -> Expr {
+        exprs
+            .into_iter()
+            .reduce(|f, p| Expr::and(f, p))
+            .unwrap_or(Expr::val(true))
     }
 
     /// Returns an `Expr` for filtering the columns
