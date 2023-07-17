@@ -437,6 +437,7 @@ impl Table {
             on_commit: None,
             on_cluster: None,
             order_by: None,
+            strict: false,
         }
     }
 

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.1.8] - 2023-07-17
+### Fixed
+- Fixed sqlparser version
+
+## [0.1.7] - 2023-07-17
 ### Fixed
 - `filter` by `Expr` in `Schema` and `Field`
 - filter in Relation builder
