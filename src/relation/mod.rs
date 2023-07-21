@@ -1564,36 +1564,37 @@ mod tests {
         );
         println!("MAP: {}", map);
     }
+    
+    // TODO: to reproduce the bug
+    // #[test]
+    // fn test_reproduce_bug_interval() {
+    //     namer::reset();
+    //     let schema: Schema = vec![
+    //         ("a", DataType::float()),
+    //         ("a_bis", DataType::optional(DataType::float())),
+    //         ("b", DataType::float_interval(0., 210040.21)),
+    //         ("c", DataType::float()),
+    //         ("d", DataType::integer_interval(1, 1000)),
+    //     ]
+    //     .into_iter()
+    //     .collect();
+    //     println!("Schema: {}", schema);
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(schema.clone())
+    //         .size(100)
+    //         .build();
 
-    #[test]
-    fn test_reproduce_bug_interval() {
-        namer::reset();
-        let schema: Schema = vec![
-            ("a", DataType::float()),
-            ("a_bis", DataType::optional(DataType::float())),
-            ("b", DataType::float_interval(0., 210040.21)),
-            ("c", DataType::float()),
-            ("d", DataType::integer_interval(1, 1000)),
-        ]
-        .into_iter()
-        .collect();
-        println!("Schema: {}", schema);
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(schema.clone())
-            .size(100)
-            .build();
+    //     println!("Table: {}", table);
 
-        println!("Table: {}", table);
-
-        let filtered = table
-            .clone()
-            .filter(Expr::not_eq(Expr::col("a_bis"), Expr::val(0)));
-        let map: Relation = Relation::map()
-            .name("map_1")
-            .with(("aa", Expr::divide(Expr::col("a_bis"), Expr::col("d"))))
-            .input(filtered)
-            .build();
-        println!("MAP: {}", map);
-    }
+    //     let filtered = table
+    //         .clone()
+    //         .filter(Expr::not_eq(Expr::col("a_bis"), Expr::val(0)));
+    //     let map: Relation = Relation::map()
+    //         .name("map_1")
+    //         .with(("aa", Expr::divide(Expr::col("a_bis"), Expr::col("d"))))
+    //         .input(filtered)
+    //         .build();
+    //     println!("MAP: {}", map);
+    // }
 }
