@@ -863,7 +863,7 @@ impl Relation {
             )
             .filter(Expr::lt(
                 Expr::random(namer::new_id("SAMPLING_WITHOUT_REPLACEMENT")),
-                Expr::val(2.0 * rate),
+                Expr::val(rate_multiplier * rate),
             ))
             .order_by(
                 Expr::random(namer::new_id("SAMPLING_WITHOUT_REPLACEMENT")),

@@ -199,10 +199,10 @@ pub trait Database: Sized {
                 .build(),
             TableBuilder::new()
                 .name("large_user_table")
-                .size(1000)
+                .size(100000)
                 .schema(
                     Schema::empty()
-                        .with(("id", DataType::integer_interval(0, 100)))
+                        .with(("id", DataType::integer_interval(0, 1000)))
                         .with(("name", DataType::text()))
                         .with((
                             "age",

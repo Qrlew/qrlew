@@ -157,7 +157,7 @@ pub struct Intervals<B: Bound> {
     intervals: Vec<[B; 2]>,
 }
 
-const CAPACITY: usize = 1 << 5; // Above 128 we shorten the structure
+const CAPACITY: usize = 1 << 7; // Above 128 we shorten the structure
 
 impl<B: Bound> Intervals<B> {
     /// The only way to build `Intervals`
@@ -213,8 +213,8 @@ impl<B: Bound> Intervals<B> {
         // Insert the new interval and move the existing values
         self.intervals.drain(min_index..max_index);
         self.intervals.insert(min_index, [min, max]);
-        // Set the new length
-        self
+        // simplify the interval if there are too many intervals
+        self.to_simple_superset()
     }
 
     /// Union with a single value
@@ -305,8 +305,7 @@ impl<B: Bound> Intervals<B> {
         if min_index > 0 {
             self.intervals.drain(0..min_index);
         }
-        // Set the new length
-        self
+        self.to_simple_superset()
     }
 
     /// Intersection with a single value

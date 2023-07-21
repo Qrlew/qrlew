@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Used `filter` field in `Map` when computing the schema
 - Show `LIMIT` in the relation graph [MR49](https://github.com/Qrlew/qrlew/pull/49)
 - Include `LIMIT` in the query when the derived from a Relation with a Map with a limit. [MR49](https://github.com/Qrlew/qrlew/pull/49)
+- simplify intervals after union and intersection.
+- Add multiplicity module
 
 ### Added
 - filter_iter in Relation builder
