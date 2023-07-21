@@ -1564,7 +1564,7 @@ mod tests {
         );
         println!("MAP: {}", map);
     }
-    
+
     // TODO: to reproduce the bug
     // #[test]
     // fn test_reproduce_bug_interval() {

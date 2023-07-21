@@ -493,7 +493,15 @@ mod tests {
         let weight: f64 = 2.0;
         let relations = database.relations();
 
-        let query = "WITH tmp AS (SELECT id, AVG(age) AS avg_age FROM user_table GROUP BY id) SELECT AVG(avg_age) FROM tmp";
+        let query = "
+        WITH tmp AS (
+            SELECT 
+                id, 
+                AVG(income) AS avg_income 
+            FROM large_user_table 
+            GROUP BY id
+        ) SELECT AVG(avg_income) FROM tmp";
+
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();
         let wrelation = relation.uniform_multiplicity_visitor(weight);
