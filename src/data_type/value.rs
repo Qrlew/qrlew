@@ -740,9 +740,9 @@ impl Optional {
         Optional::new(Some(Rc::new(value)))
     }
 
-    pub fn value(&self) -> Option<Value> {
+    pub fn value(&self) -> Option<&Value> {
         if let Some(v) = &self.0 {
-            Some(v.as_ref().clone())
+            Some(v.as_ref())
         } else {
             None
         }
