@@ -356,7 +356,6 @@ mod tests {
                 &[("item_table", &[("order_id", "order_table", "id")], "id")],
             )
             .unwrap();
-        table.display_dot().unwrap();
         println!("Schema protected = {}", table.schema());
         assert_eq!(table.schema()[0].name(), PE_ID)
     }
@@ -460,7 +459,6 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        relation.display_dot().unwrap();
         // Table
         let relation = relation.force_protect_from_field_paths(
             &relations,

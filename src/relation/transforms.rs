@@ -826,8 +826,6 @@ impl Relation {
         //make sure proba is between 0 and 1.
         assert!(0.0 <= proba && proba <= 1.0);
 
-        //let size = self.size().max().map_or(0, |v| (*v as f64 * proba) as usize);
-
         let sampled_relation: Relation = Relation::map()
             .with_iter(
                 self.schema()
@@ -838,7 +836,6 @@ impl Relation {
                 Expr::random(namer::new_id("POISSON_SAMPLING")),
                 Expr::val(proba),
             ))
-            //.limit(size)
             .input(self)
             .build();
         sampled_relation

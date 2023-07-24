@@ -169,7 +169,6 @@ mod tests {
 
         let epsilon = 1.;
         let delta = 1e-3;
-        relation.display_dot().unwrap();
         let dp_relation = relation.dp_compilation(
             &relations,
             &[
