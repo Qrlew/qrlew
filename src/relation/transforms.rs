@@ -1,7 +1,7 @@
 //! A few transforms for relations
 //!
 
-use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
+use super::{Join, Map, Reduce, Relation, Set, Table, Literal, Variant as _};
 use crate::display::Dot;
 use crate::namer;
 use crate::{
@@ -274,6 +274,17 @@ impl Set {
     }
 }
 
+/* Literal
+ */
+
+ impl Literal {
+    /// Rename a Literal
+    pub fn with_name(mut self, name: String) -> Literal {
+        self.name = name;
+        self
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Path<'a>(pub Vec<Step<'a>>);
 
@@ -387,6 +398,7 @@ impl Relation {
             Relation::Reduce(r) => r.with_name(name).into(),
             Relation::Join(j) => j.with_name(name).into(),
             Relation::Set(s) => s.with_name(name).into(),
+            Relation::Literal(l) => l.with_name(name).into(),
         }
     }
     /// Add a field that derives from existing fields

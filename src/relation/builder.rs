@@ -2,12 +2,12 @@ use std::{hash::Hash, rc::Rc};
 
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Variant,
+    Literal, SetOperator, SetQuantifier, Table, Variant,
 };
 use crate::{
     ast,
     builder::{Ready, With, WithIterator},
-    data_type::Integer,
+    data_type::{Value, Integer},
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
@@ -974,6 +974,50 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
     }
 }
 
+/*
+Literal builder
+ */
+
+/// A literal builder
+#[derive(Debug, Default)]
+pub struct LiteralBuilder {
+    /// The name
+    name: Option<String>,
+    /// The Value
+    value: Option<Value>
+}
+
+impl LiteralBuilder {
+    pub fn new() -> Self {
+        LiteralBuilder::default()
+    }
+
+    pub fn name<S: Into<String>>(mut self, name: S) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub fn value<V: Into<Value>>(mut self, value: V) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    pub fn value_iter<L: IntoIterator<Item = V>, V: Into<Value>>(mut self, values: L) -> Self {
+        self.value = Some(Value::list(values.into_iter().map(|v| v.into())));
+        self
+    }
+}
+
+impl Ready<Literal> for LiteralBuilder {
+    type Error = Error;
+
+    fn try_build(self) -> Result<Literal> {
+        let name = self.name.unwrap_or_else(|| namer::new_name("literal"));
+        let value = self.value.unwrap_or_else(|| Value::none());
+        Ok(Literal::new(name, value))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1188,5 +1232,43 @@ mod tests {
                 Expr::lt(Expr::col("a"), Expr::val(0.9))
             )
         }
+    }
+
+    #[test]
+    fn test_literal() {
+        // empty
+        let literal = Relation::literal()
+            .build();
+        assert_eq!(
+            Literal::new("literal_0".to_string(), Value::none()),
+            literal
+        );
+
+        // float
+        let literal = Relation::literal()
+            .name("MyLiteral")
+            .value(5.)
+            .build();
+        assert_eq!(
+            Literal::new("MyLiteral".to_string(), Value::float(5.)),
+            literal
+        );
+
+        // list of float
+        let literal = Relation::literal()
+            .name("MyLiteral")
+            .value_iter([1., 3., 5.])
+            .build();
+        assert_eq!(
+            Literal::new("MyLiteral".to_string(), Value::list([1.0.into(), 3.0.into(), 5.0.into()])),
+            literal
+        );
+
+        // list of float
+        let literal: Relation = Relation::literal()
+            .name("MyLiteral")
+            .value_iter([1., 3., 5.])
+            .build();
+        println!("{}", literal);
     }
 }

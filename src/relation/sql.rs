@@ -1,6 +1,6 @@
 //! Methods to convert Relations to ast::Query
 use super::{
-    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
+    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set, Literal,
     SetOperator, SetQuantifier, Table, Variant as _, Visitor,
 };
 use crate::{
@@ -382,6 +382,21 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             Vec::new(),
             None,
         )
+    }
+
+    fn literal(&self, literal: &'a Literal) -> ast::Query {
+        // query(
+        //     Vec::new(),
+        //     vec![ast::SelectItem::Wildcard(
+        //         ast::WildcardAdditionalOptions::default(),
+        //     )],
+        //     table_with_joins(table.name().into(), Vec::new()),
+        //     None,
+        //     Vec::new(),
+        //     Vec::new(),
+        //     None,
+        // )
+        todo!()
     }
 }
 

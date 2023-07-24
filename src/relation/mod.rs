@@ -15,7 +15,7 @@ use std::{
     cmp, error, fmt, hash,
     ops::{Index, RangeBounds},
     rc::Rc,
-    result, intrinsics::mir::Field,
+    result,
 };
 
 use colored::Colorize;
@@ -41,6 +41,8 @@ pub use builder::{
 };
 pub use field::Field;
 pub use schema::Schema;
+
+use self::builder::LiteralBuilder;
 
 // Error management
 
@@ -969,8 +971,8 @@ impl Variant for Set {
 pub struct Literal {
     /// The name of the output
     pub name: String,
-    /// The values
-    pub values: Vec<Value>,
+    /// The value
+    pub value: Value,
     /// The schema description of the output
     pub schema: Schema,
     /// The size of the Set
@@ -980,59 +982,49 @@ pub struct Literal {
 impl Literal {
     pub fn new(
         name: String,
-        values: Vec<Value>,
+        value: Value,
     ) -> Self {
-        let schema = Literal::schema(name, &values);
-        let size = values.len();
+        let schema = Literal::schema(&name, &value);
+        let size = Integer::from(value.size());
         Literal {
             name,
-            values,
+            value,
             schema,
-            size,
+            size: size.into(),
         }
     }
 
     /// Compute the schema of the Literal i.e. the vec of Values.
     /// We support only values of the same type.
     fn schema(
-        name: String,
-        values: Vec<Value>,
+        name: &String,
+        value: &Value,
     ) -> Schema {
-        let datatype = values[0].data_type();
-        assert!(values.iter().all(|v| v.has_data_type(&datatype)));
-        Schema { fields: vec![Field::new(name, datatype, None)] }
+        Schema::new(vec![Field::new(name.to_string(), value.data_type(), None)])
     }
 
-    // pub fn builder() -> LiteralBuilder<WithoutInput, WithoutInput> {
-    //     SetBuilder::new()
-    // }
+    pub fn builder() -> LiteralBuilder {
+        LiteralBuilder::new()
+    }
 }
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let operator = match self.quantifier {
-            SetQuantifier::All | SetQuantifier::Distinct => {
-                format!("{} {}", self.operator, self.quantifier)
-            }
-            SetQuantifier::None => format!("{}", self.operator),
-        };
         write!(
             f,
-            "{}\n{}\n{}",
-            self.left,
-            operator.bold().blue(),
-            self.right,
+            "[ {} ]",
+            self.value,
         )
     }
 }
 
-impl DataTyped for Set {
+impl DataTyped for Literal {
     fn data_type(&self) -> DataType {
         self.schema.data_type()
     }
 }
 
-impl Variant for Set {
+impl Variant for Literal {
     fn name(&self) -> &str {
         &self.name
     }
@@ -1046,7 +1038,7 @@ impl Variant for Set {
     }
 
     fn inputs(&self) -> Vec<&Relation> {
-        vec![&self.left, &self.right]
+        vec![]
     }
 }
 // The Relation
@@ -1072,6 +1064,7 @@ impl Relation {
             Relation::Reduce(reduce) => vec![reduce.input.as_ref()],
             Relation::Join(join) => vec![join.left.as_ref(), join.right.as_ref()],
             Relation::Set(set) => vec![set.left.as_ref(), set.right.as_ref()],
+            Relation::Literal(_) => vec![]
         }
     }
 
@@ -1112,6 +1105,11 @@ impl Relation {
     pub fn set() -> SetBuilder<WithoutInput, WithoutInput> {
         Builder::set()
     }
+
+    /// Build a literal
+    pub fn literal() -> LiteralBuilder {
+        Builder::literal()
+    }
 }
 
 // Implements Acceptor, Visitor and derive an iterator and a few other Visitor driven functions
@@ -1142,6 +1140,7 @@ pub trait Visitor<'a, T: Clone> {
     fn reduce(&self, reduce: &'a Reduce, input: T) -> T;
     fn join(&self, join: &'a Join, left: T, right: T) -> T;
     fn set(&self, set: &'a Set, left: T, right: T) -> T;
+    fn literal(&self, literal: &'a Literal) -> T;
 }
 
 /// Implement a specific visitor to dispatch the dependencies more easily
@@ -1163,6 +1162,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Relation, T> for V {
                 dependencies.get(&set.left).clone(),
                 dependencies.get(&set.right).clone(),
             ),
+            Relation::Literal(literal) => self.literal(literal),
         }
     }
 }
@@ -1276,7 +1276,7 @@ macro_rules! impl_traits {
     }
 }
 
-impl_traits!(Table, Map, Reduce, Join, Set);
+impl_traits!(Table, Map, Reduce, Join, Set, Literal);
 
 // A Relation builder
 
@@ -1301,6 +1301,10 @@ impl Builder {
 
     pub fn set() -> SetBuilder<WithoutInput, WithoutInput> {
         Set::builder()
+    }
+
+    pub fn literal() -> LiteralBuilder {
+        Literal::builder()
     }
 }
 
@@ -1344,6 +1348,14 @@ impl Ready<Relation> for SetBuilder<WithInput, WithInput> {
     }
 }
 
+impl Ready<Relation> for LiteralBuilder {
+    type Error = Error;
+
+    fn try_build(self) -> Result<Relation> {
+        Ok(Ready::<Literal>::try_build(self)?.into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{schema::Schema, *};
@@ -1361,6 +1373,13 @@ mod tests {
         .collect();
         let table = Table::from_schema(schema);
         println!("{}: {}", table, table.data_type());
+    }
+
+    #[test]
+    fn test_literal() {
+        let value = Value::from(1.0);
+        let literal = Literal::new("my_float".to_string(), value);
+        println!("{}: {}", literal, literal.data_type());
     }
 
     #[test]

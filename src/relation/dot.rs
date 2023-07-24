@@ -120,6 +120,17 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
                 .collect(),
         )
     }
+
+    fn literal(&self, literal: &'a super::Literal) -> FieldDataTypes {
+        FieldDataTypes(
+            literal
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| (field.clone(), Expr::col(field.name())))
+                .collect(),
+        )
+    }
 }
 
 /// Clip a str
@@ -251,6 +262,12 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 set.size(),
                 &node.1
             ),
+            Relation::Literal(literal) => format!(
+                "<b>{} size ∈ {}</b><br/>{}",
+                literal.name().to_uppercase(),
+                literal.size(),
+                literal.value,
+            ),
         })
     }
 
@@ -261,6 +278,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Reduce(_) => colors::DARK_GREEN,
             Relation::Join(_) => colors::LIGHT_RED,
             Relation::Set(_) => colors::LIGHTER_GREEN,
+            Relation::Literal(_) => colors::MEDIUM_GREEN,
         }))
     }
 }
@@ -290,6 +308,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
                     Edge(relation, &set.left, t.clone()),
                     Edge(relation, &set.right, t),
                 ],
+                Relation::Literal(_) => Vec::new(),
             })
             .collect()
     }
@@ -315,7 +334,7 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::DataType,
+        data_type::{Value, DataType},
         display::Dot,
         expr::Expr,
         relation::{schema::Schema, Relation},
@@ -448,5 +467,20 @@ mod tests {
             .with(Expr::sum(Expr::col("b")))
             .build();
         reduce.display_dot();
+    }
+
+    #[test]
+    fn test_display_literal() {
+        let literal: Relation = Relation::literal()
+            .name("Float")
+            .value(5.)
+            .build();
+        literal.display_dot();
+
+        let literal: Relation = Relation::literal()
+            .name("List_of_floats")
+            .value_iter(vec![Value::float(10.), Value::float(4.0)])
+            .build();
+        literal.display_dot();
     }
 }
