@@ -739,14 +739,6 @@ impl Optional {
     pub fn some(value: Value) -> Optional {
         Optional::new(Some(Rc::new(value)))
     }
-
-    pub fn value(&self) -> Option<&Value> {
-        if let Some(v) = &self.0 {
-            Some(v.as_ref())
-        } else {
-            None
-        }
-    }
 }
 
 impl DataTyped for Optional {
@@ -1298,10 +1290,10 @@ impl Value {
             | Value::Id(_) => 1,
             Value::List(l) => l.to_vec().len() as i64,
             Value::Set(_) => todo!(),
-            Value::Array(a) => todo!(),
+            Value::Array(_) => todo!(),
             Value::Optional(opt) => {
-                if let Some(v) = opt.value() {
-                    v.size()
+                if let Some(v) = &opt.0 {
+                    v.as_ref().size()
                 } else {
                     0
                 }
