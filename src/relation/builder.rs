@@ -1,13 +1,13 @@
 use std::{hash::Hash, rc::Rc};
 
 use super::{
-    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    Literal, SetOperator, SetQuantifier, Table, Variant,
+    Error, Join, JoinConstraint, JoinOperator, Literal, Map, OrderBy, Reduce, Relation, Result,
+    Schema, Set, SetOperator, SetQuantifier, Table, Variant,
 };
 use crate::{
     ast,
     builder::{Ready, With, WithIterator},
-    data_type::{Value, Integer},
+    data_type::{Integer, Value},
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
@@ -984,7 +984,7 @@ pub struct LiteralBuilder {
     /// The name
     name: Option<String>,
     /// The Value
-    value: Option<Value>
+    value: Option<Value>,
 }
 
 impl LiteralBuilder {
@@ -1237,18 +1237,14 @@ mod tests {
     #[test]
     fn test_literal() {
         // empty
-        let literal = Relation::literal()
-            .build();
+        let literal = Relation::literal().build();
         assert_eq!(
             Literal::new("literal_0".to_string(), Value::none()),
             literal
         );
 
         // float
-        let literal = Relation::literal()
-            .name("MyLiteral")
-            .value(5.)
-            .build();
+        let literal = Relation::literal().name("MyLiteral").value(5.).build();
         assert_eq!(
             Literal::new("MyLiteral".to_string(), Value::float(5.)),
             literal
@@ -1260,7 +1256,10 @@ mod tests {
             .value_iter([1., 3., 5.])
             .build();
         assert_eq!(
-            Literal::new("MyLiteral".to_string(), Value::list([1.0.into(), 3.0.into(), 5.0.into()])),
+            Literal::new(
+                "MyLiteral".to_string(),
+                Value::list([1.0.into(), 3.0.into(), 5.0.into()])
+            ),
             literal
         );
 

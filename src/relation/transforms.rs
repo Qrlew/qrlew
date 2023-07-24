@@ -1,7 +1,7 @@
 //! A few transforms for relations
 //!
 
-use super::{Join, Map, Reduce, Relation, Set, Table, Literal, Variant as _};
+use super::{Join, Literal, Map, Reduce, Relation, Set, Table, Variant as _};
 use crate::display::Dot;
 use crate::namer;
 use crate::{
@@ -277,7 +277,7 @@ impl Set {
 /* Literal
  */
 
- impl Literal {
+impl Literal {
     /// Rename a Literal
     pub fn with_name(mut self, name: String) -> Literal {
         self.name = name;

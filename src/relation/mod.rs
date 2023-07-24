@@ -27,8 +27,7 @@ use crate::{
         self,
         function::Function,
         intervals::{Bound, Intervals},
-        DataType, DataTyped, Integer, Struct, Variant as _,
-        Value,
+        DataType, DataTyped, Integer, Struct, Value, Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
     hierarchy::Hierarchy,
@@ -976,14 +975,11 @@ pub struct Literal {
     /// The schema description of the output
     pub schema: Schema,
     /// The size of the Set
-    pub size: Integer
+    pub size: Integer,
 }
 
 impl Literal {
-    pub fn new(
-        name: String,
-        value: Value,
-    ) -> Self {
+    pub fn new(name: String, value: Value) -> Self {
         let schema = Literal::schema(&name, &value);
         let size = Integer::from(value.size());
         Literal {
@@ -996,10 +992,7 @@ impl Literal {
 
     /// Compute the schema of the Literal i.e. the vec of Values.
     /// We support only values of the same type.
-    fn schema(
-        name: &String,
-        value: &Value,
-    ) -> Schema {
+    fn schema(name: &String, value: &Value) -> Schema {
         Schema::new(vec![Field::new(name.to_string(), value.data_type(), None)])
     }
 
@@ -1010,11 +1003,7 @@ impl Literal {
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "[ {} ]",
-            self.value,
-        )
+        write!(f, "[ {} ]", self.value,)
     }
 }
 
@@ -1053,7 +1042,7 @@ pub enum Relation {
     Reduce(Reduce),
     Join(Join),
     Set(Set),
-    Literal(Literal)
+    Literal(Literal),
 }
 
 impl Relation {
@@ -1064,7 +1053,7 @@ impl Relation {
             Relation::Reduce(reduce) => vec![reduce.input.as_ref()],
             Relation::Join(join) => vec![join.left.as_ref(), join.right.as_ref()],
             Relation::Set(set) => vec![set.left.as_ref(), set.right.as_ref()],
-            Relation::Literal(_) => vec![]
+            Relation::Literal(_) => vec![],
         }
     }
 

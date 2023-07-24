@@ -334,7 +334,7 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::{Value, DataType},
+        data_type::{DataType, Value},
         display::Dot,
         expr::Expr,
         relation::{schema::Schema, Relation},
@@ -471,10 +471,7 @@ mod tests {
 
     #[test]
     fn test_display_literal() {
-        let literal: Relation = Relation::literal()
-            .name("Float")
-            .value(5.)
-            .build();
+        let literal: Relation = Relation::literal().name("Float").value(5.).build();
         literal.display_dot();
 
         let literal: Relation = Relation::literal()

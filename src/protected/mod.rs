@@ -8,7 +8,7 @@ use crate::{
     display::Dot,
     expr::{identifier::Identifier, Expr},
     hierarchy::{Hierarchy, Path},
-    relation::{Join, Map, Reduce, Relation, Set, Table, Literal, Variant as _, Visitor},
+    relation::{Join, Literal, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
     visitor::Acceptor,
 };
 use std::{error, fmt, rc::Rc, result};
