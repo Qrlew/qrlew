@@ -15,7 +15,7 @@ use std::{
     cmp, error, fmt, hash,
     ops::{Index, RangeBounds},
     rc::Rc,
-    result,
+    result, intrinsics::mir::Field,
 };
 
 use colored::Colorize;
@@ -28,6 +28,7 @@ use crate::{
         function::Function,
         intervals::{Bound, Intervals},
         DataType, DataTyped, Integer, Struct, Variant as _,
+        Value,
     },
     expr::{self, Expr, Identifier, Split},
     hierarchy::Hierarchy,
@@ -963,7 +964,91 @@ impl Variant for Set {
         vec![&self.left, &self.right]
     }
 }
+/// Literal
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct Literal {
+    /// The name of the output
+    pub name: String,
+    /// The values
+    pub values: Vec<Value>,
+    /// The schema description of the output
+    pub schema: Schema,
+    /// The size of the Set
+    pub size: Integer
+}
 
+impl Literal {
+    pub fn new(
+        name: String,
+        values: Vec<Value>,
+    ) -> Self {
+        let schema = Literal::schema(name, &values);
+        let size = values.len();
+        Literal {
+            name,
+            values,
+            schema,
+            size,
+        }
+    }
+
+    /// Compute the schema of the Literal i.e. the vec of Values.
+    /// We support only values of the same type.
+    fn schema(
+        name: String,
+        values: Vec<Value>,
+    ) -> Schema {
+        let datatype = values[0].data_type();
+        assert!(values.iter().all(|v| v.has_data_type(&datatype)));
+        Schema { fields: vec![Field::new(name, datatype, None)] }
+    }
+
+    // pub fn builder() -> LiteralBuilder<WithoutInput, WithoutInput> {
+    //     SetBuilder::new()
+    // }
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let operator = match self.quantifier {
+            SetQuantifier::All | SetQuantifier::Distinct => {
+                format!("{} {}", self.operator, self.quantifier)
+            }
+            SetQuantifier::None => format!("{}", self.operator),
+        };
+        write!(
+            f,
+            "{}\n{}\n{}",
+            self.left,
+            operator.bold().blue(),
+            self.right,
+        )
+    }
+}
+
+impl DataTyped for Set {
+    fn data_type(&self) -> DataType {
+        self.schema.data_type()
+    }
+}
+
+impl Variant for Set {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    fn size(&self) -> &Integer {
+        &self.size
+    }
+
+    fn inputs(&self) -> Vec<&Relation> {
+        vec![&self.left, &self.right]
+    }
+}
 // The Relation
 
 /// A Relation enum
@@ -976,6 +1061,7 @@ pub enum Relation {
     Reduce(Reduce),
     Join(Join),
     Set(Set),
+    Literal(Literal)
 }
 
 impl Relation {
