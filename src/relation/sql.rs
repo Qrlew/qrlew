@@ -415,7 +415,15 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         value: values.name.to_string(),
                         quote_style: None,
                     },
-                    columns: Vec::new(),
+                    columns: vec![ast::Ident {
+                        value: values
+                            .schema()
+                            .field_from_index(0)
+                            .unwrap()
+                            .name()
+                            .to_string(),
+                        quote_style: None,
+                    }],
                 }),
             },
             joins: vec![],
@@ -643,7 +651,7 @@ mod tests {
         let query = ast::Query::from(&values);
         assert_eq!(
             query.to_string(),
-            "SELECT * FROM (VALUES (3), (4)) AS my_values".to_string()
+            "SELECT * FROM (VALUES (3), (4)) AS my_values (values)".to_string()
         );
     }
 }

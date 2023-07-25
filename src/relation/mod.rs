@@ -980,7 +980,7 @@ pub struct Values {
 
 impl Values {
     pub fn new(name: String, values: Vec<Value>) -> Self {
-        let schema = Values::schema_exprs(&name, &values);
+        let schema = Values::schema_exprs(&values);
         let size = Integer::from(values.len() as i64);
         Values {
             name,
@@ -991,14 +991,14 @@ impl Values {
     }
 
     /// Compute the schema of the Values
-    fn schema_exprs(name: &String, values: &Vec<Value>) -> Schema {
+    fn schema_exprs(values: &Vec<Value>) -> Schema {
         let datatype = if let DataType::List(list) = Value::list(values.iter().cloned()).data_type()
         {
             list.data_type().clone()
         } else {
             panic!()
         };
-        Schema::new(vec![Field::new(name.to_string(), datatype, None)])
+        Schema::new(vec![Field::new("values".to_string(), datatype, None)])
     }
 
     pub fn builder() -> ValuesBuilder {

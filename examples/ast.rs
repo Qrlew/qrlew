@@ -117,7 +117,7 @@ fn main() -> Result<(), &'static str> {
     print_ast("SELECT (a+b)*(c+d) FROM table_1")?;
 
     // Print an AST with Values
-    print_ast("SELECT * FROM (VALUES (1), (2), (3)) AS t1")?;
+    print_ast("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (possible_values);")?;
 
     // Print an AST with Values
     print_ast("(VALUES (1), (2), (3)) AS t1")?;
