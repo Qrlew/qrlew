@@ -7,7 +7,7 @@ use super::{
 use crate::{
     ast,
     builder::{Ready, With, WithIterator},
-    data_type::{Integer, Value},
+    data_type::{intervals::Values, Integer, Value},
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
@@ -984,7 +984,7 @@ pub struct LiteralBuilder {
     /// The name
     name: Option<String>,
     /// The Value
-    value: Option<Value>,
+    values: Vec<Value>,
 }
 
 impl LiteralBuilder {
@@ -997,13 +997,8 @@ impl LiteralBuilder {
         self
     }
 
-    pub fn value<V: Into<Value>>(mut self, value: V) -> Self {
-        self.value = Some(value.into());
-        self
-    }
-
-    pub fn value_iter<L: IntoIterator<Item = V>, V: Into<Value>>(mut self, values: L) -> Self {
-        self.value = Some(Value::list(values.into_iter().map(|v| v.into())));
+    pub fn values<L: IntoIterator<Item = V>, V: Into<Value>>(mut self, values: L) -> Self {
+        self.values = values.into_iter().map(|v| v.into()).collect();
         self
     }
 }
@@ -1013,15 +1008,15 @@ impl Ready<Literal> for LiteralBuilder {
 
     fn try_build(self) -> Result<Literal> {
         let name = self.name.unwrap_or_else(|| namer::new_name("literal"));
-        let value = self.value.unwrap_or_else(|| Value::none());
-        Ok(Literal::new(name, value))
+        let values = self.values;
+        Ok(Literal::new(name, values))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{display::Dot, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType};
 
     #[test]
     fn test_map_building() {
@@ -1238,27 +1233,27 @@ mod tests {
     fn test_literal() {
         // empty
         let literal = Relation::literal().build();
-        assert_eq!(
-            Literal::new("literal_0".to_string(), Value::none()),
-            literal
-        );
+        assert_eq!(Literal::new("literal_0".to_string(), vec![]), literal);
 
         // float
-        let literal = Relation::literal().name("MyLiteral").value(5.).build();
+        let literal = Relation::literal()
+            .name("MyLiteral")
+            .values(vec![5.])
+            .build();
         assert_eq!(
-            Literal::new("MyLiteral".to_string(), Value::float(5.)),
+            Literal::new("MyLiteral".to_string(), vec![Value::float(5.)]),
             literal
         );
 
         // list of float
         let literal = Relation::literal()
             .name("MyLiteral")
-            .value_iter([1., 3., 5.])
+            .values([1., 3., 5.])
             .build();
         assert_eq!(
             Literal::new(
                 "MyLiteral".to_string(),
-                Value::list([1.0.into(), 3.0.into(), 5.0.into()])
+                vec![1.0.into(), 3.0.into(), 5.0.into()]
             ),
             literal
         );
@@ -1266,8 +1261,13 @@ mod tests {
         // list of float
         let literal: Relation = Relation::literal()
             .name("MyLiteral")
-            .value_iter([1., 3., 5.])
+            .values([
+                Value::from(1.),
+                Value::from(6),
+                Value::from("a".to_string()),
+            ])
             .build();
         println!("{}", literal);
+        println!("{}", literal.data_type());
     }
 }

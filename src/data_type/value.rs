@@ -1271,36 +1271,6 @@ impl Value {
     pub fn function<F: function::Function + 'static, T: Into<Rc<F>>>(f: T) -> Value {
         Value::Function(Function(f.into()))
     }
-
-    pub fn size(&self) -> i64 {
-        match self {
-            Value::Unit(_)
-            | Value::Boolean(_)
-            | Value::Integer(_)
-            | Value::Enum(_)
-            | Value::Float(_)
-            | Value::Text(_)
-            | Value::Bytes(_)
-            | Value::Struct(_)
-            | Value::Union(_)
-            | Value::Date(_)
-            | Value::Time(_)
-            | Value::DateTime(_)
-            | Value::Duration(_)
-            | Value::Id(_) => 1,
-            Value::List(l) => l.to_vec().len() as i64,
-            Value::Set(_) => todo!(),
-            Value::Array(_) => todo!(),
-            Value::Optional(opt) => {
-                if let Some(v) = &opt.0 {
-                    v.as_ref().size()
-                } else {
-                    0
-                }
-            }
-            Value::Function(_) => todo!(),
-        }
-    }
 }
 
 macro_rules! impl_conversions {

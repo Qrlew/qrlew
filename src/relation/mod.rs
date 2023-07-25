@@ -970,8 +970,8 @@ impl Variant for Set {
 pub struct Literal {
     /// The name of the output
     pub name: String,
-    /// The value
-    pub value: Value,
+    /// The values
+    pub values: Vec<Value>,
     /// The schema description of the output
     pub schema: Schema,
     /// The size of the Set
@@ -979,12 +979,12 @@ pub struct Literal {
 }
 
 impl Literal {
-    pub fn new(name: String, value: Value) -> Self {
-        let schema = Literal::schema(&name, &value);
-        let size = Integer::from(value.size());
+    pub fn new(name: String, values: Vec<Value>) -> Self {
+        let schema = Literal::schema_exprs(&name, &values);
+        let size = Integer::from(values.len() as i64);
         Literal {
             name,
-            value,
+            values,
             schema,
             size: size.into(),
         }
@@ -992,8 +992,9 @@ impl Literal {
 
     /// Compute the schema of the Literal i.e. the vec of Values.
     /// We support only values of the same type.
-    fn schema(name: &String, value: &Value) -> Schema {
-        Schema::new(vec![Field::new(name.to_string(), value.data_type(), None)])
+    fn schema_exprs(name: &String, values: &Vec<Value>) -> Schema {
+        let datatype = Value::list(values.iter().cloned()).data_type();
+        Schema::new(vec![Field::new(name.to_string(), datatype, None)])
     }
 
     pub fn builder() -> LiteralBuilder {
@@ -1003,7 +1004,11 @@ impl Literal {
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[ {} ]", self.value)
+        write!(
+            f,
+            "[ {} ]",
+            self.values.iter().map(|v| v.to_string()).join(", ")
+        )
     }
 }
 
@@ -1366,8 +1371,8 @@ mod tests {
 
     #[test]
     fn test_literal() {
-        let value = Value::from(1.0);
-        let literal = Literal::new("my_float".to_string(), value);
+        let values = vec![Value::from(1.0), Value::from(2.0), Value::from(10)];
+        let literal = Literal::new("values".to_string(), values);
         println!("{}: {}", literal, literal.data_type());
     }
 

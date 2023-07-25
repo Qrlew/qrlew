@@ -263,10 +263,10 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 &node.1
             ),
             Relation::Literal(literal) => format!(
-                "<b>{} size ∈ {}</b><br/>{}",
+                "<b>{} size ∈ {}</b><br/>[{}]",
                 literal.name().to_uppercase(),
                 literal.size(),
-                literal.value,
+                literal.values.iter().map(|v| v.to_string()).join(", "),
             ),
         })
     }
@@ -471,12 +471,12 @@ mod tests {
 
     #[test]
     fn test_display_literal() {
-        let literal: Relation = Relation::literal().name("Float").value(5.).build();
+        let literal: Relation = Relation::literal().name("Float").values(vec![5.]).build();
         literal.display_dot();
 
         let literal: Relation = Relation::literal()
             .name("List_of_floats")
-            .value_iter(vec![Value::float(10.), Value::float(4.0)])
+            .values(vec![Value::float(10.), Value::float(4.0)])
             .build();
         literal.display_dot();
     }
