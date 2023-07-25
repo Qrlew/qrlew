@@ -41,7 +41,7 @@ pub use builder::{
 pub use field::Field;
 pub use schema::Schema;
 
-use self::builder::LiteralBuilder;
+use self::builder::ValuesBuilder;
 
 // Error management
 
@@ -965,9 +965,9 @@ impl Variant for Set {
         vec![&self.left, &self.right]
     }
 }
-/// Literal
+/// Values
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct Literal {
+pub struct Values {
     /// The name of the output
     pub name: String,
     /// The values
@@ -978,11 +978,11 @@ pub struct Literal {
     pub size: Integer,
 }
 
-impl Literal {
+impl Values {
     pub fn new(name: String, values: Vec<Value>) -> Self {
-        let schema = Literal::schema_exprs(&name, &values);
+        let schema = Values::schema_exprs(&name, &values);
         let size = Integer::from(values.len() as i64);
-        Literal {
+        Values {
             name,
             values,
             schema,
@@ -990,19 +990,23 @@ impl Literal {
         }
     }
 
-    /// Compute the schema of the Literal i.e. the vec of Values.
-    /// We support only values of the same type.
+    /// Compute the schema of the Values
     fn schema_exprs(name: &String, values: &Vec<Value>) -> Schema {
-        let datatype = Value::list(values.iter().cloned()).data_type();
+        let datatype = if let DataType::List(list) = Value::list(values.iter().cloned()).data_type()
+        {
+            list.data_type().clone()
+        } else {
+            panic!()
+        };
         Schema::new(vec![Field::new(name.to_string(), datatype, None)])
     }
 
-    pub fn builder() -> LiteralBuilder {
-        LiteralBuilder::new()
+    pub fn builder() -> ValuesBuilder {
+        ValuesBuilder::new()
     }
 }
 
-impl fmt::Display for Literal {
+impl fmt::Display for Values {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1012,13 +1016,13 @@ impl fmt::Display for Literal {
     }
 }
 
-impl DataTyped for Literal {
+impl DataTyped for Values {
     fn data_type(&self) -> DataType {
         self.schema.data_type()
     }
 }
 
-impl Variant for Literal {
+impl Variant for Values {
     fn name(&self) -> &str {
         &self.name
     }
@@ -1047,7 +1051,7 @@ pub enum Relation {
     Reduce(Reduce),
     Join(Join),
     Set(Set),
-    Literal(Literal),
+    Values(Values),
 }
 
 impl Relation {
@@ -1058,7 +1062,7 @@ impl Relation {
             Relation::Reduce(reduce) => vec![reduce.input.as_ref()],
             Relation::Join(join) => vec![join.left.as_ref(), join.right.as_ref()],
             Relation::Set(set) => vec![set.left.as_ref(), set.right.as_ref()],
-            Relation::Literal(_) => vec![],
+            Relation::Values(_) => vec![],
         }
     }
 
@@ -1100,9 +1104,9 @@ impl Relation {
         Builder::set()
     }
 
-    /// Build a literal
-    pub fn literal() -> LiteralBuilder {
-        Builder::literal()
+    /// Build a values
+    pub fn values() -> ValuesBuilder {
+        Builder::values()
     }
 }
 
@@ -1134,7 +1138,7 @@ pub trait Visitor<'a, T: Clone> {
     fn reduce(&self, reduce: &'a Reduce, input: T) -> T;
     fn join(&self, join: &'a Join, left: T, right: T) -> T;
     fn set(&self, set: &'a Set, left: T, right: T) -> T;
-    fn literal(&self, literal: &'a Literal) -> T;
+    fn values(&self, values: &'a Values) -> T;
 }
 
 /// Implement a specific visitor to dispatch the dependencies more easily
@@ -1156,7 +1160,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Relation, T> for V {
                 dependencies.get(&set.left).clone(),
                 dependencies.get(&set.right).clone(),
             ),
-            Relation::Literal(literal) => self.literal(literal),
+            Relation::Values(values) => self.values(values),
         }
     }
 }
@@ -1270,7 +1274,7 @@ macro_rules! impl_traits {
     }
 }
 
-impl_traits!(Table, Map, Reduce, Join, Set, Literal);
+impl_traits!(Table, Map, Reduce, Join, Set, Values);
 
 // A Relation builder
 
@@ -1297,8 +1301,8 @@ impl Builder {
         Set::builder()
     }
 
-    pub fn literal() -> LiteralBuilder {
-        Literal::builder()
+    pub fn values() -> ValuesBuilder {
+        Values::builder()
     }
 }
 
@@ -1342,11 +1346,11 @@ impl Ready<Relation> for SetBuilder<WithInput, WithInput> {
     }
 }
 
-impl Ready<Relation> for LiteralBuilder {
+impl Ready<Relation> for ValuesBuilder {
     type Error = Error;
 
     fn try_build(self) -> Result<Relation> {
-        Ok(Ready::<Literal>::try_build(self)?.into())
+        Ok(Ready::<Values>::try_build(self)?.into())
     }
 }
 
@@ -1370,10 +1374,18 @@ mod tests {
     }
 
     #[test]
-    fn test_literal() {
+    fn test_values() {
         let values = vec![Value::from(1.0), Value::from(2.0), Value::from(10)];
-        let literal = Literal::new("values".to_string(), values);
-        println!("{}: {}", literal, literal.data_type());
+        let values = Values::new("values".to_string(), values);
+        assert_eq!(
+            values.data_type(),
+            DataType::structured(vec![(
+                "values",
+                DataType::from(data_type::Float::from_values(vec![1., 2., 10.]))
+            )])
+        );
+        assert_eq!(values.size(), &Integer::from(3 as i64));
+        println!("{}", values);
     }
 
     #[test]

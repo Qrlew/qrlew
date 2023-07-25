@@ -1,13 +1,13 @@
 use std::{hash::Hash, rc::Rc};
 
 use super::{
-    Error, Join, JoinConstraint, JoinOperator, Literal, Map, OrderBy, Reduce, Relation, Result,
-    Schema, Set, SetOperator, SetQuantifier, Table, Variant,
+    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
+    SetOperator, SetQuantifier, Table, Values, Variant,
 };
 use crate::{
     ast,
     builder::{Ready, With, WithIterator},
-    data_type::{intervals::Values, Integer, Value},
+    data_type::{Integer, Value},
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
@@ -975,21 +975,21 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
 }
 
 /*
-Literal builder
+Values builder
  */
 
-/// A literal builder
+/// A values builder
 #[derive(Debug, Default)]
-pub struct LiteralBuilder {
+pub struct ValuesBuilder {
     /// The name
     name: Option<String>,
     /// The Value
     values: Vec<Value>,
 }
 
-impl LiteralBuilder {
+impl ValuesBuilder {
     pub fn new() -> Self {
-        LiteralBuilder::default()
+        ValuesBuilder::default()
     }
 
     pub fn name<S: Into<String>>(mut self, name: S) -> Self {
@@ -1003,13 +1003,13 @@ impl LiteralBuilder {
     }
 }
 
-impl Ready<Literal> for LiteralBuilder {
+impl Ready<Values> for ValuesBuilder {
     type Error = Error;
 
-    fn try_build(self) -> Result<Literal> {
-        let name = self.name.unwrap_or_else(|| namer::new_name("literal"));
+    fn try_build(self) -> Result<Values> {
+        let name = self.name.unwrap_or_else(|| namer::new_name("values"));
         let values = self.values;
-        Ok(Literal::new(name, values))
+        Ok(Values::new(name, values))
     }
 }
 
@@ -1230,44 +1230,41 @@ mod tests {
     }
 
     #[test]
-    fn test_literal() {
+    fn test_values() {
         // empty
-        let literal = Relation::literal().build();
-        assert_eq!(Literal::new("literal_0".to_string(), vec![]), literal);
+        let values = Relation::values().build();
+        assert_eq!(Values::new("values_0".to_string(), vec![]), values);
 
         // float
-        let literal = Relation::literal()
-            .name("MyLiteral")
-            .values(vec![5.])
-            .build();
+        let values = Relation::values().name("MyValues").values(vec![5.]).build();
         assert_eq!(
-            Literal::new("MyLiteral".to_string(), vec![Value::float(5.)]),
-            literal
+            Values::new("MyValues".to_string(), vec![Value::float(5.)]),
+            values
         );
 
         // list of float
-        let literal = Relation::literal()
-            .name("MyLiteral")
+        let values = Relation::values()
+            .name("MyValues")
             .values([1., 3., 5.])
             .build();
         assert_eq!(
-            Literal::new(
-                "MyLiteral".to_string(),
+            Values::new(
+                "MyValues".to_string(),
                 vec![1.0.into(), 3.0.into(), 5.0.into()]
             ),
-            literal
+            values
         );
 
         // list of float
-        let literal: Relation = Relation::literal()
-            .name("MyLiteral")
+        let values: Relation = Relation::values()
+            .name("MyValues")
             .values([
                 Value::from(1.),
                 Value::from(6),
                 Value::from("a".to_string()),
             ])
             .build();
-        println!("{}", literal);
-        println!("{}", literal.data_type());
+        println!("{}", values);
+        println!("{}", values.data_type());
     }
 }

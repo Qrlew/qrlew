@@ -8,7 +8,7 @@ use crate::{
     display::Dot,
     expr::{identifier::Identifier, Expr},
     hierarchy::{Hierarchy, Path},
-    relation::{Join, Literal, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
+    relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
 use std::{error, fmt, rc::Rc, result};
@@ -248,8 +248,8 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         Ok(builder.build())
     }
 
-    fn literal(&self, literal: &'a Literal) -> Result<Relation> {
-        Ok(Relation::Literal(literal.clone()))
+    fn values(&self, values: &'a Values) -> Result<Relation> {
+        Ok(Relation::Values(values.clone()))
     }
 }
 

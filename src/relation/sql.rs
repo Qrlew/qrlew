@@ -1,12 +1,12 @@
 //! Methods to convert Relations to ast::Query
 use super::{
-    Error, Join, JoinConstraint, JoinOperator, Literal, Map, OrderBy, Reduce, Relation, Result,
-    Set, SetOperator, SetQuantifier, Table, Variant as _, Visitor,
+    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
+    SetOperator, SetQuantifier, Table, Values, Variant as _, Visitor,
 };
 use crate::{
     ast,
     data_type::{DataType, DataTyped},
-    expr::identifier::Identifier,
+    expr::{identifier::Identifier, Expr},
     visitor::Acceptor,
 };
 use std::{collections::HashSet, convert::TryFrom, iter::Iterator};
@@ -121,6 +121,21 @@ fn query(
         offset: None,
         fetch: None,
         locks: Vec::new(),
+    }
+}
+
+fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
+    ast::Query {
+        with: None,
+        body: Box::new(ast::SetExpr::Values(ast::Values {
+            explicit_row: false,
+            rows,
+        })),
+        order_by: vec![],
+        limit: None,
+        offset: None,
+        fetch: None,
+        locks: vec![],
     }
 }
 
@@ -384,19 +399,28 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         )
     }
 
-    fn literal(&self, literal: &'a Literal) -> ast::Query {
-        // query(
-        //     Vec::new(),
-        //     vec![ast::SelectItem::Wildcard(
-        //         ast::WildcardAdditionalOptions::default(),
-        //     )],
-        //     table_with_joins(table.name().into(), Vec::new()),
-        //     None,
-        //     Vec::new(),
-        //     Vec::new(),
-        //     None,
-        // )
-        todo!()
+    fn values(&self, values: &'a Values) -> ast::Query {
+        let rows = values
+            .values
+            .iter()
+            .cloned()
+            .map(|v| vec![ast::Expr::from(&Expr::Value(v))])
+            .collect();
+        let from = ast::TableWithJoins {
+            relation: ast::TableFactor::Derived {
+                lateral: false,
+                subquery: Box::new(values_query(rows)),
+                alias: Some(ast::TableAlias {
+                    name: ast::Ident {
+                        value: values.name.to_string(),
+                        quote_style: None,
+                    },
+                    columns: Vec::new(),
+                }),
+            },
+            joins: vec![],
+        };
+        query(Vec::new(), all(), from, None, Vec::new(), Vec::new(), None)
     }
 }
 
@@ -491,9 +515,8 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::DataType,
+        data_type::{DataType, Value},
         display::Dot,
-        expr::Expr,
         namer,
         relation::schema::Schema,
     };
@@ -608,5 +631,19 @@ mod tests {
 
         let query = ast::Query::from(&join);
         println!("query = {}", query.to_string());
+    }
+
+    #[test]
+    fn test_display_values() {
+        let values: Relation = Relation::values()
+            .name("my_values")
+            .values([Value::from(3.), Value::from(4)])
+            .build();
+
+        let query = ast::Query::from(&values);
+        assert_eq!(
+            query.to_string(),
+            "SELECT * FROM (VALUES (3), (4)) AS my_values".to_string()
+        );
     }
 }
