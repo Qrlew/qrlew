@@ -21,23 +21,23 @@ fn build_ast() -> Result<(), &'static str> {
                         name: ObjectName(vec!["tab_1".into()]),
                         alias: None,
                         args: None,
-                        with_hints: Vec::new(),
+                        with_hints: vec![],
                     },
-                    joins: Vec::new(),
+                    joins: vec![],
                 },
                 TableWithJoins {
                     relation: TableFactor::Table {
                         name: ObjectName(vec!["tab_2".into()]),
                         alias: None,
                         args: None,
-                        with_hints: Vec::new(),
+                        with_hints: vec![],
                     },
                     joins: vec![Join {
                         relation: TableFactor::Table {
                             name: ObjectName(vec!["path".into(), "tab_3".into()]),
                             alias: None,
                             args: None,
-                            with_hints: Vec::new(),
+                            with_hints: vec![],
                         },
                         join_operator: JoinOperator::LeftOuter(JoinConstraint::Using(vec![
                             "a".into(),
@@ -47,21 +47,21 @@ fn build_ast() -> Result<(), &'static str> {
                     }],
                 },
             ],
-            lateral_views: Vec::new(),
+            lateral_views: vec![],
             selection: None,
-            group_by: Vec::new(),
-            cluster_by: Vec::new(),
-            distribute_by: Vec::new(),
-            sort_by: Vec::new(),
+            group_by: vec![],
+            cluster_by: vec![],
+            distribute_by: vec![],
+            sort_by: vec![],
             having: None,
             qualify: None,
-            named_window: Vec::new(),
+            named_window: vec![],
         }))),
-        order_by: Vec::new(),
+        order_by: vec![],
         limit: None,
         offset: None,
         fetch: None,
-        locks: Vec::new(),
+        locks: vec![],
     };
     println!("{}\n", query);
     // A CTE
@@ -115,6 +115,12 @@ fn main() -> Result<(), &'static str> {
 
     // Print an expression with nesting
     print_ast("SELECT (a+b)*(c+d) FROM table_1")?;
+
+    // Print an AST with Values
+    print_ast("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (possible_values);")?;
+
+    // Print an AST with Values
+    print_ast("(VALUES (1), (2), (3)) AS t1")?;
 
     Ok(())
 }

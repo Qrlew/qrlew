@@ -2,12 +2,12 @@ use std::{hash::Hash, rc::Rc};
 
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Variant,
+    SetOperator, SetQuantifier, Table, Values, Variant,
 };
 use crate::{
     ast,
     builder::{Ready, With, WithIterator},
-    data_type::Integer,
+    data_type::{Integer, Value},
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
@@ -974,10 +974,49 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
     }
 }
 
+/*
+Values builder
+ */
+
+/// A values builder
+#[derive(Debug, Default)]
+pub struct ValuesBuilder {
+    /// The name
+    name: Option<String>,
+    /// The Value
+    values: Vec<Value>,
+}
+
+impl ValuesBuilder {
+    pub fn new() -> Self {
+        ValuesBuilder::default()
+    }
+
+    pub fn name<S: Into<String>>(mut self, name: S) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub fn values<L: IntoIterator<Item = V>, V: Into<Value>>(mut self, values: L) -> Self {
+        self.values = values.into_iter().map(|v| v.into()).collect();
+        self
+    }
+}
+
+impl Ready<Values> for ValuesBuilder {
+    type Error = Error;
+
+    fn try_build(self) -> Result<Values> {
+        let name = self.name.unwrap_or_else(|| namer::new_name("values"));
+        let values = self.values;
+        Ok(Values::new(name, values))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{display::Dot, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType};
 
     #[test]
     fn test_map_building() {
@@ -1188,5 +1227,44 @@ mod tests {
                 Expr::lt(Expr::col("a"), Expr::val(0.9))
             )
         }
+    }
+
+    #[test]
+    fn test_values() {
+        // empty
+        let values = Relation::values().build();
+        assert_eq!(Values::new("values_0".to_string(), vec![]), values);
+
+        // float
+        let values = Relation::values().name("MyValues").values(vec![5.]).build();
+        assert_eq!(
+            Values::new("MyValues".to_string(), vec![Value::float(5.)]),
+            values
+        );
+
+        // list of float
+        let values = Relation::values()
+            .name("MyValues")
+            .values([1., 3., 5.])
+            .build();
+        assert_eq!(
+            Values::new(
+                "MyValues".to_string(),
+                vec![1.0.into(), 3.0.into(), 5.0.into()]
+            ),
+            values
+        );
+
+        // list of float
+        let values: Relation = Relation::values()
+            .name("MyValues")
+            .values([
+                Value::from(1.),
+                Value::from(6),
+                Value::from("a".to_string()),
+            ])
+            .build();
+        println!("{}", values);
+        println!("{}", values.data_type());
     }
 }

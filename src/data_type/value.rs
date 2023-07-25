@@ -443,7 +443,7 @@ impl Struct {
     }
     /// An empty struct (a neutral element for the cartesian product)
     pub fn unit() -> Struct {
-        Struct::new(Vec::new())
+        Struct::new(vec![])
     }
     /// Create from one field
     pub fn from_field<S: Into<String>, V: Into<Rc<Value>>>(s: S, v: V) -> Struct {

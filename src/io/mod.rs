@@ -107,7 +107,7 @@ pub trait Database: Sized {
     }
     /// Create an empty db
     fn empty(name: String) -> Result<Self> {
-        Self::new(name, Vec::new())
+        Self::new(name, vec![])
     }
     /// Create a table from a table object
     fn create_table(&mut self, table: &Table) -> Result<usize>;
