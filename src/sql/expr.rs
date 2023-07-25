@@ -365,7 +365,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                     todo!()
                 }
                 self.function(function, {
-                    let mut result = Vec::new();
+                    let mut result = vec![];
                     for function_arg in function.args.iter() {
                         result.push(match function_arg {
                             ast::FunctionArg::Named { name, arg } => FunctionArg::Named {

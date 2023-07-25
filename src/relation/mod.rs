@@ -13,7 +13,7 @@ pub mod transforms;
 
 use std::{
     cmp, error, fmt, hash,
-    ops::{Index, RangeBounds},
+    ops::Index,
     rc::Rc,
     result,
 };
@@ -26,7 +26,7 @@ use crate::{
     data_type::{
         self,
         function::Function,
-        intervals::{Bound, Intervals},
+        intervals::Bound,
         DataType, DataTyped, Integer, Struct, Value, Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
@@ -35,13 +35,11 @@ use crate::{
     visitor::{self, Acceptor, Dependencies, Visited},
 };
 pub use builder::{
-    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, WithInput, WithSchema,
+    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, ValuesBuilder, WithInput, WithSchema,
     WithoutInput, WithoutSchema,
 };
 pub use field::Field;
 pub use schema::Schema;
-
-use self::builder::ValuesBuilder;
 
 // Error management
 
@@ -200,7 +198,7 @@ impl Variant for Table {
     }
 
     fn inputs(&self) -> Vec<&Relation> {
-        Vec::new()
+        vec![]
     }
 }
 
@@ -980,7 +978,7 @@ pub struct Values {
 
 impl Values {
     pub fn new(name: String, values: Vec<Value>) -> Self {
-        let schema = Values::schema_exprs(&values);
+        let schema = Values::schema(&values);
         let size = Integer::from(values.len() as i64);
         Values {
             name,
@@ -991,14 +989,9 @@ impl Values {
     }
 
     /// Compute the schema of the Values
-    fn schema_exprs(values: &Vec<Value>) -> Schema {
-        let datatype = if let DataType::List(list) = Value::list(values.iter().cloned()).data_type()
-        {
-            list.data_type().clone()
-        } else {
-            panic!()
-        };
-        Schema::new(vec![Field::new("values".to_string(), datatype, None)])
+    fn schema(values: &Vec<Value>) -> Schema {
+        let list: data_type::List = Value::list(values.iter().cloned()).data_type().try_into().unwrap();
+        Schema::from_field(("values".to_string(), list.data_type().clone()))
     }
 
     pub fn builder() -> ValuesBuilder {
@@ -1058,7 +1051,7 @@ impl Relation {
     pub fn inputs(&self) -> Vec<&Relation> {
         match self {
             Relation::Map(map) => vec![map.input.as_ref()],
-            Relation::Table(_) => Vec::new(),
+            Relation::Table(_) => vec![],
             Relation::Reduce(reduce) => vec![reduce.input.as_ref()],
             Relation::Join(join) => vec![join.left.as_ref(), join.right.as_ref()],
             Relation::Set(set) => vec![set.left.as_ref(), set.right.as_ref()],

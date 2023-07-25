@@ -21,7 +21,7 @@ impl Encoder {
     }
 
     pub fn encode(&self, mut input: u64) -> String {
-        let mut result: Vec<char> = Vec::new();
+        let mut result: Vec<char> = vec![];
         for _ in 0..self.length {
             result.push(self.alphabet[input as usize % self.alphabet.len()]);
             input /= self.alphabet.len() as u64;

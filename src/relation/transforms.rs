@@ -338,7 +338,7 @@ impl<'a> FieldPath<'a> {
         referred_field: &'a str,
         referred_field_name: &'a str,
     ) -> Self {
-        let mut field_path = FieldPath(Vec::new());
+        let mut field_path = FieldPath(vec![]);
         let mut last_step: Option<Step> = None;
         // Fill the vec
         for step in path {

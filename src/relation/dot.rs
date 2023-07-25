@@ -297,7 +297,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
         self.0
             .iter_with(self.1.clone())
             .flat_map(|(relation, t)| match relation {
-                Relation::Table(_) => Vec::new(),
+                Relation::Table(_) => vec![],
                 Relation::Map(map) => vec![Edge(relation, &map.input, t)],
                 Relation::Reduce(reduce) => vec![Edge(relation, &reduce.input, t)],
                 Relation::Join(join) => vec![
@@ -308,7 +308,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
                     Edge(relation, &set.left, t.clone()),
                     Edge(relation, &set.right, t),
                 ],
-                Relation::Values(_) => Vec::new(),
+                Relation::Values(_) => vec![],
             })
             .collect()
     }

@@ -312,7 +312,7 @@ impl<'a> VisitedQueryRelations<'a> {
         from: Rc<Relation>,
     ) -> Result<Rc<Relation>> {
         // Collect all expressions with their aliases
-        let mut named_exprs: Vec<(String, Expr)> = Vec::new();
+        let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
         for select_item in select_items {
