@@ -75,7 +75,7 @@ fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> 
             .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries())
             .collect(),
         ast::SetExpr::SetOperation { .. } => Vec::new(),
-        ast::SetExpr::Values(_) => todo!(),
+        ast::SetExpr::Values(values) => todo!(),
         _ => todo!(), // Not implemented
     }
 }

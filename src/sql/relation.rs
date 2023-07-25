@@ -905,28 +905,29 @@ mod tests {
         println!("query = {q}");
     }
 
-    // #[test]
-    // fn test_values() {
-    //     let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();
-    //     let schema_1: Schema = vec![
-    //         ("a", DataType::integer_interval(0, 10)),
-    //         ("b", DataType::float_interval(0., 10.)),
-    //     ]
-    //     .into_iter()
-    //     .collect();
-    //     let table_1 = Relation::table()
-    //         .name("tab_1")
-    //         .schema(schema_1.clone())
-    //         .size(100)
-    //         .build();
-    //     let relation = Relation::try_from(QueryWithRelations::new(
-    //         &query,
-    //         &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
-    //     ))
-    //     .unwrap();
-    //     println!("relation = {relation}");
-    //     relation.display_dot().unwrap();
-    //     let q = ast::Query::from(&relation);
-    //     println!("query = {q}");
-    // }
+    #[test]
+    #[ignore]
+    fn test_values() {
+        let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+    }
 }
