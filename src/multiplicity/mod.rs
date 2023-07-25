@@ -33,13 +33,19 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct RelationWithMultiplicity(Relation, f64);
 
 /// A visitor to compute RelationWithMultiplicity propagationing table weights
-/// and LINE_WEIGHT.
+/// and ROW_WEIGHT.
 #[derive(Clone, Debug)]
 struct MultiplicityVisitor<F: Fn(&Table) -> RelationWithMultiplicity> {
     weight_table: F,
 }
 
-pub const LINE_WEIGHT: &str = "_LINE_WEIGHT_";
+pub const ROW_WEIGHT: &str = "_ROW_WEIGHT_";
+pub const ONE_COUNT_ROW_WEIGHT: &str = "_ONE_COUNT_ROW_WEIGHT_";
+pub const GREATER_THAN_ONE_COUNT_ROW_WEIGHT: &str = "_GREATER_THAN_ONE_COUNT_ROW_WEIGHT_";
+pub const ACTUAL_GROUPS_COUNT: &str = "_ACTUAL_GROUPS_COUNT_";
+pub const ESTIMATED_GROUPS_COUNT: &str = "_ESTIMATED_GROUPS_COUNT_";
+pub const CORRECTION_FACTOR: &str = "_CORRECTION_FACTOR_";
+pub const PROPAGATED_COLUMNS: usize = 1;
 
 impl<F: Fn(&Table) -> RelationWithMultiplicity> MultiplicityVisitor<F> {
     pub fn new(weight_table: F) -> Self {
@@ -50,28 +56,30 @@ impl<F: Fn(&Table) -> RelationWithMultiplicity> MultiplicityVisitor<F> {
 impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMultiplicity>
     for MultiplicityVisitor<F>
 {
-    /// Apply the weight from weight_table and add LINE_WEIGHT field initialized to 1
+    /// Apply the weight from weight_table and add ROW_WEIGHT field initialized to 1
     fn table(&self, table: &'a Table) -> RelationWithMultiplicity {
         let weighted_table = (self.weight_table)(table);
-        let new_rel = weighted_table.0.insert_field(0, LINE_WEIGHT, Expr::val(1));
+        let new_rel = weighted_table.0.insert_field(0, ROW_WEIGHT, Expr::val(1));
         RelationWithMultiplicity(new_rel, weighted_table.1)
     }
 
-    /// Propagate the relation weight and LINE_WEIGHT.
+    /// Propagate the relation weight and ROW_WEIGHT.
     fn map(&self, map: &'a Map, input: RelationWithMultiplicity) -> RelationWithMultiplicity {
         let mew_relation: Relation = Relation::map()
-            .with((LINE_WEIGHT, Expr::col(LINE_WEIGHT)))
+            .with((ROW_WEIGHT, Expr::col(ROW_WEIGHT)))
             .with(map.clone())
             .input(input.0)
             .build();
         RelationWithMultiplicity(mew_relation, input.1)
     }
 
-    /// It constructs the needed relations to compute the _count_correction_factor_ from the LINE_WEIGHT
+    /// It constructs the needed relations to compute the CORRECTION_FACTOR from the ROW_WEIGHT
     /// to compensate for the lost of groups during sampling
-    /// _count_correction_factor_ = e / _actual_groups_
-    /// e = sqrt(w)*f1 + sum(fj)
+    /// CORRECTION_FACTOR = ESTIMATED_GROUPS_COUNT / ACTUAL_GROUPS_COUNT
+    /// ESTIMATED_GROUPS_COUNT = sqrt(w)*sum(ONE_COUNT_ROW_WEIGHT) + sum(GREATER_THAN_ONE_COUNT_ROW_WEIGHT)
     /// for more details see: https://dl.acm.org/doi/pdf/10.1145/276305.276343
+    /// In the paper ONE_COUNT_ROW_WEIGHT is indicated as f1
+    /// and GREATER_THAN_ONE_COUNT_ROW_WEIGHT is indicated as fj
     /// It applies the corrections to the aggregation functions
     /// The table weight of the output RelationWithMultiplicity is 1.0.
     fn reduce(
@@ -80,63 +88,78 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
         input: RelationWithMultiplicity,
     ) -> RelationWithMultiplicity {
         // construct the new reduce from the visited reduce and the input relation.
-        // with sum of LINE_WEIGHT
+        // with sum of ROW_WEIGHT
         let new_reduce: Relation = Relation::reduce()
-            .with((LINE_WEIGHT, Expr::sum(Expr::col(LINE_WEIGHT))))
+            .with((ROW_WEIGHT, Expr::sum(Expr::col(ROW_WEIGHT))))
             .with(reduce.clone())
             .input(input.0.clone())
             .build();
 
         // compute the counts of line weight
-        let counts_line_weight = &format!("_counts{LINE_WEIGHT}")[..];
+        let counts_row_weight = &format!("_COUNTS{ROW_WEIGHT}")[..];
         let group_by_line_weight: Relation = Relation::reduce()
-            .with((LINE_WEIGHT, Expr::first(Expr::col(LINE_WEIGHT))))
-            .with((counts_line_weight, Expr::count(Expr::col(LINE_WEIGHT))))
-            .group_by(Expr::col(LINE_WEIGHT))
+            .with((ROW_WEIGHT, Expr::first(Expr::col(ROW_WEIGHT))))
+            .with((counts_row_weight, Expr::count(Expr::col(ROW_WEIGHT))))
+            .group_by(Expr::col(ROW_WEIGHT))
             .input(new_reduce.clone())
             .build();
 
         let one_where_f1 = Expr::case(
-            Expr::eq(Expr::col(LINE_WEIGHT), Expr::val(1)),
+            Expr::eq(Expr::col(ROW_WEIGHT), Expr::val(1)),
             Expr::val(1),
             Expr::val(0),
         );
         let one_where_fj = Expr::case(
-            Expr::gt(Expr::col(LINE_WEIGHT), Expr::val(1)),
-            Expr::col(counts_line_weight),
+            Expr::gt(Expr::col(ROW_WEIGHT), Expr::val(1)),
+            Expr::col(counts_row_weight),
             Expr::val(0),
         );
 
         let tmp_map: Relation = Relation::map()
-            .with((LINE_WEIGHT, Expr::col(LINE_WEIGHT)))
-            .with(("_tmp_f1", one_where_f1))
-            .with(("_tmp_fj", one_where_fj))
+            .with((ROW_WEIGHT, Expr::col(ROW_WEIGHT)))
+            .with((ONE_COUNT_ROW_WEIGHT, one_where_f1))
+            .with((GREATER_THAN_ONE_COUNT_ROW_WEIGHT, one_where_fj))
             .input(group_by_line_weight)
             .build();
 
-        // compute f1: number of distinct values which occur exactly 1 times
+        // compute sum_f1: sum over number of distinct values which occur exactly 1 times
         // sum_fj: sum over number of distinct values which occur exactly j times
         let tmp_reduce: Relation = Relation::reduce()
-            .with(("f1", Expr::sum(Expr::col("_tmp_f1"))))
-            .with(("sum_fj", Expr::sum(Expr::col("_tmp_fj"))))
+            .with((
+                format!("_SUM{ONE_COUNT_ROW_WEIGHT}"),
+                Expr::sum(Expr::col(ONE_COUNT_ROW_WEIGHT)),
+            ))
+            .with((
+                format!("_SUM{GREATER_THAN_ONE_COUNT_ROW_WEIGHT}"),
+                Expr::sum(Expr::col(GREATER_THAN_ONE_COUNT_ROW_WEIGHT)),
+            ))
             .input(tmp_map)
             .build();
 
-        let estimated_groups =
-            Expr::multiply(Expr::sqrt(Expr::val(input.1)), Expr::col("f1")) + Expr::col("sum_fj");
+        let estimated_groups = Expr::multiply(
+            Expr::sqrt(Expr::val(input.1)),
+            Expr::col(format!("_SUM{ONE_COUNT_ROW_WEIGHT}")),
+        ) + Expr::col(format!("_SUM{GREATER_THAN_ONE_COUNT_ROW_WEIGHT}"));
 
         let estimated_and_actual_groups: Relation = Relation::map()
-            .with(("e", estimated_groups))
-            .with(("_actual_groups_", Expr::col("f1") + Expr::col("sum_fj")))
+            .with((ESTIMATED_GROUPS_COUNT, estimated_groups))
+            .with((
+                ACTUAL_GROUPS_COUNT,
+                Expr::col(format!("_SUM{ONE_COUNT_ROW_WEIGHT}"))
+                    + Expr::col(format!("_SUM{GREATER_THAN_ONE_COUNT_ROW_WEIGHT}")),
+            ))
             .input(tmp_reduce)
             .build();
 
-        let correction_factor = Expr::divide(Expr::col("e"), Expr::col("_actual_groups_"));
+        let correction_factor = Expr::divide(
+            Expr::col(ESTIMATED_GROUPS_COUNT),
+            Expr::col(ACTUAL_GROUPS_COUNT),
+        );
         let correction_factor_map: Relation = Relation::map()
-            .with(("_count_correction_factor_", correction_factor))
+            .with((CORRECTION_FACTOR, correction_factor))
             .filter(Expr::and(
-                Expr::gt_eq(Expr::col("e"), Expr::val(1.0)),
-                Expr::gt_eq(Expr::col("_actual_groups_"), Expr::val(1.0)),
+                Expr::gt_eq(Expr::col(ESTIMATED_GROUPS_COUNT), Expr::val(1.0)),
+                Expr::gt_eq(Expr::col(ACTUAL_GROUPS_COUNT), Expr::val(1.0)),
             ))
             .limit(1)
             .input(estimated_and_actual_groups)
@@ -152,7 +175,7 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
                     .map(|f| f.name().to_string())
                     .collect(),
             )
-            .right_names(vec!["_count_correction_factor_".to_string()])
+            .right_names(vec![CORRECTION_FACTOR.to_string()])
             .cross()
             .left(new_reduce)
             .right(correction_factor_map)
@@ -175,7 +198,7 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
                     aggregate::Aggregate::Count => (
                         name,
                         Expr::multiply(
-                            Expr::col("_count_correction_factor_"),
+                            Expr::col(CORRECTION_FACTOR),
                             Expr::multiply(Expr::val(input.1), Expr::col(name)),
                         ),
                     ),
@@ -184,20 +207,20 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
                     }
                     aggregate::Aggregate::Mean => (
                         name,
-                        Expr::divide(Expr::col(name), Expr::col("_count_correction_factor_")),
+                        Expr::divide(Expr::col(name), Expr::col(CORRECTION_FACTOR)),
                     ),
                     aggregate::Aggregate::First | aggregate::Aggregate::Last => {
                         (name, Expr::col(name))
                     }
-                    // panic for aggregation function that we don't know how to correct.
-                    _ => panic!(),
+                    // todo for aggregation function that we don't know how to correct yet such as MIN and MAX.
+                    _ => todo!(),
                 },
                 _ => (name, Expr::col(name)),
             })
             .collect();
 
         let new_map: Relation = Relation::map()
-            .with((LINE_WEIGHT, Expr::col(LINE_WEIGHT)))
+            .with((ROW_WEIGHT, Expr::col(ROW_WEIGHT)))
             .with_iter(new_exprs.into_iter())
             .input(reduce_with_correction)
             .build();
@@ -206,7 +229,7 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
     }
 
     /// propagate table weight as table weight left * table weight right
-    /// propagate LINE_WEIGHT as _LEFT_LINE_WEIGHT_ * _RIGHT_LINE_WEIGHT_
+    /// propagate ROW_WEIGHT as _LEFT_ROW_WEIGHT_ * _RIGHT_ROW_WEIGHT_
     fn join(
         &self,
         join: &'a Join,
@@ -221,10 +244,10 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
         let schema_names: Vec<String> =
             join.schema().iter().map(|f| f.name().to_string()).collect();
 
-        let mut left_names = vec![format!("_LEFT{LINE_WEIGHT}")];
+        let mut left_names = vec![format!("_LEFT{ROW_WEIGHT}")];
         left_names.extend(schema_names.iter().take(join.left.schema().len()).cloned());
 
-        let mut right_names = vec![format!("_RIGHT{LINE_WEIGHT}")];
+        let mut right_names = vec![format!("_RIGHT{ROW_WEIGHT}")];
         right_names.extend(schema_names.iter().skip(join.left.schema().len()).cloned());
 
         // map old columns names (from the join) into new column names from the left and right
@@ -233,8 +256,8 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
             .schema()
             .iter()
             // skip 1 because the left (coming from the RelationWithMultiplicity)
-            // has the LINE_WEIGHT colum
-            .zip(left.schema().iter().skip(1))
+            // has the ROW_WEIGHT colum
+            .zip(left.schema().iter().skip(PROPAGATED_COLUMNS))
             .map(|(o, n)| {
                 (
                     vec![join.left.name().to_string(), o.name().to_string()],
@@ -245,7 +268,7 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
                 join.right
                     .schema()
                     .iter()
-                    .zip(right.schema().iter().skip(1))
+                    .zip(right.schema().iter().skip(PROPAGATED_COLUMNS))
                     .map(|(o, n)| {
                         (
                             vec![join.right.name().to_string(), o.name().to_string()],
@@ -266,14 +289,14 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
 
         let mut builder = Relation::map();
         builder = builder.with((
-            LINE_WEIGHT,
+            ROW_WEIGHT,
             Expr::multiply(
-                Expr::col(format!("_LEFT{LINE_WEIGHT}")),
-                Expr::col(format!("_RIGHT{LINE_WEIGHT}")),
+                Expr::col(format!("_LEFT{ROW_WEIGHT}")),
+                Expr::col(format!("_RIGHT{ROW_WEIGHT}")),
             ),
         ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
-            if [LINE_WEIGHT].contains(&p[1].as_str()) {
+            if [ROW_WEIGHT].contains(&p[1].as_str()) {
                 b
             } else {
                 b.with((n, Expr::col(n)))
@@ -567,7 +590,7 @@ mod tests {
                 sampled_relation.uniform_multiplicity_visitor(1.0 / proba);
 
             let weighted_filtered_sampled_relation =
-                (weighted_sampled_relation.0).filter_fields(|n| n != LINE_WEIGHT);
+                (weighted_sampled_relation.0).filter_fields(|n| n != ROW_WEIGHT);
 
             let query_weighted_relation: &str =
                 &ast::Query::from(&weighted_filtered_sampled_relation).to_string();
