@@ -2,7 +2,7 @@ use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{
         self,
-        intervals::{Bound, Intervals},
+        intervals::{Bound, Intervals}, DataTyped,
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
@@ -47,8 +47,24 @@ pub type Result<T> = result::Result<T, Error>;
 pub const PE_DISTINCT_COUNT: &str = "_PROTECTED_DISTINCT_COUNT_";
 
 impl Reduce {
+
+    pub fn grouping_columns(&self) -> Result<Vec<String>>{
+        self.group_by
+            .iter()
+            .cloned()
+            .map(|x| {
+                if let Expr::Column(name) = x {
+                    Ok(name.to_string())
+                } else {
+                    Err(Error::TauThresholdingError(
+                        "We support only `Expr::Column` in the group_by".into(),
+                    ))
+                }
+            })
+            .collect()
+    }
     /// Returns a Relation that output the categories for which the noisy count
-    /// of DISTINCT PE_ID is greater that tau(epsilon, delat, sensitivty)
+    /// of DISTINCT PE_ID is greater that tau(epsilon, delta, sensitivty)
     pub fn tau_thresholded_values(
         self,
         epsilon: f64,
@@ -63,20 +79,7 @@ impl Reduce {
         }
 
         // compute distinct relation
-        let group_by: Vec<String> = self
-            .group_by
-            .iter()
-            .cloned()
-            .map(|x| {
-                if let Expr::Column(name) = x {
-                    Ok(name.to_string())
-                } else {
-                    Err(Error::TauThresholdingError(
-                        "We support only `Expr::Column` in the group_by".into(),
-                    ))
-                }
-            })
-            .collect::<Result<_>>()?;
+        let group_by = self.grouping_columns()?;
         let group_by: Vec<&str> = group_by.iter().map(|s| s.as_str()).collect();
         let aggregates = vec![(PE_DISTINCT_COUNT, aggregate::Aggregate::Count)];
         let rel =
@@ -95,12 +98,17 @@ impl Reduce {
         Ok(rel.filter_columns(columns))
     }
 
-    pub fn public_values(self, colname: &str) -> Result<Relation> {
-        todo!()
-    }
-
     // Returns a `Relation` outputing all grouping keys that can be safely released
     pub fn possible_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
+        let group_by = self.grouping_columns()?;
+
+        // collect the columns that have public_values
+        let public_columns:Vec<&str> = self.input.schema()
+        .iter()
+        .filter_map(|f| if f.data_type().all_values() && group_by.contains(&f.name().to_string()) {Some(f.name())} else {None})
+        .collect();
+
+        let public_values_relations:Vec<Relation> = public_columns.iter().map(|c| self.input.public_values_column(c).unwrap()).collect();
         // TODO: add public_values
         self.tau_thresholded_values(epsilon, delta, sensitivity)
     }
@@ -245,4 +253,6 @@ mod tests {
         rel.display_dot();
         assert_eq!(rel.schema().fields().len(), 2);
     }
+
+
 }

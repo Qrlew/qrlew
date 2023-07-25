@@ -2285,6 +2285,46 @@ impl DataType {
             (Err(_), Err(_)) => Err(Error::other("No common variant")),
         }
     }
+
+    pub fn all_values(&self) -> bool {
+        match &self {
+            DataType::Integer(i) => i.all_values(),
+            DataType::Float(f) => f.all_values(),
+            DataType::Date(d) => d.all_values(),
+            DataType::Time(t) => t.all_values(),
+            DataType::DateTime(d) => d.all_values(),
+            DataType::Duration(d) => d.all_values(),
+            DataType::Boolean(b) => b.all_values(),
+            DataType::Text(t)  => t.all_values(),
+            DataType::Optional(Optional{data_type})  => data_type.as_ref().all_values(),
+            _ => false
+        }
+    }
+
+    pub fn possible_values(&self) -> Option<Vec<Value>> {
+        match &self {
+            DataType::Integer(i) => {
+                if let Some(l) = i.possible_values() {
+                    Some(l.iter().cloned().map(|v| Value::from(v)).collect())
+                } else {
+                    None
+                }
+            },
+            DataType::Float(f) => {
+                if let Some(l) = f.possible_values() {
+                    Some(l.iter().cloned().map(|v| Value::from(v)).collect())
+                } else {
+                    None
+                }
+            },
+            DataType::Date(_) | DataType::Time(_)
+            | DataType::DateTime(_)
+            | DataType::Duration(_)
+            | DataType::Boolean(_)
+            | DataType::Text(_) => todo!(),
+            _ => None
+        }
+    }
 }
 
 impl Variant for DataType {
@@ -3543,5 +3583,17 @@ mod tests {
         );
         let data_type: DataType = values.into_iter().collect();
         println!("data_type = {data_type}");
+    }
+
+    #[test]
+    fn test_possible_values() {
+        let dt = DataType::float_values([1., 2., 3.]);
+        assert_eq!(dt.possible_values(), Some(vec![1.0.into(), 2.0.into(), 3.0.into()]));
+
+        let dt = DataType::float_interval(1.,1.);
+        assert_eq!(dt.possible_values(), Some(vec![1.0.into()]));
+
+        let dt = DataType::float_interval(1.,3.);
+        assert_eq!(dt.possible_values(), None);
     }
 }

@@ -427,6 +427,14 @@ impl<B: Bound> Intervals<B> {
         self.intervals.iter().all(|[min, max]| min == max)
     }
 
+    pub fn possible_values(&self) -> Option<Vec<B>> {
+        if self.all_values() {
+            Some(self.intervals.iter().map(|[min, _]| min.clone()).collect())
+        } else {
+            None
+        }
+    }
+
     /// Test if the interval is a singleton
     pub fn is_value(&self) -> bool {
         self.intervals.len() == 1 && self.intervals[0][0] == self.intervals[0][1]

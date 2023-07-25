@@ -9,6 +9,7 @@ use crate::{
     data_type::{
         self,
         intervals::{Bound, Intervals},
+        DataTyped
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
@@ -30,6 +31,7 @@ use std::{
 pub enum Error {
     InvalidRelation(String),
     InvalidArguments(String),
+    NoPublicValuesError(String),
     Other(String),
 }
 
@@ -44,6 +46,7 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidRelation(desc) => writeln!(f, "InvalidRelation: {}", desc),
             Error::InvalidArguments(desc) => writeln!(f, "InvalidArguments: {}", desc),
+            Error::NoPublicValuesError(desc) => {writeln!(f, "NoPublicValuesError: {}", desc)}
             Error::Other(err) => writeln!(f, "{}", err),
         }
     }
@@ -924,6 +927,22 @@ impl Relation {
 
         // Add order by
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
+    }
+
+    pub fn public_values_column(&self, colname: &str) -> Result<Relation> {
+        let datatype = self.schema().field(colname).unwrap().data_type();
+        if let Some(values) = datatype.possible_values() {
+            let rel: Relation = Relation::values().name(colname).values(values).build();
+            Ok(rel)
+        } else {
+            Err(Error::NoPublicValuesError(colname.to_string()))
+        }
+    }
+
+    pub fn public_values(&self) -> Result<Relation> {
+        // TODO: assert all the columns have public values
+
+        self.schema().
     }
 }
 
@@ -1938,5 +1957,36 @@ mod tests {
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
+    }
+
+    #[test]
+    fn test_public_values_column() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=10.0)))
+                    .with(("b", DataType::integer_values([1, 2, 5])))
+                    .build(),
+            )
+            .build();
+
+        // table
+        let rel = table.public_values_column("b").unwrap();
+        let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
+        rel.display_dot();
+        assert_eq!(rel, rel_values);
+        assert!(table.public_values_column("a").is_err());
+
+        // map
+        let map: Relation = Relation::map()
+        .name("map_1")
+        .with(("exp_a", Expr::exp(Expr::col("a"))))
+        .input(table.clone())
+        .with(("exp_b",  Expr::exp(Expr::col("b"))))
+        .build();
+        let rel = map.public_values_column("exp_b").unwrap();
+        rel.display_dot();
+        assert!(map.public_values_column("exp_a").is_err());
     }
 }

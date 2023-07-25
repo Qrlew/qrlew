@@ -263,9 +263,10 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 &node.1
             ),
             Relation::Values(values) => format!(
-                "<b>{} size ∈ {}</b><br/>[{}]",
+                "<b>{} size ∈ {}</b><br/>{}: [ {} ]",
                 values.name().to_uppercase(),
                 values.size(),
+                values.name(),
                 values.values.iter().map(|v| v.to_string()).join(", "),
             ),
         })
