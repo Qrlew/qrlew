@@ -164,7 +164,7 @@ impl<B: Bound> Intervals<B> {
     pub fn new() -> Intervals<B> {
         let result = Intervals {
             capacity: CAPACITY,
-            intervals: Vec::new(),
+            intervals: vec![],
         };
         // Intervals are shortened to enforce capacity
         result.to_simple_superset()

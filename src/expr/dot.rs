@@ -150,7 +150,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
         self.0
             .iter_with(self.1.clone())
             .flat_map(|(expr, t)| match expr {
-                Expr::Column(_) | Expr::Value(_) => Vec::new(),
+                Expr::Column(_) | Expr::Value(_) => vec![],
                 Expr::Function(fun) => fun
                     .arguments
                     .iter()

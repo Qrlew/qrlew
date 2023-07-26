@@ -1160,7 +1160,7 @@ impl<'a> visitor::Visitor<'a, Expr, (Expr, Vec<(Expr, Expr)>)> for ReplaceVisito
                             )
                         }
                         // No replacement
-                        e => (e.clone(), Vec::new()),
+                        e => (e.clone(), vec![]),
                     }
                 },
                 |(pattern, replacement)| {

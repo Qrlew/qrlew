@@ -1,7 +1,7 @@
 //! A few transforms for relations
 //!
 
-use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
+use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::display::Dot;
 use crate::namer;
 use crate::{
@@ -274,6 +274,17 @@ impl Set {
     }
 }
 
+/* Values
+ */
+
+impl Values {
+    /// Rename a Values
+    pub fn with_name(mut self, name: String) -> Values {
+        self.name = name;
+        self
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Path<'a>(pub Vec<Step<'a>>);
 
@@ -327,7 +338,7 @@ impl<'a> FieldPath<'a> {
         referred_field: &'a str,
         referred_field_name: &'a str,
     ) -> Self {
-        let mut field_path = FieldPath(Vec::new());
+        let mut field_path = FieldPath(vec![]);
         let mut last_step: Option<Step> = None;
         // Fill the vec
         for step in path {
@@ -387,6 +398,7 @@ impl Relation {
             Relation::Reduce(r) => r.with_name(name).into(),
             Relation::Join(j) => j.with_name(name).into(),
             Relation::Set(s) => s.with_name(name).into(),
+            Relation::Values(v) => v.with_name(name).into(),
         }
     }
     /// Add a field that derives from existing fields
