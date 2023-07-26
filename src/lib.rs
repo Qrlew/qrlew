@@ -26,6 +26,7 @@ pub mod display;
 pub mod encoder;
 pub mod hierarchy;
 pub mod io;
+pub mod multiplicity;
 pub mod namer;
 pub mod protected;
 pub mod relation;

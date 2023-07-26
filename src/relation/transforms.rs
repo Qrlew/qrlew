@@ -853,6 +853,37 @@ impl Relation {
         sampled_relation
     }
 
+    /// sampling without replacemnts.
+    /// It creates a Map using self as an imput which applies
+    /// WHERE RANDOM() < rate_multiplier * rate ORDER BY RANDOM() LIMIT rate*size
+    /// and preserves the input schema fields.
+    /// WHERE RANDOM() < rate_multiplier * rate is for optimization purposes
+    pub fn sampling_without_replacements(self, rate: f64, rate_multiplier: f64) -> Relation {
+        //make sure rate is between 0 and 1.
+        assert!(0.0 <= rate && rate <= 1.0);
+
+        let size = self.size().max().map_or(0, |v| (*v as f64 * rate) as usize);
+
+        let sampled_relation: Relation = Relation::map()
+            .with_iter(
+                self.schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(
+                Expr::random(namer::new_id("SAMPLING_WITHOUT_REPLACEMENT")),
+                Expr::val(rate_multiplier * rate),
+            ))
+            .order_by(
+                Expr::random(namer::new_id("SAMPLING_WITHOUT_REPLACEMENT")),
+                false,
+            )
+            .limit(size)
+            .input(self)
+            .build();
+        sampled_relation
+    }
+
     /// Returns a Relation whose fields have unique values
     fn unique(self, columns: Vec<&str>) -> Relation {
         let named_columns: Vec<(&str, Expr)> =
@@ -960,8 +991,10 @@ mod tests {
         let table = table.identity_with_field("peid", expr!(a + b));
         assert!(table.schema()[0].name() == "peid");
         // Relation
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() != "peid");
         let relation = relation.identity_with_field("peid", expr!(cos(a)));
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() == "peid");
     }
 
@@ -1181,7 +1214,6 @@ mod tests {
                 Expr::qcol("order_table", "id"),
             ))
             .build();
-        relation.display_dot().unwrap();
         let schema = relation.schema().clone();
         let item = schema.field_from_index(1).unwrap().name();
         let price = schema.field_from_index(2).unwrap().name();

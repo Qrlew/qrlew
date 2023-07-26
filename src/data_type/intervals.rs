@@ -213,8 +213,8 @@ impl<B: Bound> Intervals<B> {
         // Insert the new interval and move the existing values
         self.intervals.drain(min_index..max_index);
         self.intervals.insert(min_index, [min, max]);
-        // Set the new length
-        self
+        // simplify the interval if there are too many intervals
+        self.to_simple_superset()
     }
 
     /// Union with a single value
@@ -305,8 +305,7 @@ impl<B: Bound> Intervals<B> {
         if min_index > 0 {
             self.intervals.drain(0..min_index);
         }
-        // Set the new length
-        self
+        self.to_simple_superset()
     }
 
     /// Intersection with a single value
