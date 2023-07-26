@@ -6,7 +6,7 @@ use crate::{
     builder::{Ready, With},
     expr::{aggregate, identifier::Identifier, Expr},
     hierarchy::Hierarchy,
-    relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
+    relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
     WithIterator,
 };
@@ -317,6 +317,11 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
     ) -> RelationWithMultiplicity {
         todo!()
     }
+
+    fn values(&self, values: &'a Values) -> RelationWithMultiplicity {
+        todo!()
+    }
+
 }
 
 /// Build a visitor for uniform multiplicity
@@ -407,6 +412,10 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for TableSamplerVisito
 
     fn set(&self, set: &'a Set, left: Relation, right: Relation) -> Relation {
         todo!()
+    }
+
+    fn values(&self, values: &'a Values) -> Relation {
+        Relation::Values(values.clone())
     }
 }
 

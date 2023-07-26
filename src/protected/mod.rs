@@ -40,7 +40,7 @@ impl error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 
-pub const PROTECTION_PREFIX: &str = "_protected_";
+pub const PROTECTION_PREFIX: &str = "_PROTECTED_";
 pub const PROTECTION_COLUMNS: usize = 2;
 pub const PE_ID: &str = "_PROTECTED_ENTITY_ID_";
 pub const PE_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
