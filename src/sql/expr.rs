@@ -608,6 +608,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             ast::BinaryOperator::DuckIntegerDivide => todo!(),
             ast::BinaryOperator::MyIntegerDivide => todo!(),
             ast::BinaryOperator::Custom(_) => todo!(),
+            ast::BinaryOperator::PGOverlap => todo!(),
         })
     }
 

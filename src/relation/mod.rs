@@ -145,6 +145,8 @@ pub trait Variant:
 pub struct Table {
     /// The name of the table
     pub name: String,
+    /// The path to the actual table
+    pub path: Identifier,
     /// The schema description of the output
     pub schema: Schema,
     /// The size of the table
@@ -153,17 +155,24 @@ pub struct Table {
 
 impl Table {
     /// Main constructor
-    pub fn new(name: String, schema: Schema, size: Integer) -> Self {
-        Table { name, schema, size }
+    pub fn new(name: String, path: Identifier, schema: Schema, size: Integer) -> Self {
+        Table { name, path, schema, size }
     }
 
     /// From schema
     pub fn from_schema<S: Into<Schema>>(schema: S) -> Table {
+        let path: String = namer::new_name("table");
         Table::new(
-            namer::new_name("table"),
+            path.clone(),
+            path.into(),
             schema.into(),
             Integer::from_min(0),
         )
+    }
+
+    /// Return the path
+    fn path(&self) -> &Identifier {
+        &self.path
     }
 
     /// A builder
@@ -810,6 +819,8 @@ pub enum SetQuantifier {
     All,
     Distinct,
     None,
+    ByName,
+    AllByName,
 }
 
 impl fmt::Display for SetQuantifier {
@@ -821,6 +832,8 @@ impl fmt::Display for SetQuantifier {
                 SetQuantifier::All => "ALL",
                 SetQuantifier::Distinct => "DISTINCT",
                 SetQuantifier::None => "NONE",
+                SetQuantifier::ByName => "BY NAME",
+                SetQuantifier::AllByName => "ALL BY NAME",
             }
         )
     }
@@ -925,7 +938,7 @@ impl Set {
 impl fmt::Display for Set {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let operator = match self.quantifier {
-            SetQuantifier::All | SetQuantifier::Distinct => {
+            SetQuantifier::All | SetQuantifier::Distinct | SetQuantifier::ByName | SetQuantifier::AllByName => {
                 format!("{} {}", self.operator, self.quantifier)
             }
             SetQuantifier::None => format!("{}", self.operator),

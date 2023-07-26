@@ -68,6 +68,8 @@ impl From<ast::SetQuantifier> for SetQuantifier {
             ast::SetQuantifier::All => SetQuantifier::All,
             ast::SetQuantifier::Distinct => SetQuantifier::Distinct,
             ast::SetQuantifier::None => SetQuantifier::None,
+            ast::SetQuantifier::ByName => SetQuantifier::ByName,
+            ast::SetQuantifier::AllByName => SetQuantifier::AllByName,
         }
     }
 }

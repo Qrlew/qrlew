@@ -27,6 +27,12 @@ impl TryFrom<Identifier> for ast::Ident {
     }
 }
 
+impl From<Identifier> for ast::ObjectName {
+    fn from(value: Identifier) -> Self {
+        ast::ObjectName(value.into_iter().map(|s| ast::Ident::new(s)).collect())
+    }
+}
+
 impl From<JoinConstraint> for ast::JoinConstraint {
     fn from(value: JoinConstraint) -> Self {
         match value {
@@ -79,6 +85,8 @@ impl From<SetQuantifier> for ast::SetQuantifier {
             SetQuantifier::All => ast::SetQuantifier::All,
             SetQuantifier::Distinct => ast::SetQuantifier::Distinct,
             SetQuantifier::None => ast::SetQuantifier::None,
+            SetQuantifier::ByName => ast::SetQuantifier::ByName,
+            SetQuantifier::AllByName => ast::SetQuantifier::AllByName,
         }
     }
 }
@@ -139,18 +147,18 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
     }
 }
 
-fn table_factor(name: ast::Ident) -> ast::TableFactor {
+fn table_factor(path: ast::ObjectName) -> ast::TableFactor {
     ast::TableFactor::Table {
-        name: ast::ObjectName(vec![name]),
+        name: path,
         alias: None,
         args: None,
         with_hints: vec![],
     }
 }
 
-fn table_with_joins(name: ast::Ident, joins: Vec<ast::Join>) -> ast::TableWithJoins {
+fn table_with_joins(path: ast::ObjectName, joins: Vec<ast::Join>) -> ast::TableWithJoins {
     ast::TableWithJoins {
-        relation: table_factor(name),
+        relation: table_factor(path),
         joins,
     }
 }
@@ -214,7 +222,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             vec![ast::SelectItem::Wildcard(
                 ast::WildcardAdditionalOptions::default(),
             )],
-            table_with_joins(table.name().into(), vec![]),
+            table_with_joins(table.path().clone().into(), vec![]),
             None,
             vec![],
             vec![],
@@ -243,7 +251,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(map.input.name().into(), vec![]),
+                table_with_joins(Identifier::from(map.input.name()).into(), vec![]),
                 map.filter.as_ref().map(ast::Expr::from),
                 vec![],
                 map.order_by
@@ -261,7 +269,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(map.name().into(), vec![]),
+            table_with_joins(Identifier::from(map.name()).into(), vec![]),
             None,
             vec![],
             vec![],
@@ -293,7 +301,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(reduce.input.name().into(), vec![]),
+                table_with_joins(Identifier::from(reduce.input.name()).into(), vec![]),
                 None,
                 reduce.group_by.iter().map(ast::Expr::from).collect(),
                 vec![],
@@ -303,7 +311,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(reduce.name().into(), vec![]),
+            table_with_joins(Identifier::from(reduce.name()).into(), vec![]),
             None,
             vec![],
             vec![],
@@ -336,9 +344,9 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 vec![],
                 all(),
                 table_with_joins(
-                    join.left.name().into(),
+                    Identifier::from(join.left.name()).into(),
                     vec![ast::Join {
-                        relation: table_factor(join.right.name().into()),
+                        relation: table_factor(Identifier::from(join.right.name()).into()),
                         join_operator: join.operator.clone().into(),
                     }],
                 ),
@@ -351,7 +359,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(join.name().into(), vec![]),
+            table_with_joins(Identifier::from(join.name()).into(), vec![]),
             None,
             vec![],
             vec![],
@@ -391,7 +399,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(set.name().into(), vec![]),
+            table_with_joins(Identifier::from(set.name()).into(), vec![]),
             None,
             vec![],
             vec![],
