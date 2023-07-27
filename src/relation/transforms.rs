@@ -959,7 +959,7 @@ impl Relation {
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    pub fn all_values_column(&self, colname: &str) -> Result<Relation> {
+    pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
         let datatype = self.schema().field(colname).unwrap().data_type();
         if let Some(values) = datatype.possible_values() {
             let rel: Relation = Relation::values().name(colname).values(values).build();
@@ -969,10 +969,10 @@ impl Relation {
         }
     }
 
-    pub fn all_values(&self) -> Result<Relation> {
+    pub fn possible_values(&self) -> Result<Relation> {
         let vec_of_rel: Result<Vec<Relation>> = self.schema()
         .iter()
-        .map(|c| self.all_values_column(c.name()))
+        .map(|c| self.possible_values_column(c.name()))
         .collect();
 
         Ok(
@@ -2058,7 +2058,7 @@ mod tests {
     }
 
     #[test]
-    fn test_all_values_column() {
+    fn test_possible_values_column() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -2070,11 +2070,11 @@ mod tests {
             .build();
 
         // table
-        let rel = table.all_values_column("b").unwrap();
+        let rel = table.possible_values_column("b").unwrap();
         let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
         rel.display_dot();
         assert_eq!(rel, rel_values);
-        assert!(table.all_values_column("a").is_err());
+        assert!(table.possible_values_column("a").is_err());
 
         // map
         let map: Relation = Relation::map()
@@ -2083,13 +2083,13 @@ mod tests {
         .input(table.clone())
         .with(("exp_b",  Expr::exp(Expr::col("b"))))
         .build();
-        let rel = map.all_values_column("exp_b").unwrap();
+        let rel = map.possible_values_column("exp_b").unwrap();
         rel.display_dot();
-        assert!(map.all_values_column("exp_a").is_err());
+        assert!(map.possible_values_column("exp_a").is_err());
     }
 
     #[test]
-    fn test_all_values() {
+    fn test_possible_values() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -2101,7 +2101,7 @@ mod tests {
             .build();
 
         // table
-        let rel = table.all_values();
+        let rel = table.possible_values();
         assert!(rel.is_err());
 
         // map
@@ -2112,7 +2112,7 @@ mod tests {
         .filter(Expr::in_list(Expr::col("a"), Expr::list([1., 2., 3.5, 4.5])))
         .input(table.clone())
         .build();
-        let rel = map.all_values().unwrap();
+        let rel = map.possible_values().unwrap();
         rel.display_dot();
     }
 

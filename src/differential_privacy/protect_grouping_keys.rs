@@ -99,12 +99,12 @@ impl Reduce {
     }
 
     // Returns a `Relation` outputing all grouping keys that can be safely released
-    pub fn possible_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
+    pub fn grouping_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
         // TODO: add public_values
         self.tau_thresholded_values(epsilon, delta, sensitivity)
     }
 
-    fn join_with_possible_values(self, possible_values: Relation) -> Result<Relation> {
+    fn join_with_grouping_values(self, grouping_values: Relation) -> Result<Relation> {
         let on: Vec<Expr> = self
             .group_by
             .clone()
@@ -112,7 +112,7 @@ impl Reduce {
             .map(|c| {
                 Expr::eq(
                     Expr::qcol(self.name().to_string(), c.to_string()),
-                    Expr::qcol(possible_values.name().to_string(), c.to_string()),
+                    Expr::qcol(grouping_values.name().to_string(), c.to_string()),
                 )
             })
             .collect();
@@ -123,7 +123,7 @@ impl Reduce {
             .map(|f| (f.name().to_string(), Expr::col(f.name())))
             .collect();
         let join_rel: Relation = Relation::join()
-            .left(possible_values)
+            .left(grouping_values)
             .right(right)
             .left_outer()
             .on_iter(on)
@@ -147,7 +147,7 @@ impl Reduce {
             return Ok(Relation::from(self));
         }
         self.clone()
-            .join_with_possible_values(self.possible_values(epsilon, delta, sensitivity)?)
+            .join_with_grouping_values(self.grouping_values(epsilon, delta, sensitivity)?)
     }
 }
 
