@@ -929,7 +929,7 @@ impl Relation {
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    pub fn public_values_column(&self, colname: &str) -> Result<Relation> {
+    pub fn all_values_column(&self, colname: &str) -> Result<Relation> {
         let datatype = self.schema().field(colname).unwrap().data_type();
         if let Some(values) = datatype.possible_values() {
             let rel: Relation = Relation::values().name(colname).values(values).build();
@@ -939,10 +939,11 @@ impl Relation {
         }
     }
 
-    pub fn public_values(&self) -> Result<Relation> {
-        // TODO: assert all the columns have public values
-
-        self.schema().
+    pub fn all_values(&self) -> Result<Relation> {
+        let vec_of_rel: Vec<Result<Relation>> = self.schema()
+        .iter()
+        .map(|c| self.all_values_column(c.name()))
+        .collect();
     }
 }
 
