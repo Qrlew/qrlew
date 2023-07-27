@@ -1,7 +1,7 @@
 //! A few transforms for relations
 //!
 
-use super::{Join, Map, Reduce, Relation, Set, Table, Variant as _};
+use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::display::Dot;
 use crate::namer;
 use crate::{
@@ -9,29 +9,29 @@ use crate::{
     data_type::{
         self,
         intervals::{Bound, Intervals},
+        DataTyped
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    relation,
-    DataType,
+    relation, DataType,
 };
 use itertools::Itertools;
+use sqlparser::test_utils::join;
 use std::collections::HashMap;
 use std::{
+    convert::Infallible,
+    error, fmt,
+    num::ParseFloatError,
     ops::{self, Deref},
     rc::Rc,
-    fmt,
-    error,
     result,
-    convert::Infallible,
-    num::ParseFloatError,
 };
-
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
     InvalidRelation(String),
     InvalidArguments(String),
+    NoPublicValuesError(String),
     Other(String),
 }
 
@@ -46,6 +46,7 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidRelation(desc) => writeln!(f, "InvalidRelation: {}", desc),
             Error::InvalidArguments(desc) => writeln!(f, "InvalidArguments: {}", desc),
+            Error::NoPublicValuesError(desc) => {writeln!(f, "NoPublicValuesError: {}", desc)}
             Error::Other(err) => writeln!(f, "{}", err),
         }
     }
@@ -83,7 +84,7 @@ impl From<Infallible> for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
-/* Table
+/* Reduce
  */
 
 impl Table {
@@ -180,7 +181,11 @@ impl Reduce {
         self
     }
 
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Relation> {
+    pub fn clip_aggregates(
+        self,
+        vectors: &str,
+        clipping_values: Vec<(&str, f64)>,
+    ) -> Result<Relation> {
         let (map_names, out_vectors, base, coordinates): (
             Vec<(String, String)>,
             Option<String>,
@@ -267,6 +272,17 @@ impl Join {
 impl Set {
     /// Rename a Join
     pub fn with_name(mut self, name: String) -> Set {
+        self.name = name;
+        self
+    }
+}
+
+/* Values
+ */
+
+impl Values {
+    /// Rename a Values
+    pub fn with_name(mut self, name: String) -> Values {
         self.name = name;
         self
     }
@@ -385,6 +401,7 @@ impl Relation {
             Relation::Reduce(r) => r.with_name(name).into(),
             Relation::Join(j) => j.with_name(name).into(),
             Relation::Set(s) => s.with_name(name).into(),
+            Relation::Values(v) => v.with_name(name).into(),
         }
     }
     /// Add a field that derives from existing fields
@@ -907,6 +924,8 @@ impl Relation {
                 Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))),
             ))
         });
+
+        // Add order by
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
@@ -990,7 +1009,6 @@ mod tests {
     };
     use colored::Colorize;
     use itertools::Itertools;
-    use sqlparser::keywords::RIGHT;
 
     #[test]
     fn test_with_computed_field() {
@@ -1431,8 +1449,8 @@ mod tests {
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
         let clipped_relation = my_relation
-        .clip_aggregates("order_id", vec![(price, 45.)])
-        .unwrap();
+            .clip_aggregates("order_id", vec![(price, 45.)])
+            .unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum_price"]);
         clipped_relation.display_dot();
@@ -1460,7 +1478,9 @@ mod tests {
 
         let schema = my_relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation.clip_aggregates("order_id", vec![(price, 45.)]).unwrap();
+        let clipped_relation = my_relation
+            .clip_aggregates("order_id", vec![(price, 45.)])
+            .unwrap();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["sum_price"]);
         clipped_relation.display_dot();
@@ -1501,8 +1521,9 @@ mod tests {
         let schema = relation.inputs()[0].schema().clone();
         let price = schema.field_from_index(2).unwrap().name();
         let std_price = schema.field_from_index(3).unwrap().name();
-        let clipped_relation =
-            relation.clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)]).unwrap();
+        let clipped_relation = relation
+            .clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)])
+            .unwrap();
         clipped_relation.display_dot();
         let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
         assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
@@ -1979,6 +2000,37 @@ mod tests {
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
         _ = distinct_rel.display_dot();
+    }
+
+    #[test]
+    fn test_public_values_column() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=10.0)))
+                    .with(("b", DataType::integer_values([1, 2, 5])))
+                    .build(),
+            )
+            .build();
+
+        // table
+        let rel = table.public_values_column("b").unwrap();
+        let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
+        rel.display_dot();
+        assert_eq!(rel, rel_values);
+        assert!(table.public_values_column("a").is_err());
+
+        // map
+        let map: Relation = Relation::map()
+        .name("map_1")
+        .with(("exp_a", Expr::exp(Expr::col("a"))))
+        .input(table.clone())
+        .with(("exp_b",  Expr::exp(Expr::col("b"))))
+        .build();
+        let rel = map.public_values_column("exp_b").unwrap();
+        rel.display_dot();
+        assert!(map.public_values_column("exp_a").is_err());
     }
 
     #[test]

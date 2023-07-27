@@ -13,7 +13,7 @@ pub mod transforms;
 
 use std::{
     cmp, error, fmt, hash,
-    ops::{Index, RangeBounds},
+    ops::Index,
     rc::Rc,
     result,
 };
@@ -26,8 +26,8 @@ use crate::{
     data_type::{
         self,
         function::Function,
-        intervals::{Bound, Intervals},
-        DataType, DataTyped, Integer, Struct, Variant as _,
+        intervals::Bound,
+        DataType, DataTyped, Integer, Struct, Value, Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
     hierarchy::Hierarchy,
@@ -35,7 +35,7 @@ use crate::{
     visitor::{self, Acceptor, Dependencies, Visited},
 };
 pub use builder::{
-    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, WithInput, WithSchema,
+    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, ValuesBuilder, WithInput, WithSchema,
     WithoutInput, WithoutSchema,
 };
 pub use field::Field;
@@ -145,6 +145,8 @@ pub trait Variant:
 pub struct Table {
     /// The name of the table
     pub name: String,
+    /// The path to the actual table
+    pub path: Identifier,
     /// The schema description of the output
     pub schema: Schema,
     /// The size of the table
@@ -153,17 +155,24 @@ pub struct Table {
 
 impl Table {
     /// Main constructor
-    pub fn new(name: String, schema: Schema, size: Integer) -> Self {
-        Table { name, schema, size }
+    pub fn new(name: String, path: Identifier, schema: Schema, size: Integer) -> Self {
+        Table { name, path, schema, size }
     }
 
     /// From schema
     pub fn from_schema<S: Into<Schema>>(schema: S) -> Table {
+        let path: String = namer::new_name("table");
         Table::new(
-            namer::new_name("table"),
+            path.clone(),
+            path.into(),
             schema.into(),
             Integer::from_min(0),
         )
+    }
+
+    /// Return the path
+    fn path(&self) -> &Identifier {
+        &self.path
     }
 
     /// A builder
@@ -198,7 +207,7 @@ impl Variant for Table {
     }
 
     fn inputs(&self) -> Vec<&Relation> {
-        Vec::new()
+        vec![]
     }
 }
 
@@ -810,6 +819,8 @@ pub enum SetQuantifier {
     All,
     Distinct,
     None,
+    ByName,
+    AllByName,
 }
 
 impl fmt::Display for SetQuantifier {
@@ -821,6 +832,8 @@ impl fmt::Display for SetQuantifier {
                 SetQuantifier::All => "ALL",
                 SetQuantifier::Distinct => "DISTINCT",
                 SetQuantifier::None => "NONE",
+                SetQuantifier::ByName => "BY NAME",
+                SetQuantifier::AllByName => "ALL BY NAME",
             }
         )
     }
@@ -925,7 +938,7 @@ impl Set {
 impl fmt::Display for Set {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let operator = match self.quantifier {
-            SetQuantifier::All | SetQuantifier::Distinct => {
+            SetQuantifier::All | SetQuantifier::Distinct | SetQuantifier::ByName | SetQuantifier::AllByName => {
                 format!("{} {}", self.operator, self.quantifier)
             }
             SetQuantifier::None => format!("{}", self.operator),
@@ -963,7 +976,75 @@ impl Variant for Set {
         vec![&self.left, &self.right]
     }
 }
+/// Values
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct Values {
+    /// The name of the output
+    pub name: String,
+    /// The values
+    pub values: Vec<Value>,
+    /// The schema description of the output
+    pub schema: Schema,
+    /// The size of the Set
+    pub size: Integer,
+}
 
+impl Values {
+    pub fn new(name: String, values: Vec<Value>) -> Self {
+        let schema = Values::schema(&values);
+        let size = Integer::from(values.len() as i64);
+        Values {
+            name,
+            values,
+            schema,
+            size: size.into(),
+        }
+    }
+
+    /// Compute the schema of the Values
+    fn schema(values: &Vec<Value>) -> Schema {
+        let list: data_type::List = Value::list(values.iter().cloned()).data_type().try_into().unwrap();
+        Schema::from_field(("values".to_string(), list.data_type().clone()))
+    }
+
+    pub fn builder() -> ValuesBuilder {
+        ValuesBuilder::new()
+    }
+}
+
+impl fmt::Display for Values {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "[ {} ]",
+            self.values.iter().map(|v| v.to_string()).join(", ")
+        )
+    }
+}
+
+impl DataTyped for Values {
+    fn data_type(&self) -> DataType {
+        self.schema.data_type()
+    }
+}
+
+impl Variant for Values {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    fn size(&self) -> &Integer {
+        &self.size
+    }
+
+    fn inputs(&self) -> Vec<&Relation> {
+        vec![]
+    }
+}
 // The Relation
 
 /// A Relation enum
@@ -976,16 +1057,18 @@ pub enum Relation {
     Reduce(Reduce),
     Join(Join),
     Set(Set),
+    Values(Values),
 }
 
 impl Relation {
     pub fn inputs(&self) -> Vec<&Relation> {
         match self {
             Relation::Map(map) => vec![map.input.as_ref()],
-            Relation::Table(_) => Vec::new(),
+            Relation::Table(_) => vec![],
             Relation::Reduce(reduce) => vec![reduce.input.as_ref()],
             Relation::Join(join) => vec![join.left.as_ref(), join.right.as_ref()],
             Relation::Set(set) => vec![set.left.as_ref(), set.right.as_ref()],
+            Relation::Values(_) => vec![],
         }
     }
 
@@ -1026,6 +1109,11 @@ impl Relation {
     pub fn set() -> SetBuilder<WithoutInput, WithoutInput> {
         Builder::set()
     }
+
+    /// Build a values
+    pub fn values() -> ValuesBuilder {
+        Builder::values()
+    }
 }
 
 // Implements Acceptor, Visitor and derive an iterator and a few other Visitor driven functions
@@ -1056,6 +1144,7 @@ pub trait Visitor<'a, T: Clone> {
     fn reduce(&self, reduce: &'a Reduce, input: T) -> T;
     fn join(&self, join: &'a Join, left: T, right: T) -> T;
     fn set(&self, set: &'a Set, left: T, right: T) -> T;
+    fn values(&self, values: &'a Values) -> T;
 }
 
 /// Implement a specific visitor to dispatch the dependencies more easily
@@ -1077,6 +1166,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Relation, T> for V {
                 dependencies.get(&set.left).clone(),
                 dependencies.get(&set.right).clone(),
             ),
+            Relation::Values(values) => self.values(values),
         }
     }
 }
@@ -1190,7 +1280,7 @@ macro_rules! impl_traits {
     }
 }
 
-impl_traits!(Table, Map, Reduce, Join, Set);
+impl_traits!(Table, Map, Reduce, Join, Set, Values);
 
 // A Relation builder
 
@@ -1215,6 +1305,10 @@ impl Builder {
 
     pub fn set() -> SetBuilder<WithoutInput, WithoutInput> {
         Set::builder()
+    }
+
+    pub fn values() -> ValuesBuilder {
+        Values::builder()
     }
 }
 
@@ -1258,6 +1352,14 @@ impl Ready<Relation> for SetBuilder<WithInput, WithInput> {
     }
 }
 
+impl Ready<Relation> for ValuesBuilder {
+    type Error = Error;
+
+    fn try_build(self) -> Result<Relation> {
+        Ok(Ready::<Values>::try_build(self)?.into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{schema::Schema, *};
@@ -1275,6 +1377,21 @@ mod tests {
         .collect();
         let table = Table::from_schema(schema);
         println!("{}: {}", table, table.data_type());
+    }
+
+    #[test]
+    fn test_values() {
+        let values = vec![Value::from(1.0), Value::from(2.0), Value::from(10)];
+        let values = Values::new("values".to_string(), values);
+        assert_eq!(
+            values.data_type(),
+            DataType::structured(vec![(
+                "values",
+                DataType::from(data_type::Float::from_values(vec![1., 2., 10.]))
+            )])
+        );
+        assert_eq!(values.size(), &Integer::from(3 as i64));
+        println!("{}", values);
     }
 
     #[test]

@@ -102,7 +102,7 @@ impl<T: Clone> VecProduct<T> {
     pub fn vec(&self) -> Vec<Vec<T>> {
         self.vecs
             .iter()
-            .fold(vec![Vec::new()], move |vec_vec, vec_t| {
+            .fold(vec![vec![]], move |vec_vec, vec_t| {
                 vec_vec
                     .into_iter()
                     .flat_map(move |vec| {
@@ -249,7 +249,7 @@ pub trait ToStringProduct: Product {
 
 impl ToStringProduct for Unit {
     fn to_string_vec(&self) -> Vec<String> {
-        Vec::new()
+        vec![]
     }
 }
 
@@ -261,7 +261,7 @@ impl Display for Unit {
 
 impl<S: ToString, Next: ToStringProduct> ToStringProduct for Term<S, Next> {
     fn to_string_vec(&self) -> Vec<String> {
-        let mut result = Vec::new();
+        let mut result = vec![];
         result.push(self.value.to_string());
         let mut tail = self.next.to_string_vec();
         result.append(&mut tail);

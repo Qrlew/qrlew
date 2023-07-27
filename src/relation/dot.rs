@@ -120,6 +120,17 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
                 .collect(),
         )
     }
+
+    fn values(&self, values: &'a super::Values) -> FieldDataTypes {
+        FieldDataTypes(
+            values
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| (field.clone(), Expr::col(field.name())))
+                .collect(),
+        )
+    }
 }
 
 /// Clip a str
@@ -251,6 +262,12 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 set.size(),
                 &node.1
             ),
+            Relation::Values(values) => format!(
+                "<b>{} size ∈ {}</b><br/>[{}]",
+                values.name().to_uppercase(),
+                values.size(),
+                values.values.iter().map(|v| v.to_string()).join(", "),
+            ),
         })
     }
 
@@ -261,6 +278,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Relation::Reduce(_) => colors::DARK_GREEN,
             Relation::Join(_) => colors::LIGHT_RED,
             Relation::Set(_) => colors::LIGHTER_GREEN,
+            Relation::Values(_) => colors::MEDIUM_GREEN,
         }))
     }
 }
@@ -279,7 +297,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
         self.0
             .iter_with(self.1.clone())
             .flat_map(|(relation, t)| match relation {
-                Relation::Table(_) => Vec::new(),
+                Relation::Table(_) => vec![],
                 Relation::Map(map) => vec![Edge(relation, &map.input, t)],
                 Relation::Reduce(reduce) => vec![Edge(relation, &reduce.input, t)],
                 Relation::Join(join) => vec![
@@ -290,6 +308,7 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
                     Edge(relation, &set.left, t.clone()),
                     Edge(relation, &set.right, t),
                 ],
+                Relation::Values(_) => vec![],
             })
             .collect()
     }
@@ -315,7 +334,7 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::DataType,
+        data_type::{DataType, Value},
         display::Dot,
         expr::Expr,
         relation::{schema::Schema, Relation},
@@ -448,5 +467,17 @@ mod tests {
             .with(Expr::sum(Expr::col("b")))
             .build();
         reduce.display_dot();
+    }
+
+    #[test]
+    fn test_display_values() {
+        let values: Relation = Relation::values().name("Float").values(vec![5.]).build();
+        values.display_dot();
+
+        let values: Relation = Relation::values()
+            .name("List_of_floats")
+            .values(vec![Value::float(10.), Value::float(4.0)])
+            .build();
+        values.display_dot();
     }
 }

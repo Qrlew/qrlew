@@ -107,7 +107,7 @@ pub trait Database: Sized {
     }
     /// Create an empty db
     fn empty(name: String) -> Result<Self> {
-        Self::new(name, Vec::new())
+        Self::new(name, vec![])
     }
     /// Create a table from a table object
     fn create_table(&mut self, table: &Table) -> Result<usize>;
@@ -195,6 +195,28 @@ pub trait Database: Sized {
                         .with(("order_id", DataType::integer_interval(0, 100)))
                         .with(("item", DataType::text()))
                         .with(("price", DataType::float_interval(0., 50.))),
+                )
+                .build(),
+            TableBuilder::new()
+                .name("large_user_table")
+                .size(100000)
+                .schema(
+                    Schema::empty()
+                        .with(("id", DataType::integer_interval(0, 1000)))
+                        .with(("name", DataType::text()))
+                        .with((
+                            "age",
+                            DataType::optional(DataType::float_interval(0., 200.)),
+                        ))
+                        .with((
+                            "city",
+                            DataType::text_values([
+                                "Paris".into(),
+                                "New-York".into(),
+                                "Rome".into(),
+                            ]),
+                        ))
+                        .with(("income", DataType::float_interval(100.0, 200000.0))),
                 )
                 .build(),
         ]

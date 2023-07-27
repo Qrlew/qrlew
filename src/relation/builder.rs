@@ -1,13 +1,15 @@
 use std::{hash::Hash, rc::Rc};
 
+use itertools::Itertools;
+
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Variant,
+    SetOperator, SetQuantifier, Table, Values, Variant,
 };
 use crate::{
     ast,
     builder::{Ready, With, WithIterator},
-    data_type::Integer,
+    data_type::{Integer, Value},
     expr::{self, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
@@ -25,8 +27,10 @@ Table builder
 /// A table builder
 #[derive(Debug, Default)]
 pub struct TableBuilder<RequireSchema> {
-    /// The name of the table
+    /// The name of the table (may be derived from the path)
     name: Option<String>,
+    /// The path of the table (may be derived from the name)
+    path: Option<Identifier>,
     /// The schema description of the output
     schema: RequireSchema,
     /// The size of the dataset
@@ -41,7 +45,16 @@ impl TableBuilder<WithoutSchema> {
 
 impl<RequireSchema> TableBuilder<RequireSchema> {
     pub fn name<S: Into<String>>(mut self, name: S) -> Self {
-        self.name = Some(name.into());
+        let name: String = name.into();
+        self.name = Some(name.clone());
+        self.path = self.path.or_else(|| Some(name.into()));
+        self
+    }
+
+    pub fn path<I: Into<Identifier>>(mut self, path: I) -> Self {
+        let path: Identifier = path.into();
+        self.path = Some(path.clone());
+        self.name = self.name.or_else(|| Some(path.iter().join("_")));
         self
     }
 
@@ -53,6 +66,7 @@ impl<RequireSchema> TableBuilder<RequireSchema> {
     pub fn schema<S: Into<Schema>>(self, schema: S) -> TableBuilder<WithSchema> {
         TableBuilder {
             name: self.name,
+            path: self.path,
             schema: WithSchema(schema.into()),
             size: self.size,
         }
@@ -64,10 +78,11 @@ impl Ready<Table> for TableBuilder<WithSchema> {
 
     fn try_build(self) -> Result<Table> {
         let name = self.name.unwrap_or_else(|| namer::new_name("table"));
+        let path = self.path.unwrap_or_else(|| name.clone().into());
         let size = self
             .size
             .map_or_else(|| Integer::from_min(0), |size| Integer::from_value(size));
-        Ok(Table::new(name, self.schema.0, size))
+        Ok(Table::new(name, path, self.schema.0, size))
     }
 }
 
@@ -672,6 +687,12 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         };
         self
     }
+
+    pub fn on_iter<I: IntoIterator<Item = Expr>>(mut self, exprs: I) -> Self {
+        self = self.on(Expr::and_iter(exprs));
+        self
+    }
+
     /// Add a condition to the ON
     pub fn and(mut self, expr: Expr) -> Self {
         self.operator = match self.operator {
@@ -972,15 +993,54 @@ impl Ready<Set> for SetBuilder<WithInput, WithInput> {
     }
 }
 
+/*
+Values builder
+ */
+
+/// A values builder
+#[derive(Debug, Default)]
+pub struct ValuesBuilder {
+    /// The name
+    name: Option<String>,
+    /// The Value
+    values: Vec<Value>,
+}
+
+impl ValuesBuilder {
+    pub fn new() -> Self {
+        ValuesBuilder::default()
+    }
+
+    pub fn name<S: Into<String>>(mut self, name: S) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub fn values<L: IntoIterator<Item = V>, V: Into<Value>>(mut self, values: L) -> Self {
+        self.values = values.into_iter().map(|v| v.into()).collect();
+        self
+    }
+}
+
+impl Ready<Values> for ValuesBuilder {
+    type Error = Error;
+
+    fn try_build(self) -> Result<Values> {
+        let name = self.name.unwrap_or_else(|| namer::new_name("values"));
+        let values = self.values;
+        Ok(Values::new(name, values))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{display::Dot, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType};
 
     #[test]
     fn test_map_building() {
         let table: Relation = Relation::table()
-            .name("table")
+            .path(["db", "schema", "table"])
             .schema(
                 Schema::builder()
                     .with(("a", DataType::float_range(1.0..=1.1)))
@@ -1031,8 +1091,8 @@ mod tests {
             .on(Expr::eq(Expr::col("d"), Expr::col("x")))
             .and(Expr::lt(Expr::col("a"), Expr::col("x")))
             .build();
+        join.display_dot();
         println!("Join = {join}");
-        join.display_dot().unwrap();
         let query = &ast::Query::from(&join).to_string();
         println!(
             "{}\n{}",
@@ -1186,5 +1246,44 @@ mod tests {
                 Expr::lt(Expr::col("a"), Expr::val(0.9))
             )
         }
+    }
+
+    #[test]
+    fn test_values() {
+        // empty
+        let values = Relation::values().build();
+        assert_eq!(Values::new("values_0".to_string(), vec![]), values);
+
+        // float
+        let values = Relation::values().name("MyValues").values(vec![5.]).build();
+        assert_eq!(
+            Values::new("MyValues".to_string(), vec![Value::float(5.)]),
+            values
+        );
+
+        // list of float
+        let values = Relation::values()
+            .name("MyValues")
+            .values([1., 3., 5.])
+            .build();
+        assert_eq!(
+            Values::new(
+                "MyValues".to_string(),
+                vec![1.0.into(), 3.0.into(), 5.0.into()]
+            ),
+            values
+        );
+
+        // list of float
+        let values: Relation = Relation::values()
+            .name("MyValues")
+            .values([
+                Value::from(1.),
+                Value::from(6),
+                Value::from("a".to_string()),
+            ])
+            .build();
+        println!("{}", values);
+        println!("{}", values.data_type());
     }
 }

@@ -290,10 +290,9 @@ impl Expr {
     }
 
     pub fn and_iter<I: IntoIterator<Item = Expr>>(exprs: I) -> Expr {
-        let exprs: Vec<Expr> = exprs.into_iter().collect();
-        exprs[1..]
-            .iter()
-            .fold(exprs[0].clone(), |f, p| Expr::and(f, p.clone()))
+        exprs.into_iter()
+            .reduce(|f, p| Expr::and(f, p))
+            .unwrap_or(Expr::val(true))
     }
 
     /// Returns an `Expr` for filtering the columns
@@ -1160,7 +1159,7 @@ impl<'a> visitor::Visitor<'a, Expr, (Expr, Vec<(Expr, Expr)>)> for ReplaceVisito
                             )
                         }
                         // No replacement
-                        e => (e.clone(), Vec::new()),
+                        e => (e.clone(), vec![]),
                     }
                 },
                 |(pattern, replacement)| {

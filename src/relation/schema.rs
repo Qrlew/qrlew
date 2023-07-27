@@ -34,7 +34,7 @@ impl Schema {
 
     /// Create an empty schema
     pub fn empty() -> Self {
-        Schema::new(Vec::new())
+        Schema::new(vec![])
     }
 
     /// Create a schema with a new field from an existing Shema
@@ -226,7 +226,7 @@ pub struct Builder {
 
 impl Builder {
     pub fn new() -> Builder {
-        Builder { fields: Vec::new() }
+        Builder { fields: vec![] }
     }
 }
 

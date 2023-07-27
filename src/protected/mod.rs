@@ -8,7 +8,7 @@ use crate::{
     display::Dot,
     expr::{identifier::Identifier, Expr},
     hierarchy::{Hierarchy, Path},
-    relation::{Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
+    relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
 use std::{error, fmt, rc::Rc, result};
@@ -40,7 +40,7 @@ impl error::Error for Error {}
 
 pub type Result<T> = result::Result<T, Error>;
 
-pub const PROTECTION_PREFIX: &str = "_protected_";
+pub const PROTECTION_PREFIX: &str = "_PROTECTED_";
 pub const PROTECTION_COLUMNS: usize = 2;
 pub const PE_ID: &str = "_PROTECTED_ENTITY_ID_";
 pub const PE_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
@@ -246,6 +246,10 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
             .left(left?)
             .right(right?);
         Ok(builder.build())
+    }
+
+    fn values(&self, values: &'a Values) -> Result<Relation> {
+        Ok(Relation::Values(values.clone()))
     }
 }
 
