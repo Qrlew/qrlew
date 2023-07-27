@@ -17,7 +17,7 @@ use crate::{
 };
 use itertools::Itertools;
 use sqlparser::test_utils::join;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::{
     convert::Infallible,
     error, fmt,
@@ -826,12 +826,14 @@ impl Relation {
     /// returns a filtered `Relation` whose `filter` is equivalent to `(my_col > 2.) and (my_col < 10) and (my_col in (4, 9)`
     pub fn filter_columns(
         self,
-        columns: Vec<(
+        columns: BTreeMap<
             &str,
-            Option<data_type::value::Value>,
-            Option<data_type::value::Value>,
-            Vec<data_type::value::Value>,
-        )>,
+            (
+                Option<data_type::value::Value>,
+                Option<data_type::value::Value>,
+                Vec<data_type::value::Value>,
+            ),
+        >,
     ) -> Relation {
         let predicate = Expr::filter(columns);
         self.filter(predicate)

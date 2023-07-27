@@ -157,7 +157,9 @@ impl Relation {
 
         // Returns a `Relation::Map` with the right field names and with `COUNT(DISTINCT PE_ID) > tau`
         let tau = super::mechanisms::gaussian_tau(epsilon, delta, sensitivity);
-        let columns = vec![(PE_DISTINCT_COUNT, Some(tau.into()), None, vec![])];
+        let columns = [(PE_DISTINCT_COUNT, (Some(tau.into()), None, vec![]))]
+            .into_iter()
+            .collect();
         Ok(rel.filter_columns(columns))
     }
 
