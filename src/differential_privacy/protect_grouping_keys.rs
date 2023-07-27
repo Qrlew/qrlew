@@ -168,7 +168,7 @@ impl Relation {
             .schema()
             .iter()
             .filter_map(|f| {
-                if f.data_type().all_values() {
+                if TryInto::<Vec<Value>>::try_into(f.data_type()).is_ok() {// TODO This should be explained / documented
                     Some(f.name().to_string())
                 } else {
                     None

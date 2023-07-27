@@ -11,12 +11,11 @@ use crate::{
         intervals::{Bound, Intervals},
         DataTyped,
     },
-    expr::{aggregate, Aggregate, Expr, Value},
+    expr::{self, aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
     relation, DataType,
+    io,
 };
-use itertools::Itertools;
-use sqlparser::test_utils::join;
 use std::collections::{BTreeMap, HashMap};
 use std::{
     convert::Infallible,
@@ -66,13 +65,18 @@ impl From<relation::Error> for Error {
         Error::Other(err.to_string())
     }
 }
-impl From<crate::expr::Error> for Error {
+impl From<expr::Error> for Error {
     fn from(err: crate::expr::Error) -> Self {
         Error::Other(err.to_string())
     }
 }
-impl From<crate::io::Error> for Error {
+impl From<io::Error> for Error {
     fn from(err: crate::io::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+impl From<data_type::Error> for Error {
+    fn from(err: data_type::Error) -> Self {
         Error::Other(err.to_string())
     }
 }
@@ -964,13 +968,9 @@ impl Relation {
     }
 
     pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
-        let datatype = self.schema().field(colname).unwrap().data_type();
-        if let Some(values) = datatype.values() {
-            let rel: Relation = Relation::values().name(colname).values(values).build();
-            Ok(rel)
-        } else {
-            Err(Error::NoPublicValuesError(colname.to_string()))
-        }
+        let data_type = self.schema().field(colname).unwrap().data_type();
+        let values: Vec<Value> = data_type.try_into()?;
+        Ok(Relation::values().name(colname).values(values).build())
     }
 
     pub fn possible_values(&self) -> Result<Relation> {

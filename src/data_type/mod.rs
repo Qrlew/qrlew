@@ -61,7 +61,6 @@ use std::{
 };
 
 use crate::{
-    data_type::intervals::Values,
     namer,
     types::{And, Or},
     visitor::{self, Acceptor},
@@ -2286,49 +2285,6 @@ impl DataType {
             (Err(_), Err(_)) => Err(Error::other("No common variant")),
         }
     }
-
-    pub fn all_values(&self) -> bool {
-        match &self {
-            DataType::Integer(i) => i.all_values(),
-            DataType::Float(f) => f.all_values(),
-            DataType::Date(d) => d.all_values(),
-            DataType::Time(t) => t.all_values(),
-            DataType::DateTime(d) => d.all_values(),
-            DataType::Duration(d) => d.all_values(),
-            DataType::Boolean(b) => b.all_values(),
-            DataType::Text(t) => t.all_values(),
-            DataType::Optional(Optional { data_type }) => data_type.as_ref().all_values(),
-            _ => false,
-        }
-    }
-
-    pub fn values(&self) -> Option<Vec<Value>> {
-        if self.all_values() {
-            match &self {
-                DataType::Integer(i) => {
-                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
-                }
-                DataType::Float(i) => {
-                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
-                }
-                DataType::Date(i) => Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect()),
-                DataType::Time(i) => Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect()),
-                DataType::DateTime(i) => {
-                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
-                }
-                DataType::Duration(i) => {
-                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
-                }
-                DataType::Boolean(i) => {
-                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
-                }
-                DataType::Text(i) => Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect()),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    }
 }
 
 impl Variant for DataType {
@@ -2540,6 +2496,49 @@ impl_conversions!(DateTime);
 impl_conversions!(Duration);
 impl_conversions!(Id);
 impl_conversions!(Function);
+
+macro_rules! impl_into_values {
+    ( $Variant:ident ) => {
+        impl TryInto<Vec<Value>> for $Variant {
+            type Error = Error;
+
+            fn try_into(self) -> Result<Vec<Value>> {
+                if self.all_values() {
+                    Ok(self.into_iter().map(|[v, _]| Value::from(v)).collect())
+                } else {
+                    Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>"))
+                }
+            }
+        }
+    };
+}
+
+impl_into_values!(Boolean);
+impl_into_values!(Integer);
+impl_into_values!(Float);
+impl_into_values!(Text);
+impl_into_values!(Date);
+impl_into_values!(Time);
+impl_into_values!(DateTime);
+impl_into_values!(Duration);
+
+impl TryInto<Vec<Value>> for DataType {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Vec<Value>> {
+        match self {
+            DataType::Boolean(b) => b.try_into(),
+            DataType::Integer(i) => i.try_into(),
+            DataType::Float(f) => f.try_into(),
+            DataType::Text(t) => t.try_into(),
+            DataType::Date(d) => d.try_into(),
+            DataType::Time(t) => t.try_into(),
+            DataType::DateTime(d) => d.try_into(),
+            DataType::Duration(d) => d.try_into(),
+            _ => Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>")),
+        }
+    }
+}
 
 impl cmp::PartialEq for DataType {
     fn eq(&self, other: &Self) -> bool {
@@ -3590,14 +3589,14 @@ mod tests {
     }
 
     #[test]
-    fn test_values() {
+    fn test_try_into_values() {
         let dt = DataType::float_values([1., 2., 3.]);
-        assert_eq!(dt.values(), Some(vec![1.0.into(), 2.0.into(), 3.0.into()]));
+        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into(), 2.0.into(), 3.0.into()]);
 
         let dt = DataType::float_interval(1., 1.);
-        assert_eq!(dt.values(), Some(vec![1.0.into()]));
+        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into()]);
 
         let dt = DataType::float_interval(1., 3.);
-        assert_eq!(dt.values(), None);
+        assert!(TryInto::<Vec<Value>>::try_into(dt).is_err());
     }
 }
