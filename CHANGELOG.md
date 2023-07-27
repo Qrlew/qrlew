@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 -  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
+-  Fixed table naming
 
 ## [0.2.0] - 2023-07-25
 ### Added
