@@ -957,7 +957,7 @@ impl Relation {
         red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    // Returns the cross join between `self` and `right` where
+    /// Returns the cross join between `self` and `right` where
     // the output names of the fields are conserved.
     // This fails if one column name is contained in both relations
     pub fn cross_join(self, right: Self) -> Result<Relation> {
