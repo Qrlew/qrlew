@@ -2128,8 +2128,8 @@ mod tests {
             .name("table")
             .schema(
                 Schema::builder()
-                .with(("a", DataType::float_values([1.0, 10.0])))
-                .with(("b", DataType::integer_values([1, 2, 5])))
+                    .with(("a", DataType::float_values([1.0, 10.0])))
+                    .with(("b", DataType::integer_values([1, 2, 5])))
                     .build(),
             )
             .build();
@@ -2147,8 +2147,8 @@ mod tests {
             .name("table")
             .schema(
                 Schema::builder()
-                .with(("a", DataType::float_interval(1.0, 10.0)))
-                .with(("b", DataType::integer_values([1, 2, 5])))
+                    .with(("a", DataType::float_interval(1.0, 10.0)))
+                    .with(("b", DataType::integer_values([1, 2, 5])))
                     .build(),
             )
             .build();
