@@ -958,8 +958,8 @@ impl Relation {
     }
 
     /// Returns the cross join between `self` and `right` where
-    // the output names of the fields are conserved.
-    // This fails if one column name is contained in both relations
+    /// the output names of the fields are conserved.
+    /// This fails if one column name is contained in both relations
     pub fn cross_join(self, right: Self) -> Result<Relation> {
         let left_names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
         let right_names: Vec<String> = right
@@ -984,6 +984,9 @@ impl Relation {
             .build())
     }
 
+    /// Returns the left join between `self` and `right` where
+    /// the output names of the fields are conserved.
+    /// This fails if one column name is contained in both relations
     pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
         if on.is_empty() {
             return Err(Error::InvalidArguments(
