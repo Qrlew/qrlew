@@ -54,6 +54,11 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {}
 
+impl From<Infallible> for Error {
+    fn from(err: Infallible) -> Self {
+        Error::Other(err.to_string())
+    }
+}
 impl From<relation::Error> for Error {
     fn from(err: relation::Error) -> Self {
         Error::Other(err.to_string())
@@ -72,12 +77,6 @@ impl From<crate::io::Error> for Error {
 
 impl From<ParseFloatError> for Error {
     fn from(err: ParseFloatError) -> Self {
-        Error::Other(err.to_string())
-    }
-}
-
-impl From<Infallible> for Error {
-    fn from(err: Infallible) -> Self {
         Error::Other(err.to_string())
     }
 }
@@ -971,14 +970,15 @@ impl Relation {
     }
 
     pub fn all_values(&self) -> Result<Relation> {
-        let vec_of_rel: Vec<Relation> = self.schema()
+        let vec_of_rel: <Result<Vec<Relation>> = self.schema()
         .iter()
         .map(|c| self.all_values_column(c.name()))
-        .collect()?;
+        .collect();
 
         Ok(
-            vec_of_rel.iter()
-            .reduce(|l, r| l.cross_join(r)?)
+            vec_of_rel?.into_iter()
+            .reduce(|l, r| l.cross_join(r).unwrap())
+            .unwrap()
         )
     }
 
@@ -2058,22 +2058,23 @@ mod tests {
     }
 
     #[test]
-    fn test_public_values_column() {
+    fn test_all_values_column() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
                 Schema::builder()
                     .with(("a", DataType::float_range(1.0..=10.0)))
                     .with(("b", DataType::integer_values([1, 2, 5])))
+                    .build()
             )
             .build();
 
         // table
-        let rel = table.public_values_column("b").unwrap();
+        let rel = table.all_values_column("b").unwrap();
         let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
         rel.display_dot();
         assert_eq!(rel, rel_values);
-        assert!(table.public_values_column("a").is_err());
+        assert!(table.all_values_column("a").is_err());
 
         // map
         let map: Relation = Relation::map()
@@ -2082,9 +2083,9 @@ mod tests {
         .input(table.clone())
         .with(("exp_b",  Expr::exp(Expr::col("b"))))
         .build();
-        let rel = map.public_values_column("exp_b").unwrap();
+        let rel = map.all_values_column("exp_b").unwrap();
         rel.display_dot();
-        assert!(map.public_values_column("exp_a").is_err());
+        assert!(map.all_values_column("exp_a").is_err());
     }
 
     #[test]

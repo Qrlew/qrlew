@@ -100,15 +100,6 @@ impl Reduce {
 
     // Returns a `Relation` outputing all grouping keys that can be safely released
     pub fn possible_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
-        let group_by = self.grouping_columns()?;
-
-        // collect the columns that have public_values
-        let public_columns:Vec<&str> = self.input.schema()
-        .iter()
-        .filter_map(|f| if f.data_type().all_values() && group_by.contains(&f.name().to_string()) {Some(f.name())} else {None})
-        .collect();
-
-        let public_values_relations:Vec<Relation> = public_columns.iter().map(|c| self.input.public_values_column(c).unwrap()).collect();
         // TODO: add public_values
         self.tau_thresholded_values(epsilon, delta, sensitivity)
     }
