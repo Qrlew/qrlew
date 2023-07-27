@@ -2295,9 +2295,9 @@ impl DataType {
             DataType::DateTime(d) => d.all_values(),
             DataType::Duration(d) => d.all_values(),
             DataType::Boolean(b) => b.all_values(),
-            DataType::Text(t)  => t.all_values(),
-            DataType::Optional(Optional{data_type})  => data_type.as_ref().all_values(),
-            _ => false
+            DataType::Text(t) => t.all_values(),
+            DataType::Optional(Optional { data_type }) => data_type.as_ref().all_values(),
+            _ => false,
         }
     }
 
@@ -2309,20 +2309,21 @@ impl DataType {
                 } else {
                     None
                 }
-            },
+            }
             DataType::Float(f) => {
                 if let Some(l) = f.possible_values() {
                     Some(l.iter().cloned().map(|v| Value::from(v)).collect())
                 } else {
                     None
                 }
-            },
-            DataType::Date(_) | DataType::Time(_)
+            }
+            DataType::Date(_)
+            | DataType::Time(_)
             | DataType::DateTime(_)
             | DataType::Duration(_)
             | DataType::Boolean(_)
             | DataType::Text(_) => todo!(),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -3588,12 +3589,15 @@ mod tests {
     #[test]
     fn test_possible_values() {
         let dt = DataType::float_values([1., 2., 3.]);
-        assert_eq!(dt.possible_values(), Some(vec![1.0.into(), 2.0.into(), 3.0.into()]));
+        assert_eq!(
+            dt.possible_values(),
+            Some(vec![1.0.into(), 2.0.into(), 3.0.into()])
+        );
 
-        let dt = DataType::float_interval(1.,1.);
+        let dt = DataType::float_interval(1., 1.);
         assert_eq!(dt.possible_values(), Some(vec![1.0.into()]));
 
-        let dt = DataType::float_interval(1.,3.);
+        let dt = DataType::float_interval(1., 3.);
         assert_eq!(dt.possible_values(), None);
     }
 }

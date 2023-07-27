@@ -9,7 +9,7 @@ use crate::{
     data_type::{
         self,
         intervals::{Bound, Intervals},
-        DataTyped
+        DataTyped,
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
@@ -46,7 +46,9 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidRelation(desc) => writeln!(f, "InvalidRelation: {}", desc),
             Error::InvalidArguments(desc) => writeln!(f, "InvalidArguments: {}", desc),
-            Error::NoPublicValuesError(desc) => {writeln!(f, "NoPublicValuesError: {}", desc)}
+            Error::NoPublicValuesError(desc) => {
+                writeln!(f, "NoPublicValuesError: {}", desc)
+            }
             Error::Other(err) => writeln!(f, "{}", err),
         }
     }
@@ -970,16 +972,16 @@ impl Relation {
     }
 
     pub fn possible_values(&self) -> Result<Relation> {
-        let vec_of_rel: Result<Vec<Relation>> = self.schema()
-        .iter()
-        .map(|c| self.possible_values_column(c.name()))
-        .collect();
+        let vec_of_rel: Result<Vec<Relation>> = self
+            .schema()
+            .iter()
+            .map(|c| self.possible_values_column(c.name()))
+            .collect();
 
-        Ok(
-            vec_of_rel?.into_iter()
+        Ok(vec_of_rel?
+            .into_iter()
             .reduce(|l, r| l.cross_join(r).unwrap())
-            .unwrap()
-        )
+            .unwrap())
     }
 
     /// Returns the cross join between `self` and `right` where
@@ -2068,7 +2070,7 @@ mod tests {
                 Schema::builder()
                     .with(("a", DataType::float_range(1.0..=10.0)))
                     .with(("b", DataType::integer_values([1, 2, 5])))
-                    .build()
+                    .build(),
             )
             .build();
 
@@ -2081,11 +2083,11 @@ mod tests {
 
         // map
         let map: Relation = Relation::map()
-        .name("map_1")
-        .with(("exp_a", Expr::exp(Expr::col("a"))))
-        .input(table.clone())
-        .with(("exp_b",  Expr::exp(Expr::col("b"))))
-        .build();
+            .name("map_1")
+            .with(("exp_a", Expr::exp(Expr::col("a"))))
+            .input(table.clone())
+            .with(("exp_b", Expr::exp(Expr::col("b"))))
+            .build();
         let rel = map.possible_values_column("exp_b").unwrap();
         rel.display_dot();
         assert!(map.possible_values_column("exp_a").is_err());
@@ -2099,7 +2101,7 @@ mod tests {
                 Schema::builder()
                     .with(("a", DataType::float_range(1.0..=10.0)))
                     .with(("b", DataType::integer_values([1, 2, 5])))
-                    .build()
+                    .build(),
             )
             .build();
 
@@ -2109,12 +2111,15 @@ mod tests {
 
         // map
         let map: Relation = Relation::map()
-        .name("map_1")
-        .with(("a", Expr::col("a")))
-        .with(("b",  Expr::col("b")))
-        .filter(Expr::in_list(Expr::col("a"), Expr::list([1., 2., 3.5, 4.5])))
-        .input(table.clone())
-        .build();
+            .name("map_1")
+            .with(("a", Expr::col("a")))
+            .with(("b", Expr::col("b")))
+            .filter(Expr::in_list(
+                Expr::col("a"),
+                Expr::list([1., 2., 3.5, 4.5]),
+            ))
+            .input(table.clone())
+            .build();
         let rel = map.possible_values().unwrap();
         rel.display_dot();
     }

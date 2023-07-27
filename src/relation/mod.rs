@@ -1389,7 +1389,7 @@ mod tests {
     fn test_values() {
         let values = Values::new(
             "values".to_string(),
-            vec![Value::from(1.0), Value::from(2.0), Value::from(10)]
+            vec![Value::from(1.0), Value::from(2.0), Value::from(10)],
         );
         assert_eq!(
             values.data_type(),
