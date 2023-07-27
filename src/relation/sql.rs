@@ -33,6 +33,15 @@ impl From<Identifier> for ast::ObjectName {
     }
 }
 
+impl From<&Relation> for ast::ObjectName {
+    fn from(value: &Relation) -> Self {
+        match value {
+            Relation::Table(table) => table.path().clone().into(),
+            relation => Identifier::from(relation.name()).into(),
+        }
+    }
+}
+
 impl From<JoinConstraint> for ast::JoinConstraint {
     fn from(value: JoinConstraint) -> Self {
         match value {
@@ -251,7 +260,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(Identifier::from(map.input.name()).into(), vec![]),
+                table_with_joins(map.input.as_ref().into(), vec![]),
                 map.filter.as_ref().map(ast::Expr::from),
                 vec![],
                 map.order_by
@@ -301,7 +310,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(Identifier::from(reduce.input.name()).into(), vec![]),
+                table_with_joins(reduce.input.as_ref().into(), vec![]),
                 None,
                 reduce.group_by.iter().map(ast::Expr::from).collect(),
                 vec![],
@@ -344,9 +353,9 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 vec![],
                 all(),
                 table_with_joins(
-                    Identifier::from(join.left.name()).into(),
+                        join.left.as_ref().into(),
                     vec![ast::Join {
-                        relation: table_factor(Identifier::from(join.right.name()).into()),
+                        relation: table_factor(join.right.as_ref().into()),
                         join_operator: join.operator.clone().into(),
                     }],
                 ),
