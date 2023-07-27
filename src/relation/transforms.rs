@@ -963,7 +963,7 @@ impl Relation {
 
     pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
         let datatype = self.schema().field(colname).unwrap().data_type();
-        if let Some(values) = datatype.possible_values() {
+        if let Some(values) = datatype.values() {
             let rel: Relation = Relation::values().name(colname).values(values).build();
             Ok(rel)
         } else {

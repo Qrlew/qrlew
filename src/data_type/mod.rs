@@ -61,6 +61,7 @@ use std::{
 };
 
 use crate::{
+    data_type::intervals::Values,
     namer,
     types::{And, Or},
     visitor::{self, Acceptor},
@@ -2301,29 +2302,31 @@ impl DataType {
         }
     }
 
-    pub fn possible_values(&self) -> Option<Vec<Value>> {
-        match &self {
-            DataType::Integer(i) => {
-                if let Some(l) = i.possible_values() {
-                    Some(l.iter().cloned().map(|v| Value::from(v)).collect())
-                } else {
-                    None
+    pub fn values(&self) -> Option<Vec<Value>> {
+        if self.all_values() {
+            match &self {
+                DataType::Integer(i) => {
+                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
                 }
-            }
-            DataType::Float(f) => {
-                if let Some(l) = f.possible_values() {
-                    Some(l.iter().cloned().map(|v| Value::from(v)).collect())
-                } else {
-                    None
+                DataType::Float(i) => {
+                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
                 }
+                DataType::Date(i) => Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect()),
+                DataType::Time(i) => Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect()),
+                DataType::DateTime(i) => {
+                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
+                }
+                DataType::Duration(i) => {
+                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
+                }
+                DataType::Boolean(i) => {
+                    Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect())
+                }
+                DataType::Text(i) => Some(i.iter().cloned().map(|[v, _]| Value::from(v)).collect()),
+                _ => None,
             }
-            DataType::Date(_)
-            | DataType::Time(_)
-            | DataType::DateTime(_)
-            | DataType::Duration(_)
-            | DataType::Boolean(_)
-            | DataType::Text(_) => todo!(),
-            _ => None,
+        } else {
+            None
         }
     }
 }
@@ -3587,17 +3590,14 @@ mod tests {
     }
 
     #[test]
-    fn test_possible_values() {
+    fn test_values() {
         let dt = DataType::float_values([1., 2., 3.]);
-        assert_eq!(
-            dt.possible_values(),
-            Some(vec![1.0.into(), 2.0.into(), 3.0.into()])
-        );
+        assert_eq!(dt.values(), Some(vec![1.0.into(), 2.0.into(), 3.0.into()]));
 
         let dt = DataType::float_interval(1., 1.);
-        assert_eq!(dt.possible_values(), Some(vec![1.0.into()]));
+        assert_eq!(dt.values(), Some(vec![1.0.into()]));
 
         let dt = DataType::float_interval(1., 3.);
-        assert_eq!(dt.possible_values(), None);
+        assert_eq!(dt.values(), None);
     }
 }
