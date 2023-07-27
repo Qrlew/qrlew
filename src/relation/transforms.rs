@@ -961,8 +961,8 @@ impl Relation {
     // the output names of the fields are conserved.
     // This fails if one column name is contained in both relations
     pub fn cross_join(self, right: Self) -> Result<Relation> {
-        let left_names:Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
-        let right_names:Vec<String> = right
+        let left_names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names: Vec<String> = right
             .schema()
             .iter()
             .map(|f| f.name().to_string())
@@ -973,7 +973,7 @@ impl Relation {
                 Error::InvalidArguments(
                     "Cannot use `cross_join` method for joining two relations containing fields with the same names.".to_string()
                 )
-            )
+            );
         }
         Ok(Relation::join()
             .left(self.clone())
@@ -990,8 +990,8 @@ impl Relation {
                 "Vector `on` cannot be empty.".into(),
             ));
         }
-        let left_names:Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
-        let right_names:Vec<String> = right
+        let left_names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names: Vec<String> = right
             .schema()
             .iter()
             .map(|f| f.name().to_string())
@@ -1005,7 +1005,7 @@ impl Relation {
                 Error::InvalidArguments(
                     "Cannot use `left_join` method for joining two relations containing fields with the same names.".to_string()
                 )
-            )
+            );
         }
         Ok(Relation::join()
             .left(self.clone())
@@ -2083,10 +2083,7 @@ mod tests {
             )
             .build();
 
-        let joined_rel = table1
-            .clone()
-            .cross_join(table2.clone())
-            .unwrap();
+        let joined_rel = table1.clone().cross_join(table2.clone()).unwrap();
         _ = joined_rel.display_dot();
     }
 }

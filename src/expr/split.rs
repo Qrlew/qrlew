@@ -573,14 +573,14 @@ impl And<Self> for Reduce {
                         (map, named_exprs)
                     },
                 );
-                let (map, group_by) = self.group_by.into_iter().fold(
-                    (map, vec![]),
-                    |(map, mut group_by), expr| {
-                        let (map, expr) = map.and(expr);
-                        group_by.push(expr);
-                        (map, group_by)
-                    },
-                );
+                let (map, group_by) =
+                    self.group_by
+                        .into_iter()
+                        .fold((map, vec![]), |(map, mut group_by), expr| {
+                            let (map, expr) = map.and(expr);
+                            group_by.push(expr);
+                            (map, group_by)
+                        });
                 Reduce::new(
                     named_exprs.into_iter().chain(other.named_exprs).collect(),
                     group_by.into_iter().chain(other.group_by).collect(),
@@ -596,14 +596,15 @@ impl And<Self> for Reduce {
                         (map, named_exprs)
                     },
                 );
-                let (map, group_by) = other.group_by.into_iter().fold(
-                    (map, vec![]),
-                    |(map, mut group_by), expr| {
-                        let (map, expr) = map.and(expr);
-                        group_by.push(expr);
-                        (map, group_by)
-                    },
-                );
+                let (map, group_by) =
+                    other
+                        .group_by
+                        .into_iter()
+                        .fold((map, vec![]), |(map, mut group_by), expr| {
+                            let (map, expr) = map.and(expr);
+                            group_by.push(expr);
+                            (map, group_by)
+                        });
                 Reduce::new(
                     self.named_exprs.into_iter().chain(named_exprs).collect(),
                     self.group_by.into_iter().chain(group_by).collect(),

@@ -321,7 +321,6 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
     fn values(&self, values: &'a Values) -> RelationWithMultiplicity {
         todo!()
     }
-
 }
 
 /// Build a visitor for uniform multiplicity
