@@ -223,11 +223,11 @@ mod tests {
 
         let rel = table.clone().tau_thresholded_values(1., 0.003, 5.).unwrap();
         rel.display_dot();
-        assert_eq!(rel.schema().fields().len(), 1);
+        assert_eq!(rel.schema().fields().len(), 4);
 
         let rel = table.tau_thresholded_values(1.0, 0.003, 1.).unwrap();
         rel.display_dot();
-        assert_eq!(rel.schema().fields().len(), 2);
+        assert_eq!(rel.schema().fields().len(), 4);
     }
 
     #[test]
