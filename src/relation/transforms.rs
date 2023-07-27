@@ -998,7 +998,10 @@ impl Relation {
         if left_names.iter().any(|item| right_names.contains(item)) {
             return Err(
                 Error::InvalidArguments(
-                    "Cannot use `cross_join` method for joining two relations containing fields with the same names.".to_string()
+                    format!(
+                        "Cannot use `cross_join` method for joining two relations containing fields with the same names.\
+                        left: {:?}\nright: {:?}", left_names, right_names
+                    )
                 )
             );
         }
@@ -2095,21 +2098,60 @@ mod tests {
 
     #[test]
     fn test_possible_values() {
+        // table
         let table: Relation = Relation::table()
             .name("table")
             .schema(
                 Schema::builder()
-                    .with(("a", DataType::float_range(1.0..=10.0)))
+                    .with(("a", DataType::float_values([1.0, 10.0])))
                     .with(("b", DataType::integer_values([1, 2, 5])))
                     .build(),
             )
             .build();
+        let rel = table.possible_values().unwrap();
+        rel.display_dot();
 
-        // table
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_interval(1.0, 10.0)))
+                    .with(("b", DataType::integer_interval(1, 2)))
+                    .build(),
+            )
+            .build();
         let rel = table.possible_values();
         assert!(rel.is_err());
 
         // map
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                .with(("a", DataType::float_values([1.0, 10.0])))
+                .with(("b", DataType::integer_values([1, 2, 5])))
+                    .build(),
+            )
+            .build();
+        let map: Relation = Relation::map()
+            .name("map_1")
+            .with(("a", Expr::col("a")))
+            .with(("b", Expr::col("b")))
+            .input(table)
+            .build();
+        let rel = map.possible_values().unwrap();
+        rel.display_dot();
+
+        // map
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                .with(("a", DataType::float_interval(1.0, 10.0)))
+                .with(("b", DataType::integer_values([1, 2, 5])))
+                    .build(),
+            )
+            .build();
         let map: Relation = Relation::map()
             .name("map_1")
             .with(("a", Expr::col("a")))
@@ -2118,7 +2160,7 @@ mod tests {
                 Expr::col("a"),
                 Expr::list([1., 2., 3.5, 4.5]),
             ))
-            .input(table.clone())
+            .input(table)
             .build();
         let rel = map.possible_values().unwrap();
         rel.display_dot();

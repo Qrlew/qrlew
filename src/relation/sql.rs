@@ -659,7 +659,7 @@ mod tests {
         let query = ast::Query::from(&values);
         assert_eq!(
             query.to_string(),
-            "SELECT * FROM (VALUES (3), (4)) AS my_values (values)".to_string()
+            "SELECT * FROM (VALUES (3), (4)) AS my_values (my_values)".to_string()
         );
     }
 }
