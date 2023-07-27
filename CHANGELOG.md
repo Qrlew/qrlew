@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - `Relation::Values` for supporting fixed values
+- Add multiplicity module [MR68](https://github.com/Qrlew/qrlew/pull/68)
+- sampling_without_replacements [MR68](https://github.com/Qrlew/qrlew/pull/68)
+- Implemented utils for joins [MR62](https://github.com/Qrlew/qrlew/pull/62)
 
 ## [0.1.10] - 2023-07-24
 ### Changed
@@ -20,9 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - simplify intervals after union and intersection. [MR68](https://github.com/Qrlew/qrlew/pull/68)
 - remove limit from poisson_sampling Relation transform [MR68](https://github.com/Qrlew/qrlew/pull/68)
-### Add
-- Add multiplicity module [MR68](https://github.com/Qrlew/qrlew/pull/68)
-- sampling_without_replacements [MR68](https://github.com/Qrlew/qrlew/pull/68)
 
 ## [0.1.9] - 2023-07-17
 ### Changed
@@ -51,7 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Propagate fine grained `DataType` when `Expr::InList` in `Relation::Map` filter field [MR53](https://github.com/Qrlew/qrlew/pull/53)
 - Add methods for filtering fields in `Realtion`[MR51](https://github.com/Qrlew/qrlew/pull/51)
 - Implement `distinct_aggregates` transform that build `Relation` containing aggregates with the `DISTINCT` keyword [MR57](https://github.com/Qrlew/qrlew/pull/57)
-- Implement utils for joins [MR62](https://github.com/Qrlew/qrlew/pull/62)
 - `Reduce::tau_thresholded_values` [MR60](https://github.com/Qrlew/qrlew/pull/60)
 - Add `Reduce::protect_grouping_keys` [MR60](https://github.com/Qrlew/qrlew/pull/60)
 
