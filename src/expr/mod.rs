@@ -19,6 +19,7 @@ use itertools::Itertools;
 use paste::paste;
 use std::{
     cmp,
+    collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub},
@@ -309,16 +310,18 @@ impl Expr {
     /// - `filter(vec![("my_col1", None, Value::integer(10), vec![]), ("my_col2", Value::float(1.), None, vec![])])])`
     ///         ≡ `(my_col1 < 10) and (my_col2 > 1.)`
     pub fn filter(
-        columns: Vec<(
+        columns: BTreeMap<
             &str,
-            Option<data_type::value::Value>,
-            Option<data_type::value::Value>,
-            Vec<data_type::value::Value>,
-        )>,
+            (
+                Option<data_type::value::Value>,
+                Option<data_type::value::Value>,
+                Vec<data_type::value::Value>,
+            ),
+        >,
     ) -> Expr {
         let predicates: Vec<Expr> = columns
             .into_iter()
-            .filter_map(|(name, min, max, values)| Expr::filter_column(name, min, max, values))
+            .filter_map(|(name, (min, max, values))| Expr::filter_column(name, min, max, values))
             .collect();
         Self::and_iter(predicates)
     }
@@ -2138,27 +2141,33 @@ mod tests {
 
     #[test]
     fn test_filter() {
-        let columns = vec![
+        let columns = [
             (
                 "col1",
-                Some(Value::integer(1)),
-                Some(Value::integer(10)),
-                vec![
-                    Value::integer(1),
-                    Value::integer(3),
-                    Value::integer(6),
-                    Value::integer(7),
-                ],
+                (
+                    Some(Value::integer(1)),
+                    Some(Value::integer(10)),
+                    vec![
+                        Value::integer(1),
+                        Value::integer(3),
+                        Value::integer(6),
+                        Value::integer(7),
+                    ],
+                ),
             ),
-            ("col2", None, Some(Value::float(10.0)), vec![]),
-            ("col3", Some(Value::float(0.0)), None, vec![]),
+            ("col2", (None, Some(Value::float(10.0)), vec![])),
+            ("col3", (Some(Value::float(0.0)), None, vec![])),
             (
                 "col4",
-                None,
-                None,
-                vec![Value::text("a"), Value::text("b"), Value::text("c")],
+                (
+                    None,
+                    None,
+                    vec![Value::text("a"), Value::text("b"), Value::text("c")],
+                ),
             ),
-        ];
+        ]
+        .into_iter()
+        .collect();
         let col1_expr = Expr::and(
             Expr::and(
                 Expr::gt(Expr::col("col1"), Expr::val(1)),
