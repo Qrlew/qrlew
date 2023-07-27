@@ -970,7 +970,7 @@ impl Relation {
     }
 
     pub fn all_values(&self) -> Result<Relation> {
-        let vec_of_rel: <Result<Vec<Relation>> = self.schema()
+        let vec_of_rel: Result<Vec<Relation>> = self.schema()
         .iter()
         .map(|c| self.all_values_column(c.name()))
         .collect();
@@ -2086,6 +2086,34 @@ mod tests {
         let rel = map.all_values_column("exp_b").unwrap();
         rel.display_dot();
         assert!(map.all_values_column("exp_a").is_err());
+    }
+
+    #[test]
+    fn test_all_values() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=10.0)))
+                    .with(("b", DataType::integer_values([1, 2, 5])))
+                    .build()
+            )
+            .build();
+
+        // table
+        let rel = table.all_values();
+        assert!(rel.is_err());
+
+        // map
+        let map: Relation = Relation::map()
+        .name("map_1")
+        .with(("a", Expr::col("a")))
+        .with(("b",  Expr::col("b")))
+        .filter(Expr::in_list(Expr::col("a"), Expr::list([1., 2., 3.5, 4.5])))
+        .input(table.clone())
+        .build();
+        let rel = map.all_values().unwrap();
+        rel.display_dot();
     }
 
     #[test]
