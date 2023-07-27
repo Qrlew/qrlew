@@ -341,7 +341,7 @@ impl<'a> FieldPath<'a> {
         referred_field: &'a str,
         referred_field_name: &'a str,
     ) -> Self {
-        let mut field_path = FieldPath(Vec::new());
+        let mut field_path = FieldPath(vec![]);
         let mut last_step: Option<Step> = None;
         // Fill the vec
         for step in path {
@@ -856,6 +856,37 @@ impl Relation {
         sampled_relation
     }
 
+    /// sampling without replacemnts.
+    /// It creates a Map using self as an imput which applies
+    /// WHERE RANDOM() < rate_multiplier * rate ORDER BY RANDOM() LIMIT rate*size
+    /// and preserves the input schema fields.
+    /// WHERE RANDOM() < rate_multiplier * rate is for optimization purposes
+    pub fn sampling_without_replacements(self, rate: f64, rate_multiplier: f64) -> Relation {
+        //make sure rate is between 0 and 1.
+        assert!(0.0 <= rate && rate <= 1.0);
+
+        let size = self.size().max().map_or(0, |v| (*v as f64 * rate) as usize);
+
+        let sampled_relation: Relation = Relation::map()
+            .with_iter(
+                self.schema()
+                    .iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
+            .filter(Expr::lt(
+                Expr::random(namer::new_id("SAMPLING_WITHOUT_REPLACEMENT")),
+                Expr::val(rate_multiplier * rate),
+            ))
+            .order_by(
+                Expr::random(namer::new_id("SAMPLING_WITHOUT_REPLACEMENT")),
+                false,
+            )
+            .limit(size)
+            .input(self)
+            .build();
+        sampled_relation
+    }
+
     /// Returns a Relation whose fields have unique values
     fn unique(self, columns: Vec<&str>) -> Relation {
         let named_columns: Vec<(&str, Expr)> =
@@ -940,10 +971,75 @@ impl Relation {
     }
 
     pub fn all_values(&self) -> Result<Relation> {
-        let vec_of_rel: Vec<Result<Relation>> = self.schema()
+        let vec_of_rel: Vec<Relation> = self.schema()
         .iter()
         .map(|c| self.all_values_column(c.name()))
-        .collect();
+        .collect()?;
+
+        Ok(
+            vec_of_rel.iter()
+            .reduce(|l, r| l.cross_join(r)?)
+        )
+    }
+
+    // Returns the cross join between `self` and `right` where
+    // the output names of the fields are conserved.
+    // This fails if one column name is contained in both relations
+    pub fn cross_join(self, right: Self) -> Result<Relation> {
+        let left_names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names: Vec<String> = right
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect();
+
+        if left_names.iter().any(|item| right_names.contains(item)) {
+            return Err(
+                Error::InvalidArguments(
+                    "Cannot use `cross_join` method for joining two relations containing fields with the same names.".to_string()
+                )
+            );
+        }
+        Ok(Relation::join()
+            .left(self.clone())
+            .right(right.clone())
+            .cross()
+            .left_names(left_names)
+            .right_names(right_names)
+            .build())
+    }
+
+    pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
+        if on.is_empty() {
+            return Err(Error::InvalidArguments(
+                "Vector `on` cannot be empty.".into(),
+            ));
+        }
+        let left_names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
+        let right_names: Vec<String> = right
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect();
+        let on: Vec<Expr> = on
+            .into_iter()
+            .map(|(l, r)| Expr::eq(Expr::qcol(self.name(), l), Expr::qcol(right.name(), r)))
+            .collect();
+        if left_names.iter().any(|item| right_names.contains(item)) {
+            return Err(
+                Error::InvalidArguments(
+                    "Cannot use `left_join` method for joining two relations containing fields with the same names.".to_string()
+                )
+            );
+        }
+        Ok(Relation::join()
+            .left(self.clone())
+            .right(right.clone())
+            .left_outer()
+            .on_iter(on)
+            .left_names(left_names)
+            .right_names(right_names)
+            .build())
     }
 }
 
@@ -980,8 +1076,10 @@ mod tests {
         let table = table.identity_with_field("peid", expr!(a + b));
         assert!(table.schema()[0].name() == "peid");
         // Relation
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() != "peid");
         let relation = relation.identity_with_field("peid", expr!(cos(a)));
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() == "peid");
     }
 
@@ -1201,7 +1299,6 @@ mod tests {
                 Expr::qcol("order_table", "id"),
             ))
             .build();
-        relation.display_dot().unwrap();
         let schema = relation.schema().clone();
         let item = schema.field_from_index(1).unwrap().name();
         let price = schema.field_from_index(2).unwrap().name();
@@ -1968,7 +2065,6 @@ mod tests {
                 Schema::builder()
                     .with(("a", DataType::float_range(1.0..=10.0)))
                     .with(("b", DataType::integer_values([1, 2, 5])))
-                    .build(),
             )
             .build();
 
@@ -1989,5 +2085,60 @@ mod tests {
         let rel = map.public_values_column("exp_b").unwrap();
         rel.display_dot();
         assert!(map.public_values_column("exp_a").is_err());
+    }
+
+    #[test]
+    fn test_left_join() {
+        let table1: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .build(),
+            )
+            .build();
+
+        let table2: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("d", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        let joined_rel = table1
+            .clone()
+            .left_join(table2.clone(), vec![("a", "c")])
+            .unwrap();
+        _ = joined_rel.display_dot();
+    }
+
+    #[test]
+    fn test_cross_join() {
+        let table1: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .build(),
+            )
+            .build();
+
+        let table2: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("d", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+
+        let joined_rel = table1.clone().cross_join(table2.clone()).unwrap();
+        _ = joined_rel.display_dot();
     }
 }

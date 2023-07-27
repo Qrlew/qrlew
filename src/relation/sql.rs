@@ -27,6 +27,12 @@ impl TryFrom<Identifier> for ast::Ident {
     }
 }
 
+impl From<Identifier> for ast::ObjectName {
+    fn from(value: Identifier) -> Self {
+        ast::ObjectName(value.into_iter().map(|s| ast::Ident::new(s)).collect())
+    }
+}
+
 impl From<JoinConstraint> for ast::JoinConstraint {
     fn from(value: JoinConstraint) -> Self {
         match value {
@@ -79,6 +85,8 @@ impl From<SetQuantifier> for ast::SetQuantifier {
             SetQuantifier::All => ast::SetQuantifier::All,
             SetQuantifier::Distinct => ast::SetQuantifier::Distinct,
             SetQuantifier::None => ast::SetQuantifier::None,
+            SetQuantifier::ByName => ast::SetQuantifier::ByName,
+            SetQuantifier::AllByName => ast::SetQuantifier::AllByName,
         }
     }
 }
@@ -106,21 +114,21 @@ fn query(
             projection,
             into: None,
             from: vec![from],
-            lateral_views: Vec::new(),
+            lateral_views: vec![],
             selection,
             group_by,
-            cluster_by: Vec::new(),
-            distribute_by: Vec::new(),
-            sort_by: Vec::new(),
+            cluster_by: vec![],
+            distribute_by: vec![],
+            sort_by: vec![],
             having: None,
             qualify: None,
-            named_window: Vec::new(),
+            named_window: vec![],
         }))),
         order_by,
         limit,
         offset: None,
         fetch: None,
-        locks: Vec::new(),
+        locks: vec![],
     }
 }
 
@@ -139,18 +147,18 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
     }
 }
 
-fn table_factor(name: ast::Ident) -> ast::TableFactor {
+fn table_factor(path: ast::ObjectName) -> ast::TableFactor {
     ast::TableFactor::Table {
-        name: ast::ObjectName(vec![name]),
+        name: path,
         alias: None,
         args: None,
-        with_hints: Vec::new(),
+        with_hints: vec![],
     }
 }
 
-fn table_with_joins(name: ast::Ident, joins: Vec<ast::Join>) -> ast::TableWithJoins {
+fn table_with_joins(path: ast::ObjectName, joins: Vec<ast::Join>) -> ast::TableWithJoins {
     ast::TableWithJoins {
-        relation: table_factor(name),
+        relation: table_factor(path),
         joins,
     }
 }
@@ -199,25 +207,25 @@ fn set_operation(
             left: Box::new(ast::SetExpr::Select(Box::new(left))),
             right: Box::new(ast::SetExpr::Select(Box::new(right))),
         }),
-        order_by: Vec::new(),
+        order_by: vec![],
         limit: None,
         offset: None,
         fetch: None,
-        locks: Vec::new(),
+        locks: vec![],
     }
 }
 
 impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
     fn table(&self, table: &'a Table) -> ast::Query {
         query(
-            Vec::new(),
+            vec![],
             vec![ast::SelectItem::Wildcard(
                 ast::WildcardAdditionalOptions::default(),
             )],
-            table_with_joins(table.name().into(), Vec::new()),
+            table_with_joins(table.path().clone().into(), vec![]),
             None,
-            Vec::new(),
-            Vec::new(),
+            vec![],
+            vec![],
             None,
         )
     }
@@ -233,7 +241,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 .map(|field| ast::Ident::from(field.name()))
                 .collect(),
             query(
-                Vec::new(),
+                vec![],
                 map.projection
                     .clone()
                     .into_iter()
@@ -243,9 +251,9 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(map.input.name().into(), Vec::new()),
+                table_with_joins(Identifier::from(map.input.name()).into(), vec![]),
                 map.filter.as_ref().map(ast::Expr::from),
-                Vec::new(),
+                vec![],
                 map.order_by
                     .iter()
                     .map(|OrderBy { expr, asc }| ast::OrderByExpr {
@@ -261,10 +269,10 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(map.name().into(), Vec::new()),
+            table_with_joins(Identifier::from(map.name()).into(), vec![]),
             None,
-            Vec::new(),
-            Vec::new(),
+            vec![],
+            vec![],
             map.limit
                 .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
         )
@@ -282,7 +290,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 .map(|field| ast::Ident::from(field.name()))
                 .collect(),
             query(
-                Vec::new(),
+                vec![],
                 reduce
                     .aggregate
                     .clone()
@@ -293,20 +301,20 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(reduce.input.name().into(), Vec::new()),
+                table_with_joins(Identifier::from(reduce.input.name()).into(), vec![]),
                 None,
                 reduce.group_by.iter().map(ast::Expr::from).collect(),
-                Vec::new(),
+                vec![],
                 None,
             ),
         ));
         query(
             input_ctes,
             all(),
-            table_with_joins(reduce.name().into(), Vec::new()),
+            table_with_joins(Identifier::from(reduce.name()).into(), vec![]),
             None,
-            Vec::new(),
-            Vec::new(),
+            vec![],
+            vec![],
             None,
         )
     }
@@ -314,7 +322,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
     fn join(&self, join: &'a Join, left: ast::Query, right: ast::Query) -> ast::Query {
         // Pull the existing CTEs
         let mut exist: HashSet<ast::Cte> = HashSet::new();
-        let mut input_ctes: Vec<ast::Cte> = Vec::new();
+        let mut input_ctes: Vec<ast::Cte> = vec![];
         ctes_from_query(left).into_iter().for_each(|cte| {
             if exist.insert(cte.clone()) {
                 input_ctes.push(cte)
@@ -333,28 +341,28 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 .map(|field| ast::Ident::from(field.name()))
                 .collect(),
             query(
-                Vec::new(),
+                vec![],
                 all(),
                 table_with_joins(
-                    join.left.name().into(),
+                    Identifier::from(join.left.name()).into(),
                     vec![ast::Join {
-                        relation: table_factor(join.right.name().into()),
+                        relation: table_factor(Identifier::from(join.right.name()).into()),
                         join_operator: join.operator.clone().into(),
                     }],
                 ),
                 None,
-                Vec::new(),
-                Vec::new(),
+                vec![],
+                vec![],
                 None,
             ),
         ));
         query(
             input_ctes,
             all(),
-            table_with_joins(join.name().into(), Vec::new()),
+            table_with_joins(Identifier::from(join.name()).into(), vec![]),
             None,
-            Vec::new(),
-            Vec::new(),
+            vec![],
+            vec![],
             None,
         )
     }
@@ -362,7 +370,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
     fn set(&self, set: &'a Set, left: ast::Query, right: ast::Query) -> ast::Query {
         // Pull the existing CTEs
         let mut exist: HashSet<ast::Cte> = HashSet::new();
-        let mut input_ctes: Vec<ast::Cte> = Vec::new();
+        let mut input_ctes: Vec<ast::Cte> = vec![];
         ctes_from_query(left.clone()).into_iter().for_each(|cte| {
             if exist.insert(cte.clone()) {
                 input_ctes.push(cte)
@@ -381,7 +389,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 .map(|field| ast::Ident::from(field.name()))
                 .collect(),
             set_operation(
-                Vec::new(),
+                vec![],
                 set.operator.clone().into(),
                 set.quantifier.clone().into(),
                 select_from_query(left),
@@ -391,10 +399,10 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(set.name().into(), Vec::new()),
+            table_with_joins(Identifier::from(set.name()).into(), vec![]),
             None,
-            Vec::new(),
-            Vec::new(),
+            vec![],
+            vec![],
             None,
         )
     }
@@ -428,7 +436,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             },
             joins: vec![],
         };
-        query(Vec::new(), all(), from, None, Vec::new(), Vec::new(), None)
+        query(vec![], all(), from, None, vec![], vec![], None)
     }
 }
 
@@ -467,11 +475,11 @@ impl Table {
                     },
                 })
                 .collect(),
-            constraints: Vec::new(),
+            constraints: vec![],
             hive_distribution: ast::HiveDistributionStyle::NONE,
             hive_formats: None,
-            table_properties: Vec::new(),
-            with_options: Vec::new(),
+            table_properties: vec![],
+            with_options: vec![],
             file_format: None,
             location: None,
             query: None,
@@ -503,14 +511,14 @@ impl Table {
                         .map(|i| ast::Expr::Value(ast::Value::Placeholder(format!("{prefix}{i}"))))
                         .collect()],
                 })),
-                order_by: Vec::new(),
+                order_by: vec![],
                 limit: None,
                 offset: None,
                 fetch: None,
-                locks: Vec::new(),
+                locks: vec![],
             }),
             partitioned: None,
-            after_columns: Vec::new(),
+            after_columns: vec![],
             table: false,
             on: None,
             returning: None,

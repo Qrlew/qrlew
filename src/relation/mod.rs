@@ -11,12 +11,7 @@ pub mod schema;
 pub mod sql;
 pub mod transforms;
 
-use std::{
-    cmp, error, fmt, hash,
-    ops::{Index, RangeBounds},
-    rc::Rc,
-    result,
-};
+use std::{cmp, error, fmt, hash, ops::Index, rc::Rc, result};
 
 use colored::Colorize;
 use itertools::Itertools;
@@ -24,10 +19,8 @@ use itertools::Itertools;
 use crate::{
     builder::Ready,
     data_type::{
-        self,
-        function::Function,
-        intervals::{Bound, Intervals},
-        DataType, DataTyped, Integer, Struct, Value, Variant as _,
+        self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Value,
+        Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
     hierarchy::Hierarchy,
@@ -35,13 +28,11 @@ use crate::{
     visitor::{self, Acceptor, Dependencies, Visited},
 };
 pub use builder::{
-    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, WithInput, WithSchema,
-    WithoutInput, WithoutSchema,
+    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, ValuesBuilder, WithInput,
+    WithSchema, WithoutInput, WithoutSchema,
 };
 pub use field::Field;
 pub use schema::Schema;
-
-use self::builder::ValuesBuilder;
 
 // Error management
 
@@ -147,6 +138,8 @@ pub trait Variant:
 pub struct Table {
     /// The name of the table
     pub name: String,
+    /// The path to the actual table
+    pub path: Identifier,
     /// The schema description of the output
     pub schema: Schema,
     /// The size of the table
@@ -155,17 +148,29 @@ pub struct Table {
 
 impl Table {
     /// Main constructor
-    pub fn new(name: String, schema: Schema, size: Integer) -> Self {
-        Table { name, schema, size }
+    pub fn new(name: String, path: Identifier, schema: Schema, size: Integer) -> Self {
+        Table {
+            name,
+            path,
+            schema,
+            size,
+        }
     }
 
     /// From schema
     pub fn from_schema<S: Into<Schema>>(schema: S) -> Table {
+        let path: String = namer::new_name("table");
         Table::new(
-            namer::new_name("table"),
+            path.clone(),
+            path.into(),
             schema.into(),
             Integer::from_min(0),
         )
+    }
+
+    /// Return the path
+    fn path(&self) -> &Identifier {
+        &self.path
     }
 
     /// A builder
@@ -200,7 +205,7 @@ impl Variant for Table {
     }
 
     fn inputs(&self) -> Vec<&Relation> {
-        Vec::new()
+        vec![]
     }
 }
 
@@ -812,6 +817,8 @@ pub enum SetQuantifier {
     All,
     Distinct,
     None,
+    ByName,
+    AllByName,
 }
 
 impl fmt::Display for SetQuantifier {
@@ -823,6 +830,8 @@ impl fmt::Display for SetQuantifier {
                 SetQuantifier::All => "ALL",
                 SetQuantifier::Distinct => "DISTINCT",
                 SetQuantifier::None => "NONE",
+                SetQuantifier::ByName => "BY NAME",
+                SetQuantifier::AllByName => "ALL BY NAME",
             }
         )
     }
@@ -927,7 +936,10 @@ impl Set {
 impl fmt::Display for Set {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let operator = match self.quantifier {
-            SetQuantifier::All | SetQuantifier::Distinct => {
+            SetQuantifier::All
+            | SetQuantifier::Distinct
+            | SetQuantifier::ByName
+            | SetQuantifier::AllByName => {
                 format!("{} {}", self.operator, self.quantifier)
             }
             SetQuantifier::None => format!("{}", self.operator),
@@ -980,7 +992,11 @@ pub struct Values {
 
 impl Values {
     pub fn new(name: String, values: Vec<Value>) -> Self {
+<<<<<<< HEAD
         let schema = Values::schema_exprs(&name, &values);
+=======
+        let schema = Values::schema(&values);
+>>>>>>> add_join_utils
         let size = Integer::from(values.len() as i64);
         Values {
             name,
@@ -991,6 +1007,7 @@ impl Values {
     }
 
     /// Compute the schema of the Values
+<<<<<<< HEAD
     fn schema_exprs(name: &String, values: &Vec<Value>) -> Schema {
         let datatype = if let DataType::List(list) = Value::list(values.iter().cloned()).data_type()
         {
@@ -999,6 +1016,14 @@ impl Values {
             panic!()
         };
         Schema::new(vec![Field::new(name.to_string(), datatype, None)])
+=======
+    fn schema(values: &Vec<Value>) -> Schema {
+        let list: data_type::List = Value::list(values.iter().cloned())
+            .data_type()
+            .try_into()
+            .unwrap();
+        Schema::from_field(("values".to_string(), list.data_type().clone()))
+>>>>>>> add_join_utils
     }
 
     pub fn builder() -> ValuesBuilder {
@@ -1058,7 +1083,7 @@ impl Relation {
     pub fn inputs(&self) -> Vec<&Relation> {
         match self {
             Relation::Map(map) => vec![map.input.as_ref()],
-            Relation::Table(_) => Vec::new(),
+            Relation::Table(_) => vec![],
             Relation::Reduce(reduce) => vec![reduce.input.as_ref()],
             Relation::Join(join) => vec![join.left.as_ref(), join.right.as_ref()],
             Relation::Set(set) => vec![set.left.as_ref(), set.right.as_ref()],

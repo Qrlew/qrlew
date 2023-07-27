@@ -1,5 +1,7 @@
 use std::{hash::Hash, rc::Rc};
 
+use itertools::Itertools;
+
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
     SetOperator, SetQuantifier, Table, Values, Variant,
@@ -25,8 +27,10 @@ Table builder
 /// A table builder
 #[derive(Debug, Default)]
 pub struct TableBuilder<RequireSchema> {
-    /// The name of the table
+    /// The name of the table (may be derived from the path)
     name: Option<String>,
+    /// The path of the table (may be derived from the name)
+    path: Option<Identifier>,
     /// The schema description of the output
     schema: RequireSchema,
     /// The size of the dataset
@@ -41,7 +45,16 @@ impl TableBuilder<WithoutSchema> {
 
 impl<RequireSchema> TableBuilder<RequireSchema> {
     pub fn name<S: Into<String>>(mut self, name: S) -> Self {
-        self.name = Some(name.into());
+        let name: String = name.into();
+        self.name = Some(name.clone());
+        self.path = self.path.or_else(|| Some(name.into()));
+        self
+    }
+
+    pub fn path<I: Into<Identifier>>(mut self, path: I) -> Self {
+        let path: Identifier = path.into();
+        self.path = Some(path.clone());
+        self.name = self.name.or_else(|| Some(path.iter().join("_")));
         self
     }
 
@@ -53,6 +66,7 @@ impl<RequireSchema> TableBuilder<RequireSchema> {
     pub fn schema<S: Into<Schema>>(self, schema: S) -> TableBuilder<WithSchema> {
         TableBuilder {
             name: self.name,
+            path: self.path,
             schema: WithSchema(schema.into()),
             size: self.size,
         }
@@ -64,10 +78,11 @@ impl Ready<Table> for TableBuilder<WithSchema> {
 
     fn try_build(self) -> Result<Table> {
         let name = self.name.unwrap_or_else(|| namer::new_name("table"));
+        let path = self.path.unwrap_or_else(|| name.clone().into());
         let size = self
             .size
             .map_or_else(|| Integer::from_min(0), |size| Integer::from_value(size));
-        Ok(Table::new(name, self.schema.0, size))
+        Ok(Table::new(name, path, self.schema.0, size))
     }
 }
 
@@ -1021,7 +1036,7 @@ mod tests {
     #[test]
     fn test_map_building() {
         let table: Relation = Relation::table()
-            .name("table")
+            .path(["db", "schema", "table"])
             .schema(
                 Schema::builder()
                     .with(("a", DataType::float_range(1.0..=1.1)))

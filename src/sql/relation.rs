@@ -68,6 +68,8 @@ impl From<ast::SetQuantifier> for SetQuantifier {
             ast::SetQuantifier::All => SetQuantifier::All,
             ast::SetQuantifier::Distinct => SetQuantifier::Distinct,
             ast::SetQuantifier::None => SetQuantifier::None,
+            ast::SetQuantifier::ByName => SetQuantifier::ByName,
+            ast::SetQuantifier::AllByName => SetQuantifier::AllByName,
         }
     }
 }
@@ -312,7 +314,7 @@ impl<'a> VisitedQueryRelations<'a> {
         from: Rc<Relation>,
     ) -> Result<Rc<Relation>> {
         // Collect all expressions with their aliases
-        let mut named_exprs: Vec<(String, Expr)> = Vec::new();
+        let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
         for select_item in select_items {

@@ -25,7 +25,7 @@ impl<'a, A> Dependencies<'a, A> {
     }
 
     pub fn empty() -> Self {
-        Dependencies(Vec::new())
+        Dependencies(vec![])
     }
 }
 
@@ -70,7 +70,7 @@ pub struct Visited<'a, A: PartialEq, O>(Vec<(&'a A, O)>);
 
 impl<'a, A: PartialEq, O> Visited<'a, A, O> {
     pub fn new() -> Self {
-        Visited(Vec::new())
+        Visited(vec![])
     }
 
     fn push(&mut self, acceptor: &'a A, output: O) {
@@ -279,14 +279,14 @@ mod tests {
     }
 
     fn build_diamond() -> Node {
-        let a = Rc::new(Node("A", Vec::new()));
+        let a = Rc::new(Node("A", vec![]));
         let b = Rc::new(Node("B", vec![a.clone()]));
         let c = Rc::new(Node("C", vec![a]));
         Node("D", vec![b, c])
     }
 
     fn build_open_diamond() -> Node {
-        let a = Node("A", Vec::new());
+        let a = Node("A", vec![]);
         let b = Node("B", vec![Rc::new(a.clone())]);
         let c = Node("C", vec![Rc::new(a)]);
         Node("D", vec![Rc::new(b), Rc::new(c)])
@@ -309,7 +309,7 @@ mod tests {
     }
 
     fn build_semi_diamond() -> Node {
-        let a = Rc::new(Node("A", Vec::new()));
+        let a = Rc::new(Node("A", vec![]));
         let b = Rc::new(Node("B", vec![a.clone()]));
         let c = Rc::new(Node("C", vec![a.clone(), b.clone()]));
         (*c).clone()

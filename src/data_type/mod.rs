@@ -813,7 +813,7 @@ impl Struct {
     }
     /// An empty struct (a neutral element for the cartesian product)
     pub fn unit() -> Struct {
-        Struct::new(Vec::new())
+        Struct::new(vec![])
     }
     /// Create from one field
     pub fn from_field<S: Into<String>, T: Into<Rc<DataType>>>(s: S, t: T) -> Struct {
@@ -1056,7 +1056,7 @@ impl Variant for Struct {
     }
 
     fn maximal_superset(&self) -> Result<Self> {
-        Ok(Struct::new(Vec::new()))
+        Ok(Struct::new(vec![]))
     }
 }
 
@@ -1099,7 +1099,7 @@ impl Union {
     }
     /// An empty union (a neutral element for the disjoint union)
     pub fn null() -> Union {
-        Union::new(Vec::new())
+        Union::new(vec![])
     }
     /// Create from one field
     pub fn from_field<S: Into<String>, T: Into<Rc<DataType>>>(s: S, t: T) -> Union {
@@ -1336,7 +1336,7 @@ impl Variant for Union {
     }
 
     fn minimal_subset(&self) -> Result<Self> {
-        Ok(Union::new(Vec::new()))
+        Ok(Union::new(vec![]))
     }
 }
 

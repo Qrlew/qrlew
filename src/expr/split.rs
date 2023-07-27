@@ -184,7 +184,7 @@ impl Map {
             .unzip();
         Reduce::new(
             named_aliases,
-            Vec::new(),
+            vec![],
             Some(Map::new(aliased_expr, filter, order_by, reduce.map(|r| *r))),
         )
     }
@@ -301,7 +301,7 @@ impl And<Self> for Map {
             ),
             (None, Some(o)) => {
                 let (reduce, named_exprs) = self.named_exprs.into_iter().fold(
-                    (*o, Vec::new()),
+                    (*o, vec![]),
                     |(reduce, mut named_exprs), (name, expr)| {
                         let (reduce, expr) = reduce.and(expr);
                         named_exprs.push((name, expr));
@@ -316,7 +316,7 @@ impl And<Self> for Map {
                             (reduce, Some(expr))
                         });
                 let (reduce, order_by) = self.order_by.into_iter().fold(
-                    (reduce, Vec::new()),
+                    (reduce, vec![]),
                     |(reduce, mut order_by), (expr, asc)| {
                         let (reduce, expr) = reduce.and(expr);
                         order_by.push((expr, asc));
@@ -332,7 +332,7 @@ impl And<Self> for Map {
             }
             (Some(s), None) => {
                 let (reduce, named_exprs) = other.named_exprs.into_iter().fold(
-                    (*s, Vec::new()),
+                    (*s, vec![]),
                     |(reduce, mut named_exprs), (name, expr)| {
                         let (reduce, expr) = reduce.and(expr);
                         named_exprs.push((name, expr));
@@ -348,7 +348,7 @@ impl And<Self> for Map {
                             (reduce, Some(expr))
                         });
                 let (reduce, order_by) = other.order_by.into_iter().fold(
-                    (reduce, Vec::new()),
+                    (reduce, vec![]),
                     |(reduce, mut order_by), (expr, asc)| {
                         let (reduce, expr) = reduce.and(expr);
                         order_by.push((expr, asc));
@@ -467,12 +467,12 @@ impl Reduce {
             .unzip();
         // If the reduce is empty, remove it
         if aliased_expr.is_empty() && group_by.is_empty() {
-            Map::new(named_aliases, None, Vec::new(), None)
+            Map::new(named_aliases, None, vec![], None)
         } else {
             Map::new(
                 named_aliases,
                 None,
-                Vec::new(),
+                vec![],
                 Some(Reduce::new(aliased_expr, group_by, map.map(|m| *m))),
             )
         }
@@ -566,21 +566,21 @@ impl And<Self> for Reduce {
             ),
             (None, Some(o)) => {
                 let (map, named_exprs) = self.named_exprs.into_iter().fold(
-                    (*o, Vec::new()),
+                    (*o, vec![]),
                     |(map, mut named_exprs), (name, expr)| {
                         let (map, expr) = map.and(expr);
                         named_exprs.push((name, expr));
                         (map, named_exprs)
                     },
                 );
-                let (map, group_by) = self.group_by.into_iter().fold(
-                    (map, Vec::new()),
-                    |(map, mut group_by), expr| {
-                        let (map, expr) = map.and(expr);
-                        group_by.push(expr);
-                        (map, group_by)
-                    },
-                );
+                let (map, group_by) =
+                    self.group_by
+                        .into_iter()
+                        .fold((map, vec![]), |(map, mut group_by), expr| {
+                            let (map, expr) = map.and(expr);
+                            group_by.push(expr);
+                            (map, group_by)
+                        });
                 Reduce::new(
                     named_exprs.into_iter().chain(other.named_exprs).collect(),
                     group_by.into_iter().chain(other.group_by).collect(),
@@ -589,21 +589,22 @@ impl And<Self> for Reduce {
             }
             (Some(s), None) => {
                 let (map, named_exprs) = other.named_exprs.into_iter().fold(
-                    (*s, Vec::new()),
+                    (*s, vec![]),
                     |(map, mut named_exprs), (name, expr)| {
                         let (map, expr) = map.and(expr);
                         named_exprs.push((name, expr));
                         (map, named_exprs)
                     },
                 );
-                let (map, group_by) = other.group_by.into_iter().fold(
-                    (map, Vec::new()),
-                    |(map, mut group_by), expr| {
-                        let (map, expr) = map.and(expr);
-                        group_by.push(expr);
-                        (map, group_by)
-                    },
-                );
+                let (map, group_by) =
+                    other
+                        .group_by
+                        .into_iter()
+                        .fold((map, vec![]), |(map, mut group_by), expr| {
+                            let (map, expr) = map.and(expr);
+                            group_by.push(expr);
+                            (map, group_by)
+                        });
                 Reduce::new(
                     self.named_exprs.into_iter().chain(named_exprs).collect(),
                     self.group_by.into_iter().chain(group_by).collect(),
@@ -682,7 +683,7 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
         Map::new(
             vec![(self.0.clone(), Expr::Column(column.clone()))],
             None,
-            Vec::new(),
+            vec![],
             None,
         )
         .into()
@@ -692,7 +693,7 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
         Map::new(
             vec![(self.0.clone(), Expr::Value(value.clone()))],
             None,
-            Vec::new(),
+            vec![],
             None,
         )
         .into()
@@ -807,7 +808,7 @@ mod tests {
             None,
         );
         println!("reduce = {reduce}");
-        let reduce = reduce.and(Reduce::new(Vec::new(), vec![Expr::col("z")], None));
+        let reduce = reduce.and(Reduce::new(vec![], vec![Expr::col("z")], None));
         println!("reduce and group by = {}", reduce);
         assert_eq!(reduce.len(), 1);
         let reduce = reduce.into_map();
