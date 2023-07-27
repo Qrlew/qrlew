@@ -100,20 +100,18 @@ impl<T: Clone> VecProduct<T> {
 
     /// Return a vector of equal length vectors
     pub fn vec(&self) -> Vec<Vec<T>> {
-        self.vecs
-            .iter()
-            .fold(vec![vec![]], move |vec_vec, vec_t| {
-                vec_vec
-                    .into_iter()
-                    .flat_map(move |vec| {
-                        vec_t.iter().map(move |t| {
-                            let mut result = vec.clone();
-                            result.push(t.clone());
-                            result
-                        })
+        self.vecs.iter().fold(vec![vec![]], move |vec_vec, vec_t| {
+            vec_vec
+                .into_iter()
+                .flat_map(move |vec| {
+                    vec_t.iter().map(move |t| {
+                        let mut result = vec.clone();
+                        result.push(t.clone());
+                        result
                     })
-                    .collect()
-            })
+                })
+                .collect()
+        })
     }
 }
 /// A product of heterogenous types

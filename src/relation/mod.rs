@@ -11,12 +11,7 @@ pub mod schema;
 pub mod sql;
 pub mod transforms;
 
-use std::{
-    cmp, error, fmt, hash,
-    ops::Index,
-    rc::Rc,
-    result,
-};
+use std::{cmp, error, fmt, hash, ops::Index, rc::Rc, result};
 
 use colored::Colorize;
 use itertools::Itertools;
@@ -24,10 +19,8 @@ use itertools::Itertools;
 use crate::{
     builder::Ready,
     data_type::{
-        self,
-        function::Function,
-        intervals::Bound,
-        DataType, DataTyped, Integer, Struct, Value, Variant as _,
+        self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Value,
+        Variant as _,
     },
     expr::{self, Expr, Identifier, Split},
     hierarchy::Hierarchy,
@@ -35,8 +28,8 @@ use crate::{
     visitor::{self, Acceptor, Dependencies, Visited},
 };
 pub use builder::{
-    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, ValuesBuilder, WithInput, WithSchema,
-    WithoutInput, WithoutSchema,
+    JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, ValuesBuilder, WithInput,
+    WithSchema, WithoutInput, WithoutSchema,
 };
 pub use field::Field;
 pub use schema::Schema;
@@ -156,7 +149,12 @@ pub struct Table {
 impl Table {
     /// Main constructor
     pub fn new(name: String, path: Identifier, schema: Schema, size: Integer) -> Self {
-        Table { name, path, schema, size }
+        Table {
+            name,
+            path,
+            schema,
+            size,
+        }
     }
 
     /// From schema
@@ -938,7 +936,10 @@ impl Set {
 impl fmt::Display for Set {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let operator = match self.quantifier {
-            SetQuantifier::All | SetQuantifier::Distinct | SetQuantifier::ByName | SetQuantifier::AllByName => {
+            SetQuantifier::All
+            | SetQuantifier::Distinct
+            | SetQuantifier::ByName
+            | SetQuantifier::AllByName => {
                 format!("{} {}", self.operator, self.quantifier)
             }
             SetQuantifier::None => format!("{}", self.operator),
@@ -1003,7 +1004,10 @@ impl Values {
 
     /// Compute the schema of the Values
     fn schema(values: &Vec<Value>) -> Schema {
-        let list: data_type::List = Value::list(values.iter().cloned()).data_type().try_into().unwrap();
+        let list: data_type::List = Value::list(values.iter().cloned())
+            .data_type()
+            .try_into()
+            .unwrap();
         Schema::from_field(("values".to_string(), list.data_type().clone()))
     }
 

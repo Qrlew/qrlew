@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+-  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
+
+## [0.2.0] - 2023-07-25
 ### Added
 - `Relation::Values` for supporting fixed values
+- multiplicity module [MR68](https://github.com/Qrlew/qrlew/pull/68)
+- `sampling_without_replacements` [MR68](https://github.com/Qrlew/qrlew/pull/68)
 
 ## [0.1.10] - 2023-07-24
 ### Changed
@@ -20,9 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - simplify intervals after union and intersection. [MR68](https://github.com/Qrlew/qrlew/pull/68)
 - remove limit from poisson_sampling Relation transform [MR68](https://github.com/Qrlew/qrlew/pull/68)
-### Add
-- Add multiplicity module [MR68](https://github.com/Qrlew/qrlew/pull/68)
-- sampling_without_replacements [MR68](https://github.com/Qrlew/qrlew/pull/68)
 
 ## [0.1.9] - 2023-07-17
 ### Changed
