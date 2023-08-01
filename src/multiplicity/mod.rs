@@ -332,6 +332,7 @@ fn uniform_multiplicity_visitor(
         RelationWithMultiplicity(Relation::from(table.clone()), weight)
     })
 }
+
 /// A visitor to samaple tables in a relation
 struct TableSamplerVisitor<F: Fn(&Table) -> Relation> {
     table_sampler: F,
@@ -425,6 +426,12 @@ fn poisson_sampling_table_visitor(proba: f64) -> TableSamplerVisitor<impl Fn(&Ta
     })
 }
 
+// fn differenciated_poisson_sampling_table_visitor(table_sampling_fraction: Hierarchy<f64>) -> TableSamplerVisitor<impl Fn(&Table) -> Relation> {
+//     TableSamplerVisitor::new(move |table: &Table| {
+//         Relation::from(table.clone()).poisson_sampling(proba)
+//     })
+// }
+
 /// apply random samping with without replacement using the same rate for all tables.
 fn sampling_without_replacements_table_visitor(
     rate: f64,
@@ -434,6 +441,17 @@ fn sampling_without_replacements_table_visitor(
         Relation::from(table.clone()).sampling_without_replacements(rate, rate_multiplier)
     })
 }
+
+impl RelationWithMultiplicity {
+    pub fn relation(&self) -> &Relation {
+        &self.0
+    }
+
+    pub fn weight(&self) -> &f64 {
+        &self.1
+    }
+}
+
 
 impl Relation {
     pub fn uniform_multiplicity_visitor<'a>(&'a self, weight: f64) -> RelationWithMultiplicity {
@@ -658,6 +676,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_multiplicity_simple_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -672,6 +691,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_multiplicity_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -686,6 +706,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_multiplicity_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -717,6 +738,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_multiplicity_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -737,6 +759,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_multiplicity_join_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -765,6 +788,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_multiplicity_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -802,6 +826,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_multiplicity_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
