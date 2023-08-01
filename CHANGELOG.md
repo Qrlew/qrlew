@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 - `Relation::possible_values` and used it in thresholding [MR73](https://github.com/Qrlew/qrlew/pull/73)
 ### Changed
-- `Relation::filter_columns`
+- `Relation::filter_columns`: changed siganture and add a conversion
 -  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 -  Fixed table naming
 

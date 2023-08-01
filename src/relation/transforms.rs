@@ -2,6 +2,8 @@
 //!
 
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
+// use crate::data_type::product::Error;
+use crate::data_type::value::Variant;
 use crate::display::Dot;
 use crate::namer;
 use crate::{
@@ -13,8 +15,7 @@ use crate::{
     },
     expr::{self, aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    relation, DataType,
-    io,
+    io, relation, DataType,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::{
@@ -80,7 +81,11 @@ impl From<data_type::Error> for Error {
         Error::Other(err.to_string())
     }
 }
-
+impl From<data_type::value::Error> for Error {
+    fn from(err: data_type::value::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
 impl From<ParseFloatError> for Error {
     fn from(err: ParseFloatError) -> Self {
         Error::Other(err.to_string())
@@ -823,11 +828,11 @@ impl Relation {
     /// Returns a filtered `Relation`
     ///
     /// # Arguments
-    /// - `columns`: `Vec<(column_name, minimal_value, maximal_value, possible_values)>`
+    /// - `columns`: `BTreeMap<(column_name, (minimal_value, maximal_value, possible_values))>`
     ///
     /// For example,
-    /// `filter_columns(vec![("my_col", Value::float(2.), Value::float(10.), vec![Value::integer(4), Value::integer(9)])])`
-    /// returns a filtered `Relation` whose `filter` is equivalent to `(my_col > 2.) and (my_col < 10) and (my_col in (4, 9)`
+    /// `filter_columns(vec![("my_col", Some(Value::float(2.)), Some(Value::float(10.)), vec![Value::float(4.), Value::float(9.)])])`
+    /// returns a filtered `Relation` whose `filter` is equivalent to `(my_col > 2.) and (my_col < 10) and (my_col in (4., 9.)`
     pub fn filter_columns(
         self,
         columns: BTreeMap<
@@ -838,9 +843,20 @@ impl Relation {
                 Vec<data_type::value::Value>,
             ),
         >,
-    ) -> Relation {
-        let predicate = Expr::filter(columns);
-        self.filter(predicate)
+    ) -> Result<Relation> {
+        let mut converted_columns = BTreeMap::new();
+        for (k, (vmin, vmax, vlist)) in columns.into_iter() {
+            let dt = self.schema().field(k)?.data_type();
+            let min = vmin.and_then(|v| Some(v.as_data_type(&dt))).transpose();
+            let max = vmax.and_then(|v| Some(v.as_data_type(&dt))).transpose();
+            let values: Result<Vec<Value>> = vlist
+                .into_iter()
+                .map(|v| v.as_data_type(&dt).map_err(Error::from))
+                .collect();
+            converted_columns.insert(k, (min?, max?, values?));
+        }
+        let predicate = Expr::filter(converted_columns);
+        Ok(self.filter(predicate))
     }
 
     /// Poisson sampling of a relation. It samples each line with probability 0 <= proba <= 1
@@ -1064,7 +1080,10 @@ mod tests {
     use super::*;
     use crate::{
         ast,
-        data_type::{value::List, DataTyped},
+        data_type::{
+            value::{List, Variant},
+            DataTyped,
+        },
         display::Dot,
         io::{postgresql, Database},
         relation::schema::Schema,
@@ -2221,5 +2240,68 @@ mod tests {
 
         let joined_rel = table1.clone().cross_join(table2.clone()).unwrap();
         _ = joined_rel.display_dot();
+    }
+
+    #[test]
+    fn filter_columns() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer()))
+                    .with(("c", DataType::float_range(1.0..=10.)))
+                    .with(("d", DataType::float()))
+                    .with(("e", DataType::text()))
+                    .build(),
+            )
+            .build();
+        table.display_dot();
+        let mut filtering_btree_map = BTreeMap::new();
+        filtering_btree_map.insert("a", (None, None, vec![3.into(), 6.into()]));
+        filtering_btree_map.insert("b", (Some(80.into()), Some(90.into()), vec![]));
+        filtering_btree_map.insert("c", (Some(5.into()), None, vec![])); // Overflow
+        filtering_btree_map.insert(
+            "d",
+            (
+                None,
+                Some(6.7.into()),
+                vec![1.2.into(), 3.4.into(), 5.into()],
+            ),
+        ); // Overflow
+        filtering_btree_map.insert(
+            "e",
+            (
+                None,
+                None,
+                vec![
+                    "A".to_string().into(),
+                    "B".to_string().into(),
+                    "C".to_string().into(),
+                ],
+            ),
+        );
+        let table = table.filter_columns(filtering_btree_map).unwrap();
+        table.display_dot();
+        assert_eq!(
+            table.schema().field("a").unwrap().data_type(),
+            DataType::integer_values([3, 6])
+        );
+        assert_eq!(
+            table.schema().field("b").unwrap().data_type(),
+            DataType::integer_interval(80, 90)
+        );
+        assert_eq!(
+            table.schema().field("c").unwrap().data_type(),
+            DataType::float_interval(5.0, 10.0)
+        );
+        assert_eq!(
+            table.schema().field("d").unwrap().data_type(),
+            DataType::float_values([1.2, 3.4, 5.0])
+        );
+        assert_eq!(
+            table.schema().field("e").unwrap().data_type(),
+            DataType::text_values(["A".to_string(), "B".to_string(), "C".to_string()])
+        );
     }
 }

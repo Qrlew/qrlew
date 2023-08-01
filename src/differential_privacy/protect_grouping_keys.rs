@@ -160,7 +160,7 @@ impl Relation {
         let columns = [(PE_DISTINCT_COUNT, (Some(tau.into()), None, vec![]))]
             .into_iter()
             .collect();
-        Ok(rel.filter_columns(columns))
+        Ok(rel.filter_columns(columns)?)
     }
 
     pub fn released_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
@@ -168,7 +168,8 @@ impl Relation {
             .schema()
             .iter()
             .filter_map(|f| {
-                if TryInto::<Vec<Value>>::try_into(f.data_type()).is_ok() {// TODO This should be explained / documented
+                if TryInto::<Vec<Value>>::try_into(f.data_type()).is_ok() {
+                    // TODO This should be explained / documented
                     Some(f.name().to_string())
                 } else {
                     None
