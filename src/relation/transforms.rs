@@ -847,12 +847,22 @@ impl Relation {
         let mut converted_columns = BTreeMap::new();
         for (k, (vmin, vmax, vlist)) in columns.into_iter() {
             let dt = self.schema().field(k)?.data_type();
-            let min = vmin.and_then(|v| Some(v.as_data_type(&dt))).transpose();
-            let max = vmax.and_then(|v| Some(v.as_data_type(&dt))).transpose();
+            let min = vmin.clone().and_then(|v| Some(v.as_data_type(&dt))).transpose();
+            if min.is_err() {
+                return Err(Error::InvalidArguments(format!("In column '{}', cannot convert min value '{}' to {} datatype.", k, vmin.unwrap(), dt)))
+            }
+            let max = vmax.clone().and_then(|v| Some(v.as_data_type(&dt))).transpose();
+            if min.is_err() {
+                return Err(Error::InvalidArguments(format!("In column '{}', cannot convert max value '{}' to {} datatype.", k, vmax.unwrap(), dt)))
+            }
             let values: Result<Vec<Value>> = vlist
-                .into_iter()
+                .iter()
+                .cloned()
                 .map(|v| v.as_data_type(&dt).map_err(Error::from))
                 .collect();
+            if min.is_err() {
+                return Err(Error::InvalidArguments(format!("In column '{}', cannot convert list of values '{:?}' to {} datatype.", k, vlist, dt)))
+            }
             converted_columns.insert(k, (min?, max?, values?));
         }
         let predicate = Expr::filter(converted_columns);
@@ -2260,7 +2270,7 @@ mod tests {
         let mut filtering_btree_map = BTreeMap::new();
         filtering_btree_map.insert("a", (None, None, vec![3.into(), 6.into()]));
         filtering_btree_map.insert("b", (Some(80.into()), Some(90.into()), vec![]));
-        filtering_btree_map.insert("c", (Some(5.into()), None, vec![])); // Overflow
+        filtering_btree_map.insert("c", (Some(5.into()), None, vec![]));
         filtering_btree_map.insert(
             "d",
             (
@@ -2281,7 +2291,7 @@ mod tests {
                 ],
             ),
         );
-        let table = table.filter_columns(filtering_btree_map).unwrap();
+        let table = table.clone().filter_columns(filtering_btree_map).unwrap();
         table.display_dot();
         assert_eq!(
             table.schema().field("a").unwrap().data_type(),
@@ -2303,5 +2313,10 @@ mod tests {
             table.schema().field("e").unwrap().data_type(),
             DataType::text_values(["A".to_string(), "B".to_string(), "C".to_string()])
         );
+
+        // Error
+        let mut filtering_btree_map = BTreeMap::new();
+        filtering_btree_map.insert("a", (Some(80.1.into()), Some(90.into()), vec![]));
+        assert!(table.filter_columns(filtering_btree_map).is_err())
     }
 }
