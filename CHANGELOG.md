@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2023-08-07
+## [0.3.0] - 2023-08-07
 ### Changed
 - module name: `multiplicity` -> `sampling_adjustments` [MR77](https://github.com/Qrlew/qrlew/pull/77)
 - more coherent objects and function names inside `sampling_adjustments` [MR77](https://github.com/Qrlew/qrlew/pull/77)

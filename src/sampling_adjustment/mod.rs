@@ -422,7 +422,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for TableSamplerVisito
 // Visitor builders
 
 /// Creates a WeightRelationVisitor that applies the same weight to all tables
-fn uniform_adjustments_table_visitor(
+fn uniform_adjustment_table_visitor(
     weight: f64,
 ) -> WeightRelationVisitor<impl Fn(&Table) -> RelationWithWeight> {
     WeightRelationVisitor::new(move |table: &Table| {
@@ -431,7 +431,7 @@ fn uniform_adjustments_table_visitor(
 }
 
 /// Creates a WeightRelationVisitor that applies the different weights to tables according to the input
-fn differenciated_adjustments_table_visitor<'a>(
+fn differenciated_adjustment_table_visitor<'a>(
     relations: &'a Hierarchy<Rc<Relation>>,
     tables_and_weights: Vec<(Vec<String>, f64)>,
 ) -> WeightRelationVisitor<impl Fn(&Table) -> RelationWithWeight + 'a> {
@@ -482,16 +482,16 @@ fn sampling_without_replacements_table_visitor(
 }
 
 impl Relation {
-    pub fn uniform_adjustments<'a>(&'a self, weight: f64) -> RelationWithWeight {
-        self.accept(uniform_adjustments_table_visitor(weight))
+    pub fn uniform_adjustment<'a>(&'a self, weight: f64) -> RelationWithWeight {
+        self.accept(uniform_adjustment_table_visitor(weight))
     }
 
-    pub fn differenciated_adjustments<'a>(
+    pub fn differenciated_adjustment<'a>(
         &'a self,
         relations: &'a Hierarchy<Rc<Relation>>,
         tables_and_weights: Vec<(Vec<String>, f64)>,
     ) -> RelationWithWeight {
-        self.accept(differenciated_adjustments_table_visitor(
+        self.accept(differenciated_adjustment_table_visitor(
             relations,
             tables_and_weights,
         ))
@@ -768,12 +768,12 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let uniform_weighted_relation = table.uniform_adjustments(weight);
+        let uniform_weighted_relation = table.uniform_adjustment(weight);
         uniform_weighted_relation.relation().display_dot().unwrap();
         assert!(*uniform_weighted_relation.weight() == 2.0);
 
         let differenciated_weighted_relation = table
-            .differenciated_adjustments(&relations, vec![(vec!["item_table".to_string()], weight)]);
+            .differenciated_adjustment(&relations, vec![(vec!["item_table".to_string()], weight)]);
         differenciated_weighted_relation
             .relation()
             .display_dot()
@@ -807,12 +807,12 @@ mod tests {
         let query = "SELECT * FROM item_table";
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
 
-        let uniform_weighted_relation = relation.uniform_adjustments(weight);
+        let uniform_weighted_relation = relation.uniform_adjustment(weight);
         uniform_weighted_relation.relation().display_dot().unwrap();
         assert!(*uniform_weighted_relation.weight() == 2.0);
 
         let differenciated_weighted_relation = relation
-            .differenciated_adjustments(&relations, vec![(vec!["item_table".to_string()], weight)]);
+            .differenciated_adjustment(&relations, vec![(vec!["item_table".to_string()], weight)]);
         differenciated_weighted_relation
             .relation()
             .display_dot()
@@ -855,10 +855,10 @@ mod tests {
 
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();
-        let uniform_weighted_relation = relation.uniform_adjustments(weight);
+        let uniform_weighted_relation = relation.uniform_adjustment(weight);
         uniform_weighted_relation.relation().display_dot().unwrap();
         assert!(*uniform_weighted_relation.weight() == 1.0);
-        let differenciated_weighted_relation = relation.differenciated_adjustments(
+        let differenciated_weighted_relation = relation.differenciated_adjustment(
             &relations,
             vec![(vec!["large_user_table".to_string()], weight)],
         );
@@ -898,11 +898,11 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        let uniform_weighted_relation = relation.uniform_adjustments(weight);
+        let uniform_weighted_relation = relation.uniform_adjustment(weight);
         uniform_weighted_relation.relation().display_dot().unwrap();
         assert!(*uniform_weighted_relation.weight() == 4.0);
 
-        let differenciated_weighted_relation = relation.differenciated_adjustments(
+        let differenciated_weighted_relation = relation.differenciated_adjustment(
             &relations,
             vec![
                 (vec!["item_table".to_string()], weight),
@@ -962,7 +962,7 @@ mod tests {
                 relation_to_sample.uniform_sampling_without_replacements(proba, 2.0)
             };
             let weighted_sampled_relation: RelationWithWeight =
-                sampled_relation.uniform_adjustments(1.0 / proba);
+                sampled_relation.uniform_adjustment(1.0 / proba);
 
             let weighted_filtered_sampled_relation =
                 (weighted_sampled_relation.0).filter_fields(|n| n != ROW_WEIGHT);
@@ -1009,7 +1009,7 @@ mod tests {
             relation_to_sample.uniform_sampling_without_replacements(proba, 2.0)
         };
 
-        let weighted_sampled_relation = sampled_relation.uniform_adjustments(1.0 / proba);
+        let weighted_sampled_relation = sampled_relation.uniform_adjustment(1.0 / proba);
         weighted_sampled_relation.0.display_dot().unwrap();
         let query_weighted_relation: &str =
             &ast::Query::from(&(weighted_sampled_relation.0)).to_string();
@@ -1026,7 +1026,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_adjustments_simple_reduce() {
+    fn test_adjustment_simple_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -1041,7 +1041,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_adjustments_join_reduce() {
+    fn test_adjustment_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -1056,7 +1056,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_adjustments_reduce_reduce() {
+    fn test_adjustment_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -1088,7 +1088,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_adjustments_reduce_join_reduce() {
+    fn test_adjustment_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -1109,7 +1109,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_adjustments_join_reduce_reduce() {
+    fn test_adjustment_join_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -1138,7 +1138,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_adjustments_reduce_reduce_reduce() {
+    fn test_adjustment_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -1176,7 +1176,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_adjustments_reduce_reduce_join_reduce() {
+    fn test_adjustment_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 

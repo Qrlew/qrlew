@@ -29,7 +29,7 @@ pub mod io;
 pub mod namer;
 pub mod protected;
 pub mod relation;
-pub mod sampling_adjustments;
+pub mod sampling_adjustment;
 pub mod sql;
 pub mod types;
 pub mod visitor;
