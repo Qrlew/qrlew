@@ -13,8 +13,7 @@ use crate::{
     },
     expr::{self, aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    relation, DataType,
-    io,
+    io, relation, DataType,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::{

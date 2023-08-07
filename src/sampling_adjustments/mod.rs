@@ -2,6 +2,7 @@
 //!
 //! This is experimental and little tested yet.
 //!
+
 use crate::{
     builder::{Ready, With},
     expr::{aggregate, identifier::Identifier, Expr},
@@ -30,12 +31,25 @@ impl error::Error for Error {}
 pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Clone, Debug)]
-pub struct RelationWithMultiplicity(Relation, f64);
+pub struct RelationWithWeight(Relation, f64);
 
-/// A visitor to compute RelationWithMultiplicity propagationing table weights
+/// Getters
+impl RelationWithWeight {
+    pub fn relation(&self) -> Relation {
+        self.0.clone().filter_fields(|n| n != ROW_WEIGHT)
+    }
+
+    pub fn weight(&self) -> &f64 {
+        &self.1
+    }
+}
+
+// Visitors
+
+/// A visitor to compute RelationWithWeight propagationing table weights
 /// and ROW_WEIGHT.
 #[derive(Clone, Debug)]
-struct MultiplicityVisitor<F: Fn(&Table) -> RelationWithMultiplicity> {
+struct WeightRelationVisitor<F: Fn(&Table) -> RelationWithWeight> {
     weight_table: F,
 }
 
@@ -47,30 +61,30 @@ pub const ESTIMATED_GROUPS_COUNT: &str = "_ESTIMATED_GROUPS_COUNT_";
 pub const CORRECTION_FACTOR: &str = "_CORRECTION_FACTOR_";
 pub const PROPAGATED_COLUMNS: usize = 1;
 
-impl<F: Fn(&Table) -> RelationWithMultiplicity> MultiplicityVisitor<F> {
+impl<F: Fn(&Table) -> RelationWithWeight> WeightRelationVisitor<F> {
     pub fn new(weight_table: F) -> Self {
-        MultiplicityVisitor { weight_table }
+        WeightRelationVisitor { weight_table }
     }
 }
 
-impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMultiplicity>
-    for MultiplicityVisitor<F>
+impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
+    for WeightRelationVisitor<F>
 {
     /// Apply the weight from weight_table and add ROW_WEIGHT field initialized to 1
-    fn table(&self, table: &'a Table) -> RelationWithMultiplicity {
+    fn table(&self, table: &'a Table) -> RelationWithWeight {
         let weighted_table = (self.weight_table)(table);
         let new_rel = weighted_table.0.insert_field(0, ROW_WEIGHT, Expr::val(1));
-        RelationWithMultiplicity(new_rel, weighted_table.1)
+        RelationWithWeight(new_rel, weighted_table.1)
     }
 
     /// Propagate the relation weight and ROW_WEIGHT.
-    fn map(&self, map: &'a Map, input: RelationWithMultiplicity) -> RelationWithMultiplicity {
+    fn map(&self, map: &'a Map, input: RelationWithWeight) -> RelationWithWeight {
         let mew_relation: Relation = Relation::map()
             .with((ROW_WEIGHT, Expr::col(ROW_WEIGHT)))
             .with(map.clone())
             .input(input.0)
             .build();
-        RelationWithMultiplicity(mew_relation, input.1)
+        RelationWithWeight(mew_relation, input.1)
     }
 
     /// It constructs the needed relations to compute the CORRECTION_FACTOR from the ROW_WEIGHT
@@ -81,12 +95,8 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
     /// In the paper ONE_COUNT_ROW_WEIGHT is indicated as f1
     /// and GREATER_THAN_ONE_COUNT_ROW_WEIGHT is indicated as fj
     /// It applies the corrections to the aggregation functions
-    /// The table weight of the output RelationWithMultiplicity is 1.0.
-    fn reduce(
-        &self,
-        reduce: &'a Reduce,
-        input: RelationWithMultiplicity,
-    ) -> RelationWithMultiplicity {
+    /// The table weight of the output RelationWithWeight is 1.0.
+    fn reduce(&self, reduce: &'a Reduce, input: RelationWithWeight) -> RelationWithWeight {
         // construct the new reduce from the visited reduce and the input relation.
         // with sum of ROW_WEIGHT
         let new_reduce: Relation = Relation::reduce()
@@ -225,7 +235,7 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
             .input(reduce_with_correction)
             .build();
 
-        RelationWithMultiplicity(new_map, 1.0)
+        RelationWithWeight(new_map, 1.0)
     }
 
     /// propagate table weight as table weight left * table weight right
@@ -233,11 +243,11 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
     fn join(
         &self,
         join: &'a Join,
-        left: RelationWithMultiplicity,
-        right: RelationWithMultiplicity,
-    ) -> RelationWithMultiplicity {
-        let RelationWithMultiplicity(left, left_weight) = &left;
-        let RelationWithMultiplicity(right, right_weight) = &right;
+        left: RelationWithWeight,
+        right: RelationWithWeight,
+    ) -> RelationWithWeight {
+        let RelationWithWeight(left, left_weight) = &left;
+        let RelationWithWeight(right, right_weight) = &right;
 
         let left_new_name = left.name().to_string();
         let right_new_name = right.name().to_string();
@@ -255,7 +265,7 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
             .left
             .schema()
             .iter()
-            // skip 1 because the left (coming from the RelationWithMultiplicity)
+            // skip 1 because the left (coming from the RelationWithWeight)
             // has the ROW_WEIGHT colum
             .zip(left.schema().iter().skip(PROPAGATED_COLUMNS))
             .map(|(o, n)| {
@@ -306,32 +316,23 @@ impl<'a, F: Fn(&Table) -> RelationWithMultiplicity> Visitor<'a, RelationWithMult
 
         let final_map: Relation = builder.build();
 
-        RelationWithMultiplicity(final_map, left_weight * right_weight)
+        RelationWithWeight(final_map, left_weight * right_weight)
     }
 
     fn set(
         &self,
         set: &'a Set,
-        left: RelationWithMultiplicity,
-        right: RelationWithMultiplicity,
-    ) -> RelationWithMultiplicity {
+        left: RelationWithWeight,
+        right: RelationWithWeight,
+    ) -> RelationWithWeight {
         todo!()
     }
 
-    fn values(&self, values: &'a Values) -> RelationWithMultiplicity {
+    fn values(&self, values: &'a Values) -> RelationWithWeight {
         todo!()
     }
 }
 
-/// Build a visitor for uniform multiplicity
-/// Apply the same weight to all tables
-fn uniform_multiplicity_visitor(
-    weight: f64,
-) -> MultiplicityVisitor<impl Fn(&Table) -> RelationWithMultiplicity> {
-    MultiplicityVisitor::new(move |table: &Table| {
-        RelationWithMultiplicity(Relation::from(table.clone()), weight)
-    })
-}
 
 /// A visitor to samaple tables in a relation
 struct TableSamplerVisitor<F: Fn(&Table) -> Relation> {
@@ -419,20 +420,57 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for TableSamplerVisito
     }
 }
 
-/// apply poisson sampling to each table using the same probability
+// Visitor builders
+
+/// Creates a WeightRelationVisitor that applies the same weight to all tables
+fn uniform_adjustments_table_visitor(
+    weight: f64,
+) -> WeightRelationVisitor<impl Fn(&Table) -> RelationWithWeight> {
+    WeightRelationVisitor::new(move |table: &Table| {
+        RelationWithWeight(Relation::from(table.clone()), weight)
+    })
+}
+
+/// Creates a WeightRelationVisitor that applies the different weights to tables according to the input
+fn differenciated_adjustments_table_visitor<'a>(
+    relations: &'a Hierarchy<Rc<Relation>>,
+    tables_and_weights: Vec<(Vec<String>, f64)>,
+) -> WeightRelationVisitor<impl Fn(&Table) -> RelationWithWeight + 'a> {
+    WeightRelationVisitor::new(move |table: &Table| {
+        match tables_and_weights
+            .iter()
+            .find(|(tab, _)| relations.get(tab).map_or(false, |rel| rel.name() == table.name()))
+        {
+            Some((_, weight)) => RelationWithWeight(Relation::from(table.clone()), *weight),
+            None => RelationWithWeight(Relation::from(table.clone()), 1.0),
+        }
+    })
+}
+
+/// Creates a TableSamplerVisitor that applies poisson sampling with the same probability to all tables.
 fn poisson_sampling_table_visitor(proba: f64) -> TableSamplerVisitor<impl Fn(&Table) -> Relation> {
     TableSamplerVisitor::new(move |table: &Table| {
         Relation::from(table.clone()).poisson_sampling(proba)
     })
 }
 
-// fn differenciated_poisson_sampling_table_visitor(table_sampling_fraction: Hierarchy<f64>) -> TableSamplerVisitor<impl Fn(&Table) -> Relation> {
-//     TableSamplerVisitor::new(move |table: &Table| {
-//         Relation::from(table.clone()).poisson_sampling(proba)
-//     })
-// }
+/// Creates a TableSamplerVisitor that applies poisson sampling with different probability to tables as specified in the input
+fn differenciated_poisson_sampling_table_visitor<'a>(
+    relations: &'a Hierarchy<Rc<Relation>>,
+    tables_and_sampling_probabilities: Vec<(Vec<String>, f64)>,
+) -> TableSamplerVisitor<impl Fn(&Table) -> Relation + 'a> {
+    TableSamplerVisitor::new(move |table: &Table| {
+        match tables_and_sampling_probabilities
+            .iter()
+            .find(|(tab, _)| relations.get(tab).map_or(false, |rel| rel.name() == table.name()))
+        {
+            Some((_, proba)) => Relation::from(table.clone()).poisson_sampling(*proba),
+            None => table.clone().into(),
+        }
+    })
+}
 
-/// apply random samping with without replacement using the same rate for all tables.
+/// Creates a TableSamplerVisitor that applies random samping with without replacement using the same rate for all tables.
 fn sampling_without_replacements_table_visitor(
     rate: f64,
     rate_multiplier: f64,
@@ -442,27 +480,39 @@ fn sampling_without_replacements_table_visitor(
     })
 }
 
-impl RelationWithMultiplicity {
-    pub fn relation(&self) -> &Relation {
-        &self.0
-    }
-
-    pub fn weight(&self) -> &f64 {
-        &self.1
-    }
-}
-
 
 impl Relation {
-    pub fn uniform_multiplicity_visitor<'a>(&'a self, weight: f64) -> RelationWithMultiplicity {
-        self.accept(uniform_multiplicity_visitor(weight))
+    pub fn uniform_adjustments<'a>(&'a self, weight: f64) -> RelationWithWeight {
+        self.accept(uniform_adjustments_table_visitor(weight))
     }
 
-    pub fn poisson_sampling_table_visitor<'a>(&'a self, proba: f64) -> Relation {
+    pub fn differenciated_adjustments<'a>(
+        &'a self,
+        relations: &'a Hierarchy<Rc<Relation>>,
+        tables_and_weights: Vec<(Vec<String>, f64)>,
+    ) -> RelationWithWeight {
+        self.accept(differenciated_adjustments_table_visitor(
+            relations,
+            tables_and_weights,
+        ))
+    }
+
+    pub fn uniform_poisson_sampling<'a>(&'a self, proba: f64) -> Relation {
         self.accept(poisson_sampling_table_visitor(proba))
     }
 
-    pub fn sampling_without_replacements_table_visitor<'a>(
+    pub fn differenciated_poisson_sampling<'a>(
+        &'a self,
+        relations: &'a Hierarchy<Rc<Relation>>,
+        tables_and_sampling_probabilities: Vec<(Vec<String>, f64)>,
+    ) -> Relation {
+        self.accept(differenciated_poisson_sampling_table_visitor(
+            relations,
+            tables_and_sampling_probabilities,
+        ))
+    }
+
+    pub fn uniform_sampling_without_replacements<'a>(
         &'a self,
         rate: f64,
         rate_multiplier: f64,
@@ -482,13 +532,223 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
+        namer,
     };
 
     use colored::Colorize;
     use itertools::Itertools;
 
     #[test]
-    fn test_table() {
+    fn test_uniform_poisson_sampling() {
+        let mut database = postgresql::test_database();
+        let proba = 0.1;
+        let relations = database.relations();
+        let relation = Relation::try_from(
+            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        let sampled = relation.uniform_poisson_sampling(proba);
+        // build the resulting relation
+        let item_table = relations
+        .get(&["item_table".into()])
+        .unwrap()
+        .as_ref()
+        .clone();
+        
+        let sampled_item_table = item_table.poisson_sampling(proba);
+        
+        let order_table = relations
+        .get(&["order_table".into()])
+        .unwrap()
+        .as_ref()
+        .clone();
+        
+        let sampled_order_table = order_table.poisson_sampling(proba);
+                
+        let relation_schema_names: Vec<&str> = relation.schema().iter().map(|f| f.name()).collect();
+        let relation_name = relation.name();
+        let left_names: Vec<String> = relation_schema_names
+        .iter()
+        .take(sampled_order_table.schema().len())
+        .map(|s| s.to_string())
+        .collect();
+        let right_exprs: Vec<String> = relation_schema_names
+        .iter()
+        .skip(sampled_order_table.schema().len())
+        .map(|s| s.to_string())
+        .collect();
+    
+        let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
+        let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
+        let join: Relation = Relation::join()
+        .left_names(left_names)
+        .right_names(right_exprs)
+        .left(sampled_order_table)
+        .right(sampled_item_table)
+        .on(
+            Expr::eq(qcol_expr_right, qcol_expr_left)
+        ).build();
+        let exprs: Vec<(&str, Expr)> = join.schema().iter().map(|f| (f.name().clone(), Expr::col(f.name()))).collect();
+        
+        let final_map: Relation =  Relation::map()
+        .name(relation_name)
+        .with_iter(exprs.into_iter())
+        .input(join)
+        .build();
+
+        assert_eq!(final_map, sampled);
+        
+        relation.display_dot().unwrap();
+        sampled.display_dot().unwrap();
+        final_map.display_dot().unwrap();
+
+    }
+
+    #[test]
+    fn test_differenciated_poisson_sampling() {
+        let mut database = postgresql::test_database();
+        let tables_and_proba: Vec<(Vec<String>, f64)> = vec![
+            (vec!["order_table".to_string()], 0.1), 
+            (vec!["item_table".to_string()], 0.5),
+        ];
+        let relations = database.relations();
+        let relation = Relation::try_from(
+            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        namer::reset();
+        let sampled = relation.differenciated_poisson_sampling(&relations, tables_and_proba);
+        // build the resulting relation
+        namer::reset();
+        let item_table = relations
+        .get(&["item_table".into()])
+        .unwrap()
+        .as_ref()
+        .clone();
+        
+        let sampled_item_table = item_table.poisson_sampling(0.5);
+        
+        let order_table = relations
+        .get(&["order_table".into()])
+        .unwrap()
+        .as_ref()
+        .clone();
+        
+        let sampled_order_table = order_table.poisson_sampling(0.1);
+                
+        let relation_schema_names: Vec<&str> = relation.schema().iter().map(|f| f.name()).collect();
+        let relation_name = relation.name();
+        let left_names: Vec<String> = relation_schema_names
+        .iter()
+        .take(sampled_order_table.schema().len())
+        .map(|s| s.to_string())
+        .collect();
+        let right_exprs: Vec<String> = relation_schema_names
+        .iter()
+        .skip(sampled_order_table.schema().len())
+        .map(|s| s.to_string())
+        .collect();
+    
+        let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
+        let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
+        let join: Relation = Relation::join()
+        .left_names(left_names)
+        .right_names(right_exprs)
+        .left(sampled_order_table)
+        .right(sampled_item_table)
+        .on(
+            Expr::eq(qcol_expr_right, qcol_expr_left)
+        ).build();
+        let exprs: Vec<(&str, Expr)> = join.schema().iter().map(|f| (f.name().clone(), Expr::col(f.name()))).collect();
+        
+        let final_map: Relation =  Relation::map()
+        .name(relation_name)
+        .with_iter(exprs.into_iter())
+        .input(join)
+        .build();
+
+        assert_eq!(final_map, sampled);
+        
+        relation.display_dot().unwrap();
+        sampled.display_dot().unwrap();
+        final_map.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_sampling_without_replacements() {
+        let mut database = postgresql::test_database();
+        let proba = 0.1;
+        let relations = database.relations();
+        let relation = Relation::try_from(
+            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        namer::reset();
+        let sampled = relation.uniform_sampling_without_replacements(proba, 1.0);
+        // build the resulting relation
+        namer::reset();
+        let item_table = relations
+        .get(&["item_table".into()])
+        .unwrap()
+        .as_ref()
+        .clone();
+        
+        let sampled_item_table = item_table.sampling_without_replacements(proba, 1.0);
+        
+        let order_table = relations
+        .get(&["order_table".into()])
+        .unwrap()
+        .as_ref()
+        .clone();
+        
+        let sampled_order_table = order_table.sampling_without_replacements(proba, 1.0);
+                
+        let relation_schema_names: Vec<&str> = relation.schema().iter().map(|f| f.name()).collect();
+        let relation_name = relation.name();
+        let left_names: Vec<String> = relation_schema_names
+        .iter()
+        .take(sampled_order_table.schema().len())
+        .map(|s| s.to_string())
+        .collect();
+        let right_exprs: Vec<String> = relation_schema_names
+        .iter()
+        .skip(sampled_order_table.schema().len())
+        .map(|s| s.to_string())
+        .collect();
+    
+        let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
+        let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
+        let join: Relation = Relation::join()
+        .left_names(left_names)
+        .right_names(right_exprs)
+        .left(sampled_order_table)
+        .right(sampled_item_table)
+        .on(
+            Expr::eq(qcol_expr_right, qcol_expr_left)
+        ).build();
+        let exprs: Vec<(&str, Expr)> = join.schema().iter().map(|f| (f.name().clone(), Expr::col(f.name()))).collect();
+        
+        let final_map: Relation =  Relation::map()
+        .name(relation_name)
+        .with_iter(exprs.into_iter())
+        .input(join)
+        .build();
+
+        assert_eq!(final_map, sampled);
+        
+        relation.display_dot().unwrap();
+        sampled.display_dot().unwrap();
+        final_map.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_table_with_weight() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
         let relations = database.relations();
@@ -497,11 +757,19 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let weighted = table.uniform_multiplicity_visitor(weight);
-        weighted.0.display_dot().unwrap();
-        assert!(weighted.1 == 2.0);
+        let uniform_weighted_relation = table.uniform_adjustments(weight);
+        uniform_weighted_relation.relation().display_dot().unwrap();
+        assert!(*uniform_weighted_relation.weight() == 2.0);
 
-        let query_from_rel: &str = &ast::Query::from(&weighted.0).to_string();
+        let differenciated_weighted_relation = table.differenciated_adjustments(
+            &relations, vec![(vec!["item_table".to_string()], weight)]
+        );
+        differenciated_weighted_relation.relation().display_dot().unwrap();
+        assert!(*differenciated_weighted_relation.weight() == 2.0);
+
+        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+
+        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
         println!("\n{}", format!("{query_from_rel}").yellow());
         println!(
             "\n{}\n",
@@ -515,16 +783,26 @@ mod tests {
     }
 
     #[test]
-    fn test_map() {
+    fn test_map_with_weight() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
         let relations = database.relations();
         let query = "SELECT * FROM item_table";
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
-        let wrelation = relation.uniform_multiplicity_visitor(weight);
-        wrelation.0.display_dot().unwrap();
-        assert!(wrelation.1 == 2.0);
-        let query_from_rel: &str = &ast::Query::from(&wrelation.0).to_string();
+        
+        let uniform_weighted_relation = relation.uniform_adjustments(weight);
+        uniform_weighted_relation.relation().display_dot().unwrap();
+        assert!(*uniform_weighted_relation.weight() == 2.0);
+
+        let differenciated_weighted_relation = relation.differenciated_adjustments(
+            &relations, vec![(vec!["item_table".to_string()], weight)]
+        );
+        differenciated_weighted_relation.relation().display_dot().unwrap();
+        assert!(*differenciated_weighted_relation.weight() == 2.0);
+
+        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+
+        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
         println!("\n{}", format!("{query_from_rel}").yellow());
         println!(
             "\n{}\n",
@@ -536,8 +814,9 @@ mod tests {
                 .join("\n")
         );
     }
+
     #[test]
-    fn test_reduce() {
+    fn test_reduce_with_weight() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
         let relations = database.relations();
@@ -553,10 +832,18 @@ mod tests {
 
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();
-        let wrelation = relation.uniform_multiplicity_visitor(weight);
-        wrelation.0.display_dot().unwrap();
-        assert!(wrelation.1 == 1.0);
-        let query_from_rel: &str = &ast::Query::from(&wrelation.0).to_string();
+        let uniform_weighted_relation = relation.uniform_adjustments(weight);
+        uniform_weighted_relation.relation().display_dot().unwrap();
+        assert!(*uniform_weighted_relation.weight() == 1.0);
+        let differenciated_weighted_relation = relation.differenciated_adjustments(
+            &relations, vec![(vec!["large_user_table".to_string()], weight)]
+        );
+        differenciated_weighted_relation.relation().display_dot().unwrap();
+        assert!(*differenciated_weighted_relation.weight() == 1.0);
+
+        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+
+        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
         println!("\n{}", format!("{query_from_rel}").yellow());
         println!(
             "\n{}\n",
@@ -567,22 +854,43 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
+
     }
 
     #[test]
-    fn test_joins() {
+    fn test_join_with_weight() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
         let relations = database.relations();
         let relation = Relation::try_from(
-            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
+            parse("SELECT * FROM order_table JOIN item_table ON id=order_id LIMIT 10")
                 .unwrap()
                 .with(&relations),
         )
         .unwrap();
-        let wrelation: RelationWithMultiplicity = relation.uniform_multiplicity_visitor(weight);
-        wrelation.0.display_dot().unwrap();
-        assert!(wrelation.1 == 4.0)
+        let uniform_weighted_relation = relation.uniform_adjustments(weight);
+        uniform_weighted_relation.relation().display_dot().unwrap();
+        assert!(*uniform_weighted_relation.weight() == 4.0);
+
+        let differenciated_weighted_relation = relation.differenciated_adjustments(
+            &relations, vec![(vec!["item_table".to_string()], weight), (vec!["order_table".to_string()], weight)]
+        );
+        differenciated_weighted_relation.relation().display_dot().unwrap();
+        assert!(*differenciated_weighted_relation.weight() == 4.0);
+
+        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+
+        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
+        println!("\n{}", format!("{query_from_rel}").yellow());
+        println!(
+            "\n{}\n",
+            database
+                .query(query_from_rel)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
 
     // compute errors from results and from estimate
@@ -608,12 +916,12 @@ mod tests {
         let mut res_holder: Vec<Vec<f64>> = vec![];
         for _ in 0..n_experiments {
             let sampled_relation = if use_possin_sampling {
-                relation_to_sample.poisson_sampling_table_visitor(proba)
+                relation_to_sample.uniform_poisson_sampling(proba)
             } else {
-                relation_to_sample.sampling_without_replacements_table_visitor(proba, 2.0)
+                relation_to_sample.uniform_sampling_without_replacements(proba, 2.0)
             };
-            let weighted_sampled_relation =
-                sampled_relation.uniform_multiplicity_visitor(1.0 / proba);
+            let weighted_sampled_relation: RelationWithWeight =
+                sampled_relation.uniform_adjustments(1.0 / proba);
 
             let weighted_filtered_sampled_relation =
                 (weighted_sampled_relation.0).filter_fields(|n| n != ROW_WEIGHT);
@@ -654,13 +962,13 @@ mod tests {
         //for displaying purposes
         relation_to_sample.display_dot().unwrap();
         let sampled_relation = if use_possin_sampling {
-            relation_to_sample.poisson_sampling_table_visitor(proba)
+            relation_to_sample.uniform_poisson_sampling(proba)
         } else {
             // use a relatively safe rate_multiplier (2.0) for optimization purposes
-            relation_to_sample.sampling_without_replacements_table_visitor(proba, 2.0)
+            relation_to_sample.uniform_sampling_without_replacements(proba, 2.0)
         };
 
-        let weighted_sampled_relation = sampled_relation.uniform_multiplicity_visitor(1.0 / proba);
+        let weighted_sampled_relation = sampled_relation.uniform_adjustments(1.0 / proba);
         weighted_sampled_relation.0.display_dot().unwrap();
         let query_weighted_relation: &str =
             &ast::Query::from(&(weighted_sampled_relation.0)).to_string();
@@ -677,7 +985,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_multiplicity_simple_reduce() {
+    fn test_adjustments_simple_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -692,7 +1000,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_multiplicity_join_reduce() {
+    fn test_adjustments_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -707,7 +1015,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_multiplicity_reduce_reduce() {
+    fn test_adjustments_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -739,7 +1047,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_multiplicity_reduce_join_reduce() {
+    fn test_adjustments_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -760,7 +1068,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_multiplicity_join_reduce_reduce() {
+    fn test_adjustments_join_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -789,7 +1097,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_multiplicity_reduce_reduce_reduce() {
+    fn test_adjustments_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
@@ -827,7 +1135,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_multiplicity_reduce_reduce_join_reduce() {
+    fn test_adjustments_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
 
