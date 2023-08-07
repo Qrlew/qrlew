@@ -333,7 +333,6 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
     }
 }
 
-
 /// A visitor to samaple tables in a relation
 struct TableSamplerVisitor<F: Fn(&Table) -> Relation> {
     table_sampler: F,
@@ -437,10 +436,11 @@ fn differenciated_adjustments_table_visitor<'a>(
     tables_and_weights: Vec<(Vec<String>, f64)>,
 ) -> WeightRelationVisitor<impl Fn(&Table) -> RelationWithWeight + 'a> {
     WeightRelationVisitor::new(move |table: &Table| {
-        match tables_and_weights
-            .iter()
-            .find(|(tab, _)| relations.get(tab).map_or(false, |rel| rel.name() == table.name()))
-        {
+        match tables_and_weights.iter().find(|(tab, _)| {
+            relations
+                .get(tab)
+                .map_or(false, |rel| rel.name() == table.name())
+        }) {
             Some((_, weight)) => RelationWithWeight(Relation::from(table.clone()), *weight),
             None => RelationWithWeight(Relation::from(table.clone()), 1.0),
         }
@@ -460,10 +460,11 @@ fn differenciated_poisson_sampling_table_visitor<'a>(
     tables_and_sampling_probabilities: Vec<(Vec<String>, f64)>,
 ) -> TableSamplerVisitor<impl Fn(&Table) -> Relation + 'a> {
     TableSamplerVisitor::new(move |table: &Table| {
-        match tables_and_sampling_probabilities
-            .iter()
-            .find(|(tab, _)| relations.get(tab).map_or(false, |rel| rel.name() == table.name()))
-        {
+        match tables_and_sampling_probabilities.iter().find(|(tab, _)| {
+            relations
+                .get(tab)
+                .map_or(false, |rel| rel.name() == table.name())
+        }) {
             Some((_, proba)) => Relation::from(table.clone()).poisson_sampling(*proba),
             None => table.clone().into(),
         }
@@ -479,7 +480,6 @@ fn sampling_without_replacements_table_visitor(
         Relation::from(table.clone()).sampling_without_replacements(rate, rate_multiplier)
     })
 }
-
 
 impl Relation {
     pub fn uniform_adjustments<'a>(&'a self, weight: f64) -> RelationWithWeight {
@@ -531,8 +531,8 @@ mod tests {
         ast,
         display::Dot,
         io::{postgresql, Database},
-        sql::parse,
         namer,
+        sql::parse,
     };
 
     use colored::Colorize;
@@ -549,68 +549,72 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
+        namer::reset();
         let sampled = relation.uniform_poisson_sampling(proba);
+        namer::reset();
         // build the resulting relation
         let item_table = relations
-        .get(&["item_table".into()])
-        .unwrap()
-        .as_ref()
-        .clone();
-        
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
         let sampled_item_table = item_table.poisson_sampling(proba);
-        
+
         let order_table = relations
-        .get(&["order_table".into()])
-        .unwrap()
-        .as_ref()
-        .clone();
-        
+            .get(&["order_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
         let sampled_order_table = order_table.poisson_sampling(proba);
-                
+
         let relation_schema_names: Vec<&str> = relation.schema().iter().map(|f| f.name()).collect();
         let relation_name = relation.name();
         let left_names: Vec<String> = relation_schema_names
-        .iter()
-        .take(sampled_order_table.schema().len())
-        .map(|s| s.to_string())
-        .collect();
+            .iter()
+            .take(sampled_order_table.schema().len())
+            .map(|s| s.to_string())
+            .collect();
         let right_exprs: Vec<String> = relation_schema_names
-        .iter()
-        .skip(sampled_order_table.schema().len())
-        .map(|s| s.to_string())
-        .collect();
-    
+            .iter()
+            .skip(sampled_order_table.schema().len())
+            .map(|s| s.to_string())
+            .collect();
+
         let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
         let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
         let join: Relation = Relation::join()
-        .left_names(left_names)
-        .right_names(right_exprs)
-        .left(sampled_order_table)
-        .right(sampled_item_table)
-        .on(
-            Expr::eq(qcol_expr_right, qcol_expr_left)
-        ).build();
-        let exprs: Vec<(&str, Expr)> = join.schema().iter().map(|f| (f.name().clone(), Expr::col(f.name()))).collect();
-        
-        let final_map: Relation =  Relation::map()
-        .name(relation_name)
-        .with_iter(exprs.into_iter())
-        .input(join)
-        .build();
+            .left_names(left_names)
+            .right_names(right_exprs)
+            .left(sampled_order_table)
+            .right(sampled_item_table)
+            .on(Expr::eq(qcol_expr_right, qcol_expr_left))
+            .build();
+        let exprs: Vec<(&str, Expr)> = join
+            .schema()
+            .iter()
+            .map(|f| (f.name().clone(), Expr::col(f.name())))
+            .collect();
+
+        let final_map: Relation = Relation::map()
+            .name(relation_name)
+            .with_iter(exprs.into_iter())
+            .input(join)
+            .build();
 
         assert_eq!(final_map, sampled);
-        
+
         relation.display_dot().unwrap();
         sampled.display_dot().unwrap();
         final_map.display_dot().unwrap();
-
     }
 
     #[test]
     fn test_differenciated_poisson_sampling() {
         let mut database = postgresql::test_database();
         let tables_and_proba: Vec<(Vec<String>, f64)> = vec![
-            (vec!["order_table".to_string()], 0.1), 
+            (vec!["order_table".to_string()], 0.1),
             (vec!["item_table".to_string()], 0.5),
         ];
         let relations = database.relations();
@@ -625,54 +629,57 @@ mod tests {
         // build the resulting relation
         namer::reset();
         let item_table = relations
-        .get(&["item_table".into()])
-        .unwrap()
-        .as_ref()
-        .clone();
-        
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
         let sampled_item_table = item_table.poisson_sampling(0.5);
-        
+
         let order_table = relations
-        .get(&["order_table".into()])
-        .unwrap()
-        .as_ref()
-        .clone();
-        
+            .get(&["order_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
         let sampled_order_table = order_table.poisson_sampling(0.1);
-                
+
         let relation_schema_names: Vec<&str> = relation.schema().iter().map(|f| f.name()).collect();
         let relation_name = relation.name();
         let left_names: Vec<String> = relation_schema_names
-        .iter()
-        .take(sampled_order_table.schema().len())
-        .map(|s| s.to_string())
-        .collect();
+            .iter()
+            .take(sampled_order_table.schema().len())
+            .map(|s| s.to_string())
+            .collect();
         let right_exprs: Vec<String> = relation_schema_names
-        .iter()
-        .skip(sampled_order_table.schema().len())
-        .map(|s| s.to_string())
-        .collect();
-    
+            .iter()
+            .skip(sampled_order_table.schema().len())
+            .map(|s| s.to_string())
+            .collect();
+
         let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
         let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
         let join: Relation = Relation::join()
-        .left_names(left_names)
-        .right_names(right_exprs)
-        .left(sampled_order_table)
-        .right(sampled_item_table)
-        .on(
-            Expr::eq(qcol_expr_right, qcol_expr_left)
-        ).build();
-        let exprs: Vec<(&str, Expr)> = join.schema().iter().map(|f| (f.name().clone(), Expr::col(f.name()))).collect();
-        
-        let final_map: Relation =  Relation::map()
-        .name(relation_name)
-        .with_iter(exprs.into_iter())
-        .input(join)
-        .build();
+            .left_names(left_names)
+            .right_names(right_exprs)
+            .left(sampled_order_table)
+            .right(sampled_item_table)
+            .on(Expr::eq(qcol_expr_right, qcol_expr_left))
+            .build();
+        let exprs: Vec<(&str, Expr)> = join
+            .schema()
+            .iter()
+            .map(|f| (f.name().clone(), Expr::col(f.name())))
+            .collect();
+
+        let final_map: Relation = Relation::map()
+            .name(relation_name)
+            .with_iter(exprs.into_iter())
+            .input(join)
+            .build();
 
         assert_eq!(final_map, sampled);
-        
+
         relation.display_dot().unwrap();
         sampled.display_dot().unwrap();
         final_map.display_dot().unwrap();
@@ -695,54 +702,57 @@ mod tests {
         // build the resulting relation
         namer::reset();
         let item_table = relations
-        .get(&["item_table".into()])
-        .unwrap()
-        .as_ref()
-        .clone();
-        
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
         let sampled_item_table = item_table.sampling_without_replacements(proba, 1.0);
-        
+
         let order_table = relations
-        .get(&["order_table".into()])
-        .unwrap()
-        .as_ref()
-        .clone();
-        
+            .get(&["order_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
         let sampled_order_table = order_table.sampling_without_replacements(proba, 1.0);
-                
+
         let relation_schema_names: Vec<&str> = relation.schema().iter().map(|f| f.name()).collect();
         let relation_name = relation.name();
         let left_names: Vec<String> = relation_schema_names
-        .iter()
-        .take(sampled_order_table.schema().len())
-        .map(|s| s.to_string())
-        .collect();
+            .iter()
+            .take(sampled_order_table.schema().len())
+            .map(|s| s.to_string())
+            .collect();
         let right_exprs: Vec<String> = relation_schema_names
-        .iter()
-        .skip(sampled_order_table.schema().len())
-        .map(|s| s.to_string())
-        .collect();
-    
+            .iter()
+            .skip(sampled_order_table.schema().len())
+            .map(|s| s.to_string())
+            .collect();
+
         let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
         let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
         let join: Relation = Relation::join()
-        .left_names(left_names)
-        .right_names(right_exprs)
-        .left(sampled_order_table)
-        .right(sampled_item_table)
-        .on(
-            Expr::eq(qcol_expr_right, qcol_expr_left)
-        ).build();
-        let exprs: Vec<(&str, Expr)> = join.schema().iter().map(|f| (f.name().clone(), Expr::col(f.name()))).collect();
-        
-        let final_map: Relation =  Relation::map()
-        .name(relation_name)
-        .with_iter(exprs.into_iter())
-        .input(join)
-        .build();
+            .left_names(left_names)
+            .right_names(right_exprs)
+            .left(sampled_order_table)
+            .right(sampled_item_table)
+            .on(Expr::eq(qcol_expr_right, qcol_expr_left))
+            .build();
+        let exprs: Vec<(&str, Expr)> = join
+            .schema()
+            .iter()
+            .map(|f| (f.name().clone(), Expr::col(f.name())))
+            .collect();
+
+        let final_map: Relation = Relation::map()
+            .name(relation_name)
+            .with_iter(exprs.into_iter())
+            .input(join)
+            .build();
 
         assert_eq!(final_map, sampled);
-        
+
         relation.display_dot().unwrap();
         sampled.display_dot().unwrap();
         final_map.display_dot().unwrap();
@@ -762,15 +772,21 @@ mod tests {
         uniform_weighted_relation.relation().display_dot().unwrap();
         assert!(*uniform_weighted_relation.weight() == 2.0);
 
-        let differenciated_weighted_relation = table.differenciated_adjustments(
-            &relations, vec![(vec!["item_table".to_string()], weight)]
-        );
-        differenciated_weighted_relation.relation().display_dot().unwrap();
+        let differenciated_weighted_relation = table
+            .differenciated_adjustments(&relations, vec![(vec!["item_table".to_string()], weight)]);
+        differenciated_weighted_relation
+            .relation()
+            .display_dot()
+            .unwrap();
         assert!(*differenciated_weighted_relation.weight() == 2.0);
 
-        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+        assert_eq!(
+            uniform_weighted_relation.relation(),
+            differenciated_weighted_relation.relation()
+        );
 
-        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
+        let query_from_rel: &str =
+            &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
         println!("\n{}", format!("{query_from_rel}").yellow());
         println!(
             "\n{}\n",
@@ -790,20 +806,26 @@ mod tests {
         let relations = database.relations();
         let query = "SELECT * FROM item_table";
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
-        
+
         let uniform_weighted_relation = relation.uniform_adjustments(weight);
         uniform_weighted_relation.relation().display_dot().unwrap();
         assert!(*uniform_weighted_relation.weight() == 2.0);
 
-        let differenciated_weighted_relation = relation.differenciated_adjustments(
-            &relations, vec![(vec!["item_table".to_string()], weight)]
-        );
-        differenciated_weighted_relation.relation().display_dot().unwrap();
+        let differenciated_weighted_relation = relation
+            .differenciated_adjustments(&relations, vec![(vec!["item_table".to_string()], weight)]);
+        differenciated_weighted_relation
+            .relation()
+            .display_dot()
+            .unwrap();
         assert!(*differenciated_weighted_relation.weight() == 2.0);
 
-        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+        assert_eq!(
+            uniform_weighted_relation.relation(),
+            differenciated_weighted_relation.relation()
+        );
 
-        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
+        let query_from_rel: &str =
+            &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
         println!("\n{}", format!("{query_from_rel}").yellow());
         println!(
             "\n{}\n",
@@ -837,14 +859,22 @@ mod tests {
         uniform_weighted_relation.relation().display_dot().unwrap();
         assert!(*uniform_weighted_relation.weight() == 1.0);
         let differenciated_weighted_relation = relation.differenciated_adjustments(
-            &relations, vec![(vec!["large_user_table".to_string()], weight)]
+            &relations,
+            vec![(vec!["large_user_table".to_string()], weight)],
         );
-        differenciated_weighted_relation.relation().display_dot().unwrap();
+        differenciated_weighted_relation
+            .relation()
+            .display_dot()
+            .unwrap();
         assert!(*differenciated_weighted_relation.weight() == 1.0);
 
-        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+        assert_eq!(
+            uniform_weighted_relation.relation(),
+            differenciated_weighted_relation.relation()
+        );
 
-        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
+        let query_from_rel: &str =
+            &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
         println!("\n{}", format!("{query_from_rel}").yellow());
         println!(
             "\n{}\n",
@@ -855,7 +885,6 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
-
     }
 
     #[test]
@@ -874,14 +903,25 @@ mod tests {
         assert!(*uniform_weighted_relation.weight() == 4.0);
 
         let differenciated_weighted_relation = relation.differenciated_adjustments(
-            &relations, vec![(vec!["item_table".to_string()], weight), (vec!["order_table".to_string()], weight)]
+            &relations,
+            vec![
+                (vec!["item_table".to_string()], weight),
+                (vec!["order_table".to_string()], weight),
+            ],
         );
-        differenciated_weighted_relation.relation().display_dot().unwrap();
+        differenciated_weighted_relation
+            .relation()
+            .display_dot()
+            .unwrap();
         assert!(*differenciated_weighted_relation.weight() == 4.0);
 
-        assert_eq!(uniform_weighted_relation.relation(), differenciated_weighted_relation.relation());
+        assert_eq!(
+            uniform_weighted_relation.relation(),
+            differenciated_weighted_relation.relation()
+        );
 
-        let query_from_rel: &str = &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
+        let query_from_rel: &str =
+            &ast::Query::from(&(uniform_weighted_relation.relation())).to_string();
         println!("\n{}", format!("{query_from_rel}").yellow());
         println!(
             "\n{}\n",
