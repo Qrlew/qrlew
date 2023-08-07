@@ -683,6 +683,7 @@ mod tests {
         let mut database = postgresql::test_database();
         let proba = 0.1;
         let relations = database.relations();
+        namer::reset();
         let relation = Relation::try_from(
             parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
                 .unwrap()
