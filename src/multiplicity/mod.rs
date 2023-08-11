@@ -525,13 +525,10 @@ mod tests {
         let relations = database.relations();
 
         let query = "
-        WITH tmp AS (
-            SELECT 
-                id, 
-                AVG(income) AS avg_income 
-            FROM large_user_table 
-            GROUP BY id
-        ) SELECT AVG(avg_income) FROM tmp";
+        SELECT id, AVG(income) AS avg_income 
+        FROM large_user_table 
+        GROUP BY id
+        ";
 
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();
