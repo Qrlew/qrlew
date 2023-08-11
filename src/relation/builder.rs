@@ -153,9 +153,10 @@ impl<RequireInput> MapBuilder<RequireInput> {
 
     /// Add a group by
     pub fn group_by(mut self, expr: Expr) -> Self {
-        self.split = self
-            .split
-            .map_last_reduce(|reduce| reduce.and(Split::group_by(expr)));
+        self.split = self.split.map_last_map(|map| {
+            print!("INSIDE: {:?}", map);
+            map.and(Split::group_by(expr))
+        });
         self
     }
 

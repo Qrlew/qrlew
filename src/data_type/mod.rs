@@ -2506,7 +2506,10 @@ macro_rules! impl_into_values {
                 if self.all_values() {
                     Ok(self.into_iter().map(|[v, _]| Value::from(v)).collect())
                 } else {
-                    Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>"))
+                    Err(Error::invalid_conversion(
+                        stringify!($Variant),
+                        "Vec<Value>",
+                    ))
                 }
             }
         }
@@ -2535,7 +2538,10 @@ impl TryInto<Vec<Value>> for DataType {
             DataType::Time(t) => t.try_into(),
             DataType::DateTime(d) => d.try_into(),
             DataType::Duration(d) => d.try_into(),
-            _ => Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>")),
+            _ => Err(Error::invalid_conversion(
+                stringify!($Variant),
+                "Vec<Value>",
+            )),
         }
     }
 }
@@ -3591,10 +3597,16 @@ mod tests {
     #[test]
     fn test_try_into_values() {
         let dt = DataType::float_values([1., 2., 3.]);
-        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into(), 2.0.into(), 3.0.into()]);
+        assert_eq!(
+            TryInto::<Vec<Value>>::try_into(dt).unwrap(),
+            vec![1.0.into(), 2.0.into(), 3.0.into()]
+        );
 
         let dt = DataType::float_interval(1., 1.);
-        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into()]);
+        assert_eq!(
+            TryInto::<Vec<Value>>::try_into(dt).unwrap(),
+            vec![1.0.into()]
+        );
 
         let dt = DataType::float_interval(1., 3.);
         assert!(TryInto::<Vec<Value>>::try_into(dt).is_err());
