@@ -68,6 +68,8 @@ impl From<ast::SetQuantifier> for SetQuantifier {
             ast::SetQuantifier::All => SetQuantifier::All,
             ast::SetQuantifier::Distinct => SetQuantifier::Distinct,
             ast::SetQuantifier::None => SetQuantifier::None,
+            ast::SetQuantifier::ByName => SetQuantifier::ByName,
+            ast::SetQuantifier::AllByName => SetQuantifier::AllByName,
         }
     }
 }
@@ -312,7 +314,7 @@ impl<'a> VisitedQueryRelations<'a> {
         from: Rc<Relation>,
     ) -> Result<Rc<Relation>> {
         // Collect all expressions with their aliases
-        let mut named_exprs: Vec<(String, Expr)> = Vec::new();
+        let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
         for select_item in select_items {
@@ -361,6 +363,7 @@ impl<'a> VisitedQueryRelations<'a> {
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
+                let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
@@ -825,6 +828,38 @@ mod tests {
     }
 
     #[test]
+    fn test_reduce_where() {
+        let query = parse(
+            "
+            SELECT SUM(a), count(b) FROM table_1 WHERE a>4;
+        ",
+        )
+        .unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::float_interval(-1., 3.)),
+            ("b", DataType::float_interval(-2., 2.)),
+            ("c", DataType::float()),
+            ("d", DataType::float_interval(0., 1.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation:#?}");
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
     fn test_case() {
         let query =
             parse("SELECT CASE WHEN SUM(a) = 5 THEN 5 ELSE 4 * AVG(a) END FROM table_1").unwrap();
@@ -850,6 +885,32 @@ mod tests {
     #[test]
     fn test_group_by_columns() {
         let query = parse("SELECT a, sum(b) as s FROM table_1 GROUP BY a").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+    }
+
+    #[test]
+    #[ignore]
+    fn test_values() {
+        let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();
         let schema_1: Schema = vec![
             ("a", DataType::integer_interval(0, 10)),
             ("b", DataType::float_interval(0., 10.)),

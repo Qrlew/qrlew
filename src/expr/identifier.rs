@@ -18,7 +18,7 @@ pub struct Identifier(Vec<String>);
 impl Identifier {
     /// An empty identifier
     pub fn empty() -> Self {
-        Identifier(Vec::new())
+        Identifier(vec![])
     }
 
     /// Return the first element

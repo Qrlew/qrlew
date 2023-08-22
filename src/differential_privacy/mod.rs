@@ -3,6 +3,9 @@
 //! This is experimental and little tested yet.
 //!
 
+pub mod mechanisms;
+pub mod protect_grouping_keys;
+
 use crate::data_type::DataTyped;
 use crate::{
     data_type::intervals::Bound,
@@ -54,10 +57,6 @@ impl Field {
     }
 }
 
-pub fn gaussian_noise(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
-    (2. * (1.25_f64.ln() / delta)).sqrt() * sensitivity / epsilon
-}
-
 /* Reduce
  */
 impl Reduce {
@@ -88,7 +87,10 @@ impl Reduce {
                                 .clipping_value(multiplicity);
                             c.push((agg.argument_name().unwrap().to_string(), cvalue));
                             let mut s = s;
-                            s.push((name.to_string(), gaussian_noise(epsilon, delta, cvalue)));
+                            s.push((
+                                name.to_string(),
+                                mechanisms::gaussian_noise(epsilon, delta, cvalue),
+                            ));
                             (c, s)
                         }
                         _ => (c, s),

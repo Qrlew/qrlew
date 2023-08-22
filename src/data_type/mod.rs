@@ -813,7 +813,7 @@ impl Struct {
     }
     /// An empty struct (a neutral element for the cartesian product)
     pub fn unit() -> Struct {
-        Struct::new(Vec::new())
+        Struct::new(vec![])
     }
     /// Create from one field
     pub fn from_field<S: Into<String>, T: Into<Rc<DataType>>>(s: S, t: T) -> Struct {
@@ -1056,7 +1056,7 @@ impl Variant for Struct {
     }
 
     fn maximal_superset(&self) -> Result<Self> {
-        Ok(Struct::new(Vec::new()))
+        Ok(Struct::new(vec![]))
     }
 }
 
@@ -1099,7 +1099,7 @@ impl Union {
     }
     /// An empty union (a neutral element for the disjoint union)
     pub fn null() -> Union {
-        Union::new(Vec::new())
+        Union::new(vec![])
     }
     /// Create from one field
     pub fn from_field<S: Into<String>, T: Into<Rc<DataType>>>(s: S, t: T) -> Union {
@@ -1336,7 +1336,7 @@ impl Variant for Union {
     }
 
     fn minimal_subset(&self) -> Result<Self> {
-        Ok(Union::new(Vec::new()))
+        Ok(Union::new(vec![]))
     }
 }
 
@@ -2497,6 +2497,49 @@ impl_conversions!(Duration);
 impl_conversions!(Id);
 impl_conversions!(Function);
 
+macro_rules! impl_into_values {
+    ( $Variant:ident ) => {
+        impl TryInto<Vec<Value>> for $Variant {
+            type Error = Error;
+
+            fn try_into(self) -> Result<Vec<Value>> {
+                if self.all_values() {
+                    Ok(self.into_iter().map(|[v, _]| Value::from(v)).collect())
+                } else {
+                    Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>"))
+                }
+            }
+        }
+    };
+}
+
+impl_into_values!(Boolean);
+impl_into_values!(Integer);
+impl_into_values!(Float);
+impl_into_values!(Text);
+impl_into_values!(Date);
+impl_into_values!(Time);
+impl_into_values!(DateTime);
+impl_into_values!(Duration);
+
+impl TryInto<Vec<Value>> for DataType {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Vec<Value>> {
+        match self {
+            DataType::Boolean(b) => b.try_into(),
+            DataType::Integer(i) => i.try_into(),
+            DataType::Float(f) => f.try_into(),
+            DataType::Text(t) => t.try_into(),
+            DataType::Date(d) => d.try_into(),
+            DataType::Time(t) => t.try_into(),
+            DataType::DateTime(d) => d.try_into(),
+            DataType::Duration(d) => d.try_into(),
+            _ => Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>")),
+        }
+    }
+}
+
 impl cmp::PartialEq for DataType {
     fn eq(&self, other: &Self) -> bool {
         matches!(self.partial_cmp(other), Some(cmp::Ordering::Equal))
@@ -3543,5 +3586,17 @@ mod tests {
         );
         let data_type: DataType = values.into_iter().collect();
         println!("data_type = {data_type}");
+    }
+
+    #[test]
+    fn test_try_into_values() {
+        let dt = DataType::float_values([1., 2., 3.]);
+        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into(), 2.0.into(), 3.0.into()]);
+
+        let dt = DataType::float_interval(1., 1.);
+        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into()]);
+
+        let dt = DataType::float_interval(1., 3.);
+        assert!(TryInto::<Vec<Value>>::try_into(dt).is_err());
     }
 }
