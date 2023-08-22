@@ -179,8 +179,7 @@ mod tests {
     #[test]
     fn test_filter_operations() {
         let field = Field::new("a".into(), DataType::float_range(-10.0..=10.0), None);
-
-        let expression = expr!(and(lt_eq(a, (0.5 * 3)), lt_eq(a, 0.0 - 4.0)));
+        let expression = expr!(and(lt_eq(a, (0.5 * 3)), gt_eq(a, 0.0 - 4.0)));
         let dt = field.filter(&expression).data_type();
         println!("\n{} => a ∈ {}", expression, dt);
         assert_eq!(

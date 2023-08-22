@@ -165,7 +165,6 @@ impl Function {
     /// - 'InList` test if a column value belongs to a list
     pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
         let simplified_func = self.simplify();
-        println!("simplidied_func = {}", simplified_func);
         let args: Vec<&Expr> = simplified_func.arguments.iter().map(|x| x.as_ref()).collect();
         match (simplified_func.function, args.as_slice()) {
             // And
