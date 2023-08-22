@@ -1671,7 +1671,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter() {
+    fn test_filter_on_map() {
         let database = postgresql::test_database();
         let relations = database.relations();
 
@@ -1717,6 +1717,12 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_filter_on_wildcard() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
 
         let relation =
             Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
@@ -1742,6 +1748,12 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_filter_on_reduce() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
 
         let relation = Relation::try_from(
             parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a")

@@ -152,21 +152,40 @@ mod tests {
     #[test]
     fn test_filter() {
         let field = Field::new("a".into(), DataType::float_range(0.0..=10.0), None);
+
         let expression = expr!(and(
             and(and(gt(a, 5.), gt(a, 3.)), lt_eq(a, 9.)),
             lt_eq(a, 90.)
         ));
+        let dt = field.filter(&expression).data_type();
+        println!("\n{} => a ∈ {}", expression, dt);
         assert_eq!(
-            field.filter(&expression).data_type(),
+            dt,
             DataType::float_range(5.0..=9.0)
         );
+
         let expression = expr!(and(
-            and(and(gt(b, 5.), gt(b, 3.)), lt_eq(a, 9.)),
+            and(and(gt(b, 5.), gt(b, 30.)), lt_eq(a, 9.)),
             lt_eq(b, 90.)
         ));
+        let dt = field.filter(&expression).data_type();
+        println!("\n{} => a ∈ {}", expression, dt);
         assert_eq!(
-            field.filter(&expression).data_type(),
+            dt,
             DataType::float_range(0.0..=9.0)
-        )
+        );
+    }
+
+    #[test]
+    fn test_filter_operations() {
+        let field = Field::new("a".into(), DataType::float_range(-10.0..=10.0), None);
+
+        let expression = expr!(and(lt_eq(a, (0.5 * 3)), lt_eq(a, 0.0 - 4.0)));
+        let dt = field.filter(&expression).data_type();
+        println!("\n{} => a ∈ {}", expression, dt);
+        assert_eq!(
+            dt,
+            DataType::float_range(-4.0..=1.5)
+        );
     }
 }

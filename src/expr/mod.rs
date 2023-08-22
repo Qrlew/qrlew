@@ -22,13 +22,13 @@ use std::{
     collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub, Deref},
     rc::Rc,
     result,
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _},
+    data_type::{self, value, DataType, DataTyped, Variant as _, intervals::Intervals},
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
@@ -134,7 +134,20 @@ impl Function {
         }
     }
 
-    /// Returns the `DataType` of a column filterd by the current `Function`
+    /// Returns an equivalent `Function` for which the expressions
+    /// with values have been simplified
+    ///
+    /// Examples:
+    /// a > 3 * 5 -> a > 15
+    /// 3.5 - 1 = b -> 2.5 = b
+    pub fn simplify(&self) -> Self {
+        let new_args = self.arguments.iter()
+            .map(|x| Rc::new(x.deref().clone().simplify()))
+            .collect();
+        Function::new(self.function, new_args)
+    }
+
+    /// Returns the `DataType` of a column filtered by the current `Function`
     ///
     /// # Arguments:
     /// * `column` - The `Column` to be filtered
@@ -151,8 +164,10 @@ impl Function {
     /// - `And` function between two supported Expr::Function,
     /// - 'InList` test if a column value belongs to a list
     pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
-        let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
-        match (self.function, args.as_slice()) {
+        let simplified_func = self.simplify();
+        println!("simplidied_func = {}", simplified_func);
+        let args: Vec<&Expr> = simplified_func.arguments.iter().map(|x| x.as_ref()).collect();
+        match (simplified_func.function, args.as_slice()) {
             // And
             (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => left
                 .filter_column_data_type(column, datatype)
@@ -621,6 +636,36 @@ impl Expr {
         match factors.next() {
             Some(head) => Expr::and(head, Expr::all(factors)),
             None => Expr::val(true),
+        }
+    }
+
+    /// Returns an equivalent `Expr` for which the expressions
+    /// with values have been simplified
+    ///
+    /// Examples:
+    /// 3 * 5 -> 15
+    /// exp(0) -> 1
+    pub fn simplify(self) -> Self {
+        if let DataType::Function(func) = self.data_type() {
+            match func.co_domain() {
+                DataType::Float(f) => {
+                    if f.is_value() {
+                        Expr::val(*f.min().unwrap())
+                    } else {
+                        self
+                    }
+                },
+                DataType::Integer(i) => {
+                    if i.is_value() {
+                        Expr::val(*i.min().unwrap())
+                    } else {
+                        self
+                    }
+                },
+                _ => self
+            }
+        } else {
+            self
         }
     }
 }
@@ -1908,6 +1953,42 @@ mod tests {
     }
 
     #[test]
+    fn test_simplify() {
+        let x = expr!(5 * 6);
+        let y = x.clone().simplify();
+        println!("{} = {}", x, y);
+        assert_eq!(y, Expr::val(30));
+
+        let x = expr!(0. - 5.);
+        let y = x.clone().simplify();
+        println!("{} = {}", x, y);
+        assert_eq!(y, Expr::val(-5.));
+
+        let x = expr!(4. - 5. / 2. * 10);
+        let y = x.clone().simplify();
+        println!("{} = {}", x, y);
+        assert_eq!(y, Expr::val(-21.));
+
+        let x = expr!(exp(0));
+        let y = x.clone().simplify();
+        println!("{} = {}", x, y);
+        assert_eq!(y, Expr::val(1.));
+    }
+
+    #[test]
+    fn test_simplify_function() {
+        let func = Function::gt(Expr::col("a"), expr!(3 * 5 - 1 + 1));
+        let y = func.clone().simplify();
+        println!("{} = {}", func, y);
+        assert_eq!(y, Function::gt(Expr::col("a"), Expr::val(15)));
+
+        let func = Function::gt(expr!(1.0 / 2.0), Expr::col("a"));
+        let y = func.clone().simplify();
+        println!("{} = {}", func, y);
+        assert_eq!(y, Function::gt(Expr::val(0.5), Expr::col("a")));
+    }
+
+    #[test]
     fn test_filter_column_data_type_float() {
         // set min value
         let col = Column::from("MyCol");
@@ -2088,6 +2169,24 @@ mod tests {
         assert_eq!(
             func.filter_column_data_type(&col, &datatype),
             DataType::integer_values([1, 3, 4])
+        );
+    }
+
+    #[test]
+    fn test_filter_column_data_type_composed() {
+        let col = Column::from("MyCol");
+        let datatype = DataType::integer_interval(-100, 100);
+
+        let func = Function::gt(col.clone(), expr!(3 * 5));
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_interval(15, 100)
+        );
+
+        let func = Function::gt(col.clone(), expr!(5. / 2. - 1 + 2.));
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_interval(3.5, 100.)
         );
     }
 

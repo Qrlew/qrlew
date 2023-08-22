@@ -860,6 +860,31 @@ mod tests {
     }
 
     #[test]
+    fn test_map_where() {
+        let query_str = "SELECT a FROM table_1 WHERE a > 20 * 2;"; // TODO: problem with -.., .. * .., ..
+        let query = parse(query_str).unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::float_interval(-100., 100.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation:#?}");
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
     fn test_case() {
         let query =
             parse("SELECT CASE WHEN SUM(a) = 5 THEN 5 ELSE 4 * AVG(a) END FROM table_1").unwrap();
