@@ -958,10 +958,7 @@ impl Relation {
                 Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))),
             ))
         });
-
-        // Add order by
-        red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
-
+        red.ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
     pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
