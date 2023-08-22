@@ -99,23 +99,25 @@ fn compile() {
     )
     .unwrap();
     println!("relation = {relation}");
-    let relation = relation.dp_compilation(
-        &relations,
-        &[
-            (
-                "item_table",
-                &[
-                    ("order_id", "order_table", "id"),
-                    ("user_id", "user_table", "id"),
-                ],
-                "name",
-            ),
-            ("order_table", &[("user_id", "user_table", "id")], "name"),
-            ("user_table", &[], "name"),
-        ],
-        1.,   // epsilon
-        1e-5, // delta
-    );
+    let relation = relation
+        .dp_compilation(
+            &relations,
+            &[
+                (
+                    "item_table",
+                    &[
+                        ("order_id", "order_table", "id"),
+                        ("user_id", "user_table", "id"),
+                    ],
+                    "name",
+                ),
+                ("order_table", &[("user_id", "user_table", "id")], "name"),
+                ("user_table", &[], "name"),
+            ],
+            1.,   // epsilon
+            1e-5, // delta
+        )
+        .unwrap();
     println!("relation = {relation}");
     relation.display_dot().unwrap();
     let query = Query::from(&relation);

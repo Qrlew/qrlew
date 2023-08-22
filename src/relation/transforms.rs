@@ -913,11 +913,7 @@ impl Relation {
     /// Returns a `Relation` whose output fields correspond to the `aggregates`
     /// grouped by the expressions in `grouping_exprs`.
     /// If `grouping_exprs` is not empty, we order by the grouping expressions.
-    fn build_ordered_reduce(
-        self,
-        grouping_exprs: Vec<Expr>,
-        aggregates: Vec<(&str, Expr)>,
-    ) -> Relation {
+    fn ordered_reduce(self, grouping_exprs: Vec<Expr>, aggregates: Vec<(&str, Expr)>) -> Relation {
         let red: Relation = Relation::reduce()
             .with_iter(aggregates.clone())
             .group_by_iter(grouping_exprs.clone())
@@ -962,9 +958,7 @@ impl Relation {
                 Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))),
             ))
         });
-
-        // Add order by
-        red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
+        red.ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
     pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
@@ -1992,7 +1986,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_ordered_reduce() {
+    fn test_ordered_reduce() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -2010,9 +2004,7 @@ mod tests {
             ("sum_a", Expr::sum(Expr::col("a"))),
             ("count_b", Expr::count(Expr::col("a"))),
         ];
-        let rel = table
-            .clone()
-            .build_ordered_reduce(grouping_exprs, aggregates);
+        let rel = table.clone().ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
         _ = rel.display_dot();
 
@@ -2022,7 +2014,7 @@ mod tests {
             ("sum_a", Expr::sum(Expr::col("a"))),
             ("count_b", Expr::count(Expr::col("a"))),
         ];
-        let rel = table.build_ordered_reduce(grouping_exprs, aggregates);
+        let rel = table.ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
         _ = rel.display_dot();
     }

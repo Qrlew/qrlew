@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 - `Relation::possible_values` and used it in thresholding [MR73](https://github.com/Qrlew/qrlew/pull/73)
+- Error handling in transforms and diffrential_privacy [MR59](https://github.com/Qrlew/qrlew/pull/59)
 ### Changed
 - `Relation::filter_columns`
 -  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
