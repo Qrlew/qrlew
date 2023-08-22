@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 - `Relation::possible_values` and used it in thresholding [MR73](https://github.com/Qrlew/qrlew/pull/73)
 - Error handling in transforms and diffrential_privacy [MR59](https://github.com/Qrlew/qrlew/pull/59)
+- Support for filtering by expression i.e. a > 3 * 5 [MR81](https://github.com/Qrlew/qrlew/pull/81)
 ### Changed
 - `Relation::filter_columns`
 -  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
