@@ -22,13 +22,13 @@ use std::{
     collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub, Deref},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub},
     rc::Rc,
     result,
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _, intervals::Intervals},
+    data_type::{self, value, DataType, DataTyped, Variant as _},
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
@@ -134,19 +134,6 @@ impl Function {
         }
     }
 
-    /// Returns an equivalent `Function` for which the expressions
-    /// with values have been simplified
-    ///
-    /// Examples:
-    /// a > 3 * 5 -> a > 15
-    /// 3.5 - 1 = b -> 2.5 = b
-    pub fn simplify(&self) -> Self {
-        let new_args = self.arguments.iter()
-            .map(|x| Rc::new(x.deref().clone().simplify()))
-            .collect();
-        Function::new(self.function, new_args)
-    }
-
     /// Returns the `DataType` of a column filtered by the current `Function`
     ///
     /// # Arguments:
@@ -163,61 +150,49 @@ impl Function {
     /// - `Eq` function comparing a column to any value,
     /// - `And` function between two supported Expr::Function,
     /// - 'InList` test if a column value belongs to a list
+    // TODO: OR
     pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
-        let simplified_func = self.simplify();
-        let args: Vec<&Expr> = simplified_func.arguments.iter().map(|x| x.as_ref()).collect();
-        match (simplified_func.function, args.as_slice()) {
+        let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
+        match (self.function, args.as_slice()) {
             // And
             (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => left
                 .filter_column_data_type(column, datatype)
                 .super_intersection(&right.filter_column_data_type(column, datatype))
                 .unwrap_or(datatype.clone()),
-            // Float, set min
-            (function::Function::Gt, [Expr::Column(col), Expr::Value(Value::Float(f))])
-            | (function::Function::GtEq, [Expr::Column(col), Expr::Value(Value::Float(f))])
-            | (function::Function::Lt, [Expr::Value(Value::Float(f)), Expr::Column(col)])
-            | (function::Function::LtEq, [Expr::Value(Value::Float(f)), Expr::Column(col)])
+
+            // Set min
+            (function::Function::Gt, [Expr::Column(col), x])
+            | (function::Function::GtEq, [Expr::Column(col), x])
+            | (function::Function::Lt, [x, Expr::Column(col)])
+            | (function::Function::LtEq, [x, Expr::Column(col)])
                 if col == column =>
             {
-                DataType::float_min(**f)
-                    .super_intersection(&datatype)
+                if let Some(dt) = x.lower_bound_data_type(){
+                    dt.super_intersection(&datatype)
                     .unwrap_or(datatype.clone())
+                } else {
+                    datatype.clone()
+                }
+
             }
-            // Float, set max
-            (function::Function::Lt, [Expr::Column(col), Expr::Value(Value::Float(f))])
-            | (function::Function::LtEq, [Expr::Column(col), Expr::Value(Value::Float(f))])
-            | (function::Function::Gt, [Expr::Value(Value::Float(f)), Expr::Column(col)])
-            | (function::Function::GtEq, [Expr::Value(Value::Float(f)), Expr::Column(col)])
+            // set max
+            (function::Function::Lt, [Expr::Column(col), x])
+            | (function::Function::LtEq, [Expr::Column(col), x])
+            | (function::Function::Gt, [x, Expr::Column(col)])
+            | (function::Function::GtEq, [x, Expr::Column(col)])
                 if col == column =>
             {
-                DataType::float_max(**f)
-                    .super_intersection(&datatype)
+                if let Some(dt) = x.upper_bound_data_type(){
+                    dt.super_intersection(&datatype)
                     .unwrap_or(datatype.clone())
-            }
-            // Integer, set min
-            (function::Function::Gt, [Expr::Column(col), Expr::Value(Value::Integer(i))])
-            | (function::Function::GtEq, [Expr::Column(col), Expr::Value(Value::Integer(i))])
-            | (function::Function::Lt, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
-            | (function::Function::LtEq, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
-                if col == column =>
-            {
-                DataType::integer_min(**i)
-                    .super_intersection(&datatype)
-                    .unwrap_or(datatype.clone())
-            }
-            // Integer, set max
-            (function::Function::Lt, [Expr::Column(col), Expr::Value(Value::Integer(i))])
-            | (function::Function::LtEq, [Expr::Column(col), Expr::Value(Value::Integer(i))])
-            | (function::Function::Gt, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
-            | (function::Function::GtEq, [Expr::Value(Value::Integer(i)), Expr::Column(col)])
-                if col == column =>
-            {
-                DataType::integer_max(**i)
-                    .super_intersection(&datatype)
-                    .unwrap_or(datatype.clone())
+                } else {
+                    datatype.clone()
+                }
             }
             // Eq
-            (function::Function::Eq, [Expr::Column(col), Expr::Value(val)]) if col == column => {
+            (function::Function::Eq, [Expr::Column(col), Expr::Value(val)])
+            | (function::Function::Eq, [Expr::Value(val), Expr::Column(col)])
+                if col == column => {
                 DataType::from(val.clone())
                     .super_intersection(&datatype)
                     .unwrap_or(datatype.clone())
@@ -233,6 +208,7 @@ impl Function {
             _ => datatype.clone(),
         }
     }
+
 }
 
 impl fmt::Display for Function {
@@ -339,6 +315,23 @@ impl Expr {
             .collect();
         Self::and_iter(predicates)
     }
+
+    pub fn lower_bound_data_type(&self) -> Option<DataType> {
+        if let DataType::Function(func) = self.data_type() {
+            func.co_domain().lower_bound()
+        } else {
+            self.data_type().lower_bound()
+        }
+    }
+
+    pub fn upper_bound_data_type(&self) -> Option<DataType> {
+        if let DataType::Function(func) = self.data_type() {
+            func.co_domain().upper_bound()
+        } else {
+            self.data_type().upper_bound()
+        }
+    }
+
 }
 
 /// Implement unary function constructors
@@ -635,36 +628,6 @@ impl Expr {
         match factors.next() {
             Some(head) => Expr::and(head, Expr::all(factors)),
             None => Expr::val(true),
-        }
-    }
-
-    /// Returns an equivalent `Expr` for which the expressions
-    /// with values have been simplified
-    ///
-    /// Examples:
-    /// 3 * 5 -> 15
-    /// exp(0) -> 1
-    pub fn simplify(self) -> Self {
-        if let DataType::Function(func) = self.data_type() {
-            match func.co_domain() {
-                DataType::Float(f) => {
-                    if f.is_value() {
-                        Expr::val(*f.min().unwrap())
-                    } else {
-                        self
-                    }
-                },
-                DataType::Integer(i) => {
-                    if i.is_value() {
-                        Expr::val(*i.min().unwrap())
-                    } else {
-                        self
-                    }
-                },
-                _ => self
-            }
-        } else {
-            self
         }
     }
 }
@@ -1952,39 +1915,20 @@ mod tests {
     }
 
     #[test]
-    fn test_simplify() {
-        let x = expr!(5 * 6);
-        let y = x.clone().simplify();
-        println!("{} = {}", x, y);
-        assert_eq!(y, Expr::val(30));
+    fn test_1() {
+        // set min value
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let value = Expr::val(5.);
 
-        let x = expr!(0. - 5.);
-        let y = x.clone().simplify();
-        println!("{} = {}", x, y);
-        assert_eq!(y, Expr::val(-5.));
 
-        let x = expr!(4. - 5. / 2. * 10);
-        let y = x.clone().simplify();
-        println!("{} = {}", x, y);
-        assert_eq!(y, Expr::val(-21.));
+        let x = expr!(5 * 7 - 8);
+        println!("{}", x.data_type());
 
-        let x = expr!(exp(0));
-        let y = x.clone().simplify();
-        println!("{} = {}", x, y);
-        assert_eq!(y, Expr::val(1.));
-    }
-
-    #[test]
-    fn test_simplify_function() {
-        let func = Function::gt(Expr::col("a"), expr!(3 * 5 - 1 + 1));
-        let y = func.clone().simplify();
-        println!("{} = {}", func, y);
-        assert_eq!(y, Function::gt(Expr::col("a"), Expr::val(15)));
-
-        let func = Function::gt(expr!(1.0 / 2.0), Expr::col("a"));
-        let y = func.clone().simplify();
-        println!("{} = {}", func, y);
-        assert_eq!(y, Function::gt(Expr::val(0.5), Expr::col("a")));
+        if let DataType::Function(func) = x.data_type() {
+            let values: Vec<data_type::Value> = func.co_domain().clone().try_into().unwrap();
+            println!("{:?}", values);
+        }
     }
 
     #[test]
@@ -2062,6 +2006,17 @@ mod tests {
         let value = Expr::val(5.);
 
         let func = Function::eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::float_value(5.)
+        );
+
+        // eq
+        let col = Column::from("MyCol");
+        let datatype = DataType::float();
+        let value = Expr::val(5.);
+
+        let func = Function::eq(value.clone(), col.clone());
         assert_eq!(
             func.filter_column_data_type(&col, &datatype),
             DataType::float_value(5.)
@@ -2154,6 +2109,17 @@ mod tests {
         let value = Expr::val(5);
 
         let func = Function::eq(col.clone(), value.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &datatype),
+            DataType::integer_value(5)
+        );
+
+        // eq
+        let col = Column::from("MyCol");
+        let datatype = DataType::integer();
+        let value = Expr::val(5);
+
+        let func = Function::eq(value.clone(), col.clone());
         assert_eq!(
             func.filter_column_data_type(&col, &datatype),
             DataType::integer_value(5)
