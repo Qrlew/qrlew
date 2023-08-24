@@ -208,7 +208,6 @@ impl Function {
             _ => datatype.clone(),
         }
     }
-
 }
 
 impl fmt::Display for Function {

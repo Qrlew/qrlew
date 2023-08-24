@@ -42,7 +42,6 @@ use sqlparser::tokenizer::TokenizerError;
 #[derive(Debug, Clone)]
 pub enum Error {
     ParsingError(String),
-    NotImplementedError(String),
     Other(String),
 }
 
@@ -53,16 +52,12 @@ impl Error {
     pub fn other<T: fmt::Display>(desc: T) -> Error {
         Error::Other(desc.to_string())
     }
-    pub fn not_implemented_error(input: impl fmt::Display) -> Error {
-        Error::NotImplementedError(format!("NotImplementedError: '{}' is not implemented", input))
-    }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::ParsingError(input) => writeln!(f, "ParsingError: {}", input),
-            Error::NotImplementedError(input) => writeln!(f, "NotImplementedError: '{}' is not implemented", input),
             Error::Other(err) => writeln!(f, "{}", err),
         }
     }

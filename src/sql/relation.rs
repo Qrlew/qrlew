@@ -379,7 +379,6 @@ impl<'a> VisitedQueryRelations<'a> {
             selection,
             group_by,
             ..
-
         } = select;
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
         let relation = self.try_from_select_items_selection_and_group_by(
