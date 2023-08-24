@@ -1448,6 +1448,10 @@ impl Injection for Base<Float, DataType> {
     fn super_image(&self, set: &Self::Domain) -> Result<Self::CoDomain> {
         match self.co_domain() {
             DataType::Null if self.domain().is_empty() => Ok(DataType::Null),
+            DataType::Integer(co_domain) => Ok(From(self.domain())
+                .into(co_domain)?
+                .super_image(set)?
+                .into()),
             DataType::Float(co_domain) => Ok(From(self.domain())
                 .into(co_domain)?
                 .super_image(set)?

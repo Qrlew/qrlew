@@ -2608,7 +2608,7 @@ mod tests {
 
         let set: DataType = DataType::structured_from_data_types([
             //DataType::float_value((1.0 as f64).into()),
-            DataType::float_max((101.0 as f64).into()),
+            DataType::float_max((10.0 as f64).into()),
             DataType::float_min((100.0 as f64).into())
         ]);
         let im = fun.super_image(&set).unwrap();

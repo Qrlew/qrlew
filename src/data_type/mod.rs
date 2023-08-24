@@ -2269,11 +2269,28 @@ impl DataType {
         }
     }
 
-    /// Return a data_type where both types can map into
-    pub fn into_common_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
+    /// TODO: Return a data_type where both types can map into
+    pub fn into_common_super_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
         match (left.into_variant(right), right.into_variant(left)) {
             (Ok(l), Ok(r)) => {
                 let l_into_left = left.maximal_superset().and_then(|t| l.into_data_type(&t));
+                if l_into_left.map_or(false, |t| &t == left) {
+                    Ok((l, right.clone()))
+                } else {
+                    Ok((left.clone(), r))
+                }
+            }
+            (Ok(l), Err(_)) => Ok((l, right.clone())),
+            (Err(_), Ok(r)) => Ok((left.clone(), r)),
+            (Err(_), Err(_)) => Err(Error::other("No common variant")),
+        }
+    }
+
+    /// TODO: Return a data_type where both types can map into
+    pub fn into_common_sub_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
+        match (left.into_variant(right), right.into_variant(left)) {
+            (Ok(l), Ok(r)) => {
+                let l_into_left = left.minimal_subset().and_then(|t| l.into_data_type(&t));
                 if l_into_left.map_or(false, |t| &t == left) {
                     Ok((l, right.clone()))
                 } else {
@@ -2371,7 +2388,7 @@ impl Variant for DataType {
                     (DataType::Any, _) => Ok(DataType::Any),
                     (_, DataType::Any) => Ok(DataType::Any),
                     // If self and other are from different variants
-                    (s, o) => DataType::into_common_variant(s, o)
+                    (s, o) => DataType::into_common_super_variant(s, o)
                         .and_then(|(s, o)| s.super_union(&o))
                         .or(Ok(DataType::Any)),
                 }
@@ -2399,7 +2416,7 @@ impl Variant for DataType {
                     (DataType::Any, o) => Ok(o.clone()),
                     (s, DataType::Any) => Ok(s.clone()),
                     // If self and other are from different variants
-                    (s, o) => DataType::into_common_variant(s, o)
+                    (s, o) => DataType::into_common_sub_variant(s, o)
                         .and_then(|(s, o)| s.super_intersection(&o))
                         .or(Ok(DataType::Any)),
                 }
@@ -3113,7 +3130,7 @@ mod tests {
 
     /// Utility function
     fn print_conversions(a: &DataType, b: &DataType) {
-        let (ca, cb) = if let Ok((ca, cb)) = DataType::into_common_variant(a, b) {
+        let (ca, cb) = if let Ok((ca, cb)) = DataType::into_common_super_variant(a, b) {
             (ca, cb)
         } else {
             (DataType::Null, DataType::Null)
@@ -3501,7 +3518,7 @@ mod tests {
 
     // Test round trip
     fn print_common_variant(left: DataType, right: DataType) {
-        let common = DataType::into_common_variant(&left, &right)
+        let common = DataType::into_common_super_variant(&left, &right)
             .unwrap_or((DataType::Null, DataType::Null));
         println!("({left}, {right}) ~ ({}, {})", common.0, common.1);
     }

@@ -173,11 +173,7 @@ impl Function {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                if let Ok(dt) = data_type::function::bivariate_max().super_image(&set) {
-                    dt.super_intersection(&datatype).unwrap_or(datatype.clone())
-                } else {
-                    datatype.clone()
-                }
+                data_type::function::bivariate_max().super_image(&set).unwrap_or(datatype.clone())
             }
             // set max
             (function::Function::Lt, [Expr::Column(col), x])
@@ -192,11 +188,7 @@ impl Function {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                if let Ok(dt) = data_type::function::bivariate_min().super_image(&set) {
-                    dt.super_intersection(&datatype).unwrap_or(datatype.clone())
-                } else {
-                    datatype.clone()
-                }
+                data_type::function::bivariate_min().super_image(&set).unwrap_or(datatype.clone())
             }
             // Eq
             (function::Function::Eq, [Expr::Column(col), Expr::Value(val)])
@@ -216,6 +208,7 @@ impl Function {
             }
             _ => datatype.clone(),
         }
+
     }
 }
 
@@ -2125,7 +2118,7 @@ mod tests {
         let func = Function::gt(col.clone(), expr!(5. / 2. - 1 + 2.));
         assert_eq!(
             func.filter_column_data_type(&col, &datatype),
-            DataType::float_interval(3.5, 100.)
+            DataType::integer_interval(3, 100)
         );
     }
 
@@ -2140,10 +2133,10 @@ mod tests {
         );
 
         let func = Function::lt(col.clone(), Expr::val(5.0));
-        // assert_eq!(
-        //     func.filter_column_data_type(&col, &DataType::integer_interval(-10, 10)),
-        //     DataType::integer_interval(-10, 5)
-        // );
+        assert_eq!(
+            func.filter_column_data_type(&col, &DataType::integer_interval(-10, 10)),
+            DataType::integer_interval(-10, 5)
+        );
     }
 
     #[test]
