@@ -2572,4 +2572,47 @@ mod tests {
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Optional(_)));
     }
+
+    #[test]
+    fn test_bivariate_min() {
+        println!("Test bivariate_min");
+        let fun = bivariate_min();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set: DataType = DataType::structured_from_data_types([
+            //DataType::float_value((1.0 as f64).into()),
+            DataType::float_values([(100.0 as f64).into(), (1.0 as f64).into()]),
+            DataType::float_values([(20.0 as f64).into(), (0.0 as f64).into(), (-30.0 as f64).into()])
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        //assert_eq!(im, DataType::float_value((1.0 as f64).into()));
+
+        let set: DataType = DataType::structured_from_data_types([
+            //DataType::float_value((1.0 as f64).into()),
+            DataType::float_min((1.0 as f64).into()),
+            DataType::float_max((100.0 as f64).into())
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+
+        let set: DataType = DataType::structured_from_data_types([
+            //DataType::float_value((1.0 as f64).into()),
+            DataType::float_value((1.0 as f64).into()),
+            DataType::float_value((100.0 as f64).into())
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+
+        let set: DataType = DataType::structured_from_data_types([
+            //DataType::float_value((1.0 as f64).into()),
+            DataType::float_max((101.0 as f64).into()),
+            DataType::float_min((100.0 as f64).into())
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+    }
+
 }
