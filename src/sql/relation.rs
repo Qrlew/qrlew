@@ -312,7 +312,6 @@ impl<'a> VisitedQueryRelations<'a> {
         selection: &'a Option<ast::Expr>,
         group_by: &'a Vec<ast::Expr>,
         from: Rc<Relation>,
-        having: &'a Option<ast::Expr>,
     ) -> Result<Rc<Relation>> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = vec![];
@@ -355,7 +354,7 @@ impl<'a> VisitedQueryRelations<'a> {
             .map(|e| e.with(columns).try_into())
             .collect();
         // Build a Relation
-        let mut relation = match split {
+        let relation = match split {
             Split::Map(map) => {
                 let builder = Relation::map().split(map);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
@@ -369,14 +368,7 @@ impl<'a> VisitedQueryRelations<'a> {
                 builder.input(from).build()
             }
         };
-        Ok(Rc::new(
-            if let Some(h) = having {
-                let new_having = Expr::try_from(h)?;
-                Relation::map().input(relation).filter(new_having).build()
-            } else {
-                relation
-            }
-        ))
+        Ok(Rc::new(relation))
     }
 
     /// Convert a Select into a Relation
@@ -386,45 +378,9 @@ impl<'a> VisitedQueryRelations<'a> {
             from,
             selection,
             group_by,
-            distinct,
-            top,
-            into,
-            lateral_views,
-            cluster_by,
-            distribute_by,
-            sort_by,
-            having,
-            named_window,
-            qualify,
+            ..
 
         } = select;
-        if distinct.is_some() {
-            return Err(Error::not_implemented_error("DISTINCT"))
-        }
-        if top.is_some() {
-            return Err(Error::not_implemented_error("TOP"))
-        }
-        if into.is_some() {
-            return Err(Error::not_implemented_error("INTO"))
-        }
-        if !lateral_views.is_empty() {
-            return Err(Error::not_implemented_error("LATERAL VIEW"))
-        }
-        if !cluster_by.is_empty() {
-            return Err(Error::not_implemented_error("CLUSTER BY"))
-        }
-        if !distribute_by.is_empty() {
-            return Err(Error::not_implemented_error("DISTRIBUTE BY"))
-        }
-        if !sort_by.is_empty() {
-            return Err(Error::not_implemented_error("SORT BY"))
-        }
-        if !named_window.is_empty() {
-            return Err(Error::not_implemented_error("NAMED WINDOW"))
-        }
-        if qualify.is_some() {
-            return Err(Error::not_implemented_error("QUALIFY"))
-        }
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
         let relation = self.try_from_select_items_selection_and_group_by(
             &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
@@ -432,7 +388,6 @@ impl<'a> VisitedQueryRelations<'a> {
             selection,
             group_by,
             from,
-            having,
         )?;
         Ok(RelationWithColumns::new(relation, columns))
     }
@@ -627,28 +582,6 @@ mod tests {
         ))
         .unwrap();
         print!("{}", map)
-    }
-
-    #[test]
-    fn test_query_ORDER_BY() {
-        let query = parse("SELECT a, COUNT(b) AS count_b FROM schema.table ORDER BY count_b DESC, a").unwrap();
-        let schema: Schema = vec![
-            ("a", DataType::integer_interval(10, 20)),
-            ("b", DataType::float_interval(-2., 2.)),
-        ]
-        .into_iter()
-        .collect();
-        let table = Relation::table()
-            .name("tab")
-            .schema(schema.clone())
-            .size(100)
-            .build();
-        let rel = Relation::try_from(QueryWithRelations::new(
-            &query,
-            &Hierarchy::from([(["schema", "table"], Rc::new(table))]),
-        ))
-        .unwrap();
-        println!("{}", rel.to_string())
     }
 
     #[ignore]
@@ -908,31 +841,6 @@ mod tests {
             ("b", DataType::float_interval(-2., 2.)),
             ("c", DataType::float()),
             ("d", DataType::float_interval(0., 1.)),
-        ]
-        .into_iter()
-        .collect();
-        let table_1 = Relation::table()
-            .name("tab_1")
-            .schema(schema_1.clone())
-            .size(100)
-            .build();
-        let relation = Relation::try_from(QueryWithRelations::new(
-            &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
-        ))
-        .unwrap();
-        println!("relation = {relation:#?}");
-        let q = ast::Query::from(&relation);
-        println!("query = {q}");
-        relation.display_dot().unwrap();
-    }
-
-    #[test]
-    fn test_map_where() {
-        let query_str = "SELECT a FROM table_1 WHERE a > 20 * 2;";
-        let query = parse(query_str).unwrap();
-        let schema_1: Schema = vec![
-            ("a", DataType::float_interval(-100., 100.)),
         ]
         .into_iter()
         .collect();

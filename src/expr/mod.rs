@@ -1915,23 +1915,6 @@ mod tests {
     }
 
     #[test]
-    fn test_1() {
-        // set min value
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-        let value = Expr::val(5.);
-
-
-        let x = expr!(5 * 7 - 8);
-        println!("{}", x.data_type());
-
-        if let DataType::Function(func) = x.data_type() {
-            let values: Vec<data_type::Value> = func.co_domain().clone().try_into().unwrap();
-            println!("{:?}", values);
-        }
-    }
-
-    #[test]
     fn test_filter_column_data_type_float() {
         // set min value
         let col = Column::from("MyCol");
