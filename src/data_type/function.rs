@@ -2581,38 +2581,56 @@ mod tests {
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
+        //
         let set: DataType = DataType::structured_from_data_types([
             //DataType::float_value((1.0 as f64).into()),
-            DataType::float_values([(100.0 as f64).into(), (1.0 as f64).into()]),
-            DataType::float_values([(20.0 as f64).into(), (0.0 as f64).into(), (-30.0 as f64).into()])
+            DataType::float_values([100.0 , 1.0 ]),
+            DataType::float_values([20.0, 0.0, -30.0])
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        //assert_eq!(im, DataType::float_value((1.0 as f64).into()));
+        assert_eq!(im, DataType::float_values([-30.0, 0.0, 1.0, 20.0]));
 
         let set: DataType = DataType::structured_from_data_types([
-            //DataType::float_value((1.0 as f64).into()),
-            DataType::float_min((1.0 as f64).into()),
-            DataType::float_max((100.0 as f64).into())
+            DataType::float_min(1.0),
+            DataType::float_max(100.0)
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_max(100.0));
 
         let set: DataType = DataType::structured_from_data_types([
-            //DataType::float_value((1.0 as f64).into()),
-            DataType::float_value((1.0 as f64).into()),
-            DataType::float_value((100.0 as f64).into())
+            DataType::float_value(1.0),
+            DataType::float_value(100.0)
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_value(1.0));
+
 
         let set: DataType = DataType::structured_from_data_types([
-            //DataType::float_value((1.0 as f64).into()),
-            DataType::float_max((10.0 as f64).into()),
-            DataType::float_min((100.0 as f64).into())
+            DataType::float_max(10.0),
+            DataType::float_min(100.0)
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_max(10.0));
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::integer_interval(1, 10),
+            DataType::float_min(100.0)
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        //assert_eq!(im, DataType::float_interval(1., 10.0));
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_max(10.0 ),
+            DataType::integer_interval(2, 100)
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_max(10.0));
     }
 
 }

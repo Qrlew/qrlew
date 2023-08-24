@@ -2137,6 +2137,18 @@ mod tests {
             func.filter_column_data_type(&col, &DataType::integer_interval(-10, 10)),
             DataType::integer_interval(-10, 5)
         );
+
+        let func = Function::gt(Expr::val(5), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &DataType::float_interval(-10., 10.)),
+            DataType::float_interval(-10.0, 5.0)
+        );
+
+        let func = Function::gt(Expr::val(5.0), col.clone());
+        assert_eq!(
+            func.filter_column_data_type(&col, &DataType::integer_interval(-10, 10)),
+            DataType::integer_interval(-10, 5)
+        );
     }
 
     #[test]

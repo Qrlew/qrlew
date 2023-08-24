@@ -2269,7 +2269,7 @@ impl DataType {
         }
     }
 
-    /// TODO: Return a data_type where both types can map into
+    /// Return a super data_type where both types can map into
     pub fn into_common_super_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
         match (left.into_variant(right), right.into_variant(left)) {
             (Ok(l), Ok(r)) => {
@@ -2286,7 +2286,7 @@ impl DataType {
         }
     }
 
-    /// TODO: Return a data_type where both types can map into
+    // Return a sub data_type where both types can map into
     pub fn into_common_sub_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
         match (left.into_variant(right), right.into_variant(left)) {
             (Ok(l), Ok(r)) => {
@@ -2296,10 +2296,8 @@ impl DataType {
                 } else {
                     Ok((left.clone(), r))
                 }
-            }
-            (Ok(l), Err(_)) => Ok((l, right.clone())),
-            (Err(_), Ok(r)) => Ok((left.clone(), r)),
-            (Err(_), Err(_)) => Err(Error::other("No common variant")),
+            },
+            _ => Err(Error::other("No common variant")),
         }
     }
 }
@@ -3615,5 +3613,48 @@ mod tests {
 
         let dt = DataType::float_interval(1., 3.);
         assert!(TryInto::<Vec<Value>>::try_into(dt).is_err());
+    }
+
+    #[test]
+    fn test_into_common_super_variant() {
+        // Integer, Integer
+        let left = DataType::integer_interval(3, 7);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_super_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_right, right);
+        assert_eq!(new_left, left);
+
+        // Integer, Float
+        let left = DataType::float_values([7., 10.5]);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_super_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_left, left);
+        assert_eq!(new_right, DataType::float_values([2., 3., 4., 5.]));
+    }
+
+    #[test]
+    fn test_into_common_sub_variant() {
+        // Integer, Integer
+        let left = DataType::integer_interval(3, 7);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_sub_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_right, right);
+        assert_eq!(new_left, left);
+
+        // Integer, Float with integers
+        let left = DataType::float_values([7., 10.]);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_sub_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_left, DataType::integer_values([7, 10]));
+        assert_eq!(new_right, right);
+
+        // Integer, Float (any))
+        let left = DataType::float();
+        let right = DataType::integer_interval(2, 5);
+        assert!(DataType::into_common_sub_variant(&left, &right).is_err());
     }
 }
