@@ -37,4 +37,3 @@ statrs = "0.16.0"
 sqlite = ["dep:rusqlite"]
 # All injections are checked when built
 checked_injections = []
-
