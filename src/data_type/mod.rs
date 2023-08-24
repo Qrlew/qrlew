@@ -2285,6 +2285,34 @@ impl DataType {
             (Err(_), Err(_)) => Err(Error::other("No common variant")),
         }
     }
+
+    pub fn lower_bound(&self) -> Option<DataType> {
+        match self {
+            DataType::Boolean(b) => b.max().map(|x| DataType::boolean_min(*x)),
+            DataType::Integer(i) => i.max().map(|x| DataType::integer_min(*x)),
+            DataType::Float(f) => f.max().map(|x| DataType::float_min(*x)),
+            DataType::Text(t) => t.max().map(|x| DataType::text_min(x.to_string())),
+            DataType::Date(d) => d.max().map(|x| DataType::date_min(*x)),
+            DataType::Time(t) => t.max().map(|x| DataType::time_min(*x)),
+            DataType::DateTime(d) => d.max().map(|x| DataType::date_time_min(*x)),
+            DataType::Duration(d) => d.max().map(|x| DataType::duration_min(*x)),
+            _ => None,
+        }
+    }
+
+    pub fn upper_bound(&self) -> Option<DataType> {
+        match self {
+            DataType::Boolean(b) => b.min().map(|x| DataType::boolean_max(*x)),
+            DataType::Integer(i) => i.min().map(|x| DataType::integer_max(*x)),
+            DataType::Float(f) => f.min().map(|x| DataType::float_max(*x)),
+            DataType::Text(t) => t.min().map(|x| DataType::text_max(x.to_string())),
+            DataType::Date(d) => d.min().map(|x| DataType::date_max(*x)),
+            DataType::Time(t) => t.min().map(|x| DataType::time_max(*x)),
+            DataType::DateTime(d) => d.min().map(|x| DataType::date_time_max(*x)),
+            DataType::Duration(d) => d.min().map(|x| DataType::duration_max(*x)),
+            _ => None,
+        }
+    }
 }
 
 impl Variant for DataType {

@@ -372,7 +372,7 @@ impl<'a> VisitedQueryRelations<'a> {
         Ok(Rc::new(
             if let Some(h) = having {
                 let new_having = Expr::try_from(h)?;
-                relation
+                Relation::map().input(relation).filter(new_having).build()
             } else {
                 relation
             }
@@ -929,7 +929,7 @@ mod tests {
 
     #[test]
     fn test_map_where() {
-        let query_str = "SELECT a FROM table_1 WHERE a > 20 * 2;"; // TODO: problem with -.., .. * .., ..
+        let query_str = "SELECT a FROM table_1 WHERE a > 20 * 2;";
         let query = parse(query_str).unwrap();
         let schema_1: Schema = vec![
             ("a", DataType::float_interval(-100., 100.)),
