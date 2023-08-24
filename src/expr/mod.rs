@@ -22,13 +22,13 @@ use std::{
     collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub, Deref},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub},
     rc::Rc,
     result,
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _, intervals::Intervals},
+    data_type::{self, value, DataType, DataTyped, Variant as _},
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
