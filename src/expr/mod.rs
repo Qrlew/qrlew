@@ -2104,6 +2104,7 @@ mod tests {
         );
     }
 
+    // TODO: Test
     #[test]
     fn test_filter_column_data_type_composed() {
         let col = Column::from("MyCol");
@@ -2121,6 +2122,8 @@ mod tests {
             DataType::integer_interval(3, 100)
         );
     }
+
+    // TODO
 
     #[test]
     fn test_filter_column_data_type_mixed() {
