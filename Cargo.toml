@@ -33,7 +33,9 @@ rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
 statrs = "0.16.0"
 
 [features]
+default = []
 # Test on SQLite
 sqlite = ["dep:rusqlite"]
-# All injections are checked when built
+# Tests
 checked_injections = []
+checked_multiplicity = []

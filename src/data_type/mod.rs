@@ -2269,8 +2269,11 @@ impl DataType {
         }
     }
 
-    /// Return a data_type where both types can map into
-    pub fn into_common_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
+    /// Return a super data_type where both types can map into
+    pub fn into_common_super_variant(
+        left: &DataType,
+        right: &DataType,
+    ) -> Result<(DataType, DataType)> {
         match (left.into_variant(right), right.into_variant(left)) {
             (Ok(l), Ok(r)) => {
                 let l_into_left = left.maximal_superset().and_then(|t| l.into_data_type(&t));
@@ -2283,6 +2286,26 @@ impl DataType {
             (Ok(l), Err(_)) => Ok((l, right.clone())),
             (Err(_), Ok(r)) => Ok((left.clone(), r)),
             (Err(_), Err(_)) => Err(Error::other("No common variant")),
+        }
+    }
+
+    // Return a sub data_type where both types can map into
+    pub fn into_common_sub_variant(
+        left: &DataType,
+        right: &DataType,
+    ) -> Result<(DataType, DataType)> {
+        match (left.into_variant(right), right.into_variant(left)) {
+            (Ok(l), Ok(r)) => {
+                let l_into_left = left.minimal_subset().and_then(|t| l.into_data_type(&t));
+                if l_into_left.map_or(false, |t| &t == left) {
+                    Ok((l, right.clone()))
+                } else {
+                    Ok((left.clone(), r))
+                }
+            }
+            // (Ok(l), Err(_)) => Ok((l, right.clone())),
+            // (Err(_), Ok(r)) => Ok((left.clone(), r)),
+            _ => Err(Error::other("No common variant")),
         }
     }
 }
@@ -2371,7 +2394,7 @@ impl Variant for DataType {
                     (DataType::Any, _) => Ok(DataType::Any),
                     (_, DataType::Any) => Ok(DataType::Any),
                     // If self and other are from different variants
-                    (s, o) => DataType::into_common_variant(s, o)
+                    (s, o) => DataType::into_common_super_variant(s, o)
                         .and_then(|(s, o)| s.super_union(&o))
                         .or(Ok(DataType::Any)),
                 }
@@ -2399,7 +2422,8 @@ impl Variant for DataType {
                     (DataType::Any, o) => Ok(o.clone()),
                     (s, DataType::Any) => Ok(s.clone()),
                     // If self and other are from different variants
-                    (s, o) => DataType::into_common_variant(s, o)
+                    (s, o) => DataType::into_common_sub_variant(s, o)
+                        .or(DataType::into_common_super_variant(s, o))
                         .and_then(|(s, o)| s.super_intersection(&o))
                         .or(Ok(DataType::Any)),
                 }
@@ -2506,7 +2530,10 @@ macro_rules! impl_into_values {
                 if self.all_values() {
                     Ok(self.into_iter().map(|[v, _]| Value::from(v)).collect())
                 } else {
-                    Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>"))
+                    Err(Error::invalid_conversion(
+                        stringify!($Variant),
+                        "Vec<Value>",
+                    ))
                 }
             }
         }
@@ -2535,7 +2562,10 @@ impl TryInto<Vec<Value>> for DataType {
             DataType::Time(t) => t.try_into(),
             DataType::DateTime(d) => d.try_into(),
             DataType::Duration(d) => d.try_into(),
-            _ => Err(Error::invalid_conversion(stringify!($Variant), "Vec<Value>")),
+            _ => Err(Error::invalid_conversion(
+                stringify!($Variant),
+                "Vec<Value>",
+            )),
         }
     }
 }
@@ -2873,6 +2903,8 @@ impl<'a> Acceptor<'a> for DataType {
 mod tests {
     use std::convert::TryFrom;
 
+    use statrs::statistics::Data;
+
     use super::*;
 
     #[test]
@@ -3113,7 +3145,7 @@ mod tests {
 
     /// Utility function
     fn print_conversions(a: &DataType, b: &DataType) {
-        let (ca, cb) = if let Ok((ca, cb)) = DataType::into_common_variant(a, b) {
+        let (ca, cb) = if let Ok((ca, cb)) = DataType::into_common_super_variant(a, b) {
             (ca, cb)
         } else {
             (DataType::Null, DataType::Null)
@@ -3409,42 +3441,80 @@ mod tests {
     }
 
     #[test]
-    fn test_intersection_union() {
+    fn test_intersection() {
         let left = DataType::integer_interval(0, 10);
         let right = DataType::float_interval(5., 12.);
-        println!(
-            "intersection = {}",
-            left.super_intersection(&right).unwrap()
+
+        let intersection = left.super_intersection(&DataType::Any).unwrap();
+        println!("left ∩ any = {}", intersection);
+        assert_eq!(intersection, left);
+
+        let intersection = right.super_intersection(&DataType::Any).unwrap();
+        println!("right ∩ any = {}", intersection);
+        assert_eq!(intersection, right);
+
+        let intersection = left.super_intersection(&DataType::Null).unwrap();
+        println!("left ∩ ∅ = {}", intersection);
+        assert_eq!(intersection, DataType::Null);
+
+        let intersection = right.super_intersection(&DataType::Null).unwrap();
+        println!("right ∩ ∅ = {}", intersection);
+        assert_eq!(intersection, DataType::Null);
+
+        // int[0 10] ∩ float[5 12] = int{5}
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(intersection, DataType::integer_interval(5, 10));
+
+        // int[0 10] ∩ float{5, 8} = int{5, 8}
+        let left = DataType::integer_interval(0, 10);
+        let right = DataType::float_values([5., 8.]);
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(intersection, DataType::integer_values([5, 8]));
+    }
+
+    #[test]
+    fn test_union() {
+        let left = DataType::integer_interval(0, 10);
+        let right = DataType::float_interval(5., 12.);
+
+        let union = left.super_union(&DataType::Null).unwrap();
+        println!("left ∪ ∅ = {}", union);
+        assert_eq!(union, left);
+
+        let union = right.super_union(&DataType::Null).unwrap();
+        println!("right ∪ ∅ = {}", union);
+        assert_eq!(union, right);
+
+        let union = left.super_union(&DataType::Any).unwrap();
+        println!("left ∪ any = {}", union);
+        assert_eq!(union, DataType::Any);
+
+        let union = right.super_union(&DataType::Any).unwrap();
+        println!("right ∪ any = {}", union);
+        assert_eq!(union, DataType::Any);
+
+        // int[0 10] ∪ float[5 12] = float{0}∪{1}∪{2}∪{3}∪{4}∪[5 12]
+        let union = left.super_union(&right).unwrap();
+        println!("{} ∪ {} = {}", left, right, union);
+        assert!(left.is_subset_of(&union));
+        assert!(right.is_subset_of(&union));
+        assert_eq!(
+            union,
+            DataType::float_values([0., 1., 2., 3., 4.])
+                .super_union(&DataType::float_interval(5., 12.))
+                .unwrap()
         );
-        println!("union = {}", left.super_union(&right).unwrap());
-        assert!(left.is_subset_of(&left.super_union(&right).unwrap()));
-        assert!(right.is_subset_of(&left.super_union(&right).unwrap()));
-        println!(
-            "left ∩ any = {}",
-            left.super_intersection(&DataType::Any).unwrap()
-        );
-        println!(
-            "right ∩ any = {}",
-            right.super_intersection(&DataType::Any).unwrap()
-        );
-        println!(
-            "left ∩ ∅ = {}",
-            left.super_intersection(&DataType::Null).unwrap()
-        );
-        println!(
-            "right ∩ ∅ = {}",
-            right.super_intersection(&DataType::Null).unwrap()
-        );
-        println!("left ∪ ∅ = {}", left.super_union(&DataType::Null).unwrap());
-        println!(
-            "right ∪ ∅ = {}",
-            right.super_union(&DataType::Null).unwrap()
-        );
-        println!("left ∪ any = {}", left.super_union(&DataType::Any).unwrap());
-        println!(
-            "right ∪ any = {}",
-            right.super_union(&DataType::Any).unwrap()
-        );
+
+        // int[0 10] ∪ float{5, 8} = int[0 10]
+        let left = DataType::integer_interval(0, 10);
+        let right = DataType::float_values([5., 8.]);
+        let union = left.super_union(&right).unwrap();
+        println!("{} ∪ {} = {}", left, right, union);
+        assert!(left.is_subset_of(&union));
+        assert!(right.is_subset_of(&union));
+        assert_eq!(union, DataType::integer_interval(0, 10));
     }
 
     #[test]
@@ -3501,7 +3571,7 @@ mod tests {
 
     // Test round trip
     fn print_common_variant(left: DataType, right: DataType) {
-        let common = DataType::into_common_variant(&left, &right)
+        let common = DataType::into_common_super_variant(&left, &right)
             .unwrap_or((DataType::Null, DataType::Null));
         println!("({left}, {right}) ~ ({}, {})", common.0, common.1);
     }
@@ -3591,12 +3661,69 @@ mod tests {
     #[test]
     fn test_try_into_values() {
         let dt = DataType::float_values([1., 2., 3.]);
-        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into(), 2.0.into(), 3.0.into()]);
+        assert_eq!(
+            TryInto::<Vec<Value>>::try_into(dt).unwrap(),
+            vec![1.0.into(), 2.0.into(), 3.0.into()]
+        );
 
         let dt = DataType::float_interval(1., 1.);
-        assert_eq!(TryInto::<Vec<Value>>::try_into(dt).unwrap(), vec![1.0.into()]);
+        assert_eq!(
+            TryInto::<Vec<Value>>::try_into(dt).unwrap(),
+            vec![1.0.into()]
+        );
 
         let dt = DataType::float_interval(1., 3.);
         assert!(TryInto::<Vec<Value>>::try_into(dt).is_err());
+    }
+
+    #[test]
+    fn test_into_common_super_variant() {
+        // Integer, Integer
+        let left = DataType::integer_interval(3, 7);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_super_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_right, right);
+        assert_eq!(new_left, left);
+
+        // Integer, Float
+        let left = DataType::float_values([7., 10.5]);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_super_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_left, left);
+        assert_eq!(new_right, DataType::float_values([2., 3., 4., 5.]));
+    }
+
+    #[test]
+    fn test_into_common_sub_variant() {
+        // Integer, Integer
+        let left = DataType::integer_interval(3, 7);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_sub_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_right, right);
+        assert_eq!(new_left, left);
+
+        // Float, Float
+        let left = DataType::float_interval(0., 10.);
+        let right = DataType::float_max(9.);
+        let (new_left, new_right) = DataType::into_common_sub_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_right, right);
+        assert_eq!(new_left, left);
+
+        // Integer, Float with integers
+        let left = DataType::float_values([7., 10.]);
+        let right = DataType::integer_interval(2, 5);
+        let (new_left, new_right) = DataType::into_common_sub_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_left, DataType::integer_values([7, 10]));
+        assert_eq!(new_right, right);
+
+        // Integer, Float (any))
+        let left = DataType::float();
+        let right = DataType::integer_interval(2, 5);
+        assert!(DataType::into_common_sub_variant(&left, &right).is_err());
     }
 }

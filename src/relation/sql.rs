@@ -353,7 +353,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 vec![],
                 all(),
                 table_with_joins(
-                        join.left.as_ref().into(),
+                    join.left.as_ref().into(),
                     vec![ast::Join {
                         relation: table_factor(join.right.as_ref().into()),
                         join_operator: join.operator.clone().into(),
