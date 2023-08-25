@@ -658,7 +658,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_simple_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -672,8 +672,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "checked_multiplicity")]
     #[test]
-    #[ignore]
     fn test_multiplicity_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -687,8 +687,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "checked_multiplicity")]
     #[test]
-    #[ignore]
     fn test_multiplicity_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -719,8 +719,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "checked_multiplicity")]
     #[test]
-    #[ignore]
     fn test_multiplicity_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -740,8 +740,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "checked_multiplicity")]
     #[test]
-    #[ignore]
     fn test_multiplicity_join_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -769,8 +769,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "checked_multiplicity")]
     #[test]
-    #[ignore]
     fn test_multiplicity_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -807,8 +807,9 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+
+    #[cfg(feature = "checked_multiplicity")]
     #[test]
-    #[ignore]
     fn test_multiplicity_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
