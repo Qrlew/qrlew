@@ -677,7 +677,6 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "checked_multiplicity")]
     #[test]
     #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_join_reduce() {
@@ -693,7 +692,6 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "checked_multiplicity")]
     #[test]
     #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce() {
@@ -726,7 +724,6 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "checked_multiplicity")]
     #[test]
     #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_join_reduce() {
@@ -748,7 +745,6 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "checked_multiplicity")]
     #[test]
     #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_join_reduce_reduce() {
@@ -778,7 +774,6 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "checked_multiplicity")]
     #[test]
     #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce_reduce() {
@@ -817,7 +812,6 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "checked_multiplicity")]
     #[test]
     #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce_join_reduce() {
