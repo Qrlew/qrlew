@@ -679,6 +679,7 @@ mod tests {
 
     #[cfg(feature = "checked_multiplicity")]
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -694,6 +695,7 @@ mod tests {
 
     #[cfg(feature = "checked_multiplicity")]
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -726,6 +728,7 @@ mod tests {
 
     #[cfg(feature = "checked_multiplicity")]
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -747,6 +750,7 @@ mod tests {
 
     #[cfg(feature = "checked_multiplicity")]
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_join_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -776,6 +780,7 @@ mod tests {
 
     #[cfg(feature = "checked_multiplicity")]
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -815,6 +820,7 @@ mod tests {
 
     #[cfg(feature = "checked_multiplicity")]
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();

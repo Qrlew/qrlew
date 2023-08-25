@@ -603,9 +603,11 @@ impl Injection for Base<Float, Integer> {
         self.co_domain.clone()
     }
     fn super_image(&self, set: &Self::Domain) -> Result<Self::CoDomain> {
-        //self.intervals_image(set)
-        // test is_values + all possible values are integer
-        todo!()
+        if set.all_values() {
+            self.intervals_image(set)
+        } else {
+            Err(Error::no_injection(self.domain(), set))
+        }
     }
     fn value(
         &self,
@@ -2324,6 +2326,27 @@ mod tests {
             [1, 2].iter().collect(),
             [1., 2.].iter().collect(),
         );
+    }
+
+    #[test]
+    fn test_injection_float_int() {
+        test_injection(
+            From(Float::from_values([1., 4., 6.]))
+                .into(Integer::from_interval(0, 10))
+                .unwrap(),
+            (4.0 as f64).into(),
+            value::Integer::from(4),
+            [1., 4.].iter().collect(),
+            [1, 4].iter().collect(),
+        );
+
+        let dt = DataType::float_values([1., 10.])
+            .into_data_type(&DataType::integer())
+            .unwrap();
+        assert_eq!(dt, DataType::integer_values([1, 10]));
+
+        let dt = DataType::float_interval(1., 10.).into_data_type(&DataType::integer());
+        assert!(dt.is_err());
     }
 
     #[test]
