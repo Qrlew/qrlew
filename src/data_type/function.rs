@@ -2620,7 +2620,7 @@ mod tests {
         // im(struct{0: float[1 10], 1: int[100, +∞)}) = float[1 10]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_interval(1., 10.),
-            DataType::integer_min(100),
+            DataType::integer_interval(100, 200),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
