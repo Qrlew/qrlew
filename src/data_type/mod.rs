@@ -2270,14 +2270,10 @@ impl DataType {
     }
 
     /// Return a super data_type where both types can map into
-<<<<<<< HEAD
-    pub fn into_common_super_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
-=======
     pub fn into_common_super_variant(
         left: &DataType,
         right: &DataType,
     ) -> Result<(DataType, DataType)> {
->>>>>>> fix_injection
         match (left.into_variant(right), right.into_variant(left)) {
             (Ok(l), Ok(r)) => {
                 let l_into_left = left.maximal_superset().and_then(|t| l.into_data_type(&t));
@@ -2294,14 +2290,10 @@ impl DataType {
     }
 
     // Return a sub data_type where both types can map into
-<<<<<<< HEAD
-    pub fn into_common_sub_variant(left: &DataType, right: &DataType) -> Result<(DataType, DataType)> {
-=======
     pub fn into_common_sub_variant(
         left: &DataType,
         right: &DataType,
     ) -> Result<(DataType, DataType)> {
->>>>>>> fix_injection
         match (left.into_variant(right), right.into_variant(left)) {
             (Ok(l), Ok(r)) => {
                 let l_into_left = left.minimal_subset().and_then(|t| l.into_data_type(&t));
@@ -2310,13 +2302,9 @@ impl DataType {
                 } else {
                     Ok((left.clone(), r))
                 }
-<<<<<<< HEAD
-            },
-=======
             }
             // (Ok(l), Err(_)) => Ok((l, right.clone())),
             // (Err(_), Ok(r)) => Ok((left.clone(), r)),
->>>>>>> fix_injection
             _ => Err(Error::other("No common variant")),
         }
     }
@@ -2435,10 +2423,7 @@ impl Variant for DataType {
                     (s, DataType::Any) => Ok(s.clone()),
                     // If self and other are from different variants
                     (s, o) => DataType::into_common_sub_variant(s, o)
-<<<<<<< HEAD
-=======
                         .or(DataType::into_common_super_variant(s, o))
->>>>>>> fix_injection
                         .and_then(|(s, o)| s.super_intersection(&o))
                         .or(Ok(DataType::Any)),
                 }
