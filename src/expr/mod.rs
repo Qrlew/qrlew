@@ -28,9 +28,7 @@ use std::{
 };
 
 use crate::{
-    data_type::{
-        self, function::Function as _, value, DataType, DataTyped, Optional, Variant as _,
-    },
+    data_type::{self, value, DataType, DataTyped, Variant as _, function::Function as _},
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
@@ -1223,7 +1221,6 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::function::Function as _,
         relation::{schema::Schema, Relation},
     };
 
