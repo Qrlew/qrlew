@@ -159,10 +159,7 @@ mod tests {
         ));
         let dt = field.filter(&expression).data_type();
         println!("\n{} => a ∈ {}", expression, dt);
-        assert_eq!(
-            dt,
-            DataType::float_range(5.0..=9.0)
-        );
+        assert_eq!(dt, DataType::float_range(5.0..=9.0));
 
         let expression = expr!(and(
             and(and(gt(b, 5.), gt(b, 30.)), lt_eq(a, 9.)),
@@ -170,10 +167,7 @@ mod tests {
         ));
         let dt = field.filter(&expression).data_type();
         println!("\n{} => a ∈ {}", expression, dt);
-        assert_eq!(
-            dt,
-            DataType::float_range(0.0..=9.0)
-        );
+        assert_eq!(dt, DataType::float_range(0.0..=9.0));
     }
 
     #[test]
@@ -182,9 +176,6 @@ mod tests {
         let expression = expr!(and(lt_eq(a, (0.5 * 3)), gt_eq(a, 0.0 - 4.0)));
         let dt = field.filter(&expression).data_type();
         println!("\n{} => a ∈ {}", expression, dt);
-        assert_eq!(
-            dt,
-            DataType::float_range(-4.0..=1.5)
-        );
+        assert_eq!(dt, DataType::float_range(-4.0..=1.5));
     }
 }

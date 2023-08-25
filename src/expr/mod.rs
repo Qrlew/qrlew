@@ -28,7 +28,9 @@ use std::{
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _, function::Function as _},
+    data_type::{
+        self, function::Function as _, value, DataType, DataTyped, Optional, Variant as _,
+    },
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
@@ -167,13 +169,20 @@ impl Function {
             | (function::Function::LtEq, [x, Expr::Column(col)])
                 if col == column =>
             {
+                let datatype = if let DataType::Optional(o) = datatype {
+                    o.data_type()
+                } else {
+                    datatype
+                };
                 let dt = if let DataType::Function(func) = x.data_type() {
                     func.co_domain().clone()
                 } else {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_max().super_image(&set).unwrap_or(datatype.clone())
+                data_type::function::bivariate_max()
+                    .super_image(&set)
+                    .unwrap_or(datatype.clone())
             }
             // set max
             (function::Function::Lt, [Expr::Column(col), x])
@@ -182,18 +191,26 @@ impl Function {
             | (function::Function::GtEq, [x, Expr::Column(col)])
                 if col == column =>
             {
+                let datatype = if let DataType::Optional(o) = datatype {
+                    o.data_type()
+                } else {
+                    datatype
+                };
                 let dt = if let DataType::Function(func) = x.data_type() {
                     func.co_domain().clone()
                 } else {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_min().super_image(&set).unwrap_or(datatype.clone())
+                data_type::function::bivariate_min()
+                    .super_image(&set)
+                    .unwrap_or(datatype.clone())
             }
             // Eq
             (function::Function::Eq, [Expr::Column(col), Expr::Value(val)])
             | (function::Function::Eq, [Expr::Value(val), Expr::Column(col)])
-                if col == column => {
+                if col == column =>
+            {
                 DataType::from(val.clone())
                     .super_intersection(&datatype)
                     .unwrap_or(datatype.clone())
@@ -208,7 +225,6 @@ impl Function {
             }
             _ => datatype.clone(),
         }
-
     }
 }
 
@@ -1931,8 +1947,8 @@ mod tests {
 
         let func = Function::lt_eq(col.clone(), Expr::val(9.));
         assert_eq!(
-            func.filter_column_data_type(&col, & DataType::float_range(0.0..=10.0)),
-            DataType::float_max(9.)
+            func.filter_column_data_type(&col, &DataType::float_range(0.0..=10.0)),
+            DataType::float_range(0.0..=9.0)
         );
 
         // columns do not match
@@ -2005,6 +2021,26 @@ mod tests {
             func.filter_column_data_type(&col, &datatype),
             DataType::float_values([1., 3., 4.])
         );
+    }
+
+    #[test]
+    fn test_filter_column_data_type_optional() {
+        let col = Column::from("my_b");
+        let datatype = DataType::optional(DataType::float_interval(-1., 1.));
+
+        if let Expr::Function(func) = Expr::lt(Expr::col("my_b"), Expr::val(0.)) {
+            assert_eq!(
+                func.filter_column_data_type(&col, &datatype),
+                DataType::float_interval(-1., 0.)
+            );
+        }
+
+        if let Expr::Function(func) = Expr::gt(Expr::val(0.), Expr::col("my_b")) {
+            assert_eq!(
+                func.filter_column_data_type(&col, &datatype),
+                DataType::float_interval(-1., 0.)
+            );
+        }
     }
 
     #[test]

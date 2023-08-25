@@ -2540,13 +2540,6 @@ mod tests {
     }
 
     #[test]
-    fn test_conversion() {
-        let dt = DataType::float_interval(1.5, 10.5)
-        .into_data_type(&DataType::integer()).unwrap();
-        println!("{}", dt);
-    }
-
-    #[test]
     fn test_position() {
         println!("Test position");
         let fun = position();

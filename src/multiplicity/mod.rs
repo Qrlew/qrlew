@@ -817,7 +817,6 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-
     #[cfg(feature = "checked_multiplicity")]
     #[test]
     #[cfg(feature = "checked_multiplicity")]

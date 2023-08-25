@@ -1680,13 +1680,15 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        let filtered_relation = relation.filter(Expr::and(
+        let filtering_expr = Expr::and(
             Expr::and(
                 Expr::gt(Expr::col("my_a"), Expr::val(5.)),
                 Expr::lt(Expr::col("my_b"), Expr::val(0.)),
             ),
             Expr::lt(Expr::col("my_a"), Expr::val(100.)),
-        ));
+        );
+        println!("{}", filtering_expr);
+        let filtered_relation = relation.filter(filtering_expr);
         _ = filtered_relation.display_dot();
         assert_eq!(
             filtered_relation
@@ -1702,7 +1704,7 @@ mod tests {
                 .field("my_b")
                 .unwrap()
                 .data_type(),
-            DataType::optional(DataType::float_interval(-1., 0.))
+            DataType::float_interval(-1., 0.)
         );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
@@ -1736,7 +1738,7 @@ mod tests {
         );
         assert_eq!(
             filtered_relation.schema().field("b").unwrap().data_type(),
-            DataType::optional(DataType::float_interval(-1., 0.5))
+            DataType::float_interval(-1., 0.5)
         );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
