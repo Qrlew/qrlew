@@ -2297,8 +2297,8 @@ impl DataType {
                     Ok((left.clone(), r))
                 }
             },
-            (Ok(l), Err(_)) => Ok((l, right.clone())),
-            (Err(_), Ok(r)) => Ok((left.clone(), r)),
+            // (Ok(l), Err(_)) => Ok((l, right.clone())),
+            // (Err(_), Ok(r)) => Ok((left.clone(), r)),
             _ => Err(Error::other("No common variant")),
         }
     }
@@ -2417,6 +2417,7 @@ impl Variant for DataType {
                     (s, DataType::Any) => Ok(s.clone()),
                     // If self and other are from different variants
                     (s, o) => DataType::into_common_sub_variant(s, o)
+                        .or(DataType::into_common_super_variant(s, o))
                         .and_then(|(s, o)| s.super_intersection(&o))
                         .or(Ok(DataType::Any)),
                 }
@@ -3460,7 +3461,7 @@ mod tests {
         );
         assert_eq!(intersection, DataType::Null);
 
-        // int[0 10] ∩ float[5 12] = any // int{5}
+        // int[0 10] ∩ float[5 12] = int{5}
         let intersection = left.super_intersection(&right).unwrap();
         println!(
             "{} ∩ {} = {}",
