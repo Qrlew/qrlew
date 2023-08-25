@@ -2341,11 +2341,11 @@ mod tests {
         );
 
         let dt = DataType::float_values([1., 10.])
-            .into_data_type(&DataType::integer()).unwrap();
+            .into_data_type(&DataType::integer())
+            .unwrap();
         assert_eq!(dt, DataType::integer_values([1, 10]));
 
-        let dt = DataType::float_interval(1., 10.)
-            .into_data_type(&DataType::integer());
+        let dt = DataType::float_interval(1., 10.).into_data_type(&DataType::integer());
         assert!(dt.is_err());
     }
 

@@ -2583,8 +2583,8 @@ mod tests {
 
         // im(struct{0: float{1, 100}, 1: float{-30, 0, 20}}) = int{-30, 0, 1, 20}
         let set: DataType = DataType::structured_from_data_types([
-            DataType::float_values([100.0 , 1.0 ]),
-            DataType::float_values([20.0, 0.0, -30.0])
+            DataType::float_values([100.0, 1.0]),
+            DataType::float_values([20.0, 0.0, -30.0]),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
@@ -2593,7 +2593,7 @@ mod tests {
         // im(struct{0: float[1, +∞), 1: float(-∞, 100]}) = float(-∞, 100]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_min(1.0),
-            DataType::float_max(100.0)
+            DataType::float_max(100.0),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
@@ -2602,7 +2602,7 @@ mod tests {
         // im(struct{0: float{1}, 1: float{100}}) = int{1}
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_value(1.0),
-            DataType::float_value(100.0)
+            DataType::float_value(100.0),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
@@ -2611,7 +2611,7 @@ mod tests {
         // im(struct{0: float(-∞, 10], 1: float[100, +∞)}) = float(-∞, 10]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_max(10.0),
-            DataType::float_min(100.0)
+            DataType::float_min(100.0),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
@@ -2620,7 +2620,7 @@ mod tests {
         // im(struct{0: float[1 10], 1: int[100, +∞)}) = float[1 10]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_interval(1., 10.),
-            DataType::integer_min(100)
+            DataType::integer_min(100),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
@@ -2629,7 +2629,7 @@ mod tests {
         // im(struct{0: int[1 10], 1: float[100, +∞)}) = float{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
         let set: DataType = DataType::structured_from_data_types([
             DataType::integer_interval(1, 10),
-            DataType::float_min(100.0)
+            DataType::float_min(100.0),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
@@ -2637,8 +2637,8 @@ mod tests {
 
         // im(struct{0: float(-∞, 10], 1: int[2 100]}) = float(-∞, 10]
         let set: DataType = DataType::structured_from_data_types([
-            DataType::float_max(10.0 ),
-            DataType::integer_interval(2, 100)
+            DataType::float_max(10.0),
+            DataType::integer_interval(2, 100),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
