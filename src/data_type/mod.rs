@@ -2303,8 +2303,6 @@ impl DataType {
                     Ok((left.clone(), r))
                 }
             }
-            // (Ok(l), Err(_)) => Ok((l, right.clone())),
-            // (Err(_), Ok(r)) => Ok((left.clone(), r)),
             _ => Err(Error::other("No common variant")),
         }
     }
@@ -2421,6 +2419,16 @@ impl Variant for DataType {
                     (DataType::Bytes(_), DataType::Bytes(_)) => Ok(DataType::bytes()),
                     (DataType::Any, o) => Ok(o.clone()),
                     (s, DataType::Any) => Ok(s.clone()),
+                    (
+                        DataType::Optional(Optional { data_type: l }),
+                        DataType::Optional(Optional { data_type: r }),
+                    ) => DataType::super_intersection(l.as_ref(), r.as_ref()),
+                    (DataType::Optional(Optional { data_type: l }), _) => {
+                        DataType::super_intersection(l.as_ref(), other)
+                    }
+                    (_, DataType::Optional(Optional { data_type: r })) => {
+                        DataType::super_intersection(self, r.as_ref())
+                    }
                     // If self and other are from different variants
                     (s, o) => DataType::into_common_sub_variant(s, o)
                         .or(DataType::into_common_super_variant(s, o))
@@ -3472,6 +3480,30 @@ mod tests {
         let intersection = left.super_intersection(&right).unwrap();
         println!("{} ∩ {} = {}", left, right, intersection);
         assert_eq!(intersection, DataType::integer_values([5, 8]));
+
+        // optional(int[0 10]) ∩ float{5, 8} = int{5, 8}
+        let left = DataType::optional(DataType::integer_interval(0, 10));
+        let right = DataType::float_values([5., 8.]);
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(intersection, DataType::integer_values([5, 8]));
+
+        // int[0 10] ∩ optional(float{5, 8}) = int{5, 8}
+        let left = DataType::integer_interval(0, 10);
+        let right = DataType::optional(DataType::float_values([5., 8.]));
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(intersection, DataType::integer_values([5, 8]));
+
+        // optional(int[0 10]) ∩ optional(float{5, 8}) = optional(int{5, 8})
+        let left = DataType::optional(DataType::integer_interval(0, 10));
+        let right = DataType::optional(DataType::float_values([5., 8.]));
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(
+            intersection,
+            DataType::optional(DataType::integer_values([5, 8]))
+        );
     }
 
     #[test]
@@ -3515,6 +3547,30 @@ mod tests {
         assert!(left.is_subset_of(&union));
         assert!(right.is_subset_of(&union));
         assert_eq!(union, DataType::integer_interval(0, 10));
+
+        // optional(int[0 10]) ∪ float{5, 8} = optional(int[0 10])
+        let left = DataType::optional(DataType::integer_interval(0, 10));
+        let right = DataType::float_values([5., 8.]);
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(intersection, DataType::integer_values([5, 8]));
+
+        // int[0 10] ∪ optional(float{5, 8}) = optional(int[0 10])
+        let left = DataType::integer_interval(0, 10);
+        let right = DataType::optional(DataType::float_values([5., 8.]));
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(intersection, DataType::integer_values([5, 8]));
+
+        // optional(int[0 10]) ∪ optional(float{5, 8}) = optional(int[0 10])
+        let left = DataType::optional(DataType::integer_interval(0, 10));
+        let right = DataType::optional(DataType::float_values([5., 8.]));
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("{} ∩ {} = {}", left, right, intersection);
+        assert_eq!(
+            intersection,
+            DataType::optional(DataType::integer_values([5, 8]))
+        );
     }
 
     #[test]
@@ -3693,6 +3749,22 @@ mod tests {
         println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
         assert_eq!(new_left, left);
         assert_eq!(new_right, DataType::float_values([2., 3., 4., 5.]));
+
+        // Optional(Integer), Optional(Integer)
+        let left = DataType::optional(DataType::integer_interval(3, 7));
+        let right = DataType::optional(DataType::integer_interval(2, 5));
+        let (new_left, new_right) = DataType::into_common_super_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_left, left);
+        assert_eq!(new_right, right);
+
+        // Integer, Optional(Integer)
+        let left = DataType::integer_interval(3, 7);
+        let right = DataType::optional(DataType::integer_interval(2, 5));
+        let (new_left, new_right) = DataType::into_common_super_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_left, DataType::optional(left));
+        assert_eq!(new_right, right);
     }
 
     #[test]
@@ -3724,6 +3796,19 @@ mod tests {
         // Integer, Float (any))
         let left = DataType::float();
         let right = DataType::integer_interval(2, 5);
+        assert!(DataType::into_common_sub_variant(&left, &right).is_err());
+
+        // Optional(Integer), Optional(Integer)
+        let left = DataType::optional(DataType::integer_interval(3, 7));
+        let right = DataType::optional(DataType::integer_interval(2, 5));
+        let (new_left, new_right) = DataType::into_common_sub_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_left, left);
+        assert_eq!(new_right, right);
+
+        // Integer, Optional(Integer)
+        let left = DataType::integer_interval(3, 7);
+        let right = DataType::optional(DataType::integer_interval(2, 5));
         assert!(DataType::into_common_sub_variant(&left, &right).is_err());
     }
 }

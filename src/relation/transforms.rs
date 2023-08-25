@@ -1670,7 +1670,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter() {
+    fn test_filter_on_map() {
         let database = postgresql::test_database();
         let relations = database.relations();
 
@@ -1680,13 +1680,15 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        let filtered_relation = relation.filter(Expr::and(
+        let filtering_expr = Expr::and(
             Expr::and(
                 Expr::gt(Expr::col("my_a"), Expr::val(5.)),
                 Expr::lt(Expr::col("my_b"), Expr::val(0.)),
             ),
             Expr::lt(Expr::col("my_a"), Expr::val(100.)),
-        ));
+        );
+        println!("{}", filtering_expr);
+        let filtered_relation = relation.filter(filtering_expr);
         _ = filtered_relation.display_dot();
         assert_eq!(
             filtered_relation
@@ -1702,7 +1704,7 @@ mod tests {
                 .field("my_b")
                 .unwrap()
                 .data_type(),
-            DataType::optional(DataType::float_interval(-1., 0.))
+            DataType::float_interval(-1., 0.)
         );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
@@ -1716,6 +1718,12 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_filter_on_wildcard() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
 
         let relation =
             Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
@@ -1730,7 +1738,7 @@ mod tests {
         );
         assert_eq!(
             filtered_relation.schema().field("b").unwrap().data_type(),
-            DataType::optional(DataType::float_interval(-1., 0.5))
+            DataType::float_interval(-1., 0.5)
         );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
@@ -1741,6 +1749,12 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_filter_on_reduce() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
 
         let relation = Relation::try_from(
             parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a")

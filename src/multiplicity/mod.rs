@@ -520,6 +520,7 @@ mod tests {
                 .join("\n")
         );
     }
+
     #[test]
     #[cfg(feature = "checked_multiplicity")]
     fn test_reduce() {
