@@ -3644,6 +3644,14 @@ mod tests {
         assert_eq!(new_right, right);
         assert_eq!(new_left, left);
 
+        // Float, Float
+        let left = DataType::float_interval(0., 10.);
+        let right = DataType::float_max(9.);
+        let (new_left, new_right) = DataType::into_common_sub_variant(&left, &right).unwrap();
+        println!("( {}, {} ) -> ( {}, {} )", left, right, new_left, new_right);
+        assert_eq!(new_right, right);
+        assert_eq!(new_left, left);
+
         // Integer, Float with integers
         let left = DataType::float_values([7., 10.]);
         let right = DataType::integer_interval(2, 5);

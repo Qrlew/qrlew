@@ -603,7 +603,9 @@ impl Injection for Base<Float, Integer> {
         self.co_domain.clone()
     }
     fn super_image(&self, set: &Self::Domain) -> Result<Self::CoDomain> {
-        self.intervals_image(set)
+        //self.intervals_image(set)
+        // test is_values + all possible values are integer
+        todo!()
     }
     fn value(
         &self,

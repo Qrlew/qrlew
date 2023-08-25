@@ -1509,6 +1509,14 @@ pub fn cos() -> impl Function + Clone {
     )
 }
 
+// pub fn minimum() -> impl Function + Clone {
+//     Polymorphic::from((
+//         Minimum(data_type::Integer::default().into()),
+//         InList(data_type::Float::default().into()),
+//         //InList(data_type::Text::default().into()),
+//     ))
+// }
+
 pub fn bivariate_min() -> impl Function + Clone {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
@@ -1519,6 +1527,10 @@ pub fn bivariate_min() -> impl Function + Clone {
             (data_type::Float::default(), data_type::Float::default()),
             |x, y| x.min(y),
         ),
+        // PartitionnedMonotonic::bivariate(
+        //     (data_type::Integer::default(), data_type::Integer::default()),
+        //     |x, y| x.min(y),
+        // ),
     ))
 }
 
@@ -2540,6 +2552,13 @@ mod tests {
     }
 
     #[test]
+    fn test_conversion() {
+        let dt = DataType::float_interval(1.5, 10.5)
+        .into_data_type(&DataType::integer()).unwrap();
+        println!("{}", dt);
+    }
+
+    #[test]
     fn test_position() {
         println!("Test position");
         let fun = position();
@@ -2581,9 +2600,8 @@ mod tests {
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
-        //
+        // im(struct{0: float{1, 100}, 1: float{-30, 0, 20}}) = int{-30, 0, 1, 20}
         let set: DataType = DataType::structured_from_data_types([
-            //DataType::float_value((1.0 as f64).into()),
             DataType::float_values([100.0 , 1.0 ]),
             DataType::float_values([20.0, 0.0, -30.0])
         ]);
@@ -2591,6 +2609,7 @@ mod tests {
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::float_values([-30.0, 0.0, 1.0, 20.0]));
 
+        // im(struct{0: float[1, +∞), 1: float(-∞, 100]}) = float(-∞, 100]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_min(1.0),
             DataType::float_max(100.0)
@@ -2599,6 +2618,7 @@ mod tests {
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::float_max(100.0));
 
+        // im(struct{0: float{1}, 1: float{100}}) = int{1}
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_value(1.0),
             DataType::float_value(100.0)
@@ -2607,7 +2627,7 @@ mod tests {
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::float_value(1.0));
 
-
+        // im(struct{0: float(-∞, 10], 1: float[100, +∞)}) = float(-∞, 10]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_max(10.0),
             DataType::float_min(100.0)
@@ -2616,14 +2636,26 @@ mod tests {
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::float_max(10.0));
 
+        // im(struct{0: float[1 10], 1: int[100, +∞)}) = int[1 10]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_interval(1., 10.),
+            DataType::integer_min(100)
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        //assert_eq!(im, DataType::float_interval(1., 10.));
+        assert_eq!(im, DataType::integer_interval(1, 10));
+
+        // im(struct{0: int[1 10], 1: float[100, +∞)}) = float{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
         let set: DataType = DataType::structured_from_data_types([
             DataType::integer_interval(1, 10),
             DataType::float_min(100.0)
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        //assert_eq!(im, DataType::float_interval(1., 10.0));
+        assert_eq!(im, DataType::integer_interval(1, 10));
 
+        // im(struct{0: float(-∞, 10], 1: int[2 100]}) = float(-∞, 10]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_max(10.0 ),
             DataType::integer_interval(2, 100)

@@ -1929,6 +1929,12 @@ mod tests {
             DataType::float_min(5.)
         );
 
+        let func = Function::lt_eq(col.clone(), Expr::val(9.));
+        assert_eq!(
+            func.filter_column_data_type(&col, & DataType::float_range(0.0..=10.0)),
+            DataType::float_max(9.)
+        );
+
         // columns do not match
         let col = Column::from("MyCol");
         let datatype = DataType::float();
