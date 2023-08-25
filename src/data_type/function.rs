@@ -1509,14 +1509,6 @@ pub fn cos() -> impl Function + Clone {
     )
 }
 
-// pub fn minimum() -> impl Function + Clone {
-//     Polymorphic::from((
-//         Minimum(data_type::Integer::default().into()),
-//         InList(data_type::Float::default().into()),
-//         //InList(data_type::Text::default().into()),
-//     ))
-// }
-
 pub fn bivariate_min() -> impl Function + Clone {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
@@ -1527,10 +1519,6 @@ pub fn bivariate_min() -> impl Function + Clone {
             (data_type::Float::default(), data_type::Float::default()),
             |x, y| x.min(y),
         ),
-        // PartitionnedMonotonic::bivariate(
-        //     (data_type::Integer::default(), data_type::Integer::default()),
-        //     |x, y| x.min(y),
-        // ),
     ))
 }
 
