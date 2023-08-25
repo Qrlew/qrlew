@@ -470,6 +470,7 @@ mod tests {
     use itertools::Itertools;
 
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_table() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
@@ -497,6 +498,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_map() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
@@ -518,7 +520,9 @@ mod tests {
                 .join("\n")
         );
     }
+
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_reduce() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
@@ -552,6 +556,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "checked_multiplicity")]
     fn test_joins() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
