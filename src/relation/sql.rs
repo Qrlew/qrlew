@@ -162,6 +162,7 @@ fn table_factor(path: ast::ObjectName) -> ast::TableFactor {
         alias: None,
         args: None,
         with_hints: vec![],
+        version: None,
     }
 }
 
@@ -502,6 +503,8 @@ impl Table {
             on_cluster: None,
             order_by: None,
             strict: false,
+            comment: None,
+            auto_increment_offset: None,
         }
     }
 

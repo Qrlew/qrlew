@@ -469,8 +469,8 @@ mod tests {
     use colored::Colorize;
     use itertools::Itertools;
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_table() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
@@ -497,8 +497,8 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_map() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
@@ -520,9 +520,9 @@ mod tests {
                 .join("\n")
         );
     }
-
+    
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_reduce() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
@@ -555,8 +555,8 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_joins() {
         let mut database = postgresql::test_database();
         let weight: f64 = 2.0;
@@ -587,14 +587,14 @@ mod tests {
         relation_to_sample: &Relation,
         proba: f64,
         n_experiments: u32,
-        use_possin_sampling: bool,
+        use_poisson_sampling: bool,
     ) {
         let mut database = postgresql::test_database();
 
         print!("\nFROM WEIGHTED RELATION partial reslts:\n");
         let mut res_holder: Vec<Vec<f64>> = vec![];
         for _ in 0..n_experiments {
-            let sampled_relation = if use_possin_sampling {
+            let sampled_relation = if use_poisson_sampling {
                 relation_to_sample.poisson_sampling_table_visitor(proba)
             } else {
                 relation_to_sample.sampling_without_replacements_table_visitor(proba, 2.0)
@@ -640,7 +640,7 @@ mod tests {
 
         //for displaying purposes
         relation_to_sample.display_dot().unwrap();
-        let sampled_relation = if use_possin_sampling {
+        let sampled_relation = if use_poisson_sampling {
             relation_to_sample.poisson_sampling_table_visitor(proba)
         } else {
             // use a relatively safe rate_multiplier (2.0) for optimization purposes
@@ -662,8 +662,8 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_simple_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -677,8 +677,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -692,8 +692,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -724,8 +724,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -745,8 +745,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_join_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -774,8 +774,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -812,8 +812,8 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
-    #[cfg(feature = "checked_multiplicity")]
     fn test_multiplicity_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();

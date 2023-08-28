@@ -24,7 +24,7 @@ paste = "1.0.7"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-sqlparser = "0.36.1"
+sqlparser = "0.37.0"
 dot = "0.1"
 base64 = "0.21"
 rusqlite = { version = "0.29", features = ["chrono"], optional = true }
@@ -33,9 +33,11 @@ rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
 statrs = "0.16.0"
 
 [features]
-default = []
-# Test on SQLite
+# Use SQLite for tests and examples
 sqlite = ["dep:rusqlite"]
 # Tests
 checked_injections = []
-checked_multiplicity = []
+# Multiplicity features are tested on large datasets (may take too much memory)
+tested_multiplicity = []
+# Display graphviz (may take long)
+graphviz_display = []
