@@ -32,6 +32,7 @@ use crate::{
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
+    relation::Schema,
 };
 
 pub use identifier::Identifier;
