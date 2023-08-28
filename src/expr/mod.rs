@@ -28,11 +28,11 @@ use std::{
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _, function::Function as _},
+    data_type::{self, value, DataType, DataTyped, Variant as _, function::Function as _, Struct as DataTypeStruct},
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
-    relation::Schema,
+    relation::{Field, Schema},
 };
 
 pub use identifier::Identifier;
@@ -225,6 +225,92 @@ impl Function {
             _ => datatype.clone(),
         }
     }
+
+    pub fn filter_schema(&self, schema: &Schema) -> Result<Schema> {
+        let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
+        let datatypes: Vec<(&str, DataType)> = schema.fields()
+            .iter()
+            .map(|f| (f.name(), f.data_type()))
+            .collect();
+        let datatype = DataType::structured(datatypes);
+        let mut new_schema = schema.clone();
+
+        match (self.function, args.as_slice()) {
+            (function::Function::And, [left, right]) => {
+                let schema1 = left.filter_schema(&right.filter_schema(schema)?)?;
+                let schema2 = right.filter_schema(&left.filter_schema(schema)?)?;
+                assert_eq!(schema1.len(), schema2.len());
+                new_schema = Schema::new(
+                    schema.iter()
+                    .zip(schema2)
+                    .map(|(f1, f2)| Ok(Field::from_name_data_type(
+                        f1.name(),
+                        f1.data_type().super_intersection(&f2.data_type())?
+                    )))
+                    .collect::<Result<Vec<Field>>>()?
+                )
+            },
+            // Set min or max
+            (function::Function::Gt, [left, right])
+            | (function::Function::GtEq, [left, right])
+            | (function::Function::Lt, [right, left])
+            | (function::Function::LtEq, [ right, left])
+            => {
+                let left_dt = left.super_image(&datatype).unwrap();
+                let right_dt = right.super_image(&datatype).unwrap();
+
+                let left_dt = if let DataType::Optional(o) = left_dt {
+                    o.data_type().clone()
+                } else {
+                    left_dt
+                };
+
+                let right_dt = if let DataType::Optional(o) = right_dt {
+                    o.data_type().clone()
+                } else {
+                    right_dt
+                };
+
+                let set = DataType::structured_from_data_types([left_dt, right_dt]);
+                if let Expr::Column(col) = left {
+                    let dt = data_type::function::bivariate_max().super_image(&set).unwrap();
+                    new_schema = update_schema(new_schema, col, dt)
+                } else if let Expr::Column(col) = right {
+                    let dt = data_type::function::bivariate_min().super_image(&set).unwrap();
+                    new_schema = update_schema(new_schema, col, dt)
+                }
+            }
+            (function::Function::Eq, [left, right]) => {
+                let left_dt = left.super_image(&datatype)?;
+                let right_dt = right.super_image(&datatype)?;
+                let dt = left_dt.super_intersection(&right_dt)?;
+                println!("dt = {}", dt);
+                if let Expr::Column(col) = left {
+                    let dt = dt.clone().into_variant(&left_dt)?;
+                    new_schema = update_schema(new_schema, col, dt.clone())
+                }
+                if let Expr::Column(col) = right {
+                    //let dt = dt.into_variant(&right_dt)?;
+                    new_schema = update_schema(new_schema, col, dt)
+                }
+            }
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
+                let dt = DataType::from_iter(l.to_vec().clone())
+                    .super_intersection(&schema.field(&col.head()?).unwrap().data_type())?;
+                new_schema = update_schema(new_schema, col, dt)
+            }
+            _ => ()
+        }
+        Ok(new_schema)
+    }
+}
+
+fn update_schema(schema: Schema, column: &Identifier, datatype: DataType) -> Schema {
+    let name = column.head().unwrap();
+    let new_fields:Vec<Field> = schema.into_iter()
+        .map(|f| if f.name() == name {Field::from((name.to_string(), datatype.clone()))} else {f})
+        .collect();
+    Schema::new(new_fields)
 }
 
 impl fmt::Display for Function {
@@ -627,6 +713,17 @@ impl Expr {
         match factors.next() {
             Some(head) => Expr::and(head, Expr::all(factors)),
             None => Expr::val(true),
+        }
+    }
+
+    //TODO
+    pub fn filter_schema(&self, schema: &Schema) ->  Result<Schema> {
+        match self {
+            Expr::Column(_) => todo!(),
+            Expr::Value(_) => todo!(),
+            Expr::Function(func) => func.filter_schema(&schema),
+            Expr::Aggregate(_) => todo!(),
+            Expr::Struct(_) => todo!(),
         }
     }
 }
@@ -1913,6 +2010,114 @@ mod tests {
     }
 
     #[test]
+    fn test_filter_schema_simple() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+            ("c", DataType::float()),
+        ]);
+
+        // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
+        let x = expr!(and(
+            and(
+                and(gt(a, 5), lt(b, 4.)),
+                and(gt_eq(9., a), lt_eq(2, b))
+            ),
+            eq(c, 0.99)
+        ));
+        println!("{}", x);
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(5., 9.)),
+            ("b", DataType::integer_interval(2, 4)),
+            ("c", DataType::float_value(0.99)),
+        ]);
+        assert_eq!(
+            filtered_schema,
+            true_schema
+        );
+
+        // ((a = 45) and (b = 3.5) and (0 = c))
+        let x = expr!(and(
+            eq(a, 45),
+            and(eq(b, 3.5), eq(0, c))
+        )
+        );
+        println!("{}", x);
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        let true_schema = Schema::from([
+            ("a", DataType::Null),
+            ("b", DataType::Null),
+            ("c", DataType::float_value(0.)),
+        ]);
+        assert_eq!(
+            filtered_schema,
+            true_schema
+        );
+
+        // (b in (1, 3, 4.5))
+        let val = Expr::list([1., 3., 4.5]);
+        let a = Expr::in_list(Expr::col("a"), val.clone());
+        let b = Expr::in_list(Expr::col("b"), val.clone());
+        let x = Expr::and(a, b);
+        println!("{}", x);
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{}", filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_values([1., 3., 4.5])),
+            ("b", DataType::integer_values([1, 3])),
+            ("c", DataType::float()),
+        ]);
+        assert_eq!(
+            filtered_schema,
+            true_schema
+        );
+    }
+
+    #[test]
+    fn test_filter_schema_with_column_deps() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 18)),
+            ("c", DataType::float()),
+        ]);
+
+        // b = c
+        let x = expr!(and(eq(b, c), lt(b, 2)));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 2)),
+            ("c", DataType::float_values([0., 1., 2.])),
+        ]);
+        assert_eq!(
+            filtered_schema,
+            true_schema
+        );
+
+        // ((((a > 5) and (b < 14)) and ((b >= a) and (2 <= b))) and (a = c))
+        let x = expr!(and(
+            and(
+                and(gt(a, 5), lt(b, 14.)),
+                and(gt_eq(b, a), lt_eq(2, b))
+            ),
+            eq(a, c)
+        ));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(5., 10.)),
+            ("b", DataType::integer_interval(5, 14)),
+            ("c", DataType::float_interval(5., 10.)),
+        ]);
+        assert_eq!(
+            filtered_schema,
+            true_schema
+        );
+    }
+
+    #[test]
     fn test_filter_column_data_type_float() {
         // set min value
         let col = Column::from("MyCol");
@@ -2290,5 +2495,31 @@ mod tests {
             col4_expr,
         );
         assert_eq!(Expr::filter(columns), true_expr);
+    }
+
+    #[test]
+    fn test_filter_struct() {
+        let x = expr!(exp(a));
+        let y = expr!(b);
+        let schema = Schema::from([
+            ("a", DataType::optional(DataType::float_interval(-10., 10.))),
+            ("b", DataType::integer_interval(0, 20)),
+            ("c", DataType::boolean_value(false)),
+            ("d", DataType::integer_value(0)),
+        ]);
+        let dt = DataType::structured(
+            schema.fields()
+            .iter()
+            .map(|f| (f.name(), f.data_type()))
+            .collect::<Vec<(&str, DataType)>>()
+        );
+        println!("{}", x.super_image(&dt).unwrap());
+        println!("{}", y.super_image(&dt).unwrap());
+        let s = DataType::structured_from_data_types(vec![x.super_image(&dt).unwrap(), y.super_image(&dt).unwrap()]);
+        let dt = data_type::function::bivariate_max()
+            .super_image(&s)
+            .unwrap();
+        println!("{}", dt);
+
     }
 }

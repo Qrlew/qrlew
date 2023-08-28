@@ -281,7 +281,7 @@ impl Map {
         input: &Relation,
     ) -> (Schema, Vec<Expr>) {
         let input_data_type = if let Some(f) = filter {
-            input.schema().filter(f).data_type()
+            input.schema().filter(f).unwrap().data_type()
         } else {
             input.data_type()
         };

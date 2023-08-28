@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use statrs::statistics::Data;
 use std::{
     collections::HashSet,
     fmt::Display,
@@ -100,8 +101,8 @@ impl Schema {
 
     /// Returns a new `Schema` where the `fields` of this `Schema`
     /// has been filtered by predicate `Expr`
-    pub fn filter(&self, predicate: &Expr) -> Self {
-        Self::new(self.iter().map(|f| f.filter(predicate)).collect())
+    pub fn filter(&self, predicate: &Expr) -> Result<Self> {
+        Ok(predicate.filter_schema(self)?)
     }
 }
 
@@ -377,7 +378,7 @@ mod tests {
             .with(("d", DataType::float()))
             .build();
         let expression = expr!(and(and(and(gt(a, 5), gt(b, 3)), lt_eq(b, 9)), lt_eq(a, 90)));
-        assert_eq!(schema.filter(&expression), filtered_schema);
+        assert_eq!(schema.filter(&expression).unwrap(), filtered_schema);
 
         let schema = Schema::builder()
             .with(("a", DataType::integer_max(20)))
@@ -392,6 +393,6 @@ mod tests {
             .with(("d", DataType::float()))
             .build();
         let expression = Expr::eq(Expr::col("c"), Expr::val("a".to_string()));
-        assert_eq!(schema.filter(&expression), filtered_schema);
+        assert_eq!(schema.filter(&expression).unwrap(), filtered_schema);
     }
 }
