@@ -204,7 +204,8 @@ impl Function {
                         .super_intersection(&left_dt)
                         .unwrap();
                     new_schema = update_schema(new_schema, col, dt)
-                } else if let Expr::Column(col) = right {
+                }
+                if let Expr::Column(col) = right {
                     let dt = data_type::function::bivariate_min()
                         .super_image(&set)
                         .unwrap()
@@ -1997,6 +1998,43 @@ mod tests {
     }
 
     #[test]
+    fn test_filter_schema_with_simple_column_deps() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 20)),
+        ]);
+        // (b < a)
+        let x = expr!(lt(b, a));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-0., 10.)),
+            ("b", DataType::integer_interval(0, 10)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+        // (a > b)
+        let x = expr!(gt(a, b));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (b = a)
+        let x = expr!(eq(b, a));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::integer_interval(0, 10)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+        // (a = b)
+        let x = expr!(eq(a, b));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+    }
+
+    #[test]
     fn test_filter_schema_with_column_deps() {
         let schema = Schema::from([
             ("a", DataType::float_interval(-10., 10.)),
@@ -2021,7 +2059,7 @@ mod tests {
         println!("{} -> {}", x, filtered_schema);
         let true_schema = Schema::from([
             ("a", DataType::float_interval(-10., 10.)),
-            ("b", DataType::integer_values([0, 1, 2])), // TODO != DataType::integer_interval([0, 2])) ?
+            ("b", DataType::integer_values([0, 1, 2])),
             ("c", DataType::float_values([0., 1., 2.])),
         ]);
         assert_eq!(filtered_schema, true_schema);

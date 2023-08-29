@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Relation::filter_columns`
 -  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 -  Fixed table naming
--  Made tests for multiplicity optional to avaoid Memory errors in the CI [MR84](https://github.com/Qrlew/qrlew/pull/84)
--  Replaced `expr::Function::filter_data_type_column`by `filter_schema` to allow comparaison between columns [MR85](https://github.com/Qrlew/qrlew/pull/85)
+-  Made tests for multiplicity optional to avaoid Memory errors in the CI [MR88](https://github.com/Qrlew/qrlew/pull/88)
+-  Replaced `expr::Function::filter_data_type_column` by `filter_schema` to allow comparaison between columns [MR85](https://github.com/Qrlew/qrlew/pull/85)
 ### Fixed
 - Injection Float -> Integer and DataType.super_intersection [MR84](https://github.com/Qrlew/qrlew/pull/84)
 
