@@ -176,6 +176,24 @@ impl Function {
                         .collect::<Result<Vec<Field>>>()?,
                 )
             }
+            (function::Function::Or, [left, right]) => {
+                let schema1 = left.filter_schema(schema)?;
+                let schema2 = right.filter_schema(schema)?;
+                println!("{}", schema1);
+                println!("{}", schema2);
+                new_schema = Schema::new(
+                    schema1
+                        .iter()
+                        .zip(schema2)
+                        .map(|(f1, f2)| {
+                            Ok(Field::from_name_data_type(
+                                f1.name(),
+                                f1.data_type().super_union(&f2.data_type())?,
+                            ))
+                        })
+                        .collect::<Result<Vec<Field>>>()?,
+                )
+            }
             // Set min or max
             (function::Function::Gt, [left, right])
             | (function::Function::GtEq, [left, right])
@@ -1928,6 +1946,67 @@ mod tests {
                 ]))
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn test_filter_or() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(-20, 2)),
+        ]);
+
+        // (((a > 7) or (a < 1)) or (a in (3, 4.5, 9.5)))
+        let x = Expr::or(
+            expr!(or(gt(a, 7), lt(a,1))),
+            Expr::in_list(Expr::col("a"), Expr::list([3., 4.5, 9.5]))
+        );
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} => {}", x, filtered_schema);
+        let true_dt = DataType::float_interval(-10., 1.)
+            .super_union(&DataType::float_values([3., 4.5])).unwrap()
+            .super_union(&DataType::float_interval(7., 10.)).unwrap();
+        let true_schema = Schema::from([
+            ("a", true_dt),
+            ("b", DataType::integer_interval(-20, 2)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // ((a > 7) or (a < b))
+        let x = expr!(or(gt(a, 7), lt(a,b)));
+        let x = expr!(lt(a,b));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} => {}", x, filtered_schema);
+        let true_dt = DataType::float_interval(7., 10.)
+            .super_union(&DataType::float_interval(-20., 2.)).unwrap();
+        let true_schema = Schema::from([
+            ("a", true_dt),
+            ("b", DataType::integer_interval(0, 2)),
+        ]);
+        //assert_eq!(filtered_schema, true_schema);
+
+
+    }
+
+    #[test]
+    fn test_filter_or_and() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+        ]);
+
+        // (((a > 7) or (a < 1)) or (a in (3, 4.5, 9.5)))
+        let x = Expr::or(
+            expr!(or(gt(a, 7), lt(a,1))),
+            Expr::in_list(Expr::col("a"), Expr::list([3., 4.5, 9.5]))
+        );
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} => {}", x, filtered_schema);
+        let true_dt = DataType::float_interval(-10., 1.)
+            .super_union(&DataType::float_values([3., 4.5])).unwrap()
+            .super_union(&DataType::float_interval(7., 10.)).unwrap();
+        let true_schema = Schema::from([
+            ("a", true_dt),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
     }
 
     #[test]
