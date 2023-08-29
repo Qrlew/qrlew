@@ -2909,8 +2909,8 @@ impl<'a> Acceptor<'a> for DataType {
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
     use super::*;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_null() {

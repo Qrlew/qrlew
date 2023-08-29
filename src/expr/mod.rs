@@ -653,14 +653,14 @@ impl Expr {
         }
     }
 
-    //TODO
+    /// Returns the `Schema` filtered by the current `Expr`
+    ///
+    /// # Arguments:
+    /// * `schema` - The `Schema` to be filtered
     pub fn filter_schema(&self, schema: &Schema) -> Result<Schema> {
         match self {
-            Expr::Column(_) => todo!(),
-            Expr::Value(_) => todo!(),
             Expr::Function(func) => func.filter_schema(&schema),
-            Expr::Aggregate(_) => todo!(),
-            Expr::Struct(_) => todo!(),
+            _ => Ok(schema.clone()),
         }
     }
 }
@@ -2246,7 +2246,7 @@ mod tests {
         let x = expr!(exp(a));
         let y = expr!(b);
         let schema = Schema::from([
-            ("a", DataType::optional(DataType::float_interval(-10., 10.))),
+            ("a", DataType::float_interval(-10., 10.)),
             ("b", DataType::integer_interval(0, 20)),
             ("c", DataType::boolean_value(false)),
             ("d", DataType::integer_value(0)),
