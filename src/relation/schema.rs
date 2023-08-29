@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use statrs::statistics::Data;
 use std::{
     collections::HashSet,
     fmt::Display,
