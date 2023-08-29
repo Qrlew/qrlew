@@ -136,7 +136,6 @@ impl Schema {
     // TODO : OR
     pub fn filter_by_function(&self, predicate: &Function) -> Result<Self> {
         {
-            let args: Vec<&Expr> = predicate.arguments.iter().map(|x| x.as_ref()).collect();
             let datatypes: Vec<(&str, DataType)> = self
                 .fields()
                 .iter()
@@ -145,7 +144,7 @@ impl Schema {
             let datatype = DataType::structured(datatypes);
             let mut new_schema = self.clone();
 
-            match (predicate.function, args.as_slice()) {
+            match (predicate.function(), predicate.arguments().as_slice()) {
                 (function::Function::And, [left, right]) => {
                     let schema1 = self.filter(right)?.filter(left)?;
                     let schema2 = self.filter(left)?.filter(right)?;

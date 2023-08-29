@@ -119,9 +119,9 @@ impl Variant for Value {}
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Function {
     /// Operator
-    pub function: function::Function,
-    /// Argumants
-    pub arguments: Vec<Rc<Expr>>,
+    function: function::Function,
+    /// Arguments
+    arguments: Vec<Rc<Expr>>,
 }
 
 impl Function {
@@ -131,6 +131,14 @@ impl Function {
             function,
             arguments,
         }
+    }
+
+    pub fn function(&self) -> function::Function {
+        self.function
+    }
+
+    pub fn arguments(&self) -> Vec<&Expr> {
+        self.arguments.iter().map(|x| x.as_ref()).collect()
     }
 }
 
