@@ -101,13 +101,15 @@ impl Schema {
         self.fields.iter()
     }
 
-    fn update(self, column: &Identifier, datatype: DataType) -> Schema {
-        let name = column.head().unwrap();
+    /// Returns a new instance of `Schema` where the `data_type` of the
+    /// field whose name is `name` is set to `datatype`. All the other fields
+    /// are unchanged.
+    fn with_name_datatype(self, name: String, datatype: DataType) -> Schema {
         let new_fields: Vec<Field> = self
             .into_iter()
             .map(|f| {
                 if f.name() == name {
-                    Field::from((name.to_string(), datatype.clone()))
+                    Field::new(name.clone(), datatype.clone(), f.constraint())
                 } else {
                     f
                 }
@@ -188,14 +190,14 @@ impl Schema {
                             .super_image(&set)
                             .unwrap()
                             .super_intersection(&left_dt)?;
-                        new_schema = new_schema.update(col, dt)
+                        new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                     }
                     if let Expr::Column(col) = right {
                         let dt = bivariate_min()
                             .super_image(&set)
                             .unwrap()
                             .super_intersection(&right_dt)?;
-                        new_schema = new_schema.update(col, dt)
+                        new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                     }
                 }
                 (function::Function::Eq, [left, right]) => {
@@ -203,16 +205,16 @@ impl Schema {
                     let right_dt = right.super_image(&datatype)?;
                     let dt = left_dt.super_intersection(&right_dt)?;
                     if let Expr::Column(col) = left {
-                        new_schema = new_schema.update(col, dt.clone())
+                        new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt.clone())
                     }
                     if let Expr::Column(col) = right {
-                        new_schema = new_schema.update(col, dt)
+                        new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                     }
                 }
                 (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
                     let dt = DataType::from_iter(l.to_vec().clone())
                         .super_intersection(&new_schema.field(&col.head()?).unwrap().data_type())?;
-                    new_schema = new_schema.update(col, dt)
+                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                 }
                 _ => (),
             }
