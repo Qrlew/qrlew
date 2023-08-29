@@ -8,8 +8,8 @@ use std::{
 use super::{field::Field, Error, Result};
 use crate::{
     builder::{Ready, With},
-    data_type::{DataType, DataTyped},
-    expr::{identifier::Identifier, Expr},
+    data_type::{DataType, DataTyped, Variant, function::{Function as _, bivariate_max, bivariate_min}},
+    expr::{identifier::Identifier, Expr, Function, function, Value},
 };
 
 /// A struct holding Fields as in https://github.com/apache/arrow-datafusion/blob/5b23180cf75ea7155d7c35a40f224ce4d5ad7fb8/datafusion/src/logical_plan/dfschema.rs#L36
@@ -98,10 +98,123 @@ impl Schema {
         self.fields.iter()
     }
 
+    fn update(self, column: &Identifier, datatype: DataType) -> Schema {
+        let name = column.head().unwrap();
+        let new_fields: Vec<Field> = self
+            .into_iter()
+            .map(|f| {
+                if f.name() == name {
+                    Field::from((name.to_string(), datatype.clone()))
+                } else {
+                    f
+                }
+            })
+            .collect();
+        Schema::new(new_fields)
+    }
+
     /// Returns a new `Schema` where the `fields` of this `Schema`
     /// has been filtered by predicate `Expr`
     pub fn filter(&self, predicate: &Expr) -> Result<Self> {
-        Ok(predicate.filter_schema(self)?)
+        match predicate {
+            Expr::Function(func) => self.filter_by_function(&func),
+            _ => Ok(self.clone()),
+        }
+    }
+
+    /// Returns a new `Schema` where the `fields` of this `Schema`
+    /// has been filtered by predicate `Expr::Function`
+    ///
+    /// Note: for the moment, we support only `Function` made of the composition of:
+    /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
+    /// - `Eq` function comparing a column to any value,
+    /// - `And` function between two supported Expr::Function,
+    /// - 'InList` test if a column value belongs to a list
+    // TODO : OR
+    pub fn filter_by_function(&self, predicate: &Function) -> Result<Self> {
+        {
+            let args: Vec<&Expr> = predicate.arguments.iter().map(|x| x.as_ref()).collect();
+            let datatypes: Vec<(&str, DataType)> = self
+                .fields()
+                .iter()
+                .map(|f| (f.name(), f.data_type()))
+                .collect();
+            let datatype = DataType::structured(datatypes);
+            let mut new_schema = self.clone();
+
+            match (predicate.function, args.as_slice()) {
+                (function::Function::And, [left, right]) => {
+                    let schema1 = self.filter(right)?.filter(left)?;
+                    let schema2 = self.filter(left)?.filter(right)?;
+                    new_schema = Schema::new(
+                        schema1
+                            .iter()
+                            .zip(schema2)
+                            .map(|(f1, f2)| {
+                                Ok(Field::from_name_data_type(
+                                    f1.name(),
+                                    f1.data_type().super_intersection(&f2.data_type())?,
+                                ))
+                            })
+                            .collect::<Result<Vec<Field>>>()?,
+                    )
+                }
+                // Set min or max
+                (function::Function::Gt, [left, right])
+                | (function::Function::GtEq, [left, right])
+                | (function::Function::Lt, [right, left])
+                | (function::Function::LtEq, [right, left]) => {
+                    let left_dt = left.super_image(&datatype).unwrap();
+                    let right_dt = right.super_image(&datatype).unwrap();
+
+                    let left_dt = if let DataType::Optional(o) = left_dt {
+                        o.data_type().clone()
+                    } else {
+                        left_dt
+                    };
+
+                    let right_dt = if let DataType::Optional(o) = right_dt {
+                        o.data_type().clone()
+                    } else {
+                        right_dt
+                    };
+
+                    let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                    if let Expr::Column(col) = left {
+                        let dt = bivariate_max()
+                            .super_image(&set)
+                            .unwrap()
+                            .super_intersection(&left_dt)?;
+                        new_schema = new_schema.update(col, dt)
+                    }
+                    if let Expr::Column(col) = right {
+                        let dt = bivariate_min()
+                            .super_image(&set)
+                            .unwrap()
+                            .super_intersection(&right_dt)?;
+                        new_schema = new_schema.update(col, dt)
+                    }
+                }
+                (function::Function::Eq, [left, right]) => {
+                    let left_dt = left.super_image(&datatype)?;
+                    let right_dt = right.super_image(&datatype)?;
+                    let dt = left_dt.super_intersection(&right_dt)?;
+                    if let Expr::Column(col) = left {
+                        new_schema = new_schema.update(col, dt.clone())
+                    }
+                    if let Expr::Column(col) = right {
+                        new_schema = new_schema.update(col, dt)
+                    }
+                }
+                (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
+                    let dt = DataType::from_iter(l.to_vec().clone())
+                        .super_intersection(&new_schema.field(&col.head()?).unwrap().data_type())?;
+                    new_schema = new_schema.update(col, dt)
+                }
+                _ => (),
+            }
+            Ok(new_schema)
+        }
     }
 }
 
@@ -393,5 +506,284 @@ mod tests {
             .build();
         let expression = Expr::eq(Expr::col("c"), Expr::val("a".to_string()));
         assert_eq!(schema.filter(&expression).unwrap(), filtered_schema);
+    }
+
+    #[test]
+    fn test_filter_simple() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+            ("c", DataType::float()),
+        ]);
+
+        // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
+        let x = expr!(and(
+            and(and(gt(a, 5), lt(b, 4.)), and(gt_eq(9., a), lt_eq(2, b))),
+            eq(c, 0.99)
+        ));
+        println!("{}", x);
+        let filtered_schema = schema.filter(&x).unwrap();
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(5., 9.)),
+            ("b", DataType::integer_interval(2, 4)),
+            ("c", DataType::float_value(0.99)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // ((a = 45) and (b = 3.5) and (0 = c))
+        let x = expr!(and(eq(a, 45), and(eq(b, 3.5), eq(0, c))));
+        println!("{}", x);
+        let filtered_schema = schema.filter(&x).unwrap();
+        let true_schema = Schema::from([
+            ("a", DataType::Null),
+            ("b", DataType::Null),
+            ("c", DataType::float_value(0.)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (b in (1, 3, 4.5))
+        let val = Expr::list([1., 3., 4.5]);
+        let a = Expr::in_list(Expr::col("a"), val.clone());
+        let b = Expr::in_list(Expr::col("b"), val.clone());
+        let x = Expr::and(a, b);
+        println!("{}", x);
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{}", filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_values([1., 3., 4.5])),
+            ("b", DataType::integer_values([1, 3])),
+            ("c", DataType::float()),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (b = exp(a))
+        let x = expr!(eq(b, exp(a)));
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-1., 1.)),
+            ("b", DataType::float()),
+        ]);
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-1., 1.)),
+            (
+                "b",
+                DataType::float_interval((-1. as f64).exp(), (1. as f64).exp()),
+            ),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+    }
+
+    #[test]
+    fn test_filter_with_simple_column_deps() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 20)),
+        ]);
+        // (b < a)
+        let x = expr!(lt(b, a));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-0., 10.)),
+            ("b", DataType::integer_interval(0, 10)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+        // (a > b)
+        let x = expr!(gt(a, b));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (b = a)
+        let x = expr!(eq(b, a));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::integer_interval(0, 10)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+        // (a = b)
+        let x = expr!(eq(a, b));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+    }
+
+    #[test]
+    fn test_filter_with_column_deps() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 18)),
+            ("c", DataType::float()),
+        ]);
+
+        // ((b < 2) and (b = c))
+        let x = expr!(and(lt(b, 2), eq(b, c)));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_values([0, 1, 2])), // TODO != DataType::integer_interval([0, 2])) ?
+            ("c", DataType::float_values([0., 1., 2.])),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // ((b = c) and (b < 2))
+        let x = expr!(and(lt(b, 2), eq(b, c)));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_values([0, 1, 2])),
+            ("c", DataType::float_values([0., 1., 2.])),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // ((((a > 5) and (b < 14)) and ((b >= a) and (2 <= b))) and (a = c))
+        let x = expr!(and(
+            and(and(gt(a, 5), lt(b, 14.)), and(gt_eq(b, a), lt_eq(2, b))),
+            eq(a, c)
+        ));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(5., 10.)),
+            (
+                "b",
+                DataType::integer_values([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+            ),
+            ("c", DataType::float_interval(5., 10.)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (a >= (2 * b))
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        let x = expr!(gt_eq(a, 2 * b));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(0., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (a <= (2 * b))
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 2)),
+        ]);
+        let x = expr!(lt_eq(a, 2 * b));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 4.)),
+            ("b", DataType::integer_interval(0, 2)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+    }
+
+    #[test]
+    fn test_filter_composed() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+
+        let x1 = expr!(lt(a, (3 * 5 - 8)));
+        let x2 = expr!(gt(b, ((5 / 2 - 1) + 2)));
+        let x3 = expr!(gt_eq(a, 2 * b));
+        println!("x1 = {}, x2 = {}, x3 = {}", x1, x2, x3);
+
+        // (a < ((3 * 5) - 8))
+        let filtered_schema = schema.filter(&x1).unwrap();
+        println!("x1 = {} -> {}", x1, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 7.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (b > (((5 / 2) - 1) + 2))
+        let filtered_schema = schema.filter(&x2).unwrap();
+        println!("x2 = {} -> {}", x2, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(3, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (a >= (2 * b))
+        let filtered_schema = schema.filter(&x3).unwrap();
+        println!("x3 = {} -> {}", x3, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(0., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(6.0, 7.)),
+            ("b", DataType::integer_interval(3, 8)),
+        ]);
+
+        //  (x1 and (x2 and x3))
+        let x = Expr::and(x1.clone(), Expr::and(x2.clone(), x3.clone()));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+
+        //  (x3 and (x1 and x2))
+        let x = Expr::and(x3.clone(), Expr::and(x1.clone(), x2.clone()));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+
+        //  (x2 and (x3 and x1))
+        let x = Expr::and(x2.clone(), Expr::and(x3.clone(), x1.clone()));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+
+        // ((x1 and (x3 and x2))
+        let x = Expr::and(x1.clone(), Expr::and(x3.clone(), x2.clone()));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+
+        // ((x2 and (x1 and x3))
+        let x = Expr::and(x2.clone(), Expr::and(x1.clone(), x3.clone()));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+
+        // ((x3 and (x2 and x1))
+        let x = Expr::and(x2.clone(), Expr::and(x1.clone(), x3.clone()));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
+    }
+
+    #[test]
+    fn test_filter_optional() {
+        let schema = Schema::from([("a", DataType::optional(DataType::float_interval(-10., 10.)))]);
+
+        // (a > 1)
+        let x = expr!(gt(a, 1));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([("a", DataType::float_interval(1., 10.))]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (a < 1)
+        let x = expr!(lt(a, 1));
+        let filtered_schema = schema.filter(&x).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([("a", DataType::float_interval(-10., 1.))]);
+        assert_eq!(filtered_schema, true_schema);
     }
 }

@@ -79,6 +79,11 @@ impl From<data_type::function::Error> for Error {
         Error::Other(err.to_string())
     }
 }
+impl From<data_type::Error> for Error {
+    fn from(err: data_type::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
 impl From<expr::Error> for Error {
     fn from(err: expr::Error) -> Self {
         Error::Other(err.to_string())
