@@ -1129,8 +1129,8 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
+        data_type::function::Function,
         relation::{schema::Schema, Relation},
-        data_type::function::Function
     };
 
     #[test]
