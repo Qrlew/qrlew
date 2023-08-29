@@ -28,13 +28,8 @@ use std::{
 };
 
 use crate::{
-    data_type::{
-        self, function::Function as _, value, DataType, DataTyped, Struct as DataTypeStruct,
-        Variant as _,
-    },
+    data_type::{self, value, DataType, DataTyped},
     hierarchy::Hierarchy,
-    namer::{self, FIELD},
-    relation::{Field, Schema},
     visitor::{self, Acceptor},
 };
 
@@ -1135,6 +1130,7 @@ mod tests {
     use crate::{
         builder::{Ready, With},
         relation::{schema::Schema, Relation},
+        data_type::function::Function
     };
 
     #[test]
