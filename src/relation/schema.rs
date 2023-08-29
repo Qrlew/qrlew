@@ -8,8 +8,11 @@ use std::{
 use super::{field::Field, Error, Result};
 use crate::{
     builder::{Ready, With},
-    data_type::{DataType, DataTyped, Variant, function::{Function as _, bivariate_max, bivariate_min}},
-    expr::{identifier::Identifier, Expr, Function, function, Value},
+    data_type::{
+        function::{bivariate_max, bivariate_min, Function as _},
+        DataType, DataTyped, Variant,
+    },
+    expr::{function, identifier::Identifier, Expr, Function, Value},
 };
 
 /// A struct holding Fields as in https://github.com/apache/arrow-datafusion/blob/5b23180cf75ea7155d7c35a40f224ce4d5ad7fb8/datafusion/src/logical_plan/dfschema.rs#L36
@@ -179,7 +182,8 @@ impl Schema {
                         right_dt
                     };
 
-                    let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                    let set =
+                        DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                     if let Expr::Column(col) = left {
                         let dt = bivariate_max()
                             .super_image(&set)
