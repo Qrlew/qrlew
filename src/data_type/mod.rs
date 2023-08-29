@@ -2910,7 +2910,6 @@ impl<'a> Acceptor<'a> for DataType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryFrom;
 
     #[test]
     fn test_null() {
