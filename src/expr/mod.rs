@@ -28,11 +28,14 @@ use std::{
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _, function::Function as _, Struct as DataTypeStruct},
+    data_type::{
+        self, function::Function as _, value, DataType, DataTyped, Struct as DataTypeStruct,
+        Variant as _,
+    },
     hierarchy::Hierarchy,
     namer::{self, FIELD},
-    visitor::{self, Acceptor},
     relation::{Field, Schema},
+    visitor::{self, Acceptor},
 };
 
 pub use identifier::Identifier;
@@ -135,100 +138,21 @@ impl Function {
         }
     }
 
-    /// Returns the `DataType` of a column filtered by the current `Function`
+    /// Returns the `Schema` filtered by the current `Function`
     ///
     /// # Arguments:
-    /// * `column` - The `Column` to be filtered
-    /// * `datatype` - The `DataType` of `column`
-    ///
-    /// For example, we consider the `Column` `my_col` with `datatype = float[0 10]`.
-    ///     -  `self = gt(my_col, 5)` returns `DataType` `float[5 10]`,
-    ///     -  `self = gt(my_col, -5)` returns `DataType` `float[0 10]`,
-    ///     -  `self = gt(another_col, 5)` returns `DataType` `float[0 10]`
+    /// * `schema` - The `Schema` to be filtered
     ///
     /// Note: for the moment, we support only `Function` made of the composition of:
     /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
     /// - `Eq` function comparing a column to any value,
     /// - `And` function between two supported Expr::Function,
     /// - 'InList` test if a column value belongs to a list
-    // TODO: OR
-    pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
-        let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
-        match (self.function, args.as_slice()) {
-            // And
-            (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => left
-                .filter_column_data_type(column, datatype)
-                .super_intersection(&right.filter_column_data_type(column, datatype))
-                .unwrap_or(datatype.clone()),
-
-            // Set min
-            (function::Function::Gt, [Expr::Column(col), x])
-            | (function::Function::GtEq, [Expr::Column(col), x])
-            | (function::Function::Lt, [x, Expr::Column(col)])
-            | (function::Function::LtEq, [x, Expr::Column(col)])
-                if col == column =>
-            {
-                let datatype = if let DataType::Optional(o) = datatype {
-                    o.data_type()
-                } else {
-                    datatype
-                };
-                let dt = if let DataType::Function(func) = x.data_type() {
-                    func.co_domain().clone()
-                } else {
-                    x.data_type()
-                };
-                let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_max()
-                    .super_image(&set)
-                    .unwrap_or(datatype.clone())
-            }
-            // set max
-            (function::Function::Lt, [Expr::Column(col), x])
-            | (function::Function::LtEq, [Expr::Column(col), x])
-            | (function::Function::Gt, [x, Expr::Column(col)])
-            | (function::Function::GtEq, [x, Expr::Column(col)])
-                if col == column =>
-            {
-                let datatype = if let DataType::Optional(o) = datatype {
-                    o.data_type()
-                } else {
-                    datatype
-                };
-                let dt = if let DataType::Function(func) = x.data_type() {
-                    func.co_domain().clone()
-                } else {
-                    x.data_type()
-                };
-                let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_min()
-                    .super_image(&set)
-                    .unwrap_or(datatype.clone())
-            }
-            // Eq
-            (function::Function::Eq, [Expr::Column(col), Expr::Value(val)])
-            | (function::Function::Eq, [Expr::Value(val), Expr::Column(col)])
-                if col == column =>
-            {
-                DataType::from(val.clone())
-                    .super_intersection(&datatype)
-                    .unwrap_or(datatype.clone())
-            }
-            // InList
-            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))])
-                if col == column =>
-            {
-                DataType::from_iter(l.to_vec().clone())
-                    .super_intersection(&datatype)
-                    .unwrap_or(datatype.clone())
-            }
-            _ => datatype.clone(),
-        }
-    }
-
+    // TODO : OR
     pub fn filter_schema(&self, schema: &Schema) -> Result<Schema> {
         let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
-        let datatypes: Vec<(&str, DataType)> = schema.fields()
+        let datatypes: Vec<(&str, DataType)> = schema
+            .fields()
             .iter()
             .map(|f| (f.name(), f.data_type()))
             .collect();
@@ -239,23 +163,24 @@ impl Function {
             (function::Function::And, [left, right]) => {
                 let schema1 = left.filter_schema(&right.filter_schema(schema)?)?;
                 let schema2 = right.filter_schema(&left.filter_schema(schema)?)?;
-                assert_eq!(schema1.len(), schema2.len());
                 new_schema = Schema::new(
-                    schema.iter()
-                    .zip(schema2)
-                    .map(|(f1, f2)| Ok(Field::from_name_data_type(
-                        f1.name(),
-                        f1.data_type().super_intersection(&f2.data_type())?
-                    )))
-                    .collect::<Result<Vec<Field>>>()?
+                    schema1
+                        .iter()
+                        .zip(schema2)
+                        .map(|(f1, f2)| {
+                            Ok(Field::from_name_data_type(
+                                f1.name(),
+                                f1.data_type().super_intersection(&f2.data_type())?,
+                            ))
+                        })
+                        .collect::<Result<Vec<Field>>>()?,
                 )
-            },
+            }
             // Set min or max
             (function::Function::Gt, [left, right])
             | (function::Function::GtEq, [left, right])
             | (function::Function::Lt, [right, left])
-            | (function::Function::LtEq, [ right, left])
-            => {
+            | (function::Function::LtEq, [right, left]) => {
                 let left_dt = left.super_image(&datatype).unwrap();
                 let right_dt = right.super_image(&datatype).unwrap();
 
@@ -271,12 +196,20 @@ impl Function {
                     right_dt
                 };
 
-                let set = DataType::structured_from_data_types([left_dt, right_dt]);
+                let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                 if let Expr::Column(col) = left {
-                    let dt = data_type::function::bivariate_max().super_image(&set).unwrap();
+                    let dt = data_type::function::bivariate_max()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&left_dt)
+                        .unwrap();
                     new_schema = update_schema(new_schema, col, dt)
                 } else if let Expr::Column(col) = right {
-                    let dt = data_type::function::bivariate_min().super_image(&set).unwrap();
+                    let dt = data_type::function::bivariate_min()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&right_dt)
+                        .unwrap();
                     new_schema = update_schema(new_schema, col, dt)
                 }
             }
@@ -296,7 +229,7 @@ impl Function {
                     .super_intersection(&schema.field(&col.head()?).unwrap().data_type())?;
                 new_schema = update_schema(new_schema, col, dt)
             }
-            _ => ()
+            _ => (),
         }
         Ok(new_schema)
     }
@@ -304,8 +237,15 @@ impl Function {
 
 fn update_schema(schema: Schema, column: &Identifier, datatype: DataType) -> Schema {
     let name = column.head().unwrap();
-    let new_fields:Vec<Field> = schema.into_iter()
-        .map(|f| if f.name() == name {Field::from((name.to_string(), datatype.clone()))} else {f})
+    let new_fields: Vec<Field> = schema
+        .into_iter()
+        .map(|f| {
+            if f.name() == name {
+                Field::from((name.to_string(), datatype.clone()))
+            } else {
+                f
+            }
+        })
         .collect();
     Schema::new(new_fields)
 }
@@ -714,7 +654,7 @@ impl Expr {
     }
 
     //TODO
-    pub fn filter_schema(&self, schema: &Schema) ->  Result<Schema> {
+    pub fn filter_schema(&self, schema: &Schema) -> Result<Schema> {
         match self {
             Expr::Column(_) => todo!(),
             Expr::Value(_) => todo!(),
@@ -1991,22 +1931,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cmp() {
-        let dict = DataType::unit()
-            & ("a", DataType::float_interval(-5., 2.))
-            & ("1", DataType::float_interval(-1., 2.));
-        let left = Expr::col("a");
-        let right = Expr::val(0);
-        // gt
-        let ex = Expr::gt(left.clone(), right.clone());
-        println!("{}", ex);
-        // assert_eq!(
-        //     sum.super_image(&dict).unwrap(),
-        //     DataType::float_interval(-6., 4.)
-        // );
-    }
-
-    #[test]
     fn test_filter_schema_simple() {
         let schema = Schema::from([
             ("a", DataType::float_interval(-10., 10.)),
@@ -2016,10 +1940,7 @@ mod tests {
 
         // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
         let x = expr!(and(
-            and(
-                and(gt(a, 5), lt(b, 4.)),
-                and(gt_eq(9., a), lt_eq(2, b))
-            ),
+            and(and(gt(a, 5), lt(b, 4.)), and(gt_eq(9., a), lt_eq(2, b))),
             eq(c, 0.99)
         ));
         println!("{}", x);
@@ -2029,17 +1950,10 @@ mod tests {
             ("b", DataType::integer_interval(2, 4)),
             ("c", DataType::float_value(0.99)),
         ]);
-        assert_eq!(
-            filtered_schema,
-            true_schema
-        );
+        assert_eq!(filtered_schema, true_schema);
 
         // ((a = 45) and (b = 3.5) and (0 = c))
-        let x = expr!(and(
-            eq(a, 45),
-            and(eq(b, 3.5), eq(0, c))
-        )
-        );
+        let x = expr!(and(eq(a, 45), and(eq(b, 3.5), eq(0, c))));
         println!("{}", x);
         let filtered_schema = x.filter_schema(&schema).unwrap();
         let true_schema = Schema::from([
@@ -2047,10 +1961,7 @@ mod tests {
             ("b", DataType::Null),
             ("c", DataType::float_value(0.)),
         ]);
-        assert_eq!(
-            filtered_schema,
-            true_schema
-        );
+        assert_eq!(filtered_schema, true_schema);
 
         // (b in (1, 3, 4.5))
         let val = Expr::list([1., 3., 4.5]);
@@ -2065,10 +1976,24 @@ mod tests {
             ("b", DataType::integer_values([1, 3])),
             ("c", DataType::float()),
         ]);
-        assert_eq!(
-            filtered_schema,
-            true_schema
-        );
+        assert_eq!(filtered_schema, true_schema);
+
+        // (b = exp(a))
+        let x = expr!(eq(b, exp(a)));
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-1., 1.)),
+            ("b", DataType::float()),
+        ]);
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-1., 1.)),
+            (
+                "b",
+                DataType::float_interval((-1. as f64).exp(), (1. as f64).exp()),
+            ),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
     }
 
     #[test]
@@ -2088,10 +2013,7 @@ mod tests {
             ("b", DataType::integer_values([0, 1, 2])), // TODO != DataType::integer_interval([0, 2])) ?
             ("c", DataType::float_values([0., 1., 2.])),
         ]);
-        assert_eq!(
-            filtered_schema,
-            true_schema
-        );
+        assert_eq!(filtered_schema, true_schema);
 
         // ((b = c) and (b < 2))
         let x = expr!(and(lt(b, 2), eq(b, c)));
@@ -2102,341 +2024,152 @@ mod tests {
             ("b", DataType::integer_values([0, 1, 2])), // TODO != DataType::integer_interval([0, 2])) ?
             ("c", DataType::float_values([0., 1., 2.])),
         ]);
-        assert_eq!(
-            filtered_schema,
-            true_schema
-        );
+        assert_eq!(filtered_schema, true_schema);
 
         // ((((a > 5) and (b < 14)) and ((b >= a) and (2 <= b))) and (a = c))
         let x = expr!(and(
-            and(
-                and(gt(a, 5), lt(b, 14.)),
-                and(gt_eq(b, a), lt_eq(2, b))
-            ),
+            and(and(gt(a, 5), lt(b, 14.)), and(gt_eq(b, a), lt_eq(2, b))),
             eq(a, c)
         ));
         let filtered_schema = x.filter_schema(&schema).unwrap();
         println!("{} -> {}", x, filtered_schema);
         let true_schema = Schema::from([
             ("a", DataType::float_interval(5., 10.)),
-            ("b", DataType::integer_values([5, 6, 7, 8, 9, 10, 11, 12, 13, 14])),
+            (
+                "b",
+                DataType::integer_values([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+            ),
             ("c", DataType::float_interval(5., 10.)),
         ]);
-        assert_eq!(
-            filtered_schema,
-            true_schema
-        );
+        assert_eq!(filtered_schema, true_schema);
+
+        // (a >= (2 * b))
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        let x = expr!(gt_eq(a, 2 * b));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(0., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
+
+        // (a <= (2 * b))
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 2)),
+        ]);
+        let x = expr!(lt_eq(a, 2 * b));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 4.)),
+            ("b", DataType::integer_interval(0, 2)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
     }
 
     #[test]
-    fn test_filter_column_data_type_float() {
-        // set min value
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-        let value = Expr::val(5.);
+    fn test_filter_schema_composed() {
+        let schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
 
-        let func = Function::gt(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_min(5.)
-        );
+        let x1 = expr!(lt(a, (3 * 5 - 8)));
+        let x2 = expr!(gt(b, ((5 / 2 - 1) + 2)));
+        let x3 = expr!(gt_eq(a, 2 * b));
+        println!("x1 = {}, x2 = {}, x3 = {}", x1, x2, x3);
 
-        let func = Function::gt_eq(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_min(5.)
-        );
+        // (a < ((3 * 5) - 8))
+        let filtered_schema = x1.filter_schema(&schema).unwrap();
+        println!("x1 = {} -> {}", x1, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 7.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
 
-        let func = Function::lt(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_min(5.)
-        );
+        // (b > (((5 / 2) - 1) + 2))
+        let filtered_schema = x2.filter_schema(&schema).unwrap();
+        println!("x2 = {} -> {}", x2, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(3, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
 
-        let func = Function::lt_eq(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_min(5.)
-        );
+        // (a >= (2 * b))
+        let filtered_schema = x3.filter_schema(&schema).unwrap();
+        println!("x3 = {} -> {}", x3, filtered_schema);
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(0., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_schema, true_schema);
 
-        let func = Function::lt_eq(col.clone(), Expr::val(9.));
-        assert_eq!(
-            func.filter_column_data_type(&col, &DataType::float_range(0.0..=10.0)),
-            DataType::float_range(0.0..=9.0)
-        );
+        let true_schema = Schema::from([
+            ("a", DataType::float_interval(6.0, 7.)),
+            ("b", DataType::integer_interval(3, 8)),
+        ]);
 
-        // columns do not match
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-        let func = Function::gt(Expr::col("NotMyCol"), Expr::val(5.));
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float()
-        );
+        //  (x1 and (x2 and x3))
+        let x = Expr::and(x1.clone(), Expr::and(x2.clone(), x3.clone()));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
 
-        // set max value
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-        let value = Expr::val(5.);
+        //  (x3 and (x1 and x2))
+        let x = Expr::and(x3.clone(), Expr::and(x1.clone(), x2.clone()));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
 
-        let func = Function::lt(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_max(5.)
-        );
+        //  (x2 and (x3 and x1))
+        let x = Expr::and(x2.clone(), Expr::and(x3.clone(), x1.clone()));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
 
-        let func = Function::lt_eq(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_max(5.)
-        );
+        // ((x1 and (x3 and x2))
+        let x = Expr::and(x1.clone(), Expr::and(x3.clone(), x2.clone()));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
 
-        let func = Function::gt(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_max(5.)
-        );
+        // ((x2 and (x1 and x3))
+        let x = Expr::and(x2.clone(), Expr::and(x1.clone(), x3.clone()));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
 
-        let func = Function::gt_eq(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_max(5.)
-        );
-
-        // eq
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-        let value = Expr::val(5.);
-
-        let func = Function::eq(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_value(5.)
-        );
-
-        // eq
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-        let value = Expr::val(5.);
-
-        let func = Function::eq(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_value(5.)
-        );
-
-        // in
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-        let values = Expr::list([1., 3., 4.]);
-
-        let func = Function::in_list(col.clone(), values.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_values([1., 3., 4.])
-        );
+        // ((x3 and (x2 and x1))
+        let x = Expr::and(x2.clone(), Expr::and(x1.clone(), x3.clone()));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        assert_eq!(filtered_schema, true_schema);
     }
 
     #[test]
-    fn test_filter_column_data_type_optional() {
-        let col = Column::from("my_b");
-        let datatype = DataType::optional(DataType::float_interval(-1., 1.));
+    fn test_filter_column_schema_optional() {
+        let schema = Schema::from([("a", DataType::optional(DataType::float_interval(-10., 10.)))]);
 
-        if let Expr::Function(func) = Expr::lt(Expr::col("my_b"), Expr::val(0.)) {
-            assert_eq!(
-                func.filter_column_data_type(&col, &datatype),
-                DataType::float_interval(-1., 0.)
-            );
-        }
+        // (a > 1)
+        let x = expr!(gt(a, 1));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([("a", DataType::float_interval(1., 10.))]);
+        assert_eq!(filtered_schema, true_schema);
 
-        if let Expr::Function(func) = Expr::gt(Expr::val(0.), Expr::col("my_b")) {
-            assert_eq!(
-                func.filter_column_data_type(&col, &datatype),
-                DataType::float_interval(-1., 0.)
-            );
-        }
-    }
-
-    #[test]
-    fn test_filter_column_data_type_integer() {
-        // set min value
-        let col = Column::from("MyCol");
-        let datatype = DataType::integer_interval(0, 10);
-        let value = Expr::val(5);
-
-        let func = Function::gt(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_interval(5, 10)
-        );
-
-        let func = Function::gt_eq(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_interval(5, 10)
-        );
-
-        let func = Function::lt(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_interval(5, 10)
-        );
-
-        let func = Function::lt_eq(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_interval(5, 10)
-        );
-
-        // columns do not match
-        let col = Column::from("MyCol");
-        let datatype = DataType::integer();
-        let func = Function::gt(Expr::col("NotMyCol"), Expr::val(5));
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            datatype.clone()
-        );
-
-        // set max value
-        let col = Column::from("MyCol");
-        let datatype: DataType = DataType::integer();
-        let value = Expr::val(5);
-
-        let func = Function::lt(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_max(5)
-        );
-
-        let func = Function::lt_eq(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_max(5)
-        );
-
-        let func = Function::gt(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_max(5)
-        );
-
-        let func = Function::gt_eq(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_max(5)
-        );
-
-        // eq
-        let col = Column::from("MyCol");
-        let datatype = DataType::integer();
-        let value = Expr::val(5);
-
-        let func = Function::eq(col.clone(), value.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_value(5)
-        );
-
-        // eq
-        let col = Column::from("MyCol");
-        let datatype = DataType::integer();
-        let value = Expr::val(5);
-
-        let func = Function::eq(value.clone(), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_value(5)
-        );
-
-        // in
-        let col = Column::from("MyCol");
-        let datatype = DataType::integer();
-        let values = Expr::list([1, 3, 4]);
-
-        let func = Function::in_list(col.clone(), values.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_values([1, 3, 4])
-        );
-    }
-
-    // TODO: Test
-    #[test]
-    fn test_filter_column_data_type_composed() {
-        let col = Column::from("MyCol");
-        let datatype = DataType::integer_interval(-100, 100);
-
-        let func = Function::gt(col.clone(), expr!(3 * 5));
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_interval(15, 100)
-        );
-
-        let func = Function::gt(col.clone(), expr!(5. / 2. - 1 + 2.));
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::integer_interval(3, 100)
-        );
-    }
-
-    // TODO
-
-    #[test]
-    fn test_filter_column_data_type_mixed() {
-        let col = Column::from("MyCol");
-
-        let func = Function::lt(col.clone(), Expr::val(5));
-        assert_eq!(
-            func.filter_column_data_type(&col, &DataType::float_interval(-10., 10.)),
-            DataType::float_interval(-10.0, 5.0)
-        );
-
-        let func = Function::lt(col.clone(), Expr::val(5.0));
-        assert_eq!(
-            func.filter_column_data_type(&col, &DataType::integer_interval(-10, 10)),
-            DataType::integer_interval(-10, 5)
-        );
-
-        let func = Function::gt(Expr::val(5), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &DataType::float_interval(-10., 10.)),
-            DataType::float_interval(-10.0, 5.0)
-        );
-
-        let func = Function::gt(Expr::val(5.0), col.clone());
-        assert_eq!(
-            func.filter_column_data_type(&col, &DataType::integer_interval(-10, 10)),
-            DataType::integer_interval(-10, 5)
-        );
-    }
-
-    #[test]
-    fn test_filter_column_data_type_and() {
-        // set min and max values
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-
-        let func = Function::and(
-            Function::gt(col.clone(), Expr::val(5.)),
-            Function::lt(col.clone(), Expr::val(7.)),
-        );
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_interval(5., 7.)
-        );
-
-        // set min and possible values
-        let col = Column::from("MyCol");
-        let datatype = DataType::float();
-
-        let func = Function::and(
-            Function::gt(col.clone(), Expr::val(5.)),
-            Function::in_list(col.clone(), Expr::list([2., 5., 7.])),
-        );
-        assert_eq!(
-            func.filter_column_data_type(&col, &datatype),
-            DataType::float_values([5., 7.])
-        );
+        // (a < 1)
+        let x = expr!(lt(a, 1));
+        let filtered_schema = x.filter_schema(&schema).unwrap();
+        println!("{} -> {}", x, filtered_schema);
+        let true_schema = Schema::from([("a", DataType::float_interval(-10., 1.))]);
+        assert_eq!(filtered_schema, true_schema);
     }
 
     #[test]
@@ -2519,18 +2252,21 @@ mod tests {
             ("d", DataType::integer_value(0)),
         ]);
         let dt = DataType::structured(
-            schema.fields()
-            .iter()
-            .map(|f| (f.name(), f.data_type()))
-            .collect::<Vec<(&str, DataType)>>()
+            schema
+                .fields()
+                .iter()
+                .map(|f| (f.name(), f.data_type()))
+                .collect::<Vec<(&str, DataType)>>(),
         );
         println!("{}", x.super_image(&dt).unwrap());
         println!("{}", y.super_image(&dt).unwrap());
-        let s = DataType::structured_from_data_types(vec![x.super_image(&dt).unwrap(), y.super_image(&dt).unwrap()]);
+        let s = DataType::structured_from_data_types(vec![
+            x.super_image(&dt).unwrap(),
+            y.super_image(&dt).unwrap(),
+        ]);
         let dt = data_type::function::bivariate_max()
             .super_image(&s)
             .unwrap();
         println!("{}", dt);
-
     }
 }
