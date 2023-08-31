@@ -872,11 +872,9 @@ impl Struct {
 
     /// TODO
     pub fn hierarchy(&self) -> Hierarchy<DataType> {
-        Hierarchy::from(
-            self.iter()
-                .map(|(s, d)| (vec![s.as_str()], d.as_ref().clone()))
-                .collect::<Vec<_>>()
-        )
+        self.iter()
+        .map(|(s, d)| ([s.to_string()].to_vec(), d.as_ref().clone()))
+        .collect()
     }
 }
 
@@ -1153,6 +1151,22 @@ impl Union {
     /// Access a field by index
     pub fn field_from_index(&self, index: usize) -> &(String, Rc<DataType>) {
         &self.fields[index]
+    }
+
+    /// TODO
+    pub fn hierarchy(&self) -> Hierarchy<DataType> {
+        self.iter()
+        .map(|(s, d)| vec![(vec![s.to_string()], d.as_ref().clone())]
+            .iter()
+            .chain(
+                d.as_ref()
+                .hierarchy()
+                .into_iter()
+                .map(|(ss, dd)| &(ss, dd))
+            )
+        )
+        .flatten()
+        .collect()
     }
 }
 
@@ -2474,16 +2488,6 @@ impl Variant for DataType {
             Ok(DataType::Any)
         )
     }
-
-    // fn hierarchy(&self) -> Hierarchy<DataType> {
-    //     for_all_variants!(
-    //         self,
-    //         x,
-    //         x.hierarchy(),
-    //         [Struct, Union],
-    //         Hierarchy::from([[], self])
-    //     )
-    // }
 }
 
 impl InjectInto<DataType> for DataType {
@@ -2721,6 +2725,16 @@ impl DataType {
 
     pub fn function(domain: DataType, co_domain: DataType) -> DataType {
         DataType::from(Function::from((domain, co_domain)))
+    }
+
+    fn hierarchy(&self) -> Hierarchy<DataType> {
+        for_all_variants!(
+            self,
+            x,
+            x.hierarchy(),
+            [Struct, Union],
+            Hierarchy::from([(Vec::<&str>::new(), self.clone())])
+        )
     }
 }
 
