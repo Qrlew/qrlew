@@ -64,6 +64,7 @@ use crate::{
     namer,
     types::{And, Or},
     visitor::{self, Acceptor},
+    hierarchy::Hierarchy
 };
 use injection::{Base, InjectInto, Injection};
 use intervals::{Bound, Intervals};
@@ -867,6 +868,15 @@ impl Struct {
             .into_iter()
             .map(|(s, t)| (s, Rc::new(List::new(t, size.clone()).into())))
             .collect()
+    }
+
+    /// TODO
+    pub fn hierarchy(&self) -> Hierarchy<DataType> {
+        Hierarchy::from(
+            self.iter()
+                .map(|(s, d)| (vec![s.as_str()], d.as_ref().clone()))
+                .collect::<Vec<_>>()
+        )
     }
 }
 
@@ -2464,6 +2474,16 @@ impl Variant for DataType {
             Ok(DataType::Any)
         )
     }
+
+    // fn hierarchy(&self) -> Hierarchy<DataType> {
+    //     for_all_variants!(
+    //         self,
+    //         x,
+    //         x.hierarchy(),
+    //         [Struct, Union],
+    //         Hierarchy::from([[], self])
+    //     )
+    // }
 }
 
 impl InjectInto<DataType> for DataType {
