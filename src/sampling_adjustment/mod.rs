@@ -538,7 +538,7 @@ mod tests {
     use colored::Colorize;
     use itertools::Itertools;
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_uniform_poisson_sampling() {
         let mut database = postgresql::test_database();
@@ -800,7 +800,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_map_with_weight() {
         let mut database = postgresql::test_database();
@@ -840,7 +840,7 @@ mod tests {
         );
     }
     
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_reduce_with_weight() {
         let mut database = postgresql::test_database();
@@ -890,7 +890,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_join_with_weight() {
         let mut database = postgresql::test_database();
@@ -960,7 +960,7 @@ mod tests {
         print!("\nFROM WEIGHTED RELATION partial reslts:\n");
         let mut res_holder: Vec<Vec<f64>> = vec![];
         for _ in 0..n_experiments {
-            let sampled_relation = if use_possin_sampling {
+            let sampled_relation = if use_poisson_sampling {
                 relation_to_sample.uniform_poisson_sampling(proba)
             } else {
                 relation_to_sample.uniform_sampling_without_replacements(proba, 2.0)
@@ -1006,7 +1006,7 @@ mod tests {
 
         //for displaying purposes
         relation_to_sample.display_dot().unwrap();
-        let sampled_relation = if use_possin_sampling {
+        let sampled_relation = if use_poisson_sampling {
             relation_to_sample.uniform_poisson_sampling(proba)
         } else {
             // use a relatively safe rate_multiplier (2.0) for optimization purposes
@@ -1028,7 +1028,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_simple_reduce() {
         let mut database = postgresql::test_database();
@@ -1043,7 +1043,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_join_reduce() {
         let mut database = postgresql::test_database();
@@ -1058,7 +1058,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_reduce() {
         let mut database = postgresql::test_database();
@@ -1090,7 +1090,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_join_reduce() {
         let mut database = postgresql::test_database();
@@ -1111,7 +1111,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_join_reduce_reduce() {
         let mut database = postgresql::test_database();
@@ -1140,7 +1140,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
@@ -1178,7 +1178,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
-    #[cfg(feature = "tested_multiplicity")]
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
