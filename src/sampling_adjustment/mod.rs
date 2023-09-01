@@ -1,7 +1,7 @@
 //! # Given a Relation representing a computaion on a sampled table, a table (representing the schema of original dataset) and a weight representing
 //!
-//! This is experimental and little tested yet.
-//!
+//! WARNING This is experimental and little tested yet.
+// TODO Test and document this properly
 
 use crate::{
     builder::{Ready, With},
