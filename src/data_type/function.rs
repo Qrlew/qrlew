@@ -974,28 +974,29 @@ impl Function for InList {
     }
 
     fn super_image(&self, set: &DataType) -> Result<DataType> {
-        if !set.is_subset_of(&self.domain()) {
-            Err(Error::set_out_of_range(set, self.domain()))
-        } else {
-            if let DataType::Struct(struct_data_type) = set {
-                assert_eq!(struct_data_type.len(), 2);
-                if let DataType::List(List { data_type, .. }) = struct_data_type[1].as_ref() {
-                    Ok(
-                        if struct_data_type[0].as_ref().super_intersection(data_type)?
-                            == DataType::Null
-                        {
-                            DataType::boolean_value(false)
-                        } else {
-                            DataType::boolean()
-                        },
-                    )
-                } else {
-                    Err(Error::set_out_of_range(set, self.domain()))
-                }
-            } else {
-                Err(Error::set_out_of_range(set, self.domain()))
-            }
-        }
+        // if !set.is_subset_of(&self.domain()) {
+        //     Err(Error::set_out_of_range(set, self.domain()))
+        // } else {
+        //     if let DataType::Struct(struct_data_type) = set {
+        //         assert_eq!(struct_data_type.len(), 2);
+        //         if let DataType::List(List { data_type, .. }) = struct_data_type[1].as_ref() {
+        //             Ok(
+        //                 if struct_data_type[0].as_ref().super_intersection(data_type)?
+        //                     == DataType::Null
+        //                 {
+        //                     DataType::boolean_value(false)
+        //                 } else {
+        //                     DataType::boolean()
+        //                 },
+        //             )
+        //         } else {
+        //             Err(Error::set_out_of_range(set, self.domain()))
+        //         }
+        //     } else {
+        //         Err(Error::set_out_of_range(set, self.domain()))
+        //     }
+        // }
+        todo!()
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {

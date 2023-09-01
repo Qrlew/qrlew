@@ -119,6 +119,19 @@ impl<T: Clone> Hierarchy<T> {
         Hierarchy::new(BTreeMap::new())
     }
 
+    pub fn chain(self, other: Self) -> Self {
+        self.into_iter().chain(other.into_iter()).collect()
+    }
+
+    pub fn prepend(self, head: &[String]) -> Self {
+        self.into_iter()
+            .map(|(s, d)| (
+                head.iter().map(|s| s.to_string()).chain(s.into_iter()).collect::<Vec<String>>(),
+                d
+            ))
+            .collect()
+    }
+
     pub fn get(&self, path: &[String]) -> Option<&T> {
         self.0.get(path).or_else(|| {
             self.0
@@ -246,6 +259,8 @@ impl<T: Clone + fmt::Display> fmt::Display for Hierarchy<T> {
 
 #[cfg(test)]
 mod tests {
+    use crate::DataType;
+
     use super::*;
 
     #[test]
@@ -326,5 +341,43 @@ mod tests {
 
         println!("values = {:#?}", values);
         println!("mapped values = {}", values.clone().and_then(map));
+    }
+
+    #[test]
+    fn test_chain() {
+        let h1 = Hierarchy::from([
+            (["table_1", "a"], DataType::float()),
+            (["table_1", "b"], DataType::integer()),
+        ]);
+        let h2 = Hierarchy::from([
+            (["table_2", "a"], DataType::float()),
+            (["table_2", "c"], DataType::integer()),
+        ]);
+        let joined_h = h1.chain(h2);
+        assert_eq!(
+            joined_h,
+            Hierarchy::from([
+                (["table_1", "a"], DataType::float()),
+                (["table_1", "b"], DataType::integer()),
+                (["table_2", "a"], DataType::float()),
+                (["table_2", "c"], DataType::integer()),
+            ])
+        )
+    }
+
+    #[test]
+    fn test_preprend() {
+        let h1 = Hierarchy::from([
+            (["a"], DataType::float()),
+            (["b"], DataType::integer()),
+        ]);
+        let prepended_h = h1.prepend(&["table_1".to_string()]);
+        assert_eq!(
+            prepended_h,
+            Hierarchy::from([
+                (["table_1", "a"], DataType::float()),
+                (["table_1", "b"], DataType::integer()),
+            ])
+        )
     }
 }

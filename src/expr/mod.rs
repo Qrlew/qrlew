@@ -28,10 +28,14 @@ use std::{
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _, function::Function as _},
+    data_type::{
+        self, value, DataType, DataTyped, Variant as _, Struct as DataTypeStruct,
+        function::{bivariate_max, bivariate_min, Function as _}
+    },
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
+    builder::With,
 };
 
 pub use identifier::Identifier;
@@ -134,6 +138,14 @@ impl Function {
         }
     }
 
+    pub fn function(&self) -> function::Function {
+        self.function
+    }
+
+    pub fn arguments(&self) -> Vec<&Expr> {
+        self.arguments.iter().map(|x| x.as_ref()).collect()
+    }
+
     /// Returns the `DataType` of a column filtered by the current `Function`
     ///
     /// # Arguments:
@@ -223,6 +235,90 @@ impl Function {
             }
             _ => datatype.clone(),
         }
+    }
+
+    pub fn filter_hierarchy(&self, hierarchy: Hierarchy<DataType>) -> Hierarchy<DataType> {
+        let datatype = DataType::union(
+            hierarchy.iter()
+            .filter_map(|(p, d)| if matches!(d, DataType::Struct(_)) {
+                assert_eq!(p.len(), 1);
+                Some((p.last().unwrap().to_string(), d.clone()))
+            } else {
+                None
+            })
+            .collect::<Vec<(String, DataType)>>()
+        );
+        let mut hierarchy = hierarchy;
+        match (self.function, self.arguments().as_slice()) {
+            (function::Function::And, [left, right]) => {
+                let hierarchy1 = left.filter_hierarchy(right.filter_hierarchy(hierarchy.clone()));
+                let hierarchy2 = right.filter_hierarchy(left.filter_hierarchy(hierarchy.clone()));
+                hierarchy = hierarchy.clone().with(
+                    hierarchy.iter()
+                        .map(|(p, _)| {
+                            (p.clone(), hierarchy1[p].super_intersection(&hierarchy2[p]).unwrap())
+                        })
+                )
+            }
+            // Set min or max
+            (function::Function::Gt, [left, right])
+            | (function::Function::GtEq, [left, right])
+            | (function::Function::Lt, [right, left])
+            | (function::Function::LtEq, [right, left]) => {
+                let left_dt = left.super_image(&datatype).unwrap_or(datatype.clone());
+                let right_dt = right.super_image(&datatype).unwrap_or(datatype.clone());
+
+                let left_dt = if let DataType::Optional(o) = left_dt {
+                    o.data_type().clone()
+                } else {
+                    left_dt
+                };
+
+                let right_dt = if let DataType::Optional(o) = right_dt {
+                    o.data_type().clone()
+                } else {
+                    right_dt
+                };
+
+                let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                if let Expr::Column(col) = left {
+                    if let Ok(dt) = bivariate_max()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&left_dt) {
+                            hierarchy = hierarchy.with([(col.as_slice(), dt)]);
+                        }
+                }
+                if let Expr::Column(col) = right {
+                    if let Ok(dt) = bivariate_min()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&right_dt){
+                            hierarchy = hierarchy.with([(col.as_slice(), dt)]);
+                        }
+                }
+            }
+            (function::Function::Eq, [left, right]) => {
+                let left_dt = left.super_image(&datatype).unwrap_or(datatype.clone());
+                let right_dt = right.super_image(&datatype).unwrap_or(datatype);
+                if let Ok(dt) = left_dt.super_intersection(&right_dt) {
+                    if let Expr::Column(col) = left {
+                        hierarchy = hierarchy.with([(col.as_slice(), dt.clone())]);
+                    }
+                    if let Expr::Column(col) = right {
+                        hierarchy = hierarchy.with([(col.as_slice(), dt)]);
+                    }
+                }
+            }
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
+                if let Ok(dt) = DataType::from_iter(l.to_vec().clone())
+                    .super_intersection(&hierarchy[col.as_slice()]) {
+                        hierarchy = hierarchy.with([(col.as_slice(), dt)])
+                    }
+            }
+            _ => (),
+        }
+        hierarchy
     }
 }
 
@@ -329,6 +425,16 @@ impl Expr {
             .filter_map(|(name, (min, max, values))| Expr::filter_column(name, min, max, values))
             .collect();
         Self::and_iter(predicates)
+    }
+
+    pub fn filter_hierarchy(&self, hierarchy: Hierarchy<DataType>) -> Hierarchy<DataType>{
+        match self {
+            Expr::Function(func) => func.filter_hierarchy(hierarchy),
+            Expr::Column(_)
+            | Expr::Value(_)
+            | Expr::Aggregate(_)
+            | Expr::Struct(_) => hierarchy, // TODO: if {0} or {false} datatype -> DataType::Null for all columns
+        }
     }
 }
 
@@ -893,7 +999,8 @@ pub struct SuperImageVisitor<'a>(&'a DataType);
 
 impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
     fn column(&self, column: &'a Column) -> Result<DataType> {
-        Ok(self.0[column.clone()].clone())
+        //Ok(self.0[column.clone()].clone())
+        todo!()
     }
 
     fn value(&self, value: &'a Value) -> Result<DataType> {

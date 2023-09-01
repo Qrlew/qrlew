@@ -64,7 +64,7 @@ use crate::{
     namer,
     types::{And, Or},
     visitor::{self, Acceptor},
-    hierarchy::Hierarchy
+    hierarchy::{Hierarchy, Path}
 };
 use injection::{Base, InjectInto, Injection};
 use intervals::{Bound, Intervals};
@@ -870,10 +870,9 @@ impl Struct {
             .collect()
     }
 
-    /// TODO
-    pub fn hierarchy(&self) -> Hierarchy<DataType> {
+    pub fn hierarchy(&self) -> Hierarchy<&DataType> {
         self.iter()
-        .map(|(s, d)| ([s.to_string()].to_vec(), d.as_ref().clone()))
+        .map(|(s, d)| ([s.to_string()].to_vec(), d.as_ref()))
         .collect()
     }
 }
@@ -1076,20 +1075,11 @@ impl InjectInto<DataType> for Struct {
 }
 
 // Index Structs
-
 impl Index<&str> for Struct {
     type Output = Rc<DataType>;
 
     fn index(&self, index: &str) -> &Self::Output {
         &self.field(index).unwrap().1
-    }
-}
-
-impl Index<usize> for Struct {
-    type Output = Rc<DataType>;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.field_from_index(index).1
     }
 }
 
@@ -1153,20 +1143,15 @@ impl Union {
         &self.fields[index]
     }
 
-    /// TODO
-    pub fn hierarchy(&self) -> Hierarchy<DataType> {
+    pub fn hierarchy(&self) -> Hierarchy<&DataType> {
+        let h: Hierarchy<&DataType> = self.iter().map(|(s, d)| (vec![s.to_string()], d.as_ref())).collect();
         self.iter()
-        .map(|(s, d)| vec![(vec![s.to_string()], d.as_ref().clone())]
-            .iter()
-            .chain(
-                d.as_ref()
-                .hierarchy()
-                .into_iter()
-                .map(|(ss, dd)| &(ss, dd))
-            )
+        .fold(
+            h,
+            |acc, (s, d)|
+            acc.chain(d.hierarchy().prepend(&[s.to_string()]))
+
         )
-        .flatten()
-        .collect()
     }
 }
 
@@ -2727,14 +2712,22 @@ impl DataType {
         DataType::from(Function::from((domain, co_domain)))
     }
 
-    fn hierarchy(&self) -> Hierarchy<DataType> {
+    fn hierarchy(&self) -> Hierarchy<&DataType> {
         for_all_variants!(
             self,
             x,
             x.hierarchy(),
             [Struct, Union],
-            Hierarchy::from([(Vec::<&str>::new(), self.clone())])
+            Hierarchy::from([(Vec::<&str>::new(), self)])
         )
+    }
+}
+
+impl<P: Path> Index<P> for DataType {
+    type Output = DataType;
+
+    fn index(&self, index: P) -> &Self::Output {
+        self.hierarchy()[index]
     }
 }
 
@@ -3358,20 +3351,26 @@ mod tests {
     }
 
     #[test]
-    fn test_struct_index() {
-        let a = DataType::unit() & DataType::boolean() & DataType::boolean() & DataType::float();
-        println!("a = {}", &a);
-        let b = DataType::unit()
-            & ("a", DataType::boolean())
-            & DataType::unit()
-            & a
-            & ("c", DataType::boolean())
-            & ("d", DataType::float());
-        let b = Struct::try_from(b).unwrap();
-        println!("b = {b}");
-        println!("b[4] = {}", b[4]);
-        println!("b[c] = {}", b["c"]);
-        assert_eq!(b[4].as_ref(), &(DataType::float()));
+    fn test_index() {
+        let dt = DataType::float();
+        assert_eq!(dt[Vec::<String>::new()], dt);
+        let dt1 = DataType::structured([
+            ("a", DataType::integer()),
+            ("b", DataType::boolean())
+        ]);
+        let dt2 = DataType::structured([
+            ("a", DataType::float()),
+            ("c", DataType::integer())
+        ]);
+        let dt = DataType::Null
+        | ("table1", dt1.clone())
+        | ("table2", dt2.clone());
+        assert_eq!(dt["table1"], dt1);
+        assert_eq!(dt["table2"], dt2);
+        assert_eq!(dt[["table1", "a"]], DataType::integer());
+        assert_eq!(dt[["table2", "a"]], DataType::float());
+        assert_eq!(dt["b"], DataType::boolean());
+        assert_eq!(dt[["c"]], DataType::integer());
     }
 
     #[test]
@@ -3844,5 +3843,41 @@ mod tests {
         let left = DataType::integer_interval(3, 7);
         let right = DataType::optional(DataType::integer_interval(2, 5));
         assert!(DataType::into_common_sub_variant(&left, &right).is_err());
+    }
+
+    #[test]
+    fn test_hierarchy(){
+        let struct_dt = DataType::structured([
+            ("a", DataType::float()),
+            ("b", DataType::integer()),
+        ]);
+        println!("{}", struct_dt.hierarchy());
+        // let correct_hierarchy = Hierarchy::from([
+        //     (vec!["a"], &DataType::float()),
+        //     (vec!["b"], &DataType::integer()),
+        // ]);
+        // assert_eq!(
+        //     struct_dt.hierarchy(),
+        //     correct_hierarchy
+        // );
+        let struct_dt2 = DataType::structured([
+            ("a", DataType::integer()),
+            ("c", DataType::integer()),
+        ]);
+        // let correct_hierarchy = Hierarchy::from([
+        //     (vec!["table1"], &struct_dt),
+        //     (vec!["table2"], &struct_dt2),
+        //     (vec!["table1", "a"], &DataType::float()),
+        //     (vec!["table1", "b"], &DataType::integer()),
+        //     (vec!["table2", "a"], &DataType::integer()),
+        //     (vec!["table2", "c"], &DataType::integer()),
+        // ]);
+        let union_dt = DataType::union([
+            ("table1", struct_dt),
+            ("table2", struct_dt2),
+        ]);
+        let h = union_dt.hierarchy();
+        println!("{}", h);
+        //assert_eq!(h, correct_hierarchy);
     }
 }

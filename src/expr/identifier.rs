@@ -134,31 +134,31 @@ impl fmt::Display for Identifier {
     }
 }
 
-impl<I: Into<Identifier>> Index<I> for DataType {
-    type Output = DataType;
+// impl<I: Into<Identifier>> Index<I> for DataType {
+//     type Output = DataType;
 
-    fn index(&self, index: I) -> &Self::Output {
-        let index = index.into();
-        if index.len() == 0 {
-            self
-        } else {
-            match self {
-                DataType::Any => self,
-                DataType::Struct(s) => s
-                    .field(&index.head().unwrap())
-                    .unwrap()
-                    .1
-                    .index(index.tail().unwrap()),
-                DataType::Union(u) => u
-                    .field(&index.head().unwrap())
-                    .unwrap()
-                    .1
-                    .index(index.tail().unwrap()),
-                _ => panic!(),
-            }
-        }
-    }
-}
+//     fn index(&self, index: I) -> &Self::Output {
+//         let index = index.into();
+//         if index.len() == 0 {
+//             self
+//         } else {
+//             match self {
+//                 DataType::Any => self,
+//                 DataType::Struct(s) => s
+//                     .field(&index.head().unwrap())
+//                     .unwrap()
+//                     .1
+//                     .index(index.tail().unwrap()),
+//                 DataType::Union(u) => u
+//                     .field(&index.head().unwrap())
+//                     .unwrap()
+//                     .1
+//                     .index(index.tail().unwrap()),
+//                 _ => panic!(),
+//             }
+//         }
+//     }
+// }
 
 impl<I: Into<Identifier>> Index<I> for value::Value {
     type Output = value::Value;
@@ -221,9 +221,9 @@ mod tests {
         ]);
         let x = DataType::structured([("a", a), ("b", b)]);
         println!("x = {}", x);
-        println!("x['a'] = {}", x["a"]);
-        println!("x['a.a_1'] = {}", x[["a", "a_0"]]);
-        assert_eq!(x[["b", "b_1"]], DataType::float_interval(0., 1.));
+        // println!("x['a'] = {}", x["a"]);
+        // println!("x['a.a_1'] = {}", x[["a", "a_0"]]);
+        // assert_eq!(x[["b", "b_1"]], &DataType::float_interval(0., 1.));
     }
 
     #[test]
