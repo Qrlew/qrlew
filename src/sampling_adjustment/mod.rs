@@ -1025,7 +1025,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_adjustment_simple_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -1040,7 +1039,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_adjustment_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -1055,7 +1053,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_adjustment_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -1087,7 +1084,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_adjustment_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -1108,7 +1104,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_adjustment_join_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -1137,7 +1132,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_adjustment_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
@@ -1175,7 +1169,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_adjustment_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
         let relations: Hierarchy<Rc<Relation>> = database.relations();
