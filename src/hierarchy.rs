@@ -122,11 +122,11 @@ impl<T: Clone> Hierarchy<T> {
     pub fn chain(self, other: Self) -> Self {
         self.into_iter().chain(other.into_iter()).collect()
     }
-
+    
     pub fn prepend(self, head: &[String]) -> Self {
         self.into_iter()
             .map(|(s, d)| (
-                head.iter().map(|s| s.to_string()).chain(s.into_iter()).collect::<Vec<String>>(),
+                head.iter().map(|s| s.clone()).chain(s.into_iter()).collect::<Vec<String>>(),
                 d
             ))
             .collect()

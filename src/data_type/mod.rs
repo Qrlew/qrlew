@@ -860,7 +860,6 @@ impl Struct {
     pub fn field_from_index(&self, index: usize) -> &(String, Rc<DataType>) {
         &self.fields[index]
     }
-
     /// Build the type of a DataFrame (column based data)
     pub fn from_schema_size(schema: Struct, size: &Integer) -> Struct {
         schema
@@ -869,15 +868,14 @@ impl Struct {
             .map(|(s, t)| (s, Rc::new(List::new(t, size.clone()).into())))
             .collect()
     }
-
+    // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
+    /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
     pub fn hierarchy(&self) -> Hierarchy<&DataType> {
-        let h: Hierarchy<&DataType> = self.iter().map(|(s, d)| (vec![s.to_string()], d.as_ref())).collect();
         self.iter()
         .fold(
-            h,
-            |acc, (s, d)|
-            acc.chain(d.hierarchy().prepend(&[s.to_string()]))
-
+            self.iter().map(|(s, d)| (vec![s.clone()], d.as_ref())).collect(),
+            |h, (s, d)|
+            h.chain(d.hierarchy().prepend(&[s.clone()]))
         )
     }
 }
@@ -1155,15 +1153,14 @@ impl Union {
     pub fn field_from_index(&self, index: usize) -> &(String, Rc<DataType>) {
         &self.fields[index]
     }
-
+    // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
+    /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
     pub fn hierarchy(&self) -> Hierarchy<&DataType> {
-        let h: Hierarchy<&DataType> = self.iter().map(|(s, d)| (vec![s.to_string()], d.as_ref())).collect();
         self.iter()
         .fold(
-            h,
-            |acc, (s, d)|
-            acc.chain(d.hierarchy().prepend(&[s.to_string()]))
-
+            self.iter().map(|(s, d)| (vec![s.clone()], d.as_ref())).collect(),
+            |h, (s, d)|
+            h.chain(d.hierarchy().prepend(&[s.clone()]))
         )
     }
 }
@@ -2327,6 +2324,17 @@ impl DataType {
             _ => Err(Error::other("No common variant")),
         }
     }
+    // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
+    /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
+    fn hierarchy(&self) -> Hierarchy<&DataType> {
+        for_all_variants!(
+            self,
+            x,
+            x.hierarchy(),
+            [Struct, Union],
+            Hierarchy::from([(Vec::<&str>::new(), self)])
+        )
+    }
 }
 
 impl Variant for DataType {
@@ -2722,16 +2730,6 @@ impl DataType {
 
     pub fn function(domain: DataType, co_domain: DataType) -> DataType {
         DataType::from(Function::from((domain, co_domain)))
-    }
-
-    fn hierarchy(&self) -> Hierarchy<&DataType> {
-        for_all_variants!(
-            self,
-            x,
-            x.hierarchy(),
-            [Struct, Union],
-            Hierarchy::from([(Vec::<&str>::new(), self)])
-        )
     }
 }
 
