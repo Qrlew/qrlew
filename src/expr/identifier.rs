@@ -1,13 +1,12 @@
 use std::{
     fmt,
-    ops::{self, Index},
+    ops,
     vec,
 };
 
 use super::{Error, Result};
 use crate::{
     builder::With,
-    data_type::{value, DataType},
     hierarchy::Path,
 };
 
@@ -134,54 +133,6 @@ impl fmt::Display for Identifier {
     }
 }
 
-impl<I: Into<Identifier>> Index<I> for DataType {
-    type Output = DataType;
-
-    fn index(&self, index: I) -> &Self::Output {
-        let index = index.into();
-        if index.len() == 0 {
-            self
-        } else {
-            match self {
-                DataType::Any => self,
-                DataType::Struct(s) => s
-                    .field(&index.head().unwrap())
-                    .unwrap()
-                    .1
-                    .index(index.tail().unwrap()),
-                DataType::Union(u) => u
-                    .field(&index.head().unwrap())
-                    .unwrap()
-                    .1
-                    .index(index.tail().unwrap()),
-                _ => panic!(),
-            }
-        }
-    }
-}
-
-impl<I: Into<Identifier>> Index<I> for value::Value {
-    type Output = value::Value;
-
-    fn index(&self, index: I) -> &Self::Output {
-        let index = index.into();
-        if index.len() == 0 {
-            self
-        } else {
-            match self {
-                value::Value::Struct(s) => s
-                    .value(&index.head().unwrap())
-                    .unwrap()
-                    .index(index.tail().unwrap()),
-                value::Value::Union(u) if u.0 == index.head().unwrap() => {
-                    u.1.index(index.tail().unwrap())
-                }
-                _ => panic!(),
-            }
-        }
-    }
-}
-
 impl Path for Identifier {
     fn path(self) -> Vec<String> {
         self.0
@@ -207,39 +158,5 @@ mod tests {
         println!("tail = {}", id.tail().unwrap());
         println!("tail^2 = {}", id.tail().unwrap().tail().unwrap());
         assert!(id.tail().unwrap().tail().unwrap().len() == 2)
-    }
-
-    #[test]
-    fn test_data_type_indexing() {
-        let a = DataType::structured([
-            ("a_0", DataType::integer_min(-10)),
-            ("a_1", DataType::integer()),
-        ]);
-        let b = DataType::structured([
-            ("b_0", DataType::float()),
-            ("b_1", DataType::float_interval(0., 1.)),
-        ]);
-        let x = DataType::structured([("a", a), ("b", b)]);
-        println!("x = {}", x);
-        println!("x['a'] = {}", x["a"]);
-        println!("x['a.a_1'] = {}", x[["a", "a_0"]]);
-        assert_eq!(x[["b", "b_1"]], DataType::float_interval(0., 1.));
-    }
-
-    #[test]
-    fn test_value_indexing() {
-        let a = value::Value::structured([
-            ("a_0", value::Value::from(-10)),
-            ("a_1", value::Value::from(1)),
-        ]);
-        let b = value::Value::structured([
-            ("b_0", value::Value::from(0.1)),
-            ("b_1", value::Value::from(10.0)),
-        ]);
-        let x = value::Value::structured([("a", a), ("b", b)]);
-        println!("x = {}", x);
-        println!("x['a'] = {}", x["a"]);
-        println!("x['a.a_1'] = {}", x[["a", "a_0"]]);
-        assert_eq!(x[["b", "b_1"]], 10.0.into());
     }
 }
