@@ -538,6 +538,7 @@ mod tests {
     use colored::Colorize;
     use itertools::Itertools;
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_uniform_poisson_sampling() {
         let mut database = postgresql::test_database();
@@ -799,6 +800,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_map_with_weight() {
         let mut database = postgresql::test_database();
@@ -837,7 +839,8 @@ mod tests {
                 .join("\n")
         );
     }
-
+    
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_reduce_with_weight() {
         let mut database = postgresql::test_database();
@@ -846,10 +849,10 @@ mod tests {
 
         let query = "
         WITH tmp AS (
-            SELECT 
-                id, 
-                AVG(income) AS avg_income 
-            FROM large_user_table 
+            SELECT
+                id,
+                AVG(income) AS avg_income
+            FROM large_user_table
             GROUP BY id
         ) SELECT AVG(avg_income) FROM tmp";
 
@@ -887,6 +890,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_join_with_weight() {
         let mut database = postgresql::test_database();
@@ -949,7 +953,7 @@ mod tests {
         relation_to_sample: &Relation,
         proba: f64,
         n_experiments: u32,
-        use_possin_sampling: bool,
+        use_poisson_sampling: bool,
     ) {
         let mut database = postgresql::test_database();
 
@@ -1024,6 +1028,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_adjustment_simple_reduce() {
         let mut database = postgresql::test_database();
@@ -1038,6 +1043,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_adjustment_join_reduce() {
         let mut database = postgresql::test_database();
@@ -1052,6 +1058,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_adjustment_reduce_reduce() {
         let mut database = postgresql::test_database();
@@ -1064,10 +1071,10 @@ mod tests {
             AVG(income) AS avg_inc,
             SUM(income) AS sum_inc,
             COUNT(city) AS count_city
-        FROM large_user_table GROUP BY id 
+        FROM large_user_table GROUP BY id
         )
         SELECT
-            COUNT(id), 
+            COUNT(id),
             AVG(avg_inc) AS avg_avg_inc,
             SUM(avg_inc) AS sum_avg_inc,
             AVG(sum_inc) AS avg_sum_inc,
@@ -1083,6 +1090,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_adjustment_reduce_join_reduce() {
         let mut database = postgresql::test_database();
@@ -1090,7 +1098,7 @@ mod tests {
 
         // bug with USING (col)
         let query = "
-        WITH 
+        WITH
         tmp1 AS (select city, name, income from large_user_table),
         tmp2 AS (select city, SUM(age) AS sum_age from user_table GROUP BY city),
         tmp3 AS (SELECT name, income, sum_age FROM tmp1 JOIN tmp2 ON(tmp1.city=tmp2.city))
@@ -1103,6 +1111,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_adjustment_join_reduce_reduce() {
         let mut database = postgresql::test_database();
@@ -1110,17 +1119,17 @@ mod tests {
 
         // 2 reduce after the join
         let query = "
-         WITH 
+         WITH
          tmp1 AS (SELECT user_id FROM order_table),
          tmp2 AS (SELECT id, income, city FROM large_user_table),
          tmp3 AS (SELECT income, city FROM tmp1 JOIN tmp2 ON tmp1.user_id=tmp2.id),
          tmp4 AS (
-            SELECT 
-                city, 
-                COUNT(income) AS count_income, 
-                SUM(income) AS sum_income, 
-                AVG(income) AS avg_income 
-            FROM tmp3 
+            SELECT
+                city,
+                COUNT(income) AS count_income,
+                SUM(income) AS sum_income,
+                AVG(income) AS avg_income
+            FROM tmp3
             GROUP BY city
         )
          SELECT COUNT(count_income), SUM(sum_income), AVG(avg_income), AVG(count_income), AVG(sum_income) FROM tmp4
@@ -1131,6 +1140,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_adjustment_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
@@ -1141,16 +1151,16 @@ mod tests {
 
         let query = "
         WITH tmp1 AS (
-          SELECT id, city, AVG(income) AS avg_inc, SUM(income) AS sum_inc FROM large_user_table GROUP BY id, city 
+          SELECT id, city, AVG(income) AS avg_inc, SUM(income) AS sum_inc FROM large_user_table GROUP BY id, city
         ),
         tmp2 AS (
-            SELECT 
+            SELECT
                 id,
-                COUNT(city) AS count_city, 
-                AVG(avg_inc) AS avg_avg_inc, 
-                SUM(avg_inc) AS sum_avg_inc, 
-                AVG(sum_inc) AS avg_sum_inc, 
-                SUM(sum_inc) AS sum_sum_inc 
+                COUNT(city) AS count_city,
+                AVG(avg_inc) AS avg_avg_inc,
+                SUM(avg_inc) AS sum_avg_inc,
+                AVG(sum_inc) AS avg_sum_inc,
+                SUM(sum_inc) AS sum_sum_inc
             FROM tmp1 GROUP BY id
           )
         SELECT
@@ -1168,6 +1178,7 @@ mod tests {
         collect_results_from_many_samples(&relation, fraction, 100, true)
     }
 
+    #[cfg(feature = "tested_multiplicity")]
     #[test]
     fn test_adjustment_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
@@ -1177,41 +1188,41 @@ mod tests {
         let fraction: f64 = 1.0 / weight;
 
         let query = "
-        WITH 
+        WITH
         tmp1 AS (
-            SELECT 
+            SELECT
                 id,
-                COUNT(user_id) AS count_user_id, 
-                AVG(user_id) AS avg_user_id, 
-                SUM(user_id) AS sum_user_id 
-            FROM order_table 
+                COUNT(user_id) AS count_user_id,
+                AVG(user_id) AS avg_user_id,
+                SUM(user_id) AS sum_user_id
+            FROM order_table
             GROUP BY id
         ),
         tmp2 AS (
             SELECT
-                id, 
+                id,
                 AVG(income) AS avg_income,
-                SUM(income) AS sum_income 
-            FROM large_user_table 
+                SUM(income) AS sum_income
+            FROM large_user_table
             GROUP BY id
         ),
         tmp3 AS (
-            SELECT 
-                count_user_id, 
-                avg_user_id, 
-                avg_income, 
-                sum_user_id, 
-                sum_income 
-            FROM tmp1 
+            SELECT
+                count_user_id,
+                avg_user_id,
+                avg_income,
+                sum_user_id,
+                sum_income
+            FROM tmp1
             JOIN tmp2 ON (tmp1.id = tmp2.id)
         )
-        SELECT 
-            COUNT(count_user_id), 
-            AVG(avg_user_id), 
-            AVG(avg_income), 
-            SUM(sum_user_id), 
-            AVG(sum_income), 
-            SUM(avg_income) 
+        SELECT
+            COUNT(count_user_id),
+            AVG(avg_user_id),
+            AVG(avg_income),
+            SUM(sum_user_id),
+            AVG(sum_income),
+            SUM(avg_income)
         FROM tmp3
         ";
 

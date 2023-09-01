@@ -7,11 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.2] - 2023-08-07
+## [0.2.2] - 2023-08-29
 ### Changed
 - module name: `multiplicity` -> `sampling_adjustments` [MR77](https://github.com/Qrlew/qrlew/pull/77)
 - more coherent objects and function names inside `sampling_adjustments` [MR77](https://github.com/Qrlew/qrlew/pull/77)
-
+- Updated sqlparser version
+- Deactivate graphviz display by default
+- Deactivate multiplicity testing by default
 ### Added
 - In `sampling_adjustments` added differenciated sampling and adjustments [MR77](https://github.com/Qrlew/qrlew/pull/77)
 
@@ -19,10 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 - `Relation::possible_values` and used it in thresholding [MR73](https://github.com/Qrlew/qrlew/pull/73)
+- Error handling in transforms and diffrential_privacy [MR59](https://github.com/Qrlew/qrlew/pull/59)
+- Support for filtering by expression i.e. a > 3 * 5 [MR81](https://github.com/Qrlew/qrlew/pull/81)
 ### Changed
 - `Relation::filter_columns`
 -  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 -  Fixed table naming
+-  Made tests for multiplicity optional to avaoid Memory errors in the CI [MR84](https://github.com/Qrlew/qrlew/pull/84)
+### Fixed
+- Injection Float -> Integer and DataType.super_intersection [MR84](https://github.com/Qrlew/qrlew/pull/84)
 
 ## [0.2.0] - 2023-07-25
 ### Added

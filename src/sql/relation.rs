@@ -561,7 +561,7 @@ mod tests {
 
     #[test]
     fn test_map_from_query() {
-        let query = parse("SELECT exp(a) FROM shema.table").unwrap();
+        let query = parse("SELECT exp(a) FROM schema.table").unwrap();
         let schema: Schema = vec![
             ("a", DataType::float()),
             ("b", DataType::float_interval(-2., 2.)),
@@ -577,7 +577,7 @@ mod tests {
             .build();
         let map = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["shema", "table"], Rc::new(table))]),
+            &Hierarchy::from([(["schema", "table"], Rc::new(table))]),
         ))
         .unwrap();
         print!("{}", map)

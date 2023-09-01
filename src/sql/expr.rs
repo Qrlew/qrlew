@@ -124,6 +124,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 expr,
                 substring_from,
                 substring_for,
+                special,
             } => vec![Some(expr), substring_from.as_ref(), substring_for.as_ref()]
                 .iter()
                 .filter_map(|expr| expr.map(AsRef::as_ref))
@@ -343,6 +344,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 substring_from,
                 substring_for,
+                special,
             } => todo!(),
             ast::Expr::Trim {
                 expr,
