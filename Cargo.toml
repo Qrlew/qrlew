@@ -38,6 +38,6 @@ sqlite = ["dep:rusqlite"]
 # Tests
 checked_injections = []
 # Multiplicity features are tested on large datasets (may take too much memory)
-tested_multiplicity = []
+tested_sampling_adjustment = []
 # Display graphviz (may take long)
 graphviz_display = []
