@@ -871,9 +871,14 @@ impl Struct {
     }
 
     pub fn hierarchy(&self) -> Hierarchy<&DataType> {
+        let h: Hierarchy<&DataType> = self.iter().map(|(s, d)| (vec![s.to_string()], d.as_ref())).collect();
         self.iter()
-        .map(|(s, d)| ([s.to_string()].to_vec(), d.as_ref()))
-        .collect()
+        .fold(
+            h,
+            |acc, (s, d)|
+            acc.chain(d.hierarchy().prepend(&[s.to_string()]))
+
+        )
     }
 }
 
@@ -1075,11 +1080,19 @@ impl InjectInto<DataType> for Struct {
 }
 
 // Index Structs
-impl Index<&str> for Struct {
+impl<P: Path> Index<P> for Struct {
+    type Output = DataType;
+
+    fn index(&self, index: P) -> &Self::Output {
+        self.hierarchy()[index]
+    }
+}
+
+impl Index<usize> for Struct {
     type Output = Rc<DataType>;
 
-    fn index(&self, index: &str) -> &Self::Output {
-        &self.field(index).unwrap().1
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.field_from_index(index).1
     }
 }
 
@@ -1357,12 +1370,11 @@ impl InjectInto<DataType> for Union {
 }
 
 // Index Unions
+impl<P: Path> Index<P> for Union {
+    type Output = DataType;
 
-impl Index<&str> for Union {
-    type Output = Rc<DataType>;
-
-    fn index(&self, index: &str) -> &Self::Output {
-        &self.field(index).unwrap().1
+    fn index(&self, index: P) -> &Self::Output {
+        self.hierarchy()[index]
     }
 }
 
@@ -3371,6 +3383,19 @@ mod tests {
         assert_eq!(dt[["table2", "a"]], DataType::float());
         assert_eq!(dt["b"], DataType::boolean());
         assert_eq!(dt[["c"]], DataType::integer());
+
+        let a = DataType::structured([
+            ("a_0", DataType::integer_min(-10)),
+            ("a_1", DataType::integer()),
+        ]);
+        let b = DataType::structured([
+            ("b_0", DataType::float()),
+            ("b_1", DataType::float_interval(0., 1.)),
+        ]);
+        let x = DataType::structured([("a", a.clone()), ("b", b)]);
+        println!("{}", x);
+        assert_eq!(x[["a"]], a);
+        assert_eq!(x[["a", "a_1"]], DataType::integer());
     }
 
     #[test]
@@ -3847,37 +3872,39 @@ mod tests {
 
     #[test]
     fn test_hierarchy(){
+        let dt_float = DataType::float();
+        let dt_int = DataType::integer();
         let struct_dt = DataType::structured([
             ("a", DataType::float()),
             ("b", DataType::integer()),
         ]);
         println!("{}", struct_dt.hierarchy());
-        // let correct_hierarchy = Hierarchy::from([
-        //     (vec!["a"], &DataType::float()),
-        //     (vec!["b"], &DataType::integer()),
-        // ]);
-        // assert_eq!(
-        //     struct_dt.hierarchy(),
-        //     correct_hierarchy
-        // );
+        let correct_hierarchy = Hierarchy::from([
+            (vec!["a"], &dt_float),
+            (vec!["b"], &dt_int),
+        ]);
+        assert_eq!(
+            struct_dt.hierarchy(),
+            correct_hierarchy
+        );
         let struct_dt2 = DataType::structured([
             ("a", DataType::integer()),
             ("c", DataType::integer()),
         ]);
-        // let correct_hierarchy = Hierarchy::from([
-        //     (vec!["table1"], &struct_dt),
-        //     (vec!["table2"], &struct_dt2),
-        //     (vec!["table1", "a"], &DataType::float()),
-        //     (vec!["table1", "b"], &DataType::integer()),
-        //     (vec!["table2", "a"], &DataType::integer()),
-        //     (vec!["table2", "c"], &DataType::integer()),
-        // ]);
         let union_dt = DataType::union([
-            ("table1", struct_dt),
-            ("table2", struct_dt2),
+            ("table1", struct_dt.clone()),
+            ("table2", struct_dt2.clone()),
+        ]);
+        let correct_hierarchy = Hierarchy::from([
+            (vec!["table1"], &struct_dt),
+            (vec!["table2"], &struct_dt2),
+            (vec!["table1", "a"], &dt_float),
+            (vec!["table1", "b"], &dt_int),
+            (vec!["table2", "a"], &dt_int),
+            (vec!["table2", "c"], &dt_int),
         ]);
         let h = union_dt.hierarchy();
         println!("{}", h);
-        //assert_eq!(h, correct_hierarchy);
+        assert_eq!(h, correct_hierarchy);
     }
 }

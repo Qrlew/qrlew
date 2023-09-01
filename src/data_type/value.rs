@@ -23,6 +23,7 @@ use super::{
     injection::{self, InjectInto, Injection},
     intervals::Bound,
     And, DataType, DataTyped, Variant as _,
+    Hierarchy, Path
 };
 
 // Error handling
@@ -488,6 +489,16 @@ impl Struct {
     pub fn field_from_index(&self, index: usize) -> &(String, Rc<Value>) {
         &self.0[index]
     }
+    pub fn hierarchy(&self) -> Hierarchy<&Value> {
+        let h: Hierarchy<&Value> = self.iter().map(|(s, v)| (vec![s.to_string()], v.as_ref())).collect();
+        self.iter()
+        .fold(
+            h,
+            |acc, (s, v)|
+            acc.chain(v.hierarchy().prepend(&[s.to_string()]))
+
+        )
+    }
 }
 
 // This is a Unit
@@ -654,12 +665,11 @@ impl Variant for Struct {
 impl_variant_conversions!(Struct);
 
 // Index Structs
+impl<P: Path> Index<P> for Struct {
+    type Output = Value;
 
-impl Index<&str> for Struct {
-    type Output = Rc<Value>;
-
-    fn index(&self, index: &str) -> &Self::Output {
-        &self.field(index).unwrap().1
+    fn index(&self, index: P) -> &Self::Output {
+        self.hierarchy()[index]
     }
 }
 
@@ -687,6 +697,10 @@ impl Union {
     /// Create from one datatype
     pub fn from_value(value: Value) -> Union {
         Union::new(namer::new_name(""), Rc::new(value))
+    }
+    pub fn hierarchy(&self) -> Hierarchy<&Value> {
+        let h: Hierarchy<&Value> = [(self.0.0.to_string(), self.0.1.as_ref())].into_iter().collect();
+        h.chain(self.0.1.as_ref().hierarchy().prepend(&[self.0.0.to_string()]))
     }
 }
 
@@ -1271,6 +1285,13 @@ impl Value {
     pub fn function<F: function::Function + 'static, T: Into<Rc<F>>>(f: T) -> Value {
         Value::Function(Function(f.into()))
     }
+
+    fn hierarchy(&self) -> Hierarchy<&Value> {
+        match self {
+            Value::Struct(x) => x.hierarchy(),
+            _ => Hierarchy::from([(Vec::<&str>::new(), self)]),
+        }
+    }
 }
 
 macro_rules! impl_conversions {
@@ -1369,6 +1390,14 @@ impl cmp::Ord for Value {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.partial_cmp(other)
             .unwrap_or_else(|| self.to_string().cmp(&other.to_string()))
+    }
+}
+
+impl<P: Path> Index<P> for Value {
+    type Output = Value;
+
+    fn index(&self, index: P) -> &Self::Output {
+        self.hierarchy()[index]
     }
 }
 
@@ -1680,5 +1709,39 @@ mod tests {
         let value_from: Value = serde_json::from_value(json_value).expect("value");
         println!("value from json = {value_from}");
         assert_eq!(value, value_from);
+    }
+
+    #[test]
+    fn test_hierarchy() {
+        let value = Value::structured([
+            ("a", Value::boolean(true)),
+            ("b", Value::integer(5)),
+            ("c", Value::float(5.5)),
+        ]);
+        assert_eq!(
+            value.hierarchy(),
+            Hierarchy::from([
+                ("a", &Value::boolean(true)),
+                ("b", &Value::integer(5)),
+                ("c", &Value::float(5.5)),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_index() {
+        let a = Value::structured([
+            ("a_0", Value::from(-10)),
+            ("a_1", Value::from(1)),
+        ]);
+        let b = Value::structured([
+            ("b_0", Value::from(0.1)),
+            ("b_1", Value::from(10.0)),
+        ]);
+        let x = Value::structured([("a", a), ("b", b)]);
+        println!("x = {}", x);
+        println!("x['a'] = {}", x["a"]);
+        println!("x['a.a_1'] = {}", x[["a", "a_0"]]);
+        assert_eq!(x[["b", "b_1"]], 10.0.into());
     }
 }

@@ -29,8 +29,7 @@ pub struct DotVisitor<'a>(pub &'a DataType);
 
 impl<'a> Visitor<'a, DataType> for DotVisitor<'a> {
     fn column(&self, column: &'a Column) -> DataType {
-        //self.0[column.clone()].clone()
-        todo!()
+        self.0[column.clone()].clone()
     }
 
     fn value(&self, value: &'a Value) -> DataType {

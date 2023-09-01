@@ -999,8 +999,7 @@ pub struct SuperImageVisitor<'a>(&'a DataType);
 
 impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
     fn column(&self, column: &'a Column) -> Result<DataType> {
-        //Ok(self.0[column.clone()].clone())
-        todo!()
+        Ok(self.0[column.clone()].clone())
     }
 
     fn value(&self, value: &'a Value) -> Result<DataType> {
