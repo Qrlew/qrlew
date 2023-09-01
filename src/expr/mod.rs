@@ -138,6 +138,14 @@ impl Function {
         }
     }
 
+    pub fn function(&self) -> function::Function {
+        self.function
+    }
+
+    pub fn arguments(&self) -> Vec<&Expr> {
+        self.arguments.iter().map(|x| x.as_ref()).collect()
+    }
+
     /// Returns the `DataType` of a column filtered by the current `Function`
     ///
     /// # Arguments:
@@ -1220,6 +1228,21 @@ impl Expr {
     }
 }
 
+impl DataType {
+    // TODO
+    fn filter(&self, predicate: &Expr) -> DataType {
+        match predicate {
+            Expr::Function(func) => self.filter_by_function(&func),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn filter_by_function(&self, predicate: &Function) -> Self {
+        todo!()
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2294,4 +2317,15 @@ mod tests {
         );
         assert_eq!(Expr::filter(columns), true_expr);
     }
+
+    #[test]
+    fn test_filter_data_type() {
+        let dt:DataType = DataType::structured([("a", DataType::float()), ("b", DataType::integer())]);
+        println!("{}", dt)
+        let x = expr!(and(gt(a, 5), lt(b, a)));
+        println!("")
+    }
+
+
+
 }
