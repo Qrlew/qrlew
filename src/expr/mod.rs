@@ -28,10 +28,14 @@ use std::{
 };
 
 use crate::{
-    data_type::{self, value, DataType, DataTyped, Variant as _, function::Function as _},
+    data_type::{
+        self, value, DataType, DataTyped, Variant as _, Struct as DataTypeStruct,
+        function::{bivariate_max, bivariate_min, Function as _}
+    },
     hierarchy::Hierarchy,
     namer::{self, FIELD},
     visitor::{self, Acceptor},
+    builder::With,
 };
 
 pub use identifier::Identifier;
