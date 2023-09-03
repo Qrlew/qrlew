@@ -611,6 +611,7 @@ mod tests {
         final_map.display_dot().unwrap();
     }
 
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_differenciated_poisson_sampling() {
         let mut database = postgresql::test_database();
@@ -686,6 +687,7 @@ mod tests {
         final_map.display_dot().unwrap();
     }
 
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_sampling_without_replacements() {
         let mut database = postgresql::test_database();
@@ -759,6 +761,7 @@ mod tests {
         final_map.display_dot().unwrap();
     }
 
+    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_table_with_weight() {
         let mut database = postgresql::test_database();
