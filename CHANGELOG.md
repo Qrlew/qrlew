@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.2.3] - 2023-09-04
 ### Changed
 - Internal code uses `Relation.name()` for table addressing but user facing functions may use `Table.path()` (ie sql addressing)
+- Renamed bivariate_min and bivariate_max to least and greatest
+- Cast to string before MD5 for protection
+- Implemented `least` and `greatest` (untested)
 
 ## [0.2.2] - 2023-08-29
 ### Changed

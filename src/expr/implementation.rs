@@ -69,12 +69,18 @@ function_implementations!(
         CharLength,
         Lower,
         Upper,
-        InList
+        InList,
+        Least,
+        Greatest
     ],
     [Case, Position],
     x,
     {
         match x {
+            Function::CastAsText => Rc::new(function::cast(DataType::text())),
+            Function::CastAsInteger => Rc::new(function::cast(DataType::integer())),
+            Function::CastAsFloat => Rc::new(function::cast(DataType::float())),
+            Function::CastAsDateTime => Rc::new(function::cast(DataType::date_time())),
             Function::Concat(n) => Rc::new(function::concat(n)),
             Function::Random(n) => Rc::new(function::random(thread_rng())), //TODO change this initialization
             _ => unreachable!(),

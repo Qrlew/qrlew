@@ -104,7 +104,7 @@ pub fn protect_visitor_from_field_paths<'a>(
         {
             Some((_tab, path, field)) => Relation::from(table.clone())
                 .with_field_path(relations, path, field, PE_ID)
-                .map_fields(|n, e| if n == PE_ID { Expr::md5(e) } else { e }),
+                .map_fields(|n, e| if n == PE_ID { Expr::md5(Expr::cast_as_text(e)) } else { e }),
             None => table.clone().into(),
         },//TODO fix MD5 here
         strategy,
@@ -358,10 +358,12 @@ mod tests {
         let table = table
             .protect_from_field_paths(
                 &relations,
-                &[("item_table", &[("order_id", "order_table", "id")], "id")],
+                &[("item_table", &[("order_id", "order_table", "id")], "date")],
             )
             .unwrap();
+        table.display_dot().unwrap();
         println!("Schema protected = {}", table.schema());
+        println!("Query protected = {}", ast::Query::from(&table));
         assert_eq!(table.schema()[0].name(), PE_ID)
     }
 
