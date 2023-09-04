@@ -6,7 +6,7 @@ use crate::data_type::{value::Value, DataType};
 /// The list of operators
 /// inspired by: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.BinaryOperator.html
 /// and mostly: https://docs.rs/polars/latest/polars/prelude/enum.Operator.html
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Function {
     // TODO use directly the data_type function
     // Unary operators, see: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.UnaryOperator.html
@@ -42,15 +42,19 @@ pub enum Function {
     Sqrt,
     Pow,
     Case,
-    Md5,
     Concat(usize),
     CharLength,
     Lower,
-    Position,
     Upper,
+    Md5,
+    Position,
     Random(usize),
-    // Operators
-    Cast(DataType),
+    CastAsText,
+    CastAsFloat,
+    CastAsInteger,
+    CastAsDateTime,
+    Least,
+    Greatest,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -58,7 +62,6 @@ pub enum Style {
     UnaryOperator,
     BinaryOperator,
     Function,
-    CustomOperator,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -104,17 +107,23 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Md5
+            | Function::CharLength
             | Function::Lower
             | Function::Upper
+            | Function::Md5
+            | Function::CastAsText
+            | Function::CastAsFloat
+            | Function::CastAsInteger
+            | Function::CastAsDateTime
             // Binary Functions
             | Function::Pow
-            | Function::CharLength
             | Function::Position
+            | Function::Least
+            | Function::Greatest
+            // Ternary Function
+            | Function::Case
             // Nary Function
             | Function::Concat(_) => Style::Function,
-            // Custom Operators
-            Function::Case | Function::Cast(_) => Style::CustomOperator,
         }
     }
 
@@ -122,7 +131,8 @@ impl Function {
     pub fn arity(self) -> Arity {
         match self {
             // Unary Operators
-            Function::Opposite | Function::Not | Function::Cast(_) => Arity::Unary,
+            Function::Opposite
+            | Function::Not => Arity::Unary,
             // Binary Operators
             Function::Plus
             | Function::Minus
@@ -153,12 +163,19 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Md5
             | Function::CharLength
             | Function::Lower
-            | Function::Upper => Arity::Unary,
+            | Function::Upper
+            | Function::Md5
+            | Function::CastAsText
+            | Function::CastAsFloat
+            | Function::CastAsInteger
+            | Function::CastAsDateTime => Arity::Unary,
             // Binary Function
-            Function::Pow | Function::Position => Arity::Nary(2),
+            Function::Pow
+            | Function::Position
+            | Function::Least
+            | Function::Greatest => Arity::Nary(2),
             // Ternary Function
             Function::Case => Arity::Nary(3),
             // Nary Function
@@ -168,7 +185,7 @@ impl Function {
 
     /// Return the function object implementing the function
     pub fn super_image(self, sets: &[DataType]) -> Result<DataType> {
-        let set = match self.clone().arity() {
+        let set = match self.arity() {
             Arity::Unary => sets.as_ref()[0].clone(),
             Arity::Nary(n) => DataType::structured_from_data_types(&sets[0..n]),
             Arity::Varying => DataType::structured_from_data_types(sets),
@@ -178,7 +195,7 @@ impl Function {
 
     /// Return the function object implementing the function
     pub fn value(self, args: &[Value]) -> Result<Value> {
-        let arg = match self.clone().arity() {
+        let arg = match self.arity() {
             Arity::Unary => args.as_ref()[0].clone(),
             Arity::Nary(n) => Value::structured_from_values(&args[0..n]),
             Arity::Varying => Value::structured_from_values(&args),
@@ -226,15 +243,20 @@ impl fmt::Display for Function {
             Function::CharLength => "char_length",
             Function::Lower => "lower",
             Function::Upper => "upper",
-            Function::Cast(_) => "cast",
+            Function::Md5 => "md5",
+            Function::CastAsText => "cast_as_text",
+            Function::CastAsInteger => "cast_as_integer",
+            Function::CastAsFloat => "cast_as_float",
+            Function::CastAsDateTime => "cast_as_date_time",
             // Binary Functions
             Function::Pow => "pow",
-            Function::Concat(_) => "concat",
             Function::Position => "position",
+            Function::Least => "least",
+            Function::Greatest => "greatest",
             // Ternary Functions
             Function::Case => "case",
             // Nary Functions
-            Function::Md5 => "md5",
+            Function::Concat(_) => "concat",
         })
     }
 }

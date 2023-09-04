@@ -250,19 +250,6 @@ impl fmt::Display for Function {
                     .map(|expr| expr.to_string())
                     .join(", ")
             ),
-            function::Style::CustomOperator => match self.function.clone() {
-                function::Function::Case => write!(
-                    f,
-                    "CASE WHEN {} THEN {} ELSE {} END",
-                    self.arguments[0], self.arguments[1], self.arguments[2]
-                ),
-                function::Function::Cast(into) => write!(
-                    f,
-                    "CAST({} AS {})",
-                    self.arguments[0], into,
-                ),
-                _ => todo!(),
-            }
         }
     }
 }
@@ -366,7 +353,7 @@ macro_rules! impl_unary_function_constructors {
 }
 
 impl_unary_function_constructors!(
-    Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength
+    Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength, CastAsText, CastAsInteger, CastAsFloat, CastAsDateTime
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -415,7 +402,9 @@ impl_binary_function_constructors!(
     BitwiseXor,
     Pow,
     Position,
-    InList
+    InList,
+    Least,
+    Greatest
 );
 
 /// Implement ternary function constructors
@@ -838,18 +827,12 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
     }
 
     fn function(&self, function: &'a function::Function, arguments: Vec<String>) -> String {
-        match function.clone().style() {
+        match function.style() {
             function::Style::UnaryOperator => format!("{} {}", function, arguments[0]),
             function::Style::BinaryOperator => {
                 format!("{} {} {}", arguments[0], function, arguments[1])
             }
             function::Style::Function => format!("{}({})", function, arguments.join(", ")),
-            function::Style::CustomOperator => {
-                format!(
-                    "( CASE WHEN {} THEN {} ELSE {} END )",
-                    arguments[0], arguments[1], arguments[2]
-                )
-            }
         }
     }
 
@@ -916,7 +899,7 @@ impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
         arguments: Vec<Result<DataType>>,
     ) -> Result<DataType> {
         let sets: Result<Vec<DataType>> = arguments.into_iter().collect();
-        function.clone().super_image(&sets?)
+        function.super_image(&sets?)
     }
 
     fn aggregate(
