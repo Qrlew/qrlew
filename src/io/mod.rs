@@ -16,6 +16,7 @@ use crate::{
         value::{self},
         DataType,
     },
+    expr::identifier::Identifier,
     hierarchy::Hierarchy,
     relation::{builder::TableBuilder, schema::Schema, Relation, Table, Variant as _},
 };
@@ -96,14 +97,21 @@ pub trait Database: Sized {
     /// Get a dictionary of relations
     fn relations(&self) -> Hierarchy<Rc<Relation>> {
         self.tables()
-            .iter()
-            .map(|t| {
-                (
-                    [self.name().clone(), t.name().clone()],
-                    Rc::new(t.clone().into()),
-                )
-            })
-            .collect()
+        .iter()
+        .map(|t| {
+            (
+                Identifier::from(t.name()),
+                Rc::new(t.clone().into()),
+            )
+        })// Tables can be accessed from their name or path
+        .chain(self.tables().iter().map(|t| {
+            (
+                t.path().clone(),
+                Rc::new(t.clone().into()),
+            )
+        })
+        )
+        .collect()
     }
     /// Create an empty db
     fn empty(name: String) -> Result<Self> {
@@ -127,6 +135,7 @@ pub trait Database: Sized {
     fn test_tables() -> Vec<Table> {
         vec![
             TableBuilder::new()
+                .path(["table_1"])
                 .name("table_1")
                 .size(10)
                 .schema(
@@ -144,6 +153,7 @@ pub trait Database: Sized {
                 )
                 .build(),
             TableBuilder::new()
+                .path(["table_2"])
                 .name("table_2")
                 .size(200)
                 .schema(
@@ -154,7 +164,8 @@ pub trait Database: Sized {
                 )
                 .build(),
             TableBuilder::new()
-                .name("user_table")
+                .path(["user_table"])
+                .name("user")
                 .size(100)
                 .schema(
                     Schema::empty()
@@ -171,7 +182,8 @@ pub trait Database: Sized {
                 )
                 .build(),
             TableBuilder::new()
-                .name("order_table")
+                .path(["order_table"])
+                .name("order")
                 .size(200)
                 .schema(
                     Schema::empty()
@@ -188,7 +200,8 @@ pub trait Database: Sized {
                 )
                 .build(),
             TableBuilder::new()
-                .name("item_table")
+                .path(["item_table"])
+                .name("item")
                 .size(300)
                 .schema(
                     Schema::empty()
@@ -198,7 +211,8 @@ pub trait Database: Sized {
                 )
                 .build(),
             TableBuilder::new()
-                .name("large_user_table")
+                .path(["large_user_table"])
+                .name("large_user")
                 .size(100000)
                 .schema(
                     Schema::empty()
@@ -241,3 +255,16 @@ impl<D: Database> With<Table, Result<Self>> for D {
         Ok(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_relation_hierarchy() -> Result<()> {
+        let mut database = postgresql::test_database();
+        println!("{}", database.relations());
+        Ok(())
+    }
+}
+

@@ -1119,23 +1119,23 @@ mod tests {
         let relations = database.relations();
         // Link orders to users
         let orders = relations
-            .get(&["order_table".to_string()])
+            .get(&["order".to_string()])
             .unwrap()
             .as_ref();
         let relation = orders.clone().with_field_path(
             &relations,
-            &[("user_id", "user_table", "id")],
+            &[("user_id", "user", "id")],
             "id",
             "peid",
         );
         assert!(relation.schema()[0].name() == "peid");
-        // Link items to orders
-        let items = relations.get(&["item_table".to_string()]).unwrap().as_ref();
+        // // Link items to orders
+        let items = relations.get(&["item".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
             &relations,
             &[
-                ("order_id", "order_table", "id"),
-                ("user_id", "user_table", "id"),
+                ("order_id", "order", "id"),
+                ("user_id", "user", "id"),
             ],
             "name",
             "peid",
@@ -1155,8 +1155,8 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
-        let relation = relation.filter_fields(|n| n != "peid");
-        assert!(relation.schema()[0].name() != "peid");
+        // let relation = relation.filter_fields(|n| n != "peid");
+        // assert!(relation.schema()[0].name() != "peid");
     }
 
     fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {

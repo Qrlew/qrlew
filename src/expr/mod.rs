@@ -126,7 +126,7 @@ pub struct Function {
     /// Operator
     function: function::Function,
     /// Argumants
-    pub arguments: Vec<Rc<Expr>>,
+    arguments: Vec<Rc<Expr>>,
 }
 
 impl Function {

@@ -496,4 +496,13 @@ mod tests {
                 .join("\n")
         );
     }
+
+    #[test]
+    fn test_peid_computation() {
+        // Change schema and table names
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        
+        println!("{relations}");
+    }
 }

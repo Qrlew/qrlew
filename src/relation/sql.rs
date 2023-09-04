@@ -1,4 +1,6 @@
 //! Methods to convert Relations to ast::Query
+use sqlparser::ast::ObjectName;
+
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
     SetOperator, SetQuantifier, Table, Values, Variant as _, Visitor,
@@ -467,7 +469,7 @@ impl Table {
             global: None,
             if_not_exists: true,
             transient: false,
-            name: ast::ObjectName(vec![self.name().into()]),
+            name: self.path().clone().into(),
             columns: self
                 .schema()
                 .iter()
@@ -512,7 +514,7 @@ impl Table {
         ast::Statement::Insert {
             or: None,
             into: true,
-            table_name: ast::ObjectName(vec![self.name().into()]),
+            table_name: self.path().clone().into(),
             columns: self.schema().iter().map(|f| f.name().into()).collect(),
             overwrite: false,
             source: Box::new(ast::Query {
