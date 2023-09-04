@@ -95,6 +95,7 @@ pub trait Database: Sized {
     /// Get a mutable reference to the tables
     fn tables_mut(&mut self) -> &mut Vec<Table>;
     /// Get a dictionary of relations
+    /// A relation can be adressed by its SQL path or its Qrlew name
     fn relations(&self) -> Hierarchy<Rc<Relation>> {
         self.tables()
         .iter()
