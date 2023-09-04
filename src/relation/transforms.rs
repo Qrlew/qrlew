@@ -1119,23 +1119,23 @@ mod tests {
         let relations = database.relations();
         // Link orders to users
         let orders = relations
-            .get(&["order".to_string()])
+            .get(&["orders".to_string()])
             .unwrap()
             .as_ref();
         let relation = orders.clone().with_field_path(
             &relations,
-            &[("user_id", "user", "id")],
+            &[("user_id", "users", "id")],
             "id",
             "peid",
         );
         assert!(relation.schema()[0].name() == "peid");
         // // Link items to orders
-        let items = relations.get(&["item".to_string()]).unwrap().as_ref();
+        let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
             &relations,
             &[
-                ("order_id", "order", "id"),
-                ("user_id", "user", "id"),
+                ("order_id", "orders", "id"),
+                ("user_id", "users", "id"),
             ],
             "name",
             "peid",
@@ -1298,8 +1298,8 @@ mod tests {
             .left(left)
             .right(right)
             .on(Expr::eq(
-                Expr::qcol("item_table", "order_id"),
-                Expr::qcol("order_table", "id"),
+                Expr::qcol("items", "order_id"),
+                Expr::qcol("orders", "id"),
             ))
             .build();
         let schema = relation.schema().clone();
@@ -1455,8 +1455,8 @@ mod tests {
             .left(left)
             .right(right)
             .on(Expr::eq(
-                Expr::qcol("item_table", "order_id"),
-                Expr::qcol("order_table", "id"),
+                Expr::qcol("items", "order_id"),
+                Expr::qcol("orders", "id"),
             ))
             .build();
         relation.display_dot().unwrap();
@@ -2204,8 +2204,8 @@ mod tests {
 
     #[test]
     fn test_cross_join() {
-        let table1: Relation = Relation::table()
-            .name("table")
+        let table_1: Relation = Relation::table()
+            .name("table_1")
             .schema(
                 Schema::builder()
                     .with(("a", DataType::integer_range(1..=10)))
@@ -2214,8 +2214,8 @@ mod tests {
             )
             .build();
 
-        let table2: Relation = Relation::table()
-            .name("table")
+        let table_2: Relation = Relation::table()
+            .name("table_2")
             .schema(
                 Schema::builder()
                     .with(("c", DataType::integer_range(5..=20)))
@@ -2224,7 +2224,7 @@ mod tests {
             )
             .build();
 
-        let joined_rel = table1.clone().cross_join(table2.clone()).unwrap();
-        _ = joined_rel.display_dot();
+        let joined_rel = table_1.clone().cross_join(table_2.clone()).unwrap();
+        joined_rel.display_dot();
     }
 }

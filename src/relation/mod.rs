@@ -114,7 +114,8 @@ pub trait Variant:
     fn inputs(&self) -> Vec<&Relation>;
     /// Return the input hierarchy
     fn input_hierarchy(&self) -> Hierarchy<&Relation> {
-        self.inputs().into_iter().map(|r| ([self.name(), r.name()], r)).collect()
+        //TODO Add inputs recursively
+        self.inputs().into_iter().map(|r| ([r.name()], r)).collect()
     }
     /// Return the fields
     fn fields(&self) -> Vec<&Field> {
@@ -122,7 +123,7 @@ pub trait Variant:
     }
     /// Return the field hierarchy
     fn field_hierarchy(&self) -> Hierarchy<&Field> {
-        self.fields().into_iter().map(|f| (vec![self.name(), f.name()], f))
+        self.fields().into_iter().map(|f| (vec![f.name()], f))
         .chain(
             self.inputs().into_iter().flat_map(|r| r.fields().into_iter().map(|f| (vec![self.name(), r.name(), f.name()], f))))
         .collect()

@@ -165,7 +165,7 @@ pub trait Database: Sized {
                 .build(),
             TableBuilder::new()
                 .path(["user_table"])
-                .name("user")
+                .name("users")
                 .size(100)
                 .schema(
                     Schema::empty()
@@ -183,7 +183,7 @@ pub trait Database: Sized {
                 .build(),
             TableBuilder::new()
                 .path(["order_table"])
-                .name("order")
+                .name("orders")
                 .size(200)
                 .schema(
                     Schema::empty()
@@ -201,7 +201,7 @@ pub trait Database: Sized {
                 .build(),
             TableBuilder::new()
                 .path(["item_table"])
-                .name("item")
+                .name("items")
                 .size(300)
                 .schema(
                     Schema::empty()
@@ -212,7 +212,7 @@ pub trait Database: Sized {
                 .build(),
             TableBuilder::new()
                 .path(["large_user_table"])
-                .name("large_user")
+                .name("more_users")
                 .size(100000)
                 .schema(
                     Schema::empty()
