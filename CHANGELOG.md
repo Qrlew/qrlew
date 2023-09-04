@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.2] - 2023-09-04
+## [0.2.3] - 2023-09-04
 ### Changed
 - Internal code uses `Relation.name()` for table addressing but user facing functions may use `Table.path()` (ie sql addressing)
 - Renamed bivariate_min and bivariate_max to least and greatest
