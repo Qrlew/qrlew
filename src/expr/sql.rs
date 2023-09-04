@@ -209,6 +209,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 expr: arguments[0].clone().into(),
                 r#in: arguments[1].clone().into(),
             },
+            expr::function::Function::Cast(into) => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type:  into.clone().into(),
+            },
         }
     }
     // TODO implement this properly

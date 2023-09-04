@@ -1027,6 +1027,19 @@ pub fn null() -> impl Function + Clone {
     PartitionnedMonotonic::univariate(data_type::Text::default(), |_x| "null".to_string())
 }
 
+/*
+Conversion function
+ */
+
+/// Builds the cast operator
+pub fn cast(into: DataType) -> impl Function + Clone {
+    // TODO Only cast as text is working for now
+    match into {
+        DataType::Text(t) if t==data_type::Text::full() => Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into()),
+        _ => todo!(),
+    }
+}
+
 // Unary operators
 
 /// Builds the minus `Function`
@@ -1509,7 +1522,7 @@ pub fn cos() -> impl Function + Clone {
     )
 }
 
-pub fn bivariate_min() -> impl Function + Clone {
+pub fn least() -> impl Function + Clone {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1522,7 +1535,7 @@ pub fn bivariate_min() -> impl Function + Clone {
     ))
 }
 
-pub fn bivariate_max() -> impl Function + Clone {
+pub fn greatest() -> impl Function + Clone {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -2576,7 +2589,7 @@ mod tests {
     #[test]
     fn test_bivariate_min() {
         println!("Test bivariate_min");
-        let fun = bivariate_min();
+        let fun = least();
         println!("type = {}", fun);
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());

@@ -30,7 +30,7 @@ use std::{
 use crate::{
     data_type::{
         self, value, DataType, DataTyped, Variant as _, Struct as DataTypeStruct,
-        function::{bivariate_max, bivariate_min, Function as _}
+        function::{greatest, least, Function as _}
     },
     hierarchy::Hierarchy,
     namer::{self, FIELD},
@@ -157,7 +157,7 @@ impl Function {
     // TODO: OR
     pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
         let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
-        match (self.function, args.as_slice()) {
+        match (self.function.clone(), args.as_slice()) {
             // And
             (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => left
                 .filter_column_data_type(column, datatype)
@@ -182,7 +182,7 @@ impl Function {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_max()
+                data_type::function::greatest()
                     .super_image(&set)
                     .unwrap_or(datatype.clone())
             }
@@ -204,7 +204,7 @@ impl Function {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_min()
+                data_type::function::least()
                     .super_image(&set)
                     .unwrap_or(datatype.clone())
             }
@@ -232,7 +232,7 @@ impl Function {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.function.style() {
+        match self.function.clone().style() {
             function::Style::UnaryOperator => {
                 write!(f, "({} {})", self.function, self.arguments[0])
             }
@@ -250,12 +250,18 @@ impl fmt::Display for Function {
                     .map(|expr| expr.to_string())
                     .join(", ")
             ),
-            function::Style::Case => {
-                write!(
+            function::Style::CustomOperator => match self.function.clone() {
+                function::Function::Case => write!(
                     f,
                     "CASE WHEN {} THEN {} ELSE {} END",
                     self.arguments[0], self.arguments[1], self.arguments[2]
-                )
+                ),
+                function::Function::Cast(into) => write!(
+                    f,
+                    "CAST({} AS {})",
+                    self.arguments[0], into,
+                ),
+                _ => todo!(),
             }
         }
     }
@@ -832,13 +838,13 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
     }
 
     fn function(&self, function: &'a function::Function, arguments: Vec<String>) -> String {
-        match function.style() {
+        match function.clone().style() {
             function::Style::UnaryOperator => format!("{} {}", function, arguments[0]),
             function::Style::BinaryOperator => {
                 format!("{} {} {}", arguments[0], function, arguments[1])
             }
             function::Style::Function => format!("{}({})", function, arguments.join(", ")),
-            function::Style::Case => {
+            function::Style::CustomOperator => {
                 format!(
                     "( CASE WHEN {} THEN {} ELSE {} END )",
                     arguments[0], arguments[1], arguments[2]
@@ -910,7 +916,7 @@ impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
         arguments: Vec<Result<DataType>>,
     ) -> Result<DataType> {
         let sets: Result<Vec<DataType>> = arguments.into_iter().collect();
-        function.super_image(&sets?)
+        function.clone().super_image(&sets?)
     }
 
     fn aggregate(

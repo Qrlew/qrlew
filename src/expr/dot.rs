@@ -37,11 +37,11 @@ impl<'a> Visitor<'a, DataType> for DotVisitor<'a> {
     }
 
     fn function(&self, function: &'a function::Function, arguments: Vec<DataType>) -> DataType {
-        function.super_image(&arguments).unwrap()
+        function.clone().super_image(&arguments).unwrap()
     }
 
     fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: DataType) -> DataType {
-        aggregate.super_image(&argument).unwrap()
+        aggregate.clone().super_image(&argument).unwrap()
     }
 
     fn structured(&self, fields: Vec<(super::identifier::Identifier, DataType)>) -> DataType {
@@ -66,11 +66,11 @@ impl<'a> Visitor<'a, Value> for DotValueVisitor<'a> {
     }
 
     fn function(&self, function: &'a function::Function, arguments: Vec<Value>) -> Value {
-        function.value(&arguments).unwrap()
+        function.clone().value(&arguments).unwrap()
     }
 
     fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: Value) -> Value {
-        aggregate.value(&argument).unwrap()
+        aggregate.clone().value(&argument).unwrap()
     }
 
     fn structured(&self, fields: Vec<(super::identifier::Identifier, Value)>) -> Value {

@@ -9,7 +9,7 @@ use crate::data_type::{value::Value, DataType};
 /// inspired by: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.BinaryOperator.html
 /// and mostly: https://docs.rs/polars/latest/polars/prelude/enum.AggExpr.html
 /// https://docs.rs/polars-lazy/latest/polars_lazy/dsl/enum.AggExpr.html
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Aggregate {
     Min,
     Max,

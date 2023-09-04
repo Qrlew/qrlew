@@ -6,7 +6,7 @@ use crate::data_type::{value::Value, DataType};
 /// The list of operators
 /// inspired by: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.BinaryOperator.html
 /// and mostly: https://docs.rs/polars/latest/polars/prelude/enum.Operator.html
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Function {
     // TODO use directly the data_type function
     // Unary operators, see: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.UnaryOperator.html
@@ -49,6 +49,8 @@ pub enum Function {
     Position,
     Upper,
     Random(usize),
+    // Operators
+    Cast(DataType),
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -56,7 +58,7 @@ pub enum Style {
     UnaryOperator,
     BinaryOperator,
     Function,
-    Case,
+    CustomOperator,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -111,8 +113,8 @@ impl Function {
             | Function::Position
             // Nary Function
             | Function::Concat(_) => Style::Function,
-            // Case Function
-            Function::Case => Style::Case,
+            // Custom Operators
+            Function::Case | Function::Cast(_) => Style::CustomOperator,
         }
     }
 
@@ -120,7 +122,7 @@ impl Function {
     pub fn arity(self) -> Arity {
         match self {
             // Unary Operators
-            Function::Opposite | Function::Not => Arity::Unary,
+            Function::Opposite | Function::Not | Function::Cast(_) => Arity::Unary,
             // Binary Operators
             Function::Plus
             | Function::Minus
@@ -166,7 +168,7 @@ impl Function {
 
     /// Return the function object implementing the function
     pub fn super_image(self, sets: &[DataType]) -> Result<DataType> {
-        let set = match self.arity() {
+        let set = match self.clone().arity() {
             Arity::Unary => sets.as_ref()[0].clone(),
             Arity::Nary(n) => DataType::structured_from_data_types(&sets[0..n]),
             Arity::Varying => DataType::structured_from_data_types(sets),
@@ -176,7 +178,7 @@ impl Function {
 
     /// Return the function object implementing the function
     pub fn value(self, args: &[Value]) -> Result<Value> {
-        let arg = match self.arity() {
+        let arg = match self.clone().arity() {
             Arity::Unary => args.as_ref()[0].clone(),
             Arity::Nary(n) => Value::structured_from_values(&args[0..n]),
             Arity::Varying => Value::structured_from_values(&args),
@@ -224,6 +226,7 @@ impl fmt::Display for Function {
             Function::CharLength => "char_length",
             Function::Lower => "lower",
             Function::Upper => "upper",
+            Function::Cast(_) => "cast",
             // Binary Functions
             Function::Pow => "pow",
             Function::Concat(_) => "concat",
