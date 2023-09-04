@@ -508,7 +508,7 @@ impl Relation {
             .build()
     }
 
-    /// Add a field designated with a "fiald path"
+    /// Add a field designated with a "field path"
     pub fn with_field_path<'a>(
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
