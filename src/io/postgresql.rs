@@ -65,6 +65,7 @@ impl Database {
     /// A postgresql instance must exist
     /// `docker run --name qrlew-test -p 5432:5432 -e POSTGRES_PASSWORD=qrlew-test -d postgres`
     fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
+        log::info!("Try to get an existing DB");
         let mut client = postgres::Client::connect(
             &format!(
                 "host=localhost port={} user={} password={}",
@@ -375,7 +376,6 @@ pub fn test_database() -> Database {
 mod tests {
     use super::*;
 
-    #[ignore]
     #[test]
     fn database_display() -> Result<()> {
         let mut database = test_database();
@@ -394,7 +394,6 @@ mod tests {
         Ok(())
     }
 
-    #[ignore]
     #[test]
     fn database_test() -> Result<()> {
         let mut database = test_database();

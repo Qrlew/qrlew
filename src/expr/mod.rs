@@ -126,7 +126,7 @@ pub struct Function {
     /// Operator
     function: function::Function,
     /// Argumants
-    pub arguments: Vec<Rc<Expr>>,
+    arguments: Vec<Rc<Expr>>,
 }
 
 impl Function {
@@ -1075,7 +1075,7 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
     fn column(&self, column: &'a Column) -> Expr {
         self.0
             .get(column)
-            .map(|name| Expr::Column(name.clone()))
+            .map(|identifier| Expr::Column(identifier.clone()))
             .unwrap_or_else(|| Expr::Column(column.clone()))
     }
 
