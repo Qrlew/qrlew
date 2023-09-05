@@ -647,7 +647,7 @@ impl Relation {
     /// `self` contains the coordinates, the base and vectors columns
     pub fn renormalize(
         self,
-        weight_relation: Self,
+        weight_relation: Relation,
         vectors: &str,
         base: Vec<&str>,
         coordinates: Vec<&str>,
