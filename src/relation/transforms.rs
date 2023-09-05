@@ -592,7 +592,7 @@ impl Relation {
     }
     /// Sum values for each group.
     /// Groups form the basis of a vector space, the sums are the coordinates.
-    pub fn sum_by_group(self, groups: Vec<&str>, values: Vec<&str>) -> Self {
+    pub fn sums_by_group(self, groups: Vec<&str>, values: Vec<&str>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
         reduce = groups
             .into_iter()
@@ -605,50 +605,41 @@ impl Relation {
         reduce.build()
     }
     /// Compute L1 norms of the vectors formed by the group values for each entities
-    pub fn l1_norm(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
-        let mut vectors_base = vec![entities];
-        vectors_base.extend(groups.clone());
-        let first = self.sum_by_group(vectors_base, values.clone());
-
-        let map_rel = first.map_fields(|n, e| {
-            if values.contains(&n) {
-                Expr::abs(e)
-            } else {
-                e
-            }
-        });
-
-        if groups.is_empty() {
-            map_rel
-        } else {
-            map_rel.sum_by_group(vec![entities], values)
-        }
-    }
-
-    pub fn l2_norm(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        if base.is_empty() {
-            self.l1_norm(vectors, base, coordinates)
-        } else {
-            let mut vectors_base = vec![vectors];
-            vectors_base.extend(base.clone());
-            let first = self.sum_by_group(vectors_base, coordinates.clone());
-
-            let map_rel = first.map_fields(|n, e| {
-                if coordinates.contains(&n) {
-                    Expr::pow(e, Expr::val(2))
+    pub fn l1_norms(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
+        let mut entities_groups = vec![entities];
+        entities_groups.extend(groups.clone());
+        self
+            .sums_by_group(entities_groups, values.clone())
+            .map_fields(|field, expr| {
+                if values.contains(&field) {
+                    Expr::abs(expr)
                 } else {
-                    e
-                }
-            });
-            let reduce_rel = map_rel.sum_by_group(vec![vectors], coordinates.clone());
-            reduce_rel.map_fields(|n, e| {
-                if coordinates.contains(&n) {
-                    Expr::sqrt(e)
-                } else {
-                    e
+                    expr
                 }
             })
-        }
+            .sums_by_group(vec![entities], values)
+    }
+
+    pub fn l2_norms(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
+        let mut entities_groups = vec![entities];
+        entities_groups.extend(groups.clone());
+        self
+        .sums_by_group(entities_groups, values.clone())
+        .map_fields(|field, expr| {
+            if values.contains(&field) {
+                Expr::pow(expr, Expr::val(2))
+            } else {
+                expr
+            }
+        })
+        .sums_by_group(vec![entities], values.clone())
+        .map_fields(|field, expr| {
+            if values.contains(&field) {
+                Expr::sqrt(expr)
+            } else {
+                expr
+            }
+        })
     }
 
     /// This transform multiplies the coordinates in `self` relation by their corresponding weights in `weight_relation`.
@@ -734,7 +725,7 @@ impl Relation {
     ) -> Self {
         let norm = self
             .clone()
-            .l2_norm(vectors.clone(), base.clone(), coordinates.clone());
+            .l2_norms(vectors.clone(), base.clone(), coordinates.clone());
 
         let map_clipping_values: HashMap<&str, f64> = clipping_values.into_iter().collect();
 
@@ -771,13 +762,13 @@ impl Relation {
         } else {
             let mut vectors_base = vec![vectors];
             vectors_base.extend(base.clone());
-            self.sum_by_group(vectors_base, coordinates.clone())
+            self.sums_by_group(vectors_base, coordinates.clone())
         };
 
         let weighted_relation =
             aggregated_relation.renormalize(weights, vectors, base.clone(), coordinates.clone());
 
-        weighted_relation.sum_by_group(base, coordinates)
+        weighted_relation.sums_by_group(base, coordinates)
     }
 
     pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Self> {
@@ -1176,6 +1167,79 @@ mod tests {
     }
 
     #[test]
+    fn test_sums_by_group() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let mut relation = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        // Print query before
+        println!("Before: {}", &ast::Query::from(&relation));
+        relation.display_dot().unwrap();
+        // Sum by group
+        relation = relation.sums_by_group(vec!["order_id"], vec!["price"]);
+         // Print query after
+        println!("After: {}", &ast::Query::from(&relation));
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_l1_norms() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let mut relation = relations
+            .get(&["user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        // Compute l1 norm
+        relation = relation.l1_norms("id", vec!["city"], vec!["age"]);
+        // Print query
+        let query = &ast::Query::from(&relation);
+        println!("After: {}", query);
+        relation.display_dot().unwrap();
+        let expected_query = "SELECT id, SUM(ABS(age)) FROM (SELECT id, city, SUM(age) AS age FROM user_table GROUP BY id, city) AS sums GROUP BY id";
+        assert_eq!(
+            database.query(&query.to_string()).unwrap(),
+            database.query(expected_query).unwrap()
+        );
+        // To double check
+        for row in database.query("SELECT id, SUM(ABS(age)) FROM (SELECT id, city, SUM(age) AS age FROM user_table GROUP BY id, city) AS sums GROUP BY id ORDER BY id").unwrap() {
+            println!("{row}");
+        }
+        for row in database.query("SELECT id, count(id) FROM user_table GROUP BY id ORDER BY id").unwrap() {
+            println!("{row}");
+        }
+        for row in database.query("SELECT id, age FROM user_table ORDER BY id").unwrap() {
+            println!("{row}");
+        }
+    }
+
+    #[test]
+    fn test_l2_norms() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let mut relation = relations
+            .get(&["user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        // Compute l1 norm
+        relation = relation.l2_norms("id", vec!["city"], vec!["age"]);
+        // Print query
+        let query = &ast::Query::from(&relation);
+        println!("After: {}", query);
+        relation.display_dot().unwrap();
+        let expected_query = "SELECT id, SQRT(SUM(age*age)) FROM (SELECT id, city, SUM(age) AS age FROM user_table GROUP BY id, city) AS sums GROUP BY id";
+        assert_eq!(
+            database.query(&query.to_string()).unwrap(),
+            database.query(expected_query).unwrap()
+        );
+    }
+
+    #[test]
     fn test_compute_norm_for_table() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
@@ -1188,7 +1252,7 @@ mod tests {
         // L1 Norm
         let amount_norm = table
             .clone()
-            .l1_norm("order_id", vec!["item"], vec!["price"]);
+            .l1_norms("order_id", vec!["item"], vec!["price"]);
         // amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         println!("Query = {}", query);
@@ -1198,7 +1262,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let amount_norm = table.l2_norm("order_id", vec!["item"], vec!["price"]);
+        let amount_norm = table.l2_norms("order_id", vec!["item"], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query = "SELECT order_id, SQRT(SUM(sum_by_group)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
@@ -1219,7 +1283,7 @@ mod tests {
             .as_ref()
             .clone();
         // L1 Norm
-        let amount_norm = table.clone().l1_norm("order_id", vec![], vec!["price"]);
+        let amount_norm = table.clone().l1_norms("order_id", vec![], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         println!("Query = {}", query);
@@ -1231,7 +1295,7 @@ mod tests {
         );
 
         // L2 Norm
-        let amount_norm = table.l2_norm("order_id", vec![], vec!["price"]);
+        let amount_norm = table.l2_norms("order_id", vec![], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query =
@@ -1259,7 +1323,7 @@ mod tests {
         let relation_norm =
             relation
                 .clone()
-                .l1_norm("order_id", vec!["item"], vec!["price", "std_price"]);
+                .l1_norms("order_id", vec!["item"], vec!["price", "std_price"]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         //println!("Query = {}", query);
@@ -1269,7 +1333,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.l2_norm("order_id", vec!["item"], vec!["price", "std_price"]);
+        let relation_norm = relation.l2_norms("order_id", vec!["item"], vec!["price", "std_price"]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT order_id, SQRT(SUM(sum_1)), SQRT(SUM(sum_2)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
@@ -1311,7 +1375,7 @@ mod tests {
         // L1 Norm
         let relation_norm = relation
             .clone()
-            .l1_norm(user_id, vec![item, date], vec![price]);
+            .l1_norms(user_id, vec![item, date], vec![price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         println!("Query = {}", query);
@@ -1322,7 +1386,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.l2_norm(user_id, vec![item, date], vec![price]);
+        let relation_norm = relation.l2_norms(user_id, vec![item, date], vec![price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT user_id, SQRT(SUM(sum_1)) FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY user_id";
