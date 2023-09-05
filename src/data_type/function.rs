@@ -365,10 +365,10 @@ impl Function for Pointwise {
     }
 }
 
-/// Partitionned monotonic function (plus some complex periodic cases)
-/// The domain is a (cartesian) product of Intervals<B> types
-/// P and T are convenient representations of the product and elements of the product
-/// The partition function maps a product into a vector of products where the value function is supposed to be monotonic
+/// Partitionned monotonic function (plus some complex periodic cases).
+/// The domain is a (cartesian) product of `Intervals<B>` types.
+/// `P` and `T` are convenient representations of the product and elements of the product.
+/// The partition function maps a product into a vector of products where the value function is supposed to be monotonic.
 #[derive(Clone)]
 pub struct PartitionnedMonotonic<P, T, Prod: IntervalsProduct, U: Bound>
 where

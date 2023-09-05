@@ -8,7 +8,6 @@ pub mod protect_grouping_keys;
 
 use crate::data_type::DataTyped;
 use crate::{
-    data_type::intervals::Bound,
     expr::{aggregate, Expr},
     hierarchy::Hierarchy,
     protected::PE_ID,
@@ -147,16 +146,15 @@ mod tests {
     fn test_table_with_noise() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        // // CReate a relation to add noise to
-        // let relation = Relation::try_from(
-        //     parse("SELECT sum(price) FROM item_table GROUP BY order_id")
-        //         .unwrap()
-        //         .with(&relations),
-        // )
-        // .unwrap();
-        // println!("Schema = {}", relation.schema());
-        // relation.display_dot().unwrap();
-
+        // CReate a relation to add noise to
+        let relation = Relation::try_from(
+            parse("SELECT sum(price) FROM item_table GROUP BY order_id")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        println!("Schema = {}", relation.schema());
+        relation.display_dot().unwrap();
         // Add noise directly
         for row in database
             .query("SELECT random(), sum(price) FROM item_table GROUP BY order_id")

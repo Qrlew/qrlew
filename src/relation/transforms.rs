@@ -92,7 +92,7 @@ pub type Result<T> = result::Result<T, Error>;
  */
 
 impl Table {
-    /// Rename a Table
+    /// Create a new Table with a new name
     pub fn with_name(mut self, name: String) -> Table {
         self.name = name;
         self
@@ -103,12 +103,12 @@ impl Table {
  */
 
 impl Map {
-    /// Rename a Map
+    /// Create a new Map with a new name
     pub fn with_name(mut self, name: String) -> Map {
         self.name = name;
         self
     }
-    /// Prepend a field to a Map
+    /// Create a new Map with a prepended field
     pub fn with_field(self, name: &str, expr: Expr) -> Map {
         Relation::map().with((name, expr)).with(self).build()
     }
@@ -507,7 +507,6 @@ impl Relation {
             .input(join)
             .build()
     }
-
     /// Add a field designated with a "field path"
     pub fn with_field_path<'a>(
         self,
@@ -546,7 +545,7 @@ impl Relation {
             )
         }
     }
-
+    /// Filter fields
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Relation {
         match self {
             Relation::Map(map) => map.filter_fields(predicate).into(),
@@ -560,7 +559,7 @@ impl Relation {
             }
         }
     }
-
+    /// Map fields
     pub fn map_fields<F: Fn(&str, Expr) -> Expr>(self, f: F) -> Relation {
         match self {
             Relation::Map(map) => map.map_fields(f).into(),
@@ -575,7 +574,7 @@ impl Relation {
                 .build(),
         }
     }
-
+    /// Rename fields
     pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Relation {
         match self {
             Relation::Map(map) => map.rename_fields(f).into(),
@@ -591,37 +590,38 @@ impl Relation {
                 .build(),
         }
     }
-
-    pub fn sum_by(self, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
+    /// Sum values for each group.
+    /// Groups form the basis of a vector space, the sums are the coordinates.
+    pub fn sum_by_group(self, groups: Vec<&str>, values: Vec<&str>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
-        reduce = base
-            .iter()
-            .fold(reduce, |acc, s| acc.with_group_by_column(s.to_string()));
+        reduce = groups
+            .into_iter()
+            .fold(reduce, |acc, s| acc.with_group_by_column(s));
         reduce = reduce.with_iter(
-            coordinates
-                .iter()
-                .map(|c| (*c, Expr::sum(Expr::col(c.to_string())))),
+            values
+                .into_iter()
+                .map(|c| (c, Expr::sum(Expr::col(c.to_string())))),
         );
         reduce.build()
     }
-
-    pub fn l1_norm(self, vectors: &str, base: Vec<&str>, coordinates: Vec<&str>) -> Self {
-        let mut vectors_base = vec![vectors];
-        vectors_base.extend(base.clone());
-        let first = self.sum_by(vectors_base, coordinates.clone());
+    /// Compute L1 norms of the vectors formed by the group values for each entities
+    pub fn l1_norm(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
+        let mut vectors_base = vec![entities];
+        vectors_base.extend(groups.clone());
+        let first = self.sum_by_group(vectors_base, values.clone());
 
         let map_rel = first.map_fields(|n, e| {
-            if coordinates.contains(&n) {
+            if values.contains(&n) {
                 Expr::abs(e)
             } else {
                 e
             }
         });
 
-        if base.is_empty() {
+        if groups.is_empty() {
             map_rel
         } else {
-            map_rel.sum_by(vec![vectors], coordinates)
+            map_rel.sum_by_group(vec![entities], values)
         }
     }
 
@@ -631,7 +631,7 @@ impl Relation {
         } else {
             let mut vectors_base = vec![vectors];
             vectors_base.extend(base.clone());
-            let first = self.sum_by(vectors_base, coordinates.clone());
+            let first = self.sum_by_group(vectors_base, coordinates.clone());
 
             let map_rel = first.map_fields(|n, e| {
                 if coordinates.contains(&n) {
@@ -640,7 +640,7 @@ impl Relation {
                     e
                 }
             });
-            let reduce_rel = map_rel.sum_by(vec![vectors], coordinates.clone());
+            let reduce_rel = map_rel.sum_by_group(vec![vectors], coordinates.clone());
             reduce_rel.map_fields(|n, e| {
                 if coordinates.contains(&n) {
                     Expr::sqrt(e)
@@ -771,13 +771,13 @@ impl Relation {
         } else {
             let mut vectors_base = vec![vectors];
             vectors_base.extend(base.clone());
-            self.sum_by(vectors_base, coordinates.clone())
+            self.sum_by_group(vectors_base, coordinates.clone())
         };
 
         let weighted_relation =
             aggregated_relation.renormalize(weights, vectors, base.clone(), coordinates.clone());
 
-        weighted_relation.sum_by(base, coordinates)
+        weighted_relation.sum_by_group(base, coordinates)
     }
 
     pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Self> {
