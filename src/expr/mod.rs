@@ -1295,8 +1295,38 @@ impl DataType {
         }
         datatype
     }
-}
 
+    pub fn replace(&self, name: Identifier, dt: DataType) -> DataType {
+        match self {
+            DataType::Struct(st) => {
+                let (head, tail) = name.split_first().unwrap();
+                DataType::structured(
+                    st.iter().map(|(s, d)| if &head == s {
+                        (s, (**d).clone().replace(tail.clone(), dt.clone()))
+                    } else {
+                        (s, (**d).clone())
+                    })
+                    .collect::<Vec<_>>()
+                )
+            },
+            DataType::Union(u) => {
+                let (head, tail) = name.split_first().unwrap();
+                DataType::union(
+                    u.iter().map(|(s, d)| if &head == s {
+                        (s, (**d).clone().replace(tail.clone(), dt.clone()))
+                    } else {
+                        (s, (**d).clone())
+                    })
+                    .collect::<Vec<_>>()
+                )
+            },
+            _ => {
+                assert_eq!(name.len(), 0);
+                dt
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -2419,5 +2449,17 @@ mod tests {
         //         ]))
         //         .unwrap()
         // );
+    }
+
+    #[test]
+    fn test_replace_datatype() {
+        let dt = DataType::union([
+            ("table1", DataType::structured([
+                ("a", DataType::float()),
+                ("b", DataType::integer())
+            ]))
+        ]);
+        let name:Identifier = vec!["table1".to_string(), "a".to_string()].into();
+        println!("{}", dt.replace(name, DataType::integer()));
     }
 }
