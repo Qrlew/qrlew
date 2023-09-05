@@ -1273,7 +1273,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_norm_for_empty_base() {
+    fn test_compute_norm_for_empty_groups() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -1285,10 +1285,9 @@ mod tests {
         // L1 Norm
         let amount_norm = table.clone().l1_norms("order_id", vec![], vec!["price"]);
         amount_norm.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&amount_norm).to_string();
+        let query: &str = &format!("{} ORDER BY order_id", ast::Query::from(&amount_norm));
         println!("Query = {}", query);
-        let valid_query = "SELECT order_id, ABS(SUM(price)) FROM item_table GROUP BY order_id";
-        database.query(query).unwrap();
+        let valid_query = "SELECT order_id, ABS(SUM(price)) FROM item_table GROUP BY order_id ORDER BY order_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -1297,10 +1296,9 @@ mod tests {
         // L2 Norm
         let amount_norm = table.l2_norms("order_id", vec![], vec!["price"]);
         amount_norm.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&amount_norm).to_string();
+        let query: &str = &format!("{} ORDER BY order_id", ast::Query::from(&amount_norm));
         let valid_query =
-            "SELECT order_id, SQRT(POWER(SUM(price), 2)) FROM item_table GROUP BY order_id";
-        database.query(query).unwrap();
+            "SELECT order_id, SQRT(POWER(SUM(price), 2)) FROM item_table GROUP BY order_id ORDER BY order_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
