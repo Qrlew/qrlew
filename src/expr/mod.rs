@@ -29,13 +29,11 @@ use std::{
 
 use crate::{
     data_type::{
-        self, value, DataType, DataTyped, Variant as _, Struct as DataTypeStruct,
-        function::{greatest, least, Function as _}
+        self, value, DataType, DataTyped, Variant as _,
+        function::Function as _
     },
     hierarchy::Hierarchy,
-    namer::{self, FIELD},
     visitor::{self, Acceptor},
-    builder::With,
 };
 
 pub use identifier::Identifier;
@@ -1227,13 +1225,7 @@ impl DataType {
     }
 
     pub fn filter_by_function(&self, predicate: &Function) -> Self {
-        // let datatypes: Vec<(&str, DataType)> = self
-        // .fields()
-        // .iter()
-        // .map(|f| (f.name(), f.data_type()))
-        // .collect();
-        let mut datatype = self.clone(); //DataType::structured(datatypes);
-        //let mut new_schema = self.clone();
+        let mut datatype = self.clone();
 
         match (predicate.function(), predicate.arguments().as_slice()) {
             (function::Function::And, [left, right]) => {
@@ -1264,15 +1256,15 @@ impl DataType {
                 let set =
                     DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                 if let Expr::Column(col) = left {
-                    let dt = greatest()
+                    let dt = Expr::greatest(left.clone().clone(), right.clone().clone())
                         .super_image(&set)
                         .unwrap()
                         .super_intersection(&left_dt).unwrap();
-                    //new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
-                    // TODO/ update here
+                    // TODO: udpate datatype which is a struct
+                    // datatype.with_name_datatype(col, dt)
                 }
                 if let Expr::Column(col) = right {
-                    let dt = least()
+                    let dt = Expr::least(left.clone().clone(), right.clone().clone())
                         .super_image(&set)
                         .unwrap()
                         .super_intersection(&right_dt).unwrap();

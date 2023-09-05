@@ -878,6 +878,10 @@ impl Struct {
             h.chain(d.hierarchy().prepend(&[s.clone()]))
         )
     }
+    pub fn with_name_datatype(&self, name: Vec<&String>, datatype: DataType) -> DataType {
+        todo!()
+
+    }
 }
 
 // This is a Unit
