@@ -71,6 +71,7 @@ impl Dot for Relation {
         output.write(HTML_BODY.as_bytes())?;
         self.dot(&mut output, &["dark"])?;
         output.write(HTML_FOOTER.as_bytes())?;
+        #[cfg(feature = "graphviz_display")]
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
@@ -88,6 +89,7 @@ impl Dot for WithContext<&Expr, DataType> {
         output.write(HTML_BODY.as_bytes())?;
         self.dot(self.context.clone(), &mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
+        #[cfg(feature = "graphviz_display")]
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
@@ -106,6 +108,7 @@ impl Dot for WithContext<&Expr, Value> {
         output.write(HTML_BODY.as_bytes())?;
         self.dot_value(self.context.clone(), &mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
+        #[cfg(feature = "graphviz_display")]
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
@@ -128,6 +131,7 @@ pub mod macos {
             .arg(format!("/tmp/{name}.pdf"))
             .output()
             .expect("Error: you need graphviz installed (and dot on the PATH)");
+        #[cfg(feature = "graphviz_display")]
         Command::new("open")
             .arg(format!("/tmp/{name}.pdf"))
             .output()

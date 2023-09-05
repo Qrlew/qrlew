@@ -9,14 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - fix reduce when the query has a group by and doesn't have aggregation functions [MR80](https://github.com/Qrlew/qrlew/pull/80)
+## [0.2.3] - 2023-09-04
+### Changed
+- Internal code uses `Relation.name()` for table addressing but user facing functions may use `Table.path()` (ie sql addressing)
+- Renamed bivariate_min and bivariate_max to least and greatest
+- Cast to string before MD5 for protection
+- Implemented `least` and `greatest` (untested)
+
+## [0.2.2] - 2023-08-29
+### Changed
+- module name: `multiplicity` -> `sampling_adjustments` [MR77](https://github.com/Qrlew/qrlew/pull/77)
+- more coherent objects and function names inside `sampling_adjustments` [MR77](https://github.com/Qrlew/qrlew/pull/77)
+- Updated sqlparser version
+- Deactivate graphviz display by default
+- Deactivate multiplicity testing by default
+- 
+### Added
+- In `sampling_adjustments` added differenciated sampling and adjustments [MR77](https://github.com/Qrlew/qrlew/pull/77)
+- Updated sqlparser version
+- Deactivate graphviz display by default
+- Deactivate multiplicity testing by default
+- Improved Index trait for `data_type::Value` and `DataType`[MR94](https://github.com/Qrlew/qrlew/pull/94)
+- Implemented `hierarchy` method for `data_type::Value` and `DataType`[MR94](https://github.com/Qrlew/qrlew/pull/94)
+
 ## [0.2.1] - 2023-07-26
 ### Added
 - join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 - `Relation::possible_values` and used it in thresholding [MR73](https://github.com/Qrlew/qrlew/pull/73)
+- Error handling in transforms and diffrential_privacy [MR59](https://github.com/Qrlew/qrlew/pull/59)
+- Support for filtering by expression i.e. a > 3 * 5 [MR81](https://github.com/Qrlew/qrlew/pull/81)
 ### Changed
 - `Relation::filter_columns`
 -  join utils [MR72](https://github.com/Qrlew/qrlew/pull/72)
 -  Fixed table naming
+-  Made tests for multiplicity optional to avaoid Memory errors in the CI [MR84](https://github.com/Qrlew/qrlew/pull/84)
+### Fixed
+- Injection Float -> Integer and DataType.super_intersection [MR84](https://github.com/Qrlew/qrlew/pull/84)
 
 ## [0.2.0] - 2023-07-25
 ### Added

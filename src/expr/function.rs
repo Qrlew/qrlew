@@ -42,13 +42,19 @@ pub enum Function {
     Sqrt,
     Pow,
     Case,
-    Md5,
     Concat(usize),
     CharLength,
     Lower,
-    Position,
     Upper,
+    Md5,
+    Position,
     Random(usize),
+    CastAsText,
+    CastAsFloat,
+    CastAsInteger,
+    CastAsDateTime,
+    Least,
+    Greatest,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -56,7 +62,6 @@ pub enum Style {
     UnaryOperator,
     BinaryOperator,
     Function,
-    Case,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -102,17 +107,23 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Md5
+            | Function::CharLength
             | Function::Lower
             | Function::Upper
+            | Function::Md5
+            | Function::CastAsText
+            | Function::CastAsFloat
+            | Function::CastAsInteger
+            | Function::CastAsDateTime
             // Binary Functions
             | Function::Pow
-            | Function::CharLength
             | Function::Position
+            | Function::Least
+            | Function::Greatest
+            // Ternary Function
+            | Function::Case
             // Nary Function
             | Function::Concat(_) => Style::Function,
-            // Case Function
-            Function::Case => Style::Case,
         }
     }
 
@@ -120,7 +131,8 @@ impl Function {
     pub fn arity(self) -> Arity {
         match self {
             // Unary Operators
-            Function::Opposite | Function::Not => Arity::Unary,
+            Function::Opposite
+            | Function::Not => Arity::Unary,
             // Binary Operators
             Function::Plus
             | Function::Minus
@@ -151,12 +163,19 @@ impl Function {
             | Function::Sin
             | Function::Cos
             | Function::Sqrt
-            | Function::Md5
             | Function::CharLength
             | Function::Lower
-            | Function::Upper => Arity::Unary,
+            | Function::Upper
+            | Function::Md5
+            | Function::CastAsText
+            | Function::CastAsFloat
+            | Function::CastAsInteger
+            | Function::CastAsDateTime => Arity::Unary,
             // Binary Function
-            Function::Pow | Function::Position => Arity::Nary(2),
+            Function::Pow
+            | Function::Position
+            | Function::Least
+            | Function::Greatest => Arity::Nary(2),
             // Ternary Function
             Function::Case => Arity::Nary(3),
             // Nary Function
@@ -224,14 +243,20 @@ impl fmt::Display for Function {
             Function::CharLength => "char_length",
             Function::Lower => "lower",
             Function::Upper => "upper",
+            Function::Md5 => "md5",
+            Function::CastAsText => "cast_as_text",
+            Function::CastAsInteger => "cast_as_integer",
+            Function::CastAsFloat => "cast_as_float",
+            Function::CastAsDateTime => "cast_as_date_time",
             // Binary Functions
             Function::Pow => "pow",
-            Function::Concat(_) => "concat",
             Function::Position => "position",
+            Function::Least => "least",
+            Function::Greatest => "greatest",
             // Ternary Functions
             Function::Case => "case",
             // Nary Functions
-            Function::Md5 => "md5",
+            Function::Concat(_) => "concat",
         })
     }
 }

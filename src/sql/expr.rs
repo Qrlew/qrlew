@@ -124,6 +124,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 expr,
                 substring_from,
                 substring_for,
+                special,
             } => vec![Some(expr), substring_from.as_ref(), substring_for.as_ref()]
                 .iter()
                 .filter_map(|expr| expr.map(AsRef::as_ref))
@@ -343,6 +344,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 substring_from,
                 substring_for,
+                special,
             } => todo!(),
             ast::Expr::Trim {
                 expr,
@@ -847,8 +849,8 @@ mod tests {
         let true_expr = expr!(case(gt(a, 5), 5, case(lt(a, 2), 2, a)));
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(
-            expr.to_string(),
-            String::from("CASE WHEN (a > 5) THEN 5 ELSE CASE WHEN (a < 2) THEN 2 ELSE a END END")
+            ast::Expr::from(&expr).to_string(),
+            String::from("CASE WHEN (a) > (5) THEN 5 ELSE CASE WHEN (a) < (2) THEN 2 ELSE a END END")
         );
 
         let ast_expr: ast::Expr =
@@ -857,9 +859,9 @@ mod tests {
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
         assert_eq!(
-            expr.to_string(),
+            ast::Expr::from(&expr).to_string(),
             String::from(
-                "CASE WHEN (a > 5) THEN 5 ELSE CASE WHEN (a < 2) THEN 2 ELSE NULL END END"
+                "CASE WHEN (a) > (5) THEN 5 ELSE CASE WHEN (a) < (2) THEN 2 ELSE NULL END END"
             )
         );
 
@@ -869,9 +871,9 @@ mod tests {
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
         assert_eq!(
-            expr.to_string(),
+            ast::Expr::from(&expr).to_string(),
             String::from(
-                "CASE WHEN (a = 5) THEN (a + 3) ELSE CASE WHEN (a = 2) THEN (a - 4) ELSE a END END"
+                "CASE WHEN (a) = (5) THEN (a) + (3) ELSE CASE WHEN (a) = (2) THEN (a) - (4) ELSE a END END"
             )
         );
     }

@@ -33,15 +33,6 @@ impl From<Identifier> for ast::ObjectName {
     }
 }
 
-impl From<&Relation> for ast::ObjectName {
-    fn from(value: &Relation) -> Self {
-        match value {
-            Relation::Table(table) => table.path().clone().into(),
-            relation => Identifier::from(relation.name()).into(),
-        }
-    }
-}
-
 impl From<JoinConstraint> for ast::JoinConstraint {
     fn from(value: JoinConstraint) -> Self {
         match value {
@@ -156,18 +147,31 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
     }
 }
 
-fn table_factor(path: ast::ObjectName) -> ast::TableFactor {
-    ast::TableFactor::Table {
-        name: path,
-        alias: None,
-        args: None,
-        with_hints: vec![],
+fn table_factor(relation: &Relation) -> ast::TableFactor {
+    match relation {
+        Relation::Table(table) => ast::TableFactor::Table {
+                name: table.path().clone().into(),
+                alias: Some(ast::TableAlias {
+                        name: table.name().into(),
+                        columns: vec![],
+                    }),
+                args: None,
+                with_hints: vec![],
+                version: None,
+            },
+        relation => ast::TableFactor::Table {
+            name: Identifier::from(relation.name()).into(),
+            alias: None,
+            args: None,
+            with_hints: vec![],
+            version: None,
+        },
     }
 }
 
-fn table_with_joins(path: ast::ObjectName, joins: Vec<ast::Join>) -> ast::TableWithJoins {
+fn table_with_joins(relation: &Relation, joins: Vec<ast::Join>) -> ast::TableWithJoins {
     ast::TableWithJoins {
-        relation: table_factor(path),
+        relation: table_factor(relation),
         joins,
     }
 }
@@ -231,7 +235,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             vec![ast::SelectItem::Wildcard(
                 ast::WildcardAdditionalOptions::default(),
             )],
-            table_with_joins(table.path().clone().into(), vec![]),
+            table_with_joins(&table.clone().into(), vec![]),
             None,
             vec![],
             vec![],
@@ -278,7 +282,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(Identifier::from(map.name()).into(), vec![]),
+            table_with_joins(&map.clone().into(), vec![]),
             None,
             vec![],
             vec![],
@@ -320,7 +324,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(Identifier::from(reduce.name()).into(), vec![]),
+            table_with_joins(&reduce.clone().into(), vec![]),
             None,
             vec![],
             vec![],
@@ -368,7 +372,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(Identifier::from(join.name()).into(), vec![]),
+            table_with_joins(&join.clone().into(), vec![]),
             None,
             vec![],
             vec![],
@@ -408,7 +412,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(Identifier::from(set.name()).into(), vec![]),
+            table_with_joins(&set.clone().into(), vec![]),
             None,
             vec![],
             vec![],
@@ -466,7 +470,7 @@ impl Table {
             global: None,
             if_not_exists: true,
             transient: false,
-            name: ast::ObjectName(vec![self.name().into()]),
+            name: self.path().clone().into(),
             columns: self
                 .schema()
                 .iter()
@@ -502,6 +506,8 @@ impl Table {
             on_cluster: None,
             order_by: None,
             strict: false,
+            comment: None,
+            auto_increment_offset: None,
         }
     }
 
@@ -509,7 +515,7 @@ impl Table {
         ast::Statement::Insert {
             or: None,
             into: true,
-            table_name: ast::ObjectName(vec![self.name().into()]),
+            table_name: self.path().clone().into(),
             columns: self.schema().iter().map(|f| f.name().into()).collect(),
             overwrite: false,
             source: Box::new(ast::Query {

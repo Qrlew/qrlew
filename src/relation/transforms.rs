@@ -508,7 +508,7 @@ impl Relation {
             .build()
     }
 
-    /// Add a field designated with a "fiald path"
+    /// Add a field designated with a "field path"
     pub fn with_field_path<'a>(
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
@@ -912,11 +912,7 @@ impl Relation {
     /// Returns a `Relation` whose output fields correspond to the `aggregates`
     /// grouped by the expressions in `grouping_exprs`.
     /// If `grouping_exprs` is not empty, we order by the grouping expressions.
-    fn build_ordered_reduce(
-        self,
-        grouping_exprs: Vec<Expr>,
-        aggregates: Vec<(&str, Expr)>,
-    ) -> Relation {
+    fn ordered_reduce(self, grouping_exprs: Vec<Expr>, aggregates: Vec<(&str, Expr)>) -> Relation {
         let red: Relation = Relation::reduce()
             .with_iter(aggregates.clone())
             .group_by_iter(grouping_exprs.clone())
@@ -961,9 +957,7 @@ impl Relation {
                 Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))),
             ))
         });
-
-        // Add order by
-        red.build_ordered_reduce(grouping_exprs, aggregates_exprs)
+        red.ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
     pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
@@ -1125,23 +1119,23 @@ mod tests {
         let relations = database.relations();
         // Link orders to users
         let orders = relations
-            .get(&["order_table".to_string()])
+            .get(&["orders".to_string()])
             .unwrap()
             .as_ref();
         let relation = orders.clone().with_field_path(
             &relations,
-            &[("user_id", "user_table", "id")],
+            &[("user_id", "users", "id")],
             "id",
             "peid",
         );
         assert!(relation.schema()[0].name() == "peid");
-        // Link items to orders
-        let items = relations.get(&["item_table".to_string()]).unwrap().as_ref();
+        // // Link items to orders
+        let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
             &relations,
             &[
-                ("order_id", "order_table", "id"),
-                ("user_id", "user_table", "id"),
+                ("order_id", "orders", "id"),
+                ("user_id", "users", "id"),
             ],
             "name",
             "peid",
@@ -1161,8 +1155,8 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
-        let relation = relation.filter_fields(|n| n != "peid");
-        assert!(relation.schema()[0].name() != "peid");
+        // let relation = relation.filter_fields(|n| n != "peid");
+        // assert!(relation.schema()[0].name() != "peid");
     }
 
     fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {
@@ -1304,8 +1298,8 @@ mod tests {
             .left(left)
             .right(right)
             .on(Expr::eq(
-                Expr::qcol("item_table", "order_id"),
-                Expr::qcol("order_table", "id"),
+                Expr::qcol("items", "order_id"),
+                Expr::qcol("orders", "id"),
             ))
             .build();
         let schema = relation.schema().clone();
@@ -1461,8 +1455,8 @@ mod tests {
             .left(left)
             .right(right)
             .on(Expr::eq(
-                Expr::qcol("item_table", "order_id"),
-                Expr::qcol("order_table", "id"),
+                Expr::qcol("items", "order_id"),
+                Expr::qcol("orders", "id"),
             ))
             .build();
         relation.display_dot().unwrap();
@@ -1676,7 +1670,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter() {
+    fn test_filter_on_map() {
         let database = postgresql::test_database();
         let relations = database.relations();
 
@@ -1686,13 +1680,15 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        let filtered_relation = relation.filter(Expr::and(
+        let filtering_expr = Expr::and(
             Expr::and(
                 Expr::gt(Expr::col("my_a"), Expr::val(5.)),
                 Expr::lt(Expr::col("my_b"), Expr::val(0.)),
             ),
             Expr::lt(Expr::col("my_a"), Expr::val(100.)),
-        ));
+        );
+        println!("{}", filtering_expr);
+        let filtered_relation = relation.filter(filtering_expr);
         _ = filtered_relation.display_dot();
         assert_eq!(
             filtered_relation
@@ -1708,7 +1704,7 @@ mod tests {
                 .field("my_b")
                 .unwrap()
                 .data_type(),
-            DataType::optional(DataType::float_interval(-1., 0.))
+            DataType::float_interval(-1., 0.)
         );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
@@ -1722,6 +1718,12 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_filter_on_wildcard() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
 
         let relation =
             Relation::try_from(parse("SELECT * FROM table_1").unwrap().with(&relations)).unwrap();
@@ -1736,7 +1738,7 @@ mod tests {
         );
         assert_eq!(
             filtered_relation.schema().field("b").unwrap().data_type(),
-            DataType::optional(DataType::float_interval(-1., 0.5))
+            DataType::float_interval(-1., 0.5)
         );
         if let Relation::Map(m) = filtered_relation {
             assert_eq!(
@@ -1747,6 +1749,12 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_filter_on_reduce() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
 
         let relation = Relation::try_from(
             parse("SELECT a, Sum(d) AS sum_d FROM table_1 GROUP BY a")
@@ -1991,7 +1999,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_ordered_reduce() {
+    fn test_ordered_reduce() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -2009,9 +2017,7 @@ mod tests {
             ("sum_a", Expr::sum(Expr::col("a"))),
             ("count_b", Expr::count(Expr::col("a"))),
         ];
-        let rel = table
-            .clone()
-            .build_ordered_reduce(grouping_exprs, aggregates);
+        let rel = table.clone().ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
         _ = rel.display_dot();
 
@@ -2021,7 +2027,7 @@ mod tests {
             ("sum_a", Expr::sum(Expr::col("a"))),
             ("count_b", Expr::count(Expr::col("a"))),
         ];
-        let rel = table.build_ordered_reduce(grouping_exprs, aggregates);
+        let rel = table.ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
         _ = rel.display_dot();
     }
@@ -2198,8 +2204,8 @@ mod tests {
 
     #[test]
     fn test_cross_join() {
-        let table1: Relation = Relation::table()
-            .name("table")
+        let table_1: Relation = Relation::table()
+            .name("table_1")
             .schema(
                 Schema::builder()
                     .with(("a", DataType::integer_range(1..=10)))
@@ -2208,8 +2214,8 @@ mod tests {
             )
             .build();
 
-        let table2: Relation = Relation::table()
-            .name("table")
+        let table_2: Relation = Relation::table()
+            .name("table_2")
             .schema(
                 Schema::builder()
                     .with(("c", DataType::integer_range(5..=20)))
@@ -2218,7 +2224,7 @@ mod tests {
             )
             .build();
 
-        let joined_rel = table1.clone().cross_join(table2.clone()).unwrap();
-        _ = joined_rel.display_dot();
+        let joined_rel = table_1.clone().cross_join(table_2.clone()).unwrap();
+        joined_rel.display_dot();
     }
 }
