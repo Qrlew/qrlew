@@ -100,13 +100,13 @@ pub fn protect_visitor_from_field_paths<'a>(
     ProtectVisitor::new(
         move |table: &Table| match protected_entity
             .iter()
-            .find(|(tab, path, field)| table.name() == *tab)
+            .find(|(tab, _path, _field)| table.name() == relations[*tab].name())
         {
-            Some((tab, path, field)) => Relation::from(table.clone())
+            Some((_tab, path, field)) => Relation::from(table.clone())
                 .with_field_path(relations, path, field, PE_ID)
-                .map_fields(|n, e| if n == PE_ID { Expr::md5(e) } else { e }),
+                .map_fields(|n, e| if n == PE_ID { Expr::md5(Expr::cast_as_text(e)) } else { e }),
             None => table.clone().into(),
-        },
+        },//TODO fix MD5 here
         strategy,
     )
 }
@@ -353,14 +353,17 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
+        println!("DEBUG {}", relations);
         // Table
         let table = table
             .protect_from_field_paths(
                 &relations,
-                &[("item_table", &[("order_id", "order_table", "id")], "id")],
+                &[("item_table", &[("order_id", "order_table", "id")], "date")],
             )
             .unwrap();
+        table.display_dot().unwrap();
         println!("Schema protected = {}", table.schema());
+        println!("Query protected = {}", ast::Query::from(&table));
         assert_eq!(table.schema()[0].name(), PE_ID)
     }
 
@@ -419,14 +422,14 @@ mod tests {
             &relations,
             &[
                 (
-                    "item_table",
+                    "items",
                     &[
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
+                        ("order_id", "orders", "id"),
+                        ("user_id", "users", "id"),
                     ],
                     "name",
                 ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
+                ("order_table", &[("user_id", "users", "id")], "name"),
                 ("user_table", &[], "name"),
             ],
         );
@@ -495,5 +498,14 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
+    }
+
+    #[test]
+    fn test_peid_computation() {
+        // Change schema and table names
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        
+        println!("{relations}");
     }
 }

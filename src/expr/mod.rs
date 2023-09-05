@@ -30,7 +30,7 @@ use std::{
 use crate::{
     data_type::{
         self, value, DataType, DataTyped, Variant as _, Struct as DataTypeStruct,
-        function::{bivariate_max, bivariate_min, Function as _}
+        function::{greatest, least, Function as _}
     },
     hierarchy::Hierarchy,
     namer::{self, FIELD},
@@ -126,7 +126,7 @@ pub struct Function {
     /// Operator
     function: function::Function,
     /// Argumants
-    pub arguments: Vec<Rc<Expr>>,
+    arguments: Vec<Rc<Expr>>,
 }
 
 impl Function {
@@ -165,7 +165,7 @@ impl Function {
     // TODO: OR
     pub fn filter_column_data_type(&self, column: &Column, datatype: &DataType) -> DataType {
         let args: Vec<&Expr> = self.arguments.iter().map(|x| x.as_ref()).collect();
-        match (self.function, args.as_slice()) {
+        match (self.function.clone(), args.as_slice()) {
             // And
             (function::Function::And, [Expr::Function(left), Expr::Function(right)]) => left
                 .filter_column_data_type(column, datatype)
@@ -190,7 +190,7 @@ impl Function {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_max()
+                data_type::function::greatest()
                     .super_image(&set)
                     .unwrap_or(datatype.clone())
             }
@@ -212,7 +212,7 @@ impl Function {
                     x.data_type()
                 };
                 let set = DataType::structured_from_data_types([datatype.clone(), dt]);
-                data_type::function::bivariate_min()
+                data_type::function::least()
                     .super_image(&set)
                     .unwrap_or(datatype.clone())
             }
@@ -240,7 +240,7 @@ impl Function {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.function.style() {
+        match self.function.clone().style() {
             function::Style::UnaryOperator => {
                 write!(f, "({} {})", self.function, self.arguments[0])
             }
@@ -258,13 +258,6 @@ impl fmt::Display for Function {
                     .map(|expr| expr.to_string())
                     .join(", ")
             ),
-            function::Style::Case => {
-                write!(
-                    f,
-                    "CASE WHEN {} THEN {} ELSE {} END",
-                    self.arguments[0], self.arguments[1], self.arguments[2]
-                )
-            }
         }
     }
 }
@@ -368,7 +361,7 @@ macro_rules! impl_unary_function_constructors {
 }
 
 impl_unary_function_constructors!(
-    Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength
+    Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength, CastAsText, CastAsInteger, CastAsFloat, CastAsDateTime
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -418,6 +411,7 @@ impl_binary_function_constructors!(
     Pow,
     Position,
     InList,
+    Least,
     Greatest
 );
 
@@ -847,12 +841,6 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
                 format!("{} {} {}", arguments[0], function, arguments[1])
             }
             function::Style::Function => format!("{}({})", function, arguments.join(", ")),
-            function::Style::Case => {
-                format!(
-                    "( CASE WHEN {} THEN {} ELSE {} END )",
-                    arguments[0], arguments[1], arguments[2]
-                )
-            }
         }
     }
 
@@ -1084,7 +1072,7 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
     fn column(&self, column: &'a Column) -> Expr {
         self.0
             .get(column)
-            .map(|name| Expr::Column(name.clone()))
+            .map(|identifier| Expr::Column(identifier.clone()))
             .unwrap_or_else(|| Expr::Column(column.clone()))
     }
 
@@ -1276,7 +1264,7 @@ impl DataType {
                 let set =
                     DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                 if let Expr::Column(col) = left {
-                    let dt = bivariate_max()
+                    let dt = greatest()
                         .super_image(&set)
                         .unwrap()
                         .super_intersection(&left_dt).unwrap();
@@ -1284,7 +1272,7 @@ impl DataType {
                     // TODO/ update here
                 }
                 if let Expr::Column(col) = right {
-                    let dt = bivariate_min()
+                    let dt = least()
                         .super_image(&set)
                         .unwrap()
                         .super_intersection(&right_dt).unwrap();

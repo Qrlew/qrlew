@@ -112,22 +112,29 @@ pub trait Variant:
     fn size(&self) -> &Integer;
     /// Return the inputs
     fn inputs(&self) -> Vec<&Relation>;
+    /// Return the input hierarchy
+    fn input_hierarchy(&self) -> Hierarchy<&Relation> {
+        //TODO Add inputs recursively
+        self.inputs().into_iter().map(|r| ([r.name()], r)).collect()
+    }
+    /// Return the fields
+    fn fields(&self) -> Vec<&Field> {
+        self.schema().iter().collect()
+    }
+    /// Return the field hierarchy
+    fn field_hierarchy(&self) -> Hierarchy<&Field> {
+        self.fields().into_iter().map(|f| (vec![f.name()], f))
+        .chain(
+            self.inputs().into_iter().flat_map(|r| r.fields().into_iter().map(|f| (vec![self.name(), r.name(), f.name()], f))))
+        .collect()
+    }
     /// Access a field of the Relation by index
     fn field_from_index(&self, index: usize) -> Result<&Field> {
         self.schema().field_from_index(index)
     }
     /// Access a field of the Relation by identifier
     fn field_from_identifier(&self, identifier: &Identifier) -> Result<&Field> {
-        if identifier.len() == 1 {
-            self.schema().field_from_identifier(identifier)
-        } else {
-            self.inputs()
-                .into_iter()
-                .find(|&relation| relation.name() == identifier.head().unwrap_or(String::new()))
-                .ok_or_else(|| Error::invalid_name(identifier))?
-                .schema()
-                .field_from_identifier(&identifier.tail()?)
-        }
+        self.field_hierarchy().get(identifier).copied().ok_or_else(|| Error::InvalidIndex(identifier.to_string()))
     }
 }
 
@@ -169,7 +176,7 @@ impl Table {
     }
 
     /// Return the path
-    fn path(&self) -> &Identifier {
+    pub fn path(&self) -> &Identifier {
         &self.path
     }
 

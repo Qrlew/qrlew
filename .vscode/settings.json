@@ -1,8 +1,9 @@
 {
     "rust-analyzer.check.features": [
-        "sqlite"
+        "sqlite",
     ],
     "rust-analyzer.cargo.features": [
-        "sqlite"
+        "graphviz_display",
+        "sqlite",
     ],
 }

@@ -1,6 +1,7 @@
 //! Convert Expr into ast::Expr
 use crate::{
     ast,
+    data_type::DataType,
     expr::{self, Expr},
     visitor::Acceptor,
 };
@@ -177,6 +178,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Lower
             | expr::function::Function::Upper
             | expr::function::Function::Random(_)
+            | expr::function::Function::Least
             | expr::function::Function::Greatest => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
@@ -210,6 +212,13 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 expr: arguments[0].clone().into(),
                 r#in: arguments[1].clone().into(),
             },
+            expr::function::Function::CastAsText => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type:  DataType::text().into(),
+            },
+            expr::function::Function::CastAsFloat => todo!(),
+            expr::function::Function::CastAsInteger => todo!(),
+            expr::function::Function::CastAsDateTime => todo!(),
         }
     }
     // TODO implement this properly

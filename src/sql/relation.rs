@@ -670,7 +670,6 @@ mod tests {
         select cos(0.1*ta.b) as cs, tb.b as l, tb.a from view_2 as ta left outer join table_1 as tb on a=b;",
         ];
 
-    #[ignore]
     #[test]
     fn test_try_from_complex_query() {
         let query = parse(QUERIES[4]).unwrap();
