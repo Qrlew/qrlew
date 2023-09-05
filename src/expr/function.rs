@@ -49,6 +49,7 @@ pub enum Function {
     Position,
     Upper,
     Random(usize),
+    Greatest,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -109,6 +110,7 @@ impl Function {
             | Function::Pow
             | Function::CharLength
             | Function::Position
+            | Function::Greatest
             // Nary Function
             | Function::Concat(_) => Style::Function,
             // Case Function
@@ -156,7 +158,9 @@ impl Function {
             | Function::Lower
             | Function::Upper => Arity::Unary,
             // Binary Function
-            Function::Pow | Function::Position => Arity::Nary(2),
+            Function::Pow
+            | Function::Position
+            | Function::Greatest => Arity::Nary(2),
             // Ternary Function
             Function::Case => Arity::Nary(3),
             // Nary Function
@@ -228,6 +232,7 @@ impl fmt::Display for Function {
             Function::Pow => "pow",
             Function::Concat(_) => "concat",
             Function::Position => "position",
+            Function::Greatest => "greatest",
             // Ternary Functions
             Function::Case => "case",
             // Nary Functions

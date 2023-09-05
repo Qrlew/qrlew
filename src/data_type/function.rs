@@ -1535,6 +1535,10 @@ pub fn bivariate_max() -> impl Function + Clone {
     ))
 }
 
+pub fn greatest() -> impl Function + Clone {
+    bivariate_max() //TODO: add optionnal + more types
+}
+
 // String functions
 
 /// Builds the lower `Function`

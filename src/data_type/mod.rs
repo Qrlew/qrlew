@@ -2735,10 +2735,11 @@ impl DataType {
     }
 }
 
-impl<P: Path> Index<P> for DataType {
+impl<P: Path + fmt::Debug> Index<P> for DataType {
     type Output = DataType;
 
     fn index(&self, index: P) -> &Self::Output {
+        println!("{:?}", index);
         self.hierarchy()[index]
     }
 }

@@ -417,7 +417,8 @@ impl_binary_function_constructors!(
     BitwiseXor,
     Pow,
     Position,
-    InList
+    InList,
+    Greatest
 );
 
 /// Implement ternary function constructors
@@ -1238,7 +1239,81 @@ impl DataType {
     }
 
     pub fn filter_by_function(&self, predicate: &Function) -> Self {
-        todo!()
+        // let datatypes: Vec<(&str, DataType)> = self
+        // .fields()
+        // .iter()
+        // .map(|f| (f.name(), f.data_type()))
+        // .collect();
+        let mut datatype = self.clone(); //DataType::structured(datatypes);
+        //let mut new_schema = self.clone();
+
+        match (predicate.function(), predicate.arguments().as_slice()) {
+            (function::Function::And, [left, right]) => {
+                let dt1 = self.filter(right).filter(left);
+                let dt2 = self.filter(left).filter(right);
+                datatype = dt1.super_intersection(&dt2).unwrap();
+            }
+            // Set min or max
+            (function::Function::Gt, [left, right])
+            | (function::Function::GtEq, [left, right])
+            | (function::Function::Lt, [right, left])
+            | (function::Function::LtEq, [right, left]) => {
+                let left_dt = left.super_image(&datatype).unwrap();
+                let right_dt = right.super_image(&datatype).unwrap();
+
+                let left_dt = if let DataType::Optional(o) = left_dt {
+                    o.data_type().clone()
+                } else {
+                    left_dt
+                };
+
+                let right_dt = if let DataType::Optional(o) = right_dt {
+                    o.data_type().clone()
+                } else {
+                    right_dt
+                };
+
+                let set =
+                    DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                if let Expr::Column(col) = left {
+                    let dt = bivariate_max()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&left_dt).unwrap();
+                    //new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                    // TODO/ update here
+                }
+                if let Expr::Column(col) = right {
+                    let dt = bivariate_min()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&right_dt).unwrap();
+                    //new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                    // TODO/ update here
+                }
+            }
+            (function::Function::Eq, [left, right]) => {
+                let left_dt = left.super_image(&datatype).unwrap();
+                let right_dt = right.super_image(&datatype).unwrap();
+                let dt = left_dt.super_intersection(&right_dt).unwrap();
+                if let Expr::Column(col) = left {
+                    //new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt.clone())
+                    // TODO/ update here
+                }
+                if let Expr::Column(col) = right {
+                    //new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                    // TODO/ update here
+                }
+            }
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
+                let dt = DataType::from_iter(l.to_vec().clone())
+                    .super_intersection(&datatype).unwrap();
+                //new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                // TODO/ update here
+            }
+            _ => (),
+        }
+        datatype
     }
 }
 
@@ -2320,12 +2395,49 @@ mod tests {
 
     #[test]
     fn test_filter_data_type() {
-        let dt:DataType = DataType::structured([("a", DataType::float()), ("b", DataType::integer())]);
-        println!("{}", dt)
+        let dt: DataType = DataType::structured([("a", DataType::float()), ("b", DataType::integer())]);
+        println!("{}", dt);
         let x = expr!(and(gt(a, 5), lt(b, a)));
-        println!("")
+        println!("{}", x.super_image(&dt).unwrap());
     }
 
-
-
+    #[test]
+    fn test_greatest() {
+        let expression = Expr::greatest(Expr::col("x"), Expr::col("y"));
+        println!("expression = {}", expression);
+        let dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("x", DataType::float_interval(1., 4.)),
+                    ("a", DataType::integer_interval(2, 7))
+                ])
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(1., 4.)),
+                    ("y", DataType::float_interval(3.4, 7.1))
+                ])
+            ),
+        ]);
+        println!("{}", dt);
+        println!("{}", dt[["table1", "x"]]);
+        //println!("expression data type = {}", expression.data_type());
+        // println!(
+        //     "expression super image = {}",
+        //     expression
+        //         .super_image(&dt)
+        //         .unwrap()
+        // );
+        // println!(
+        //     "expression value = {}",
+        //     expression
+        //         .value(&Value::structured([
+        //             ("x", Value::float(2.5)),
+        //             ("y", Value::integer(3)),
+        //         ]))
+        //         .unwrap()
+        // );
+    }
 }
