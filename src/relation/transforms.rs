@@ -243,7 +243,7 @@ impl Reduce {
                 Got {len_clipping_values} clipping values for {len_coordinates} output fields"
             )));
         }
-        let clipped_relation = self.input.as_ref().clone().clipped_sum(
+        let clipped_relation = self.input.as_ref().clone().l2_clipped_sums(
             vectors?.as_str(),
             base.iter().map(|s| s.as_str()).collect(),
             coordinates.iter().map(|s| s.as_str()).collect(),
@@ -676,7 +676,7 @@ impl Relation {
     /// For each coordinate, rescale the columns by 1 / greatest(1, norm_l2/C)
     /// where the l2 norm is computed for each elecment of `vectors`
     /// The `self` relation must contain the vectors, base and coordinates columns
-    pub fn clipped_sum(
+    pub fn l2_clipped_sums(
         self,
         entities: &str,
         groups: Vec<&str>,
@@ -1339,7 +1339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_l2_scaling() {
+    fn test_l2_clipped_sums() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let mut relation = relations
@@ -1348,8 +1348,7 @@ mod tests {
             .as_ref()
             .clone();
         // Compute l1 norm
-        let norms = relation.clone().l2_norms("id", vec!["city"], vec!["age"]);
-        relation = relation.scale("id", vec!["age"], norms);
+        relation = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", 20.)]);
         // Print query
         let query = &ast::Query::from(&relation);
         println!("After: {}", query);
@@ -1371,7 +1370,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let clipped_relation = table.clone().clipped_sum(
+        let clipped_relation = table.clone().l2_clipped_sums(
             "order_id",
             vec!["item"],
             vec!["price"],
@@ -1405,7 +1404,7 @@ mod tests {
         let clipped_relation =
             table
                 .clone()
-                .clipped_sum("order_id", vec![], vec!["price"], vec![("price", 45.)]);
+                .l2_clipped_sums("order_id", vec![], vec!["price"], vec![("price", 45.)]);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         println!("Query: {}", query);
@@ -1436,7 +1435,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         // L2 Norm
-        let clipped_relation = relation.clone().clipped_sum(
+        let clipped_relation = relation.clone().l2_clipped_sums(
             "order_id",
             vec!["item"],
             vec!["price", "std_price"],
@@ -1492,7 +1491,7 @@ mod tests {
         let date = schema.field_from_index(6).unwrap().name();
 
         let clipped_relation =
-            relation.clipped_sum(user_id, vec![item, date], vec![price], vec![(price, 50.)]);
+            relation.l2_clipped_sums(user_id, vec![item, date], vec![price], vec![(price, 50.)]);
         clipped_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&clipped_relation).to_string();
         let valid_query = r#"
