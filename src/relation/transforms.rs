@@ -619,22 +619,22 @@ impl Relation {
             })
             .sums_by_group(vec![entities], values)
     }
-
+    /// Compute L2 norms of the vectors formed by the group values for each entities
     pub fn l2_norms(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
         let mut entities_groups = vec![entities];
         entities_groups.extend(groups.clone());
         self
         .sums_by_group(entities_groups, values.clone())
-        .map_fields(|field, expr| {
-            if values.contains(&field) {
+        .map_fields(|field_name, expr| {
+            if values.contains(&field_name) {
                 Expr::pow(expr, Expr::val(2))
             } else {
                 expr
             }
         })
         .sums_by_group(vec![entities], values.clone())
-        .map_fields(|field, expr| {
-            if values.contains(&field) {
+        .map_fields(|field_name, expr| {
+            if values.contains(&field_name) {
                 Expr::sqrt(expr)
             } else {
                 expr
@@ -642,133 +642,73 @@ impl Relation {
         })
     }
 
-    /// This transform multiplies the coordinates in `self` relation by their corresponding weights in `weight_relation`.
-    /// `weight_relation` contains the coordinates weights and the vectors columns
+    /// This transform multiplies the values in `self` relation by their corresponding `scale_factors`.
+    /// `scale_factors` contains the entities scaling factors and the vectors columns
     /// `self` contains the coordinates, the base and vectors columns
-    pub fn renormalize(
+    pub fn scale(
         self,
-        weight_relation: Relation,
-        vectors: &str,
-        base: Vec<&str>,
-        coordinates: Vec<&str>,
-    ) -> Self {
-        // Join the two relations on the peid column
+        entities: &str,
+        values: Vec<&str>,
+        scale_factors: Relation,
+    ) -> Self {// TODO fix this
+        // Join the two relations on the entity column
         let join: Relation = Relation::join()
-            .left(self.clone())
-            .right(weight_relation.clone())
-            .inner()
             .on(Expr::eq(
-                Expr::qcol(self.name(), vectors),
-                Expr::qcol(weight_relation.name(), vectors),
+                Expr::qcol(self.name(), entities),
+                Expr::qcol(scale_factors.name(), entities),
             ))
+            .left_names(self.fields().into_iter().map(|field| field.name()).collect())
+            .right_names(scale_factors.fields().into_iter().map(|field| format!("_SCALE_FACTOR_{}", field.name())).collect())
+            .left(self)
+            .right(scale_factors)
+            .inner()
             .build();
-
-        // Multiply by weights
-        let mut grouping_cols: Vec<Expr> = vec![];
-        let mut weighted_agg: Vec<Expr> = vec![];
-        let left_len = if base.is_empty() {
-            self.schema().len() + 1
-        } else {
-            self.schema().len()
-        };
-        let join_len = join.schema().len();
-        let out_fields = join.schema().fields();
-        let in_fields = join.input_fields();
-        for i in 0..left_len {
-            // length + 1
-            if coordinates.contains(&in_fields[i].name()) {
-                let mut pos = i + 1;
-                while &in_fields[i].name() != &in_fields[pos].name() {
-                    pos += 1;
-                    if pos > join_len {
-                        panic!()
-                    }
-                }
-
-                weighted_agg.push(Expr::multiply(
-                    Expr::col(out_fields[i].name()),
-                    Expr::col(out_fields[pos].name()),
-                ));
+        // Multiply the values by the factors
+        join.map_fields(|field_name, expr| {
+            if values.contains(&field_name) {
+                Expr::multiply(expr, Expr::col(format!("_SCALE_FACTOR_{}", field_name)))
             } else {
-                grouping_cols.push(Expr::col(out_fields[i].name()));
+                expr
             }
-        }
-
-        let mut vectors_base = vec![vectors];
-        vectors_base.extend(base.clone());
-        Relation::map()
-            .input(join)
-            .with_iter(
-                vectors_base
-                    .iter()
-                    .zip(grouping_cols.iter())
-                    .map(|(s, e)| (s.to_string(), e.clone())),
-            )
-            .with_iter(
-                coordinates
-                    .iter()
-                    .zip(weighted_agg.iter())
-                    .map(|(s, e)| (s.to_string(), e.clone())),
-            )
-            .build()
+        })
     }
 
-    /// For each coordinate, rescale the columns by 1 / max(c, norm_l2(coordinate))
+    /// For each coordinate, rescale the columns by 1 / greatest(1, norm_l2/C)
     /// where the l2 norm is computed for each elecment of `vectors`
     /// The `self` relation must contain the vectors, base and coordinates columns
     pub fn clipped_sum(
         self,
-        vectors: &str,
-        base: Vec<&str>,
-        coordinates: Vec<&str>,
+        entities: &str,
+        groups: Vec<&str>,
+        values: Vec<&str>,
         clipping_values: Vec<(&str, f64)>,
     ) -> Self {
-        let norm = self
+        // Compute the norm
+        let norms = self
             .clone()
-            .l2_norms(vectors.clone(), base.clone(), coordinates.clone());
-
-        let map_clipping_values: HashMap<&str, f64> = clipping_values.into_iter().collect();
-
-        let weights = norm.map_fields(|n, e| {
-            if coordinates.contains(&n) {
+            .l2_norms(entities.clone(), groups.clone(), values.clone());
+        // Put the `clipping_values`in the right shape
+        let clipping_values: HashMap<&str, f64> = clipping_values.into_iter().collect();
+        // Compute the scaling factors
+        let scaling_factors = norms.map_fields(|field_name, expr| {
+            if values.contains(&field_name) {
                 Expr::divide(
-                    Expr::val(2),
-                    Expr::plus(
-                        Expr::abs(Expr::minus(
-                            Expr::divide(e.clone(), Expr::val(map_clipping_values[&n])),
-                            Expr::val(1),
-                        )),
-                        Expr::plus(
-                            Expr::divide(e, Expr::val(map_clipping_values[&n])),
-                            Expr::val(1),
-                        ),
+                    Expr::val(1),
+                    Expr::greatest(
+                        Expr::val(1),
+                        Expr::divide(expr.clone(), Expr::val(clipping_values[&field_name])),
                     ),
                 )
             } else {
-                Expr::col(n)
+                Expr::val(1)
             }
         });
-
-        let aggregated_relation: Relation = if base.is_empty() {
-            Relation::map()
-                .input(self)
-                .with((vectors, Expr::col(vectors)))
-                .with_iter(
-                    coordinates
-                        .iter()
-                        .map(|s| (s.to_string(), Expr::col(s.to_string()))),
-                )
-                .build()
-        } else {
-            let mut vectors_base = vec![vectors];
-            vectors_base.extend(base.clone());
-            self.sums_by_group(vectors_base, coordinates.clone())
-        };
-
-        let weighted_relation =
-            aggregated_relation.renormalize(weights, vectors, base.clone(), coordinates.clone());
-
-        weighted_relation.sums_by_group(base, coordinates)
+        let clipped_relation = self.scale(
+            entities,
+            values.clone(),
+            scaling_factors,
+        );
+        clipped_relation.sums_by_group(groups, values)
     }
 
     pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Self> {
@@ -1226,7 +1166,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        // Compute l1 norm
+        // Compute l2 norm
         relation = relation.l2_norms("id", vec!["city"], vec!["age"]);
         // Print query
         let query = &ast::Query::from(&relation);
@@ -1396,6 +1336,29 @@ mod tests {
         for row in database.query(query).unwrap() {
             println!("{row}")
         }
+    }
+
+    #[test]
+    fn test_l2_scaling() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let mut relation = relations
+            .get(&["user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        // Compute l1 norm
+        let norms = relation.clone().l2_norms("id", vec!["city"], vec!["age"]);
+        relation = relation.scale("id", vec!["age"], norms);
+        // Print query
+        let query = &ast::Query::from(&relation);
+        println!("After: {}", query);
+        relation.display_dot().unwrap();
+        // let expected_query = "SELECT id, SQRT(SUM(age*age)) FROM (SELECT id, city, SUM(age) AS age FROM user_table GROUP BY id, city) AS sums GROUP BY id";
+        // assert_eq!(
+        //     database.query(&query.to_string()).unwrap(),
+        //     database.query(expected_query).unwrap()
+        // );
     }
 
     #[test]
