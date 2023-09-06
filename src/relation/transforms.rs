@@ -687,6 +687,8 @@ impl Relation {
         let norms = self
             .clone()
             .l2_norms(entities.clone(), groups.clone(), values.clone());
+        // TODO REMOVE DEBUG
+        norms.display_dot().unwrap();
         // Put the `clipping_values`in the right shape
         let clipping_values: HashMap<&str, f64> = clipping_values.into_iter().collect();
         // Compute the scaling factors
@@ -703,6 +705,8 @@ impl Relation {
                 Expr::val(1)
             }
         });
+        // TODO REMOVE DEBUG
+        scaling_factors.display_dot().unwrap();
         let clipped_relation = self.scale(
             entities,
             values.clone(),
