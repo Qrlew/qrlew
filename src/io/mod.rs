@@ -98,21 +98,14 @@ pub trait Database: Sized {
     /// A relation can be adressed by its SQL path or its Qrlew name
     fn relations(&self) -> Hierarchy<Rc<Relation>> {
         self.tables()
-        .iter()
-        .map(|t| {
-            (
-                Identifier::from(t.name()),
-                Rc::new(t.clone().into()),
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Rc::new(t.clone().into()))) // Tables can be accessed from their name or path
+            .chain(
+                self.tables()
+                    .iter()
+                    .map(|t| (t.path().clone(), Rc::new(t.clone().into()))),
             )
-        })// Tables can be accessed from their name or path
-        .chain(self.tables().iter().map(|t| {
-            (
-                t.path().clone(),
-                Rc::new(t.clone().into()),
-            )
-        })
-        )
-        .collect()
+            .collect()
     }
     /// Create an empty db
     fn empty(name: String) -> Result<Self> {
@@ -268,4 +261,3 @@ mod tests {
         Ok(())
     }
 }
-

@@ -17,13 +17,31 @@ fn build_ast() -> Result<(), &'static str> {
             into: None,
             from: vec![
                 TableWithJoins {
-                    relation: TableFactor::Table {name:ObjectName(vec!["tab_1".into()]),alias:None,args:None,with_hints:vec![], version: None },
+                    relation: TableFactor::Table {
+                        name: ObjectName(vec!["tab_1".into()]),
+                        alias: None,
+                        args: None,
+                        with_hints: vec![],
+                        version: None,
+                    },
                     joins: vec![],
                 },
                 TableWithJoins {
-                    relation: TableFactor::Table {name:ObjectName(vec!["tab_2".into()]),alias:None,args:None,with_hints:vec![], version: None },
+                    relation: TableFactor::Table {
+                        name: ObjectName(vec!["tab_2".into()]),
+                        alias: None,
+                        args: None,
+                        with_hints: vec![],
+                        version: None,
+                    },
                     joins: vec![Join {
-                        relation: TableFactor::Table {name:ObjectName(vec!["path".into(),"tab_3".into()]),alias:None,args:None,with_hints:vec![], version: None },
+                        relation: TableFactor::Table {
+                            name: ObjectName(vec!["path".into(), "tab_3".into()]),
+                            alias: None,
+                            args: None,
+                            with_hints: vec![],
+                            version: None,
+                        },
                         join_operator: JoinOperator::LeftOuter(JoinConstraint::Using(vec![
                             "a".into(),
                             "b".into(),

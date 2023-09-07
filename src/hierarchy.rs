@@ -122,13 +122,18 @@ impl<T: Clone> Hierarchy<T> {
     pub fn chain(self, other: Self) -> Self {
         self.into_iter().chain(other.into_iter()).collect()
     }
-    
+
     pub fn prepend(self, head: &[String]) -> Self {
         self.into_iter()
-            .map(|(s, d)| (
-                head.iter().map(|s| s.clone()).chain(s.into_iter()).collect::<Vec<String>>(),
-                d
-            ))
+            .map(|(s, d)| {
+                (
+                    head.iter()
+                        .map(|s| s.clone())
+                        .chain(s.into_iter())
+                        .collect::<Vec<String>>(),
+                    d,
+                )
+            })
             .collect()
     }
 
@@ -367,10 +372,7 @@ mod tests {
 
     #[test]
     fn test_preprend() {
-        let h1 = Hierarchy::from([
-            (["a"], DataType::float()),
-            (["b"], DataType::integer()),
-        ]);
+        let h1 = Hierarchy::from([(["a"], DataType::float()), (["b"], DataType::integer())]);
         let prepended_h = h1.prepend(&["table_1".to_string()]);
         assert_eq!(
             prepended_h,
