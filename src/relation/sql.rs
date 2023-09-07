@@ -150,15 +150,15 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
 fn table_factor(relation: &Relation) -> ast::TableFactor {
     match relation {
         Relation::Table(table) => ast::TableFactor::Table {
-                name: table.path().clone().into(),
-                alias: Some(ast::TableAlias {
-                        name: table.name().into(),
-                        columns: vec![],
-                    }),
-                args: None,
-                with_hints: vec![],
-                version: None,
-            },
+            name: table.path().clone().into(),
+            alias: Some(ast::TableAlias {
+                name: table.name().into(),
+                columns: vec![],
+            }),
+            args: None,
+            with_hints: vec![],
+            version: None,
+        },
         relation => ast::TableFactor::Table {
             name: Identifier::from(relation.name()).into(),
             alias: None,
