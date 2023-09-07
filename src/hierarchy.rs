@@ -122,7 +122,7 @@ impl<T: Clone> Hierarchy<T> {
     pub fn chain(self, other: Self) -> Self {
         self.into_iter().chain(other.into_iter()).collect()
     }
-    
+
     pub fn prepend(self, head: &[String]) -> Self {
         self.into_iter()
             .map(|(s, d)| (
@@ -148,6 +148,22 @@ impl<T: Clone> Hierarchy<T> {
                 })
                 .into()
         })
+    }
+
+    pub fn full_path<P: Path + Copy>(&self, path: P) -> Option<Vec<String>> {
+        self.0
+            .iter()
+            .fold(Found::Zero, |f, (qualified_path, _)| {
+                if is_suffix_of(path.path().as_slice(), qualified_path) {
+                    match f {
+                        Found::Zero => Found::One(qualified_path.clone()),
+                        _ => Found::More,
+                    }
+                } else {
+                    f
+                }
+            })
+            .into()
     }
 
     pub fn filter(&self, path: &[String]) -> Self {
@@ -379,5 +395,24 @@ mod tests {
                 (["table_1", "b"], DataType::integer()),
             ])
         )
+    }
+
+    #[test]
+    fn test_full_path() {
+        let values = Hierarchy::from([
+            (vec!["a", "b", "c"], 1),
+            (vec!["a", "b", "d"], 2),
+            (vec!["a", "c"], 3),
+            (vec!["a", "e"], 4),
+            (vec!["a", "e", "f"], 5),
+            (vec!["b", "c"], 6),
+        ]);
+        assert_eq!(values.full_path(["a", "c"]).unwrap(), vec!["a".to_string(), "c".to_string()]);
+        assert!(values.full_path(["a", "b"]).is_none());
+        assert_eq!(values.full_path(["e"]).unwrap(), vec!["a".to_string(), "e".to_string()]);
+        assert_eq!(values.full_path(["e", "f"]).unwrap(), vec!["a".to_string(), "e".to_string(), "f".to_string()]);
+        assert!(values.full_path(["b", "c"]).is_none());
+        assert_eq!(values.full_path(["b", "d"]).unwrap(), vec!["a".to_string(), "b".to_string(), "d".to_string()]);
+        assert_eq!(values.full_path(["d"]).unwrap(), vec!["a".to_string(), "b".to_string(), "d".to_string()]);
     }
 }

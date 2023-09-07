@@ -2587,7 +2587,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bivariate_min() {
+    fn test_least() {
         println!("Test bivariate_min");
         let fun = least();
         println!("type = {}", fun);

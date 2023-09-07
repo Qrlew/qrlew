@@ -916,13 +916,27 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
     fn and(self, other: (S, T)) -> Self::Product {
         let field: String = other.0.into();
         let data_type: Rc<DataType> = other.1.into();
+        let mut push_other  = true;
         // Remove existing elements with the same name
         let mut fields: Vec<(String, Rc<DataType>)> = self
             .fields
             .iter()
-            .filter_map(|(f, t)| (&field != f).then_some((f.clone(), t.clone())))
+            .filter_map(
+                |(f, t)| {//(&field != f).then_some((f.clone(), t.clone()))
+                    if &field != f {
+                        Some((f.clone(), t.clone()))
+                    } else if let (&DataType::Struct(_), &DataType::Struct(_)) = (data_type.as_ref(), t.as_ref()){
+                        push_other = false;
+                        Some((f.clone(), Rc::new(data_type.as_ref().clone().and(t.as_ref().clone()))))
+                    }else {
+                        None
+                    }
+                }
+            )
             .collect();
-        fields.push((field, data_type));
+        if push_other {
+            fields.push((field, data_type))
+        }
         Struct::new(fields.into())
     }
 }
@@ -2330,7 +2344,7 @@ impl DataType {
     }
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
     /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
-    fn hierarchy(&self) -> Hierarchy<&DataType> {
+    pub fn hierarchy(&self) -> Hierarchy<&DataType> {
         for_all_variants!(
             self,
             x,
@@ -2737,11 +2751,10 @@ impl DataType {
     }
 }
 
-impl<P: Path + fmt::Debug> Index<P> for DataType {
+impl<P: Path> Index<P> for DataType {
     type Output = DataType;
 
     fn index(&self, index: P) -> &Self::Output {
-        println!("{:?}", index);
         self.hierarchy()[index]
     }
 }
@@ -3339,13 +3352,130 @@ mod tests {
             .and(("c", DataType::float()))
             .and(("d", DataType::float()))
             .and(("d", DataType::float()));
+        println!("a = {a}");
+        println!("b = {b}");
+
+        // a and b
         let c = a.clone().and(b.clone());
+        println!("\na and b = {c}");
+        assert_eq!(
+            c,
+            Struct::default()
+            .and(("0", DataType::float()))
+            .and(("a", DataType::integer()))
+            .and(("1", DataType::float()))
+            .and(("2", DataType::float()))
+            .and(("3", DataType::float()))
+            .and(("b", DataType::integer()))
+            .and(("c", DataType::float()))
+            .and(("d", DataType::float()))
+        );
+
+        // a and unit
         let d = a.clone().and(DataType::unit());
-        let e = a.and(DataType::Struct(b));
-        println!("{c}");
-        println!("{d}");
-        println!("{e}");
+        println!("\na and unit = {d}");
+        assert_eq!(
+            d,
+            Struct::default()
+            .and(("0", DataType::float()))
+            .and(("a", DataType::integer()))
+            .and(("1", DataType::float()))
+            .and(("2", DataType::float()))
+            .and(("3", DataType::float()))
+            .and(("4", DataType::unit()))
+        );
+
+        // a and DataType(b)
+        let e = a.clone().and(DataType::Struct(b.clone()));
+        println!("\na and b = {e}");
         assert_eq!(e.fields().len(), 8);
+        assert_eq!(
+            e,
+            Struct::default()
+            .and(("0", DataType::float()))
+            .and(("a", DataType::integer()))
+            .and(("1", DataType::float()))
+            .and(("2", DataType::float()))
+            .and(("3", DataType::float()))
+            .and(("b", DataType::integer()))
+            .and(("c", DataType::float()))
+            .and(("d", DataType::float()))
+        );
+
+        //struct(table1: a) and b
+        let f = DataType::structured([("table1", DataType::Struct(a.clone()))]).and(DataType::Struct(b.clone()));
+        println!("\na and struct(table1: b) = {f}");
+        assert_eq!(
+            f,
+            DataType::structured([
+                (
+                    "table1",
+                    DataType::structured([
+                        ("0", DataType::float()),
+                        ("a", DataType::integer()),
+                        ("1", DataType::float()),
+                        ("2", DataType::float()),
+                        ("3", DataType::float())
+                    ])
+                ),
+                ("b", DataType::integer()),
+                ("c", DataType::float()),
+                ("d", DataType::float()),
+            ])
+        );
+
+        //struct(table1: a) and struct(table1: b)
+        let g = DataType::structured([("table1", DataType::Struct(a.clone()))]).and(
+            DataType::structured([("table1", DataType::Struct(b.clone()))])
+        );
+        println!("\nstruct(table1: a) and struct(table1: b) = {g}");
+        assert_eq!(
+            g,
+            DataType::structured([
+                (
+                    "table1",
+                    DataType::structured([
+                        ("0", DataType::float()),
+                        ("a", DataType::integer()),
+                        ("1", DataType::float()),
+                        ("2", DataType::float()),
+                        ("3", DataType::float()),
+                        ("b", DataType::integer()),
+                        ("c", DataType::float()),
+                        ("d", DataType::float()),
+                    ])
+                )
+            ])
+        );
+
+        // struct(table1: a) and struct(table2: b)
+        let h = DataType::structured([("table1", DataType::Struct(a))]).and(
+            DataType::structured([("table2", DataType::Struct(b))])
+        );
+        println!("\nstruct(table1: a) and struct(table2: b) = {h}");
+        assert_eq!(
+            h,
+            DataType::structured([
+                (
+                    "table1",
+                    DataType::structured([
+                        ("0", DataType::float()),
+                        ("a", DataType::integer()),
+                        ("1", DataType::float()),
+                        ("2", DataType::float()),
+                        ("3", DataType::float())
+                    ])
+                ),
+                (
+                    "table2",
+                    DataType::structured([
+                        ("b", DataType::integer()),
+                        ("c", DataType::float()),
+                        ("d", DataType::float()),
+                    ])
+                )
+            ])
+        );
     }
 
     #[test]
@@ -3399,6 +3529,11 @@ mod tests {
         println!("{}", x);
         assert_eq!(x[["a"]], a);
         assert_eq!(x[["a", "a_1"]], DataType::integer());
+
+        // struct{0: (), 1: any, 2: any}
+        let dt = DataType::unit() & DataType::Any & DataType::Any;
+        //println!("dt[\"a\"] = {}", dt[["a"]]);
+        //println!("dt[\"a\"] = {}", dt["a"]);
     }
 
     #[test]
