@@ -915,7 +915,6 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
     fn and(self, other: (S, T)) -> Self::Product {
         let field: String = other.0.into();
         let data_type: Rc<DataType> = other.1.into();
-        let mut push_other = true;
         // Remove existing elements with the same name
         let (mut fields, push_other): (Vec<_>, _) =
             self.fields.iter().fold((vec![], true), |(v, b), (f, t)| {
