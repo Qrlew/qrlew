@@ -1292,7 +1292,7 @@ impl Value {
         Value::Function(Function(f.into()))
     }
 
-    fn hierarchy(&self) -> Hierarchy<&Value> {
+    pub fn hierarchy(&self) -> Hierarchy<&Value> {
         match self {
             Value::Struct(x) => x.hierarchy(),
             _ => Hierarchy::from([(Vec::<&str>::new(), self)]),

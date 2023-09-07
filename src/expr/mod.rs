@@ -876,11 +876,6 @@ pub struct DomainVisitor;
 
 impl<'a> Visitor<'a, DataType> for DomainVisitor {
     fn column(&self, column: &'a Column) -> DataType {
-        // if column.len() == 1 {
-        //     DataType::structured([(&column.head().unwrap(), DataType::Any)]) // TODO fix this
-        // } else {
-        //     DataType::Any
-        // }
         let (colname, path) = column.split_last().unwrap();
         path.iter().rev().fold(
             DataType::structured([(&colname, DataType::Any)]),

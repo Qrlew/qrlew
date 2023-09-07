@@ -878,9 +878,6 @@ impl Struct {
             |h, (s, d)| h.chain(d.hierarchy().prepend(&[s.clone()])),
         )
     }
-    pub fn with_name_datatype(&self, name: Vec<&String>, datatype: DataType) -> DataType {
-        todo!()
-    }
 }
 
 // This is a Unit
@@ -3527,11 +3524,6 @@ mod tests {
         println!("{}", x);
         assert_eq!(x[["a"]], a);
         assert_eq!(x[["a", "a_1"]], DataType::integer());
-
-        // struct{0: (), 1: any, 2: any}
-        let dt = DataType::unit() & DataType::Any & DataType::Any;
-        //println!("dt[\"a\"] = {}", dt[["a"]]);
-        //println!("dt[\"a\"] = {}", dt["a"]);
     }
 
     #[test]
