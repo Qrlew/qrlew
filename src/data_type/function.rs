@@ -681,10 +681,12 @@ impl<F: Function> Function for Extended<F> {
 }
 
 /// A function is extensible if it can be extended to a different domain
-pub trait Extensible {
+pub trait Extensible: Function {
     type Extended;
 
-    fn extend(self, domain: DataType) -> Self::Extended;
+    fn extend(self, domain: DataType) -> Self::Extended {
+        
+    }
 }
 
 // Implement extensible for all borrowed function
