@@ -29,10 +29,7 @@ use std::{
 
 use crate::{
     builder::With,
-    data_type::{
-        self, value, DataType, DataTyped, Variant as _,
-        function::Function as _
-    },
+    data_type::{self, function::Function as _, value, DataType, DataTyped, Variant as _},
     hierarchy::Hierarchy,
     visitor::{self, Acceptor},
 };
@@ -885,13 +882,10 @@ impl<'a> Visitor<'a, DataType> for DomainVisitor {
         //     DataType::Any
         // }
         let (colname, path) = column.split_last().unwrap();
-        path.iter()
-            .rev()
-            .fold(
-                DataType::structured([(&colname, DataType::Any)]),
-                |acc, name| DataType::structured([(name, acc)]),
-            )
-
+        path.iter().rev().fold(
+            DataType::structured([(&colname, DataType::Any)]),
+            |acc, name| DataType::structured([(name, acc)]),
+        )
     }
 
     fn value(&self, _value: &'a Value) -> DataType {
@@ -1278,8 +1272,7 @@ impl DataType {
                     right_dt
                 };
 
-                let set =
-                    DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                 if let Expr::Column(col) = left {
                     let dt = Expr::greatest(left.clone().clone(), right.clone().clone())
                         .super_image(&datatype)
@@ -1315,7 +1308,8 @@ impl DataType {
             }
             (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
                 let dt = DataType::from_iter(l.to_vec().clone())
-                    .super_intersection(&datatype).unwrap();
+                    .super_intersection(&datatype)
+                    .unwrap();
                 datatype = datatype.replace(col, dt)
             }
             _ => (),
@@ -1324,30 +1318,40 @@ impl DataType {
     }
 
     pub fn replace(&self, name: &Identifier, dt: DataType) -> DataType {
-        let name = Identifier::from(self.hierarchy().full_path::<&Vec<String>>(&name.to_vec()).unwrap());
+        let name = Identifier::from(
+            self.hierarchy()
+                .full_path::<&Vec<String>>(&name.to_vec())
+                .unwrap(),
+        );
         match self {
             DataType::Struct(st) => {
                 let (head, tail) = name.split_first().unwrap();
                 DataType::structured(
-                    st.iter().map(|(s, d)| if &head == s {
-                        (s, (**d).clone().replace(&tail, dt.clone()))
-                    } else {
-                        (s, (**d).clone())
-                    })
-                    .collect::<Vec<_>>()
+                    st.iter()
+                        .map(|(s, d)| {
+                            if &head == s {
+                                (s, (**d).clone().replace(&tail, dt.clone()))
+                            } else {
+                                (s, (**d).clone())
+                            }
+                        })
+                        .collect::<Vec<_>>(),
                 )
-            },
+            }
             DataType::Union(u) => {
                 let (head, tail) = name.split_first().unwrap();
                 DataType::union(
-                    u.iter().map(|(s, d)| if &head == s {
-                        (s, (**d).clone().replace(&tail, dt.clone()))
-                    } else {
-                        (s, (**d).clone())
-                    })
-                    .collect::<Vec<_>>()
+                    u.iter()
+                        .map(|(s, d)| {
+                            if &head == s {
+                                (s, (**d).clone().replace(&tail, dt.clone()))
+                            } else {
+                                (s, (**d).clone())
+                            }
+                        })
+                        .collect::<Vec<_>>(),
                 )
-            },
+            }
             _ => {
                 assert_eq!(name.len(), 0);
                 dt
@@ -2415,12 +2419,12 @@ mod tests {
         assert_eq!(Expr::filter(columns), true_expr);
     }
 
-
     #[test]
     fn test_filter_data_type() {
-        let dt: DataType = DataType::union([
-            ("table1", DataType::structured([("a", DataType::float()), ("b", DataType::integer())]))
-        ]);
+        let dt: DataType = DataType::union([(
+            "table1",
+            DataType::structured([("a", DataType::float()), ("b", DataType::integer())]),
+        )]);
         println!("{}", dt);
         let x = expr!(and(gt(a, 5), lt(b, a)));
         let x = expr!(greatest(a, b));
@@ -2429,26 +2433,28 @@ mod tests {
 
     #[test]
     fn test_filter_simple() {
-        let dt = DataType::union([
-            ("table1", DataType::structured([
+        let dt = DataType::union([(
+            "table1",
+            DataType::structured([
                 ("a", DataType::float_interval(-10., 10.)),
                 ("b", DataType::integer_interval(0, 8)),
                 ("c", DataType::float()),
-            ])),
-        ]);
+            ]),
+        )]);
 
         // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
         let x = expr!(gt(a, 5));
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
         println!("{}", filtered_dt);
-        let true_dt = DataType::union([
-            ("table1", DataType::structured([
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
                 ("a", DataType::float_interval(5., 9.)),
                 ("b", DataType::integer_interval(2, 4)),
                 ("c", DataType::float_value(0.99)),
-            ]))
-        ]);
+            ]),
+        )]);
         assert_eq!(filtered_dt, true_dt);
 
         // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
@@ -2458,26 +2464,28 @@ mod tests {
         ));
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
-        let true_dt = DataType::union([
-            ("table1", DataType::structured([
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
                 ("a", DataType::float_interval(5., 9.)),
                 ("b", DataType::integer_interval(2, 4)),
                 ("c", DataType::float_value(0.99)),
-            ]))
-        ]);
+            ]),
+        )]);
         assert_eq!(filtered_dt, true_dt);
 
         // ((a = 45) and (b = 3.5) and (0 = c))
         let x = expr!(and(eq(a, 45), and(eq(b, 3.5), eq(0, c))));
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
-        let true_dt = DataType::union([
-            ("table1", DataType::structured([
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
                 ("a", DataType::Null),
                 ("b", DataType::Null),
                 ("c", DataType::float_value(0.)),
-            ]))
-        ]);
+            ]),
+        )]);
         assert_eq!(filtered_dt, true_dt);
 
         // (b in (1, 3, 4.5))
@@ -2487,13 +2495,14 @@ mod tests {
         let x = Expr::and(a, b);
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
-        let true_dt = DataType::union([
-            ("table1", DataType::structured([
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
                 ("a", DataType::float_values([1., 3., 4.5])),
                 ("b", DataType::integer_values([1, 3])),
                 ("c", DataType::float()),
-            ]))
-        ]);
+            ]),
+        )]);
         assert_eq!(filtered_dt, true_dt);
 
         // (b = exp(a))
@@ -2734,65 +2743,47 @@ mod tests {
                 "table1",
                 DataType::structured([
                     ("x", DataType::float_interval(1., 4.)),
-                    ("b", DataType::integer_interval(2, 7))
-                ])
+                    ("b", DataType::integer_interval(2, 7)),
+                ]),
             ),
             (
                 "table2",
                 DataType::structured([
                     ("x", DataType::float_interval(1., 4.)),
-                    ("y", DataType::float_interval(3.4, 7.1))
-                ])
+                    ("y", DataType::float_interval(3.4, 7.1)),
+                ]),
             ),
         ]);
         let value = Value::structured([
             (
                 "table1",
-                Value::structured([
-                    ("x", Value::float(2.3)),
-                    ("b", Value::integer(5))
-                ])
+                Value::structured([("x", Value::float(2.3)), ("b", Value::integer(5))]),
             ),
             (
                 "table2",
-                Value::structured([
-                    ("x", Value::float(3.5)),
-                    ("y", Value::float(4.3))
-                ])
+                Value::structured([("x", Value::float(3.5)), ("y", Value::float(4.3))]),
             ),
         ]);
 
-
         // greatest(table1.x, y)
-        let expression = Expr::greatest(
-            Expr::qcol("table1", "x"),
-            Expr::col("y")
-        );
+        let expression = Expr::greatest(Expr::qcol("table1", "x"), Expr::col("y"));
         println!("\nexpression = {}", expression);
         assert_eq!(
             expression.domain(),
-            DataType::unit() & ("y", DataType::Any) & ("table1", DataType::structured([("x", DataType::Any)]))
+            DataType::unit()
+                & ("y", DataType::Any)
+                & ("table1", DataType::structured([("x", DataType::Any)]))
         );
         println!("expression co_domain = {}", expression.co_domain());
         println!("expression data type = {}", expression.data_type());
         assert_eq!(
-            expression
-                .super_image(&dt)
-                .unwrap(),
+            expression.super_image(&dt).unwrap(),
             DataType::float_interval(3.4, 7.1)
         );
-        assert_eq!(
-            expression
-                .value(&value)
-                .unwrap(),
-            Value::float(4.3)
-        );
+        assert_eq!(expression.value(&value).unwrap(), Value::float(4.3));
 
         // greatest(b, y)
-        let expression = Expr::greatest(
-            Expr::col("b"),
-            Expr::col("y")
-        );
+        let expression = Expr::greatest(Expr::col("b"), Expr::col("y"));
         println!("\nexpression = {}", expression);
         assert_eq!(
             expression.domain(),
@@ -2801,67 +2792,48 @@ mod tests {
         println!("expression co_domain = {}", expression.co_domain());
         println!("expression data type = {}", expression.data_type());
         assert_eq!(
-            expression
-                .super_image(&dt)
-                .unwrap(),
+            expression.super_image(&dt).unwrap(),
             DataType::float_interval(3.4, 7.1)
         );
-        assert_eq!(
-            expression
-                .value(&value)
-                .unwrap(),
-            Value::float(5.0)
-        );
+        assert_eq!(expression.value(&value).unwrap(), Value::float(5.0));
 
         // greatest(table1.x, table1.b)
-        let expression = Expr::greatest(
-            Expr::qcol("table1", "x"),
-            Expr::qcol("table1", "b")
-        );
+        let expression = Expr::greatest(Expr::qcol("table1", "x"), Expr::qcol("table1", "b"));
         println!("\nexpression = {}", expression);
-        println!(
-            "{}",
-            expression.domain(),
-        );
+        println!("{}", expression.domain(),);
         assert_eq!(
             expression.domain(),
-            DataType::unit() &
-            ("table1", DataType::unit() & ("b", DataType::Any) & ("y", DataType::Any))
+            DataType::unit()
+                & (
+                    "table1",
+                    DataType::unit() & ("b", DataType::Any) & ("y", DataType::Any)
+                )
         );
         println!("expression co_domain = {}", expression.co_domain());
         println!("expression data type = {}", expression.data_type());
         assert_eq!(
-            expression
-                .super_image(&dt)
-                .unwrap(),
-            DataType::float_interval(2., 4.).super_union(&DataType::integer_interval(5, 7)).unwrap()
+            expression.super_image(&dt).unwrap(),
+            DataType::float_interval(2., 4.)
+                .super_union(&DataType::integer_interval(5, 7))
+                .unwrap()
         );
-        assert_eq!(
-            expression
-                .value(&value)
-                .unwrap(),
-            Value::float(5.)
-        );
+        assert_eq!(expression.value(&value).unwrap(), Value::float(5.));
     }
 
     #[test]
     fn test_replace_datatype() {
-        let dt = DataType::union([
-            ("table1", DataType::structured([
-                ("a", DataType::float()),
-                ("b", DataType::integer())
-            ]))
-        ]);
-        let correct_dt = DataType::union([
-            ("table1", DataType::structured([
-                ("a", DataType::integer()),
-                ("b", DataType::integer())
-            ]))
-        ]);
-        let name:Identifier = vec!["table1".to_string(), "a".to_string()].into();
+        let dt = DataType::union([(
+            "table1",
+            DataType::structured([("a", DataType::float()), ("b", DataType::integer())]),
+        )]);
+        let correct_dt = DataType::union([(
+            "table1",
+            DataType::structured([("a", DataType::integer()), ("b", DataType::integer())]),
+        )]);
+        let name: Identifier = vec!["table1".to_string(), "a".to_string()].into();
         let new_dt = dt.replace(&name, DataType::integer());
         assert_eq!(new_dt, correct_dt);
-        let name:Identifier = vec!["a".to_string()].into();
+        let name: Identifier = vec!["a".to_string()].into();
         let new_dt = dt.replace(&name, DataType::integer());
         assert_eq!(new_dt, correct_dt);
     }

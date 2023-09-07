@@ -409,12 +409,27 @@ mod tests {
             (vec!["a", "e", "f"], 5),
             (vec!["b", "c"], 6),
         ]);
-        assert_eq!(values.full_path(["a", "c"]).unwrap(), vec!["a".to_string(), "c".to_string()]);
+        assert_eq!(
+            values.full_path(["a", "c"]).unwrap(),
+            vec!["a".to_string(), "c".to_string()]
+        );
         assert!(values.full_path(["a", "b"]).is_none());
-        assert_eq!(values.full_path(["e"]).unwrap(), vec!["a".to_string(), "e".to_string()]);
-        assert_eq!(values.full_path(["e", "f"]).unwrap(), vec!["a".to_string(), "e".to_string(), "f".to_string()]);
+        assert_eq!(
+            values.full_path(["e"]).unwrap(),
+            vec!["a".to_string(), "e".to_string()]
+        );
+        assert_eq!(
+            values.full_path(["e", "f"]).unwrap(),
+            vec!["a".to_string(), "e".to_string(), "f".to_string()]
+        );
         assert!(values.full_path(["b", "c"]).is_none());
-        assert_eq!(values.full_path(["b", "d"]).unwrap(), vec!["a".to_string(), "b".to_string(), "d".to_string()]);
-        assert_eq!(values.full_path(["d"]).unwrap(), vec!["a".to_string(), "b".to_string(), "d".to_string()]);
+        assert_eq!(
+            values.full_path(["b", "d"]).unwrap(),
+            vec!["a".to_string(), "b".to_string(), "d".to_string()]
+        );
+        assert_eq!(
+            values.full_path(["d"]).unwrap(),
+            vec!["a".to_string(), "b".to_string(), "d".to_string()]
+        );
     }
 }
