@@ -850,7 +850,9 @@ mod tests {
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(
             ast::Expr::from(&expr).to_string(),
-            String::from("CASE WHEN (a) > (5) THEN 5 ELSE CASE WHEN (a) < (2) THEN 2 ELSE a END END")
+            String::from(
+                "CASE WHEN (a) > (5) THEN 5 ELSE CASE WHEN (a) < (2) THEN 2 ELSE a END END"
+            )
         );
 
         let ast_expr: ast::Expr =

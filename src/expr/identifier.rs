@@ -1,14 +1,7 @@
-use std::{
-    fmt,
-    ops,
-    vec,
-};
+use std::{fmt, ops, vec};
 
 use super::{Error, Result};
-use crate::{
-    builder::With,
-    hierarchy::Path,
-};
+use crate::{builder::With, hierarchy::Path};
 
 /// The list of operators
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

@@ -28,6 +28,7 @@ use std::{
 };
 
 use crate::{
+    builder::With,
     data_type::{
         self, value, DataType, DataTyped, Variant as _,
         function::Function as _
@@ -359,7 +360,23 @@ macro_rules! impl_unary_function_constructors {
 }
 
 impl_unary_function_constructors!(
-    Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Lower, Upper, CharLength, CastAsText, CastAsInteger, CastAsFloat, CastAsDateTime
+    Opposite,
+    Not,
+    Exp,
+    Ln,
+    Log,
+    Abs,
+    Sin,
+    Cos,
+    Sqrt,
+    Md5,
+    Lower,
+    Upper,
+    CharLength,
+    CastAsText,
+    CastAsInteger,
+    CastAsFloat,
+    CastAsDateTime
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -1378,7 +1395,7 @@ mod tests {
             & ("1", DataType::float_interval(-1., 2.));
         let left = Expr::col("0");
         let right = Expr::col("1");
-        // // Sum
+        // Sum
         let sum = left.clone() + right.clone();
         println!(
             "{left}: {} + {right}: {} = sum: {}",
