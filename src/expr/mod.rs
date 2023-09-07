@@ -1260,10 +1260,9 @@ mod tests {
 
     #[test]
     fn test_bin_op() {
-        let dict = DataType::structured([
-            ("0", DataType::float_interval(-5., 2.)),
-            ("1", DataType::float_interval(-1., 2.)),
-        ]);
+        let dict = DataType::unit()
+            & ("0", DataType::float_interval(-5., 2.))
+            & ("1", DataType::float_interval(-1., 2.));
         let left = Expr::col("0");
         let right = Expr::col("1");
         // Sum

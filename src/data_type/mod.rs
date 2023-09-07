@@ -912,17 +912,20 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
     fn and(self, other: (S, T)) -> Self::Product {
         let field: String = other.0.into();
         let data_type: Rc<DataType> = other.1.into();
-        let mut push_other = true;
         // Remove existing elements with the same name
-        let mut fields: Vec<(String, Rc<DataType>)> = self
+        let (mut fields, push_other): (Vec<_>, _) = self
             .fields
             .iter()
-            .map(|(f, t)| {
+            .fold(
+                (vec![], true),
+                |(v, b), (f, t)| {
+                let mut v = v;
+                let mut b = b;
                 if &field != f {
-                    (f.clone(), t.clone())
+                    v.push((f.clone(), t.clone()));
                 } else {
-                    push_other = false;
-                    (
+                    b = false;
+                    v.push((
                         f.clone(),
                         Rc::new(
                             t.as_ref()
@@ -930,10 +933,10 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
                                 .super_intersection(data_type.as_ref())
                                 .unwrap(),
                         ),
-                    )
+                    ));
                 }
-            })
-            .collect();
+                (v, b)
+            });
         if push_other {
             fields.push((field, data_type))
         }
@@ -962,7 +965,6 @@ impl And<DataType> for Struct {
     fn and(self, other: DataType) -> Self::Product {
         // Simplify in the case of struct and Unit
         match other {
-            //DataType::Unit(_u) => self, // TODO remove that ?
             DataType::Struct(s) => self.super_intersection(&s).unwrap(), //self.and(s),
             other => self.and((other,)),
         }
@@ -2855,7 +2857,7 @@ impl And<DataType> for DataType {
         // Simplify in the case of struct and Unit
         match self {
             DataType::Null => DataType::Null,
-            //DataType::Unit(_u) => other, // TODO: reactivate ?
+            DataType::Unit(_) => other,
             DataType::Struct(s) => s.and(other).into(),
             s => Struct::from_data_type(s).and(other).into(),
         }
@@ -2922,8 +2924,7 @@ impl DataType {
     pub fn product<I: IntoIterator<Item = DataType>>(data_types: I) -> DataType {
         data_types
             .into_iter()
-            .reduce(|s, t| s.and(t))
-            .unwrap_or(DataType::unit())
+            .fold(DataType::unit(), |s, t| s.and(t))
     }
 }
 
@@ -3498,7 +3499,7 @@ mod tests {
             & ("c", DataType::boolean())
             & ("d", DataType::float());
         println!("b = {b}");
-        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 7);
+        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 6);
     }
 
     #[test]
