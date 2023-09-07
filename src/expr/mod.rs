@@ -2825,7 +2825,8 @@ mod tests {
         );
         assert_eq!(
             expression.domain(),
-            DataType::unit() & ("b", DataType::Any) & ("y", DataType::Any)
+            DataType::unit() &
+            ("table1", DataType::unit() & ("b", DataType::Any) & ("y", DataType::Any))
         );
         println!("expression co_domain = {}", expression.co_domain());
         println!("expression data type = {}", expression.data_type());
@@ -2833,13 +2834,13 @@ mod tests {
             expression
                 .super_image(&dt)
                 .unwrap(),
-            DataType::float_interval(3.4, 7.1)
+            DataType::float_interval(2., 4.).super_union(&DataType::integer_interval(5, 7)).unwrap()
         );
         assert_eq!(
             expression
                 .value(&value)
                 .unwrap(),
-            Value::float(4.3)
+            Value::float(5.)
         );
     }
 
