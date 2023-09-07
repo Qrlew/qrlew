@@ -131,8 +131,7 @@ impl Function {
     pub fn arity(self) -> Arity {
         match self {
             // Unary Operators
-            Function::Opposite
-            | Function::Not => Arity::Unary,
+            Function::Opposite | Function::Not => Arity::Unary,
             // Binary Operators
             Function::Plus
             | Function::Minus
@@ -172,10 +171,9 @@ impl Function {
             | Function::CastAsInteger
             | Function::CastAsDateTime => Arity::Unary,
             // Binary Function
-            Function::Pow
-            | Function::Position
-            | Function::Least
-            | Function::Greatest => Arity::Nary(2),
+            Function::Pow | Function::Position | Function::Least | Function::Greatest => {
+                Arity::Nary(2)
+            }
             // Ternary Function
             Function::Case => Arity::Nary(3),
             // Nary Function
