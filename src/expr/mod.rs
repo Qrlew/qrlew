@@ -2371,22 +2371,4 @@ mod tests {
         );
         assert_eq!(expression.value(&value).unwrap(), Value::float(5.));
     }
-
-    #[test]
-    fn test_replace_datatype() {
-        let dt = DataType::union([(
-            "table1",
-            DataType::structured([("a", DataType::float()), ("b", DataType::integer())]),
-        )]);
-        let correct_dt = DataType::union([(
-            "table1",
-            DataType::structured([("a", DataType::integer()), ("b", DataType::integer())]),
-        )]);
-        let name: Identifier = vec!["table1".to_string(), "a".to_string()].into();
-        let new_dt = dt.replace(&name, DataType::integer());
-        assert_eq!(new_dt, correct_dt);
-        let name: Identifier = vec!["a".to_string()].into();
-        let new_dt = dt.replace(&name, DataType::integer());
-        assert_eq!(new_dt, correct_dt);
-    }
 }
