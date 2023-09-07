@@ -918,22 +918,13 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
             .fields
             .iter()
             .map(|(f, t)| {
-                //(&field != f).then_some((f.clone(), t.clone()))
                 if &field != f {
                     (f.clone(), t.clone())
-                } else if let (&DataType::Struct(_), &DataType::Struct(_)) =
-                    (data_type.as_ref(), t.as_ref())
-                {
-                    push_other = false;
-                    (
-                        f.clone(),
-                        Rc::new(data_type.as_ref().clone().and(t.as_ref().clone())),
-                    )
                 } else {
                     push_other = false;
                     (
                         f.clone(),
-                        Rc::new(data_type.as_ref().super_intersection(t.as_ref()).unwrap()),
+                        Rc::new(t.as_ref().clone().and(data_type.as_ref().clone())),
                     )
                 }
             })
@@ -2930,7 +2921,8 @@ impl DataType {
     pub fn product<I: IntoIterator<Item = DataType>>(data_types: I) -> DataType {
         data_types
             .into_iter()
-            .fold(DataType::unit(), |s, t| s.and(t))
+            .reduce(|s, t| s.and(t))
+            .unwrap_or(DataType::unit())
     }
 }
 
@@ -3346,12 +3338,12 @@ mod tests {
     #[test]
     fn test_struct_and() {
         let a = Struct::default()
-            .and(("a", DataType::float_interval(1., 3.)))
-            .and(("a", DataType::integer_interval(-10, 10)));
-        println!("a = {a}");
+        .and(("a", DataType::integer_interval(-10, 10)))
+        .and(("a", DataType::float_interval(1., 3.)));
+        println!("{a}");
         assert_eq!(
             a,
-            Struct::from_field("a", DataType::float_values([1., 2., 3.]))
+            Struct::from_field("a", DataType::integer_interval(-10, 10) & DataType::float_interval(1., 3.))
         );
 
         let a = Struct::default()
@@ -3371,19 +3363,18 @@ mod tests {
 
         // a and b
         let c = a.clone().and(b.clone());
+        let true_c = Struct::default()
+            .and(("0", DataType::float()))
+            .and(("a", DataType::integer_interval(-10, 10) & DataType::float_interval(1., 3.)))
+            .and(("1", DataType::float()))
+            .and(("2", DataType::float()))
+            .and(("3", DataType::float()))
+            .and(("b", DataType::integer()))
+            .and(("c", DataType::float()))
+            .and(("d", DataType::float() & DataType::float()));
         println!("\na and b = {c}");
-        assert_eq!(
-            c,
-            Struct::default()
-                .and(("0", DataType::float()))
-                .and(("a", DataType::float_values([1., 2., 3.])))
-                .and(("1", DataType::float()))
-                .and(("2", DataType::float()))
-                .and(("3", DataType::float()))
-                .and(("b", DataType::integer()))
-                .and(("c", DataType::float()))
-                .and(("d", DataType::float()))
-        );
+        println!("\na and b = {true_c}");
+        assert_eq!(c,true_c);
 
         // a and unit
         let d = a.clone().and(DataType::unit());
@@ -3407,13 +3398,13 @@ mod tests {
             e,
             Struct::default()
                 .and(("0", DataType::float()))
-                .and(("a", DataType::integer_interval(1, 3)))
+                .and(("a", DataType::integer_interval(-10, 10) & DataType::float_interval(1., 3.)))
                 .and(("1", DataType::float()))
                 .and(("2", DataType::float()))
                 .and(("3", DataType::float()))
                 .and(("b", DataType::integer()))
                 .and(("c", DataType::float()))
-                .and(("d", DataType::float()))
+                .and(("d", DataType::float() & DataType::float()))
         );
 
         //struct(table1: a) and b
@@ -3435,7 +3426,7 @@ mod tests {
                 ),
                 ("b", DataType::integer()),
                 ("c", DataType::float()),
-                ("d", DataType::float()),
+                ("d", DataType::float() &  DataType::float()),
                 ("a", DataType::float_interval(1., 3.))
             ])
         );
@@ -3451,13 +3442,13 @@ mod tests {
                 "table1",
                 DataType::structured([
                     ("0", DataType::float()),
-                    ("a", DataType::float_values([1., 2., 3.])),
+                    ("a", DataType::integer_interval(-10, 10) & DataType::float_interval(1., 3.)),
                     ("1", DataType::float()),
                     ("2", DataType::float()),
                     ("3", DataType::float()),
                     ("b", DataType::integer()),
                     ("c", DataType::float()),
-                    ("d", DataType::float()),
+                    ("d", DataType::float() & DataType::float()),
                 ])
             )])
         );
@@ -3484,7 +3475,7 @@ mod tests {
                     DataType::structured([
                         ("b", DataType::integer()),
                         ("c", DataType::float()),
-                        ("d", DataType::float()),
+                        ("d", DataType::float() &  DataType::float()),
                         ("a", DataType::float_interval(1., 3.))
                     ])
                 )
