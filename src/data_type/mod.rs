@@ -924,7 +924,12 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
                     push_other = false;
                     (
                         f.clone(),
-                        Rc::new(t.as_ref().clone().super_intersection(data_type.as_ref()).unwrap()),
+                        Rc::new(
+                            t.as_ref()
+                                .clone()
+                                .super_intersection(data_type.as_ref())
+                                .unwrap(),
+                        ),
                     )
                 }
             })
@@ -958,7 +963,7 @@ impl And<DataType> for Struct {
         // Simplify in the case of struct and Unit
         match other {
             //DataType::Unit(_u) => self, // TODO remove that ?
-            DataType::Struct(s) => self.super_intersection(&s).unwrap(),//self.and(s),
+            DataType::Struct(s) => self.super_intersection(&s).unwrap(), //self.and(s),
             other => self.and((other,)),
         }
     }
@@ -3334,14 +3339,13 @@ mod tests {
     #[test]
     fn test_struct_and() {
         let a = Struct::default()
-        .and(("a", DataType::integer_interval(-10, 10)))
-        .and(("a", DataType::float_interval(1., 3.)));
+            .and(("a", DataType::integer_interval(-10, 10)))
+            .and(("a", DataType::float_interval(1., 3.)));
         println!("a = {a}");
         assert_eq!(
             a,
             Struct::default().and(("a", DataType::float_values([1., 2., 3.])))
         );
-
 
         let a = Struct::default()
             .and(DataType::float())
@@ -3365,10 +3369,7 @@ mod tests {
             .and(("1", DataType::float()))
             .and(("2", DataType::float()))
             .and(("3", DataType::float()))
-            .and((
-                "a",
-                DataType::float_values([1., 2., 3.]),
-            ))
+            .and(("a", DataType::float_values([1., 2., 3.])))
             .and(("b", DataType::integer()))
             .and(("c", DataType::float()))
             .and(("d", DataType::float()));
@@ -3401,10 +3402,7 @@ mod tests {
                 .and(("1", DataType::float()))
                 .and(("2", DataType::float()))
                 .and(("3", DataType::float()))
-                .and((
-                    "a",
-                    DataType::float_values([1., 2., 3.])
-                ))
+                .and(("a", DataType::float_values([1., 2., 3.])))
                 .and(("b", DataType::integer()))
                 .and(("c", DataType::float()))
                 .and(("d", DataType::float()))
@@ -3448,10 +3446,7 @@ mod tests {
                     ("1", DataType::float()),
                     ("2", DataType::float()),
                     ("3", DataType::float()),
-                    (
-                        "a",
-                        DataType::float_values([1., 2., 3.])
-                    ),
+                    ("a", DataType::float_values([1., 2., 3.])),
                     ("b", DataType::integer()),
                     ("c", DataType::float()),
                     ("d", DataType::float()),
