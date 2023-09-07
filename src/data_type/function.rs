@@ -1035,7 +1035,9 @@ Conversion function
 pub fn cast(into: DataType) -> impl Function + Clone {
     // TODO Only cast as text is working for now
     match into {
-        DataType::Text(t) if t==data_type::Text::full() => Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into()),
+        DataType::Text(t) if t == data_type::Text::full() => {
+            Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into())
+        }
         _ => todo!(),
     }
 }

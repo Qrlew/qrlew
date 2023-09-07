@@ -123,10 +123,15 @@ pub trait Variant:
     }
     /// Return the field hierarchy
     fn field_hierarchy(&self) -> Hierarchy<&Field> {
-        self.fields().into_iter().map(|f| (vec![f.name()], f))
-        .chain(
-            self.inputs().into_iter().flat_map(|r| r.fields().into_iter().map(|f| (vec![self.name(), r.name(), f.name()], f))))
-        .collect()
+        self.fields()
+            .into_iter()
+            .map(|f| (vec![f.name()], f))
+            .chain(self.inputs().into_iter().flat_map(|r| {
+                r.fields()
+                    .into_iter()
+                    .map(|f| (vec![self.name(), r.name(), f.name()], f))
+            }))
+            .collect()
     }
     /// Access a field of the Relation by index
     fn field_from_index(&self, index: usize) -> Result<&Field> {
@@ -134,7 +139,10 @@ pub trait Variant:
     }
     /// Access a field of the Relation by identifier
     fn field_from_identifier(&self, identifier: &Identifier) -> Result<&Field> {
-        self.field_hierarchy().get(identifier).copied().ok_or_else(|| Error::InvalidIndex(identifier.to_string()))
+        self.field_hierarchy()
+            .get(identifier)
+            .copied()
+            .ok_or_else(|| Error::InvalidIndex(identifier.to_string()))
     }
 }
 

@@ -842,7 +842,7 @@ mod tests {
                 .join("\n")
         );
     }
-    
+
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_reduce_with_weight() {

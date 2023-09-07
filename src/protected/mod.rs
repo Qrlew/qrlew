@@ -104,9 +104,15 @@ pub fn protect_visitor_from_field_paths<'a>(
         {
             Some((_tab, path, field)) => Relation::from(table.clone())
                 .with_field_path(relations, path, field, PE_ID)
-                .map_fields(|n, e| if n == PE_ID { Expr::md5(Expr::cast_as_text(e)) } else { e }),
+                .map_fields(|n, e| {
+                    if n == PE_ID {
+                        Expr::md5(Expr::cast_as_text(e))
+                    } else {
+                        e
+                    }
+                }),
             None => table.clone().into(),
-        },//TODO fix MD5 here
+        }, //TODO fix MD5 here
         strategy,
     )
 }
@@ -423,10 +429,7 @@ mod tests {
             &[
                 (
                     "items",
-                    &[
-                        ("order_id", "orders", "id"),
-                        ("user_id", "users", "id"),
-                    ],
+                    &[("order_id", "orders", "id"), ("user_id", "users", "id")],
                     "name",
                 ),
                 ("order_table", &[("user_id", "users", "id")], "name"),
@@ -505,7 +508,7 @@ mod tests {
         // Change schema and table names
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        
+
         println!("{relations}");
     }
 }

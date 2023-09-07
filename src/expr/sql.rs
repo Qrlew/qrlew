@@ -214,7 +214,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             },
             expr::function::Function::CastAsText => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
-                data_type:  DataType::text().into(),
+                data_type: DataType::text().into(),
             },
             expr::function::Function::CastAsFloat => todo!(),
             expr::function::Function::CastAsInteger => todo!(),
