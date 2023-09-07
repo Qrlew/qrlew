@@ -913,12 +913,8 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
         let field: String = other.0.into();
         let data_type: Rc<DataType> = other.1.into();
         // Remove existing elements with the same name
-        let (mut fields, push_other): (Vec<_>, _) = self
-            .fields
-            .iter()
-            .fold(
-                (vec![], true),
-                |(v, b), (f, t)| {
+        let (mut fields, push_other): (Vec<_>, _) =
+            self.fields.iter().fold((vec![], true), |(v, b), (f, t)| {
                 let mut v = v;
                 let mut b = b;
                 if &field != f {
