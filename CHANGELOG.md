@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed bivariate_min and bivariate_max to least and greatest
 - Cast to string before MD5 for protection
 - Implemented `least` and `greatest` (untested)
+### Fixed
+- `And` for struct of structs [MR100](https://github.com/Qrlew/qrlew/pull/100)
 
 ## [0.2.2] - 2023-08-29
 ### Changed
@@ -21,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated sqlparser version
 - Deactivate graphviz display by default
 - Deactivate multiplicity testing by default
-- 
+-
 ### Added
 - In `sampling_adjustments` added differenciated sampling and adjustments [MR77](https://github.com/Qrlew/qrlew/pull/77)
 - Updated sqlparser version
