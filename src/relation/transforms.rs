@@ -694,11 +694,11 @@ impl Relation {
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
             if values.contains(&field_name) {
-                Expr::divide(
+                Expr::multiply(
                     Expr::val(1),
                     Expr::greatest(
                         Expr::val(1),
-                        Expr::divide(expr.clone(), Expr::val(clipping_values[&field_name])),
+                        Expr::multiply(expr.clone(), Expr::val(clipping_values[&field_name])),
                     ),
                 )
             } else {
