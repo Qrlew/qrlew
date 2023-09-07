@@ -3436,7 +3436,7 @@ mod tests {
                 ("b", DataType::integer()),
                 ("c", DataType::float()),
                 ("d", DataType::float()),
-                ("a", DataType::float_values([1., 2., 3.]))
+                ("a", DataType::float_interval(1., 3.))
             ])
         );
 
@@ -3485,7 +3485,7 @@ mod tests {
                         ("b", DataType::integer()),
                         ("c", DataType::float()),
                         ("d", DataType::float()),
-                        ("a", DataType::float_values([1., 2., 3.]))
+                        ("a", DataType::float_interval(1., 3.))
                     ])
                 )
             ])
