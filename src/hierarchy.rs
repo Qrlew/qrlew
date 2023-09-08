@@ -137,9 +137,6 @@ impl<T: Clone> Hierarchy<T> {
             .collect()
     }
 
-    // pub fn get<'a>(&'a self, path:&'a Vec<String>) -> Option<&T> {
-    //     self.get_key_value(path).and_then(|(_, v)| Some(v))
-    // }
     pub fn get<'a>(&'a self, path: &[String]) -> Option<&'a T> {
         self.get_key_value(path).and_then(|(_, v)| Some(v))
     }
@@ -164,27 +161,6 @@ impl<T: Clone> Hierarchy<T> {
                     .into()
             })
     }
-
-    // pub fn get_key_value<'a>(&'a self, path: &'a Vec<String>) -> Option<(&Vec<String>, &T)> {
-    //     self.0
-    //         .get(path)
-    //         .and_then(|object| Some((path, object)))
-    //         .or_else(|| {
-    //             self.0
-    //                 .iter()
-    //                 .fold(Found::Zero, |f, (qualified_path, object)| {
-    //                     if is_suffix_of(path, qualified_path) {
-    //                         match f {
-    //                             Found::Zero => Found::One((qualified_path, object)),
-    //                             _ => Found::More,
-    //                         }
-    //                     } else {
-    //                         f
-    //                     }
-    //                 })
-    //                 .into()
-    //         })
-    // }
 
     pub fn filter(&self, path: &[String]) -> Self {
         self.iter()
