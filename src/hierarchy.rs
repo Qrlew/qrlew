@@ -138,25 +138,13 @@ impl<T: Clone> Hierarchy<T> {
     }
 
     pub fn get(&self, path: &[String]) -> Option<&T> {
-        self.0.get(path).or_else(|| {
-            self.0
-                .iter()
-                .fold(Found::Zero, |f, (qualified_path, object)| {
-                    if is_suffix_of(path, qualified_path) {
-                        match f {
-                            Found::Zero => Found::One(object),
-                            _ => Found::More,
-                        }
-                    } else {
-                        f
-                    }
-                })
-                .into()
-        })
+        self.full_path(path)
+        .and_then(|p| self.0.get(&p))
     }
 
     pub fn full_path(&self, path: &[String]) -> Option<Vec<String>> {
-        self.0
+        self.0.get(path).and_then(|_| Some(path.iter().map(|s| s.to_string()).collect::<Vec<_>>()))
+        .or_else ( ||  self.0
             .iter()
             .fold(Found::Zero, |f, (qualified_path, _)| {
                 if is_suffix_of(path, qualified_path) {
@@ -169,6 +157,7 @@ impl<T: Clone> Hierarchy<T> {
                 }
             })
             .into()
+        )
     }
 
     pub fn filter(&self, path: &[String]) -> Self {
@@ -416,6 +405,10 @@ mod tests {
         assert_eq!(
             values.full_path(&["c".to_string()]),
             None
+        );
+        assert_eq!(
+            values.full_path(&["b".to_string(), "c".to_string()]),
+            Some(vec!["b".to_string(), "c".to_string()])
         );
         assert_eq!(
             values.full_path(&["e".to_string()]),
