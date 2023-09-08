@@ -28,7 +28,6 @@ use std::{
 };
 
 use crate::{
-    builder::With,
     data_type::{self, function::Function as _, value, DataType, DataTyped, Variant as _},
     hierarchy::Hierarchy,
     visitor::{self, Acceptor},
