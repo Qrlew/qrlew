@@ -2955,6 +2955,46 @@ impl<'a> Acceptor<'a> for DataType {
     }
 }
 
+// Visitors
+
+/// A Visitor for the type Expr
+pub trait Visitor<'a, T: Clone> {
+    // Composed types
+    fn structured(&self, fields: Vec<(String, T)>) -> T;
+    fn union(&self, fields: Vec<(String, T)>) -> T;
+    fn optional(&self, data_type: T) -> T;
+    fn list(&self, data_type: T, size: &'a Integer) -> T;
+    fn set(&self, data_type: T, size: &'a Integer) -> T;
+    fn array(&self, data_type: T, shape: &'a [usize]) -> T;
+    fn function(&self, domain: T, co_domain: T) -> T;
+    fn primitive(&self, acceptor: &'a DataType) -> T;
+}
+
+/// Implement a specific visitor to dispatch the dependencies more easily
+impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
+    fn visit(&self, acceptor: &'a DataType, dependencies: visitor::Visited<'a, DataType, T>) -> T {
+        match acceptor {
+            DataType::Struct(s) => self.structured(s.fields.iter().map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone())).collect()),
+            DataType::Union(u) => self.union(s.fields.iter().map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone())).collect()),
+            DataType::Optional(o) => self.optional(dependencies.get(o.data_type()).clone()),
+            DataType::List(l) => self.list(dependencies.get(l.data_type()).clone(), l.size()),
+            DataType::Set(s) => self.set(dependencies.get(s.data_type()).clone(), l.size()),
+            DataType::Array(a) => self.array(dependencies.get(a.data_type()).clone(), a.shape()),
+            DataType::Function(f) => self.function(dependencies.get(f.domain()).clone(), dependencies.get(f.co_domain()).clone()),
+            primitive => self.primitive(primitive),
+        }
+    }
+}
+
+/// Implement a LiftOptionalVisitor
+struct LiftOptionalVisitor;
+
+impl<'a> visitor::Visitor<'a, DataType, DataType> for LiftOptionalVisitor {
+    fn visit(&self, acceptor: &'a DataType, dependencies: visitor::Visited<'a, DataType, DataType>) -> DataType {
+        todo!()
+    }
+}
+
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {

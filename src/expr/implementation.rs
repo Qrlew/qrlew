@@ -1,6 +1,6 @@
 use super::{aggregate::Aggregate, function::Function};
 use crate::data_type::{
-    function::{self, Extensible},
+    function::{self, Extended},
     DataType,
 };
 use paste::paste;
@@ -13,9 +13,9 @@ macro_rules! function_implementations {
             // A (thread local) global map
             thread_local! {
                 static FUNCTION_IMPLEMENTATIONS: FunctionImplementations = FunctionImplementations {
-                    $([< $unary:snake >]: Rc::new(function::[< $unary:snake >]().extend(DataType::Any)),)*
-                    $([< $binary:snake >]: Rc::new(function::[< $binary:snake >]().extend(DataType::Any & DataType::Any)),)*
-                    $([< $ternary:snake >]: Rc::new(function::[< $ternary:snake >]().extend(DataType::Any & DataType::Any & DataType::Any)),)*
+                    $([< $unary:snake >]: Rc::new(Extended::new(function::[< $unary:snake >](), DataType::Any)),)*
+                    $([< $binary:snake >]: Rc::new(Extended::new(function::[< $binary:snake >](), DataType::Any & DataType::Any)),)*
+                    $([< $ternary:snake >]: Rc::new(Extended::new(function::[< $ternary:snake >](), DataType::Any & DataType::Any & DataType::Any)),)*
                 };
             }
 
@@ -94,7 +94,7 @@ macro_rules! aggregate_implementations {
             // A (thread local) global map
             thread_local! {
                 static AGGREGATE_IMPLEMENTATIONS: AggregateImplementations = AggregateImplementations {
-                    $([< $implementation:snake >]: Rc::new(function::[< $implementation:snake >]().extend(DataType::Any)),)*
+                    $([< $implementation:snake >]: Rc::new(Extended::new(function::[< $implementation:snake >](), DataType::Any)),)*
                 };
             }
 
