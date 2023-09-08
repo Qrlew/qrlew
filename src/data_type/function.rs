@@ -640,13 +640,14 @@ impl<F: Function> fmt::Display for Optional<F> {
 
 impl<F: Function> Function for Optional<F> {
     fn domain(&self) -> DataType {
-        DataType::optional(self.0.domain())
+        DataType::optional(self.0.domain()).flatten_optional()
     }
 
     fn super_image(&self, set: &DataType) -> Result<DataType> {
+        let set = set.flatten_optional();
         match set {
             DataType::Optional(optional_set) => self.0.super_image(optional_set.data_type()).map(|dt| DataType::optional(dt)),
-            set => self.0.super_image(set),
+            set => self.0.super_image(&set),
         }
     }
 
@@ -2176,10 +2177,10 @@ mod tests {
         println!("super_image([0,1] & [-5,2]) = {}", optional_greatest.super_image(&(DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.))).unwrap());
         println!("super_image(optional([0,1] & [-5,2])) = {}", optional_greatest.super_image(&DataType::optional((DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.)))).unwrap());
         println!("super_image(optional([0,1]) & [-5,2]) = {}", optional_greatest.super_image(&(DataType::optional(DataType::float_interval(0.,1.)) & DataType::float_interval(-5.,2.))).unwrap());
-        // assert_eq!(
-        //     optional_greatest.co_domain(),
-        //     DataType::optional(DataType::float_range(-1.0..=1.0))
-        // );
+        assert_eq!(
+            optional_greatest.super_image(&DataType::optional((DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.)))).unwrap(),
+            optional_greatest.super_image(&(DataType::optional(DataType::float_interval(0.,1.)) & DataType::float_interval(-5.,2.))).unwrap(),
+        );
     }
 
     #[test]
