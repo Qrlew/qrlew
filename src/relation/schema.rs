@@ -8,7 +8,7 @@ use std::{
 use super::{field::Field, Error, Result};
 use crate::{
     builder::{Ready, With},
-    data_type::{DataType, DataTyped},
+    data_type::{self, DataType, DataTyped},
     expr::{identifier::Identifier, Expr},
 };
 
@@ -101,7 +101,22 @@ impl Schema {
     /// Returns a new `Schema` where the `fields` of this `Schema`
     /// has been filtered by predicate `Expr`
     pub fn filter(&self, predicate: &Expr) -> Self {
-        Self::new(self.iter().map(|f| f.filter(predicate)).collect())
+        let dt = DataType::structured(
+            self.fields()
+                .iter()
+                .map(|f| (f.name(), f.data_type()))
+                .collect::<Vec<_>>(),
+        )
+        .filter(predicate);
+        if let DataType::Struct(s) = dt {
+            Self::new(
+                s.iter()
+                    .map(|(name, t)| Field::from_name_data_type(name, t.as_ref().clone()))
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            self.clone()
+        }
     }
 }
 
