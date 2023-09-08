@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed bivariate_min and bivariate_max to least and greatest
 - Cast to string before MD5 for protection
 - Implemented `least` and `greatest` (support qualified and unqualified columns)[MR102](https://github.com/Qrlew/qrlew/pull/102)
+- Replaced `Expr::filter_column_data_type` by `DataType::filter`[MR104](https://github.com/Qrlew/qrlew/pull/104)
 ### Fixed
 - `And` for struct of structs [MR100](https://github.com/Qrlew/qrlew/pull/100)
 ### Added

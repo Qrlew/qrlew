@@ -1963,28 +1963,71 @@ mod tests {
 
     #[test]
     fn test_filter_simple() {
-        let dt = DataType::union([(
-            "table1",
-            DataType::structured([
-                ("a", DataType::float_interval(-10., 10.)),
-                ("b", DataType::integer_interval(0, 8)),
-                ("c", DataType::float()),
-            ]),
-        )]);
+        let dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("a", DataType::float_interval(-10., 10.)),
+                    ("b", DataType::integer_interval(0, 8)),
+                    ("c", DataType::float()),
+                    ("x", DataType::float()),
+                ])
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(-15., 3.)),
+                ])
+            )
+        ]);
+
+        // a < table1.x
+        let x = Expr::lt(Expr::col("a"), Expr::qcol("table1", "x"));
+        println!("{}", x);
+        let filtered_dt = dt.filter(&x);
+        let true_dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("a", DataType::float_interval(-10., 3.)),
+                    ("b", DataType::integer_interval(2, 4)),
+                    ("c", DataType::float()),
+                    ("x", DataType::float()),
+                ]),
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(-10., 3.)),
+                ])
+            )
+        ]);
+        println!("{true_dt}\n{filtered_dt}");
+        println!("{}", true_dt[["table1"]] == filtered_dt[["table1"]]);
+        assert_eq!(filtered_dt, true_dt);
 
         // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
         let x = expr!(gt(a, 5));
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
         println!("{}", filtered_dt);
-        let true_dt = DataType::union([(
-            "table1",
-            DataType::structured([
-                ("a", DataType::float_interval(5., 9.)),
-                ("b", DataType::integer_interval(2, 4)),
-                ("c", DataType::float_value(0.99)),
-            ]),
-        )]);
+        let true_dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("a", DataType::float_interval(5., 9.)),
+                    ("b", DataType::integer_interval(2, 4)),
+                    ("c", DataType::float_value(0.99)),
+                    ("x", DataType::float()),
+                ]),
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(-15., 3.)),
+                ])
+            )
+        ]);
         assert_eq!(filtered_dt, true_dt);
 
         // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
@@ -1994,28 +2037,46 @@ mod tests {
         ));
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
-        let true_dt = DataType::union([(
-            "table1",
-            DataType::structured([
-                ("a", DataType::float_interval(5., 9.)),
-                ("b", DataType::integer_interval(2, 4)),
-                ("c", DataType::float_value(0.99)),
-            ]),
-        )]);
+        let true_dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("a", DataType::float_interval(5., 9.)),
+                    ("b", DataType::integer_interval(2, 4)),
+                    ("c", DataType::float_value(0.99)),
+                    ("x", DataType::float()),
+                ]),
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(-15., 3.)),
+                ])
+            )
+        ]);
         assert_eq!(filtered_dt, true_dt);
 
         // ((a = 45) and (b = 3.5) and (0 = c))
         let x = expr!(and(eq(a, 45), and(eq(b, 3.5), eq(0, c))));
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
-        let true_dt = DataType::union([(
-            "table1",
-            DataType::structured([
-                ("a", DataType::Null),
-                ("b", DataType::Null),
-                ("c", DataType::float_value(0.)),
-            ]),
-        )]);
+        let true_dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("a", DataType::Null),
+                    ("b", DataType::Null),
+                    ("c", DataType::float_value(0.)),
+                    ("x", DataType::float()),
+                ]),
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(-15., 3.)),
+                ])
+            )
+        ]);
         assert_eq!(filtered_dt, true_dt);
 
         // (b in (1, 3, 4.5))
@@ -2025,14 +2086,23 @@ mod tests {
         let x = Expr::and(a, b);
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
-        let true_dt = DataType::union([(
-            "table1",
-            DataType::structured([
-                ("a", DataType::float_values([1., 3., 4.5])),
-                ("b", DataType::integer_values([1, 3])),
-                ("c", DataType::float()),
-            ]),
-        )]);
+        let true_dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("a", DataType::float_values([1., 3., 4.5])),
+                    ("b", DataType::integer_values([1, 3])),
+                    ("c", DataType::float()),
+                    ("x", DataType::float()),
+                ]),
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(-15., 3.)),
+                ])
+            )
+        ]);
         assert_eq!(filtered_dt, true_dt);
 
         // (b = exp(a))
