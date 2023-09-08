@@ -140,11 +140,11 @@ impl<T: Clone> Hierarchy<T> {
     // pub fn get<'a>(&'a self, path:&'a Vec<String>) -> Option<&T> {
     //     self.get_key_value(path).and_then(|(_, v)| Some(v))
     // }
-    pub fn get<'a>(&'a self, path:&[String]) -> Option<&'a T> {
+    pub fn get<'a>(&'a self, path: &[String]) -> Option<&'a T> {
         self.get_key_value(path).and_then(|(_, v)| Some(v))
     }
 
-    pub fn get_key_value<'a>(&'a self, path: &[String]) -> Option<(&'a[String], &'a T)> {
+    pub fn get_key_value<'a>(&'a self, path: &[String]) -> Option<(&'a [String], &'a T)> {
         self.0
             .get_key_value(path)
             .map(|(k, v)| (k.as_slice(), v))
@@ -163,7 +163,7 @@ impl<T: Clone> Hierarchy<T> {
                     })
                     .into()
             })
-        }
+    }
 
     // pub fn get_key_value<'a>(&'a self, path: &'a Vec<String>) -> Option<(&Vec<String>, &T)> {
     //     self.0
@@ -424,30 +424,39 @@ mod tests {
             (vec!["a", "e", "f"], 5),
             (vec!["b", "c"], 6),
         ]);
-        // assert_eq!(
-        //     values.get_key_value(&vec!["a".to_string(), "c".to_string()]),
-        //     Some((&vec!["a".to_string(), "c".to_string()], &3))
-        // );
+        assert_eq!(
+            values.get_key_value(&["a".to_string(), "c".to_string()]),
+            Some((["a".to_string(), "c".to_string()].as_slice(), &3))
+        );
         assert_eq!(values.get_key_value(&vec!["c".to_string()]), None);
         assert_eq!(
-            values.get_key_value(&vec!["b".into(), "c".into()]),
-            Some((vec!["b".to_string(), "c".to_string()].as_slice(), &6))
+            values.get_key_value(&["b".into(), "c".into()]),
+            Some((["b".to_string(), "c".to_string()].as_slice(), &6))
         );
-        // assert_eq!(
-        //     values.get_key_value(&vec!["e".to_string()]),
-        //     Some(vec!["a".to_string(), "e".to_string()])
-        // );
-        // assert_eq!(
-        //     values.get_key_value(&vec!["e".to_string(), "f".to_string()]),
-        //     Some(vec!["a".to_string(), "e".to_string(), "f".to_string()])
-        // );
-        // assert_eq!(
-        //     values.get_key_value(&vec!["b".to_string(), "d".to_string()]),
-        //     Some(vec!["a".to_string(), "b".to_string(), "d".to_string()])
-        // );
-        // assert_eq!(
-        //     values.get_key_value(&vec!["d".to_string()]),
-        //     Some(vec!["a".to_string(), "b".to_string(), "d".to_string()])
-        // );
+        assert_eq!(
+            values.get_key_value(&["e".to_string()]),
+            Some((["a".to_string(), "e".to_string()].as_slice(), &4))
+        );
+        assert_eq!(
+            values.get_key_value(&["e".to_string(), "f".to_string()]),
+            Some((
+                ["a".to_string(), "e".to_string(), "f".to_string()].as_slice(),
+                &5
+            ))
+        );
+        assert_eq!(
+            values.get_key_value(&["b".to_string(), "d".to_string()]),
+            Some((
+                ["a".to_string(), "b".to_string(), "d".to_string()].as_slice(),
+                &2
+            ))
+        );
+        assert_eq!(
+            values.get_key_value(&["d".to_string()]),
+            Some((
+                ["a".to_string(), "b".to_string(), "d".to_string()].as_slice(),
+                &2
+            ))
+        );
     }
 }

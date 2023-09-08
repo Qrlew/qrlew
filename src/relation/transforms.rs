@@ -534,7 +534,10 @@ impl Relation {
                  }| {
                     relation.with_referred_field(
                         referring_id,
-                        relations[[referred_relation.to_string()]].clone(),
+                        relations
+                            .get(&[referred_relation.to_string()])
+                            .unwrap()
+                            .clone(),
                         referred_id,
                         referred_field,
                         referred_field_name,
@@ -1631,7 +1634,9 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let table = relations[["item_table"]]
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
             .as_ref()
             .clone();
 
@@ -1793,7 +1798,7 @@ mod tests {
             .build();
 
         let join: Relation = Relation::join()
-            .left(relations[&["order_table".into()]].unwrap().clone())
+            .left(relations.get(&["order_table".into()]).unwrap().clone())
             .right(table.clone())
             .on(Expr::eq(Expr::col("id"), Expr::col("order_id")))
             .build();

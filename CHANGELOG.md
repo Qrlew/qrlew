@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `And` for struct of structs [MR100](https://github.com/Qrlew/qrlew/pull/100)
 ### Added
-- `Hierarchy::full_path`  [MR103](https://github.com/Qrlew/qrlew/pull/103)
+- `Hierarchy::get_key_value` [MR103](https://github.com/Qrlew/qrlew/pull/103)
 
 ## [0.2.2] - 2023-08-29
 ### Changed
