@@ -2047,13 +2047,14 @@ mod tests {
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert_eq!(im, DataType::from(data_type::Float::from_intervals([
-            [-29.0, -20.0],
-            [1.0, 10.0],
-            [21.0, 30.0],
-        ])));
-
-
+        assert_eq!(
+            im,
+            DataType::from(data_type::Float::from_intervals([
+                [-29.0, -20.0],
+                [1.0, 10.0],
+                [21.0, 30.0],
+            ]))
+        );
     }
 
     #[test]
@@ -2645,7 +2646,12 @@ mod tests {
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert_eq!(im, DataType::float_values([-30.0, 0.0]).super_union(&DataType::float_interval(1., 20.)).unwrap());
+        assert_eq!(
+            im,
+            DataType::float_values([-30.0, 0.0])
+                .super_union(&DataType::float_interval(1., 20.))
+                .unwrap()
+        );
 
         // im(struct{0: float[1, +∞), 1: float(-∞, 100]}) = float(-∞, 100]
         let set: DataType = DataType::structured_from_data_types([
@@ -2762,7 +2768,7 @@ mod tests {
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert_eq!(im,  DataType::integer_interval(100, 200));
+        assert_eq!(im, DataType::integer_interval(100, 200));
 
         // im(struct{0: int[1 10], 1: float[100, +∞)}) = int[1, 10]
         let set: DataType = DataType::structured_from_data_types([
@@ -2782,7 +2788,9 @@ mod tests {
         println!("\nim({}) = {}", set, im);
         assert_eq!(
             im,
-            DataType::float_interval(2., 10.).super_union(&DataType::integer_interval(10, 100)).unwrap()
+            DataType::float_interval(2., 10.)
+                .super_union(&DataType::integer_interval(10, 100))
+                .unwrap()
         );
     }
 }
