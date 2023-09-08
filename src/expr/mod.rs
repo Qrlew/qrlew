@@ -133,6 +133,14 @@ impl Function {
         }
     }
 
+    pub fn function(&self) -> function::Function {
+        self.function
+    }
+
+    pub fn arguments(&self) -> Vec<&Expr> {
+        self.arguments.iter().map(|x| x.as_ref()).collect()
+    }
+
     /// Returns the `DataType` of a column filtered by the current `Function`
     ///
     /// # Arguments:
@@ -1219,6 +1227,96 @@ impl Expr {
         }
     }
 }
+
+impl DataType {
+    pub fn filter(self, predicate: Expr) -> DataType {
+        match predicate {
+            Expr::Column(c) => self.filter_by_column(c),
+            Expr::Value(v) => self.filter_by_value(v),
+            Expr::Function(f) => self.filter_by_function(f),
+            Expr::Aggregate(_) | Expr::Struct(_) => self.clone(),
+        }
+    }
+
+    //TODO
+    fn filter_by_column(self, predicate: Identifier) -> DataType {
+        self
+    }
+
+    //TODO
+    fn filter_by_value(self, predicate: Value) -> DataType {
+        self
+    }
+
+    fn filter_by_function(self, predicate: Function) -> DataType {
+        let mut datatype = self.clone();
+
+        match (predicate.function(), predicate.arguments().as_slice()) {
+            (function::Function::And, [left, right]) => {
+                let dt1 = self.filter(**right).filter(**left);
+                let dt2 = self.filter(**left).filter(**right); //TODO: remove that ??
+                datatype = dt1.super_intersection(&dt2).unwrap() // TODO: unwrap or ??
+            }
+            // Set min or max
+            (function::Function::Gt, [left, right])
+            | (function::Function::GtEq, [left, right])
+            | (function::Function::Lt, [right, left])
+            | (function::Function::LtEq, [right, left]) => {
+                let left_dt = left.super_image(&datatype).unwrap();
+                let right_dt = right.super_image(&datatype).unwrap();
+
+                let left_dt = if let DataType::Optional(o) = left_dt {
+                    o.data_type().clone()
+                } else {
+                    left_dt
+                };
+
+                let right_dt = if let DataType::Optional(o) = right_dt {
+                    o.data_type().clone()
+                } else {
+                    right_dt
+                };
+
+                let set =
+                    DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                if let Expr::Column(col) = left {
+                    let dt = bivariate_max()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&left_dt)?;
+                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                }
+                if let Expr::Column(col) = right {
+                    let dt = bivariate_min()
+                        .super_image(&set)
+                        .unwrap()
+                        .super_intersection(&right_dt)?;
+                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                }
+            }
+            (function::Function::Eq, [left, right]) => {
+                let left_dt = left.super_image(&datatype)?;
+                let right_dt = right.super_image(&datatype)?;
+                let dt = left_dt.super_intersection(&right_dt)?;
+                if let Expr::Column(col) = left {
+                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt.clone())
+                }
+                if let Expr::Column(col) = right {
+                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                }
+            }
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
+                let dt = DataType::from_iter(l.to_vec().clone())
+                    .super_intersection(&new_schema.field(&col.head()?).unwrap().data_type())?;
+                new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+            }
+            _ => (),
+        }
+        Ok(data_type)
+
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
