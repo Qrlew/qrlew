@@ -134,14 +134,6 @@ impl Function {
         }
     }
 
-    pub fn function(&self) -> function::Function {
-        self.function
-    }
-
-    pub fn arguments(&self) -> Vec<&Expr> {
-        self.arguments.iter().map(|x| x.as_ref()).collect()
-    }
-
     /// Returns the `DataType` of a column filtered by the current `Function`
     ///
     /// # Arguments:
