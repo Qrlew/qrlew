@@ -1280,35 +1280,36 @@ impl DataType {
                 let set =
                     DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                 if let Expr::Column(col) = left {
-                    let dt = bivariate_max()
+                    let dt = Expr::greatest(**left, **right)
                         .super_image(&set)
                         .unwrap()
-                        .super_intersection(&left_dt)?;
-                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                        .super_intersection(&left_dt).unwrap_or(datatype);
+                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                 }
                 if let Expr::Column(col) = right {
-                    let dt = bivariate_min()
+                    let dt = least()
                         .super_image(&set)
                         .unwrap()
                         .super_intersection(&right_dt)?;
-                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                 }
             }
             (function::Function::Eq, [left, right]) => {
-                let left_dt = left.super_image(&datatype)?;
-                let right_dt = right.super_image(&datatype)?;
-                let dt = left_dt.super_intersection(&right_dt)?;
+                let left_dt = left.super_image(&datatype);
+                let right_dt = right.super_image(&datatype);
+                let dt = left_dt.super_intersection(&right_dt);
                 if let Expr::Column(col) = left {
-                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt.clone())
+                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt.clone())
                 }
                 if let Expr::Column(col) = right {
-                    new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                 }
             }
             (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
-                let dt = DataType::from_iter(l.to_vec().clone())
-                    .super_intersection(&new_schema.field(&col.head()?).unwrap().data_type())?;
-                new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                // let dt = DataType::from_iter(l.to_vec().clone())
+                //     .super_intersection(&new_schema.field(&col.head()?).unwrap().data_type())?;
+                // new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                todo!()
             }
             _ => (),
         }
