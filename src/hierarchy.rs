@@ -141,6 +141,8 @@ impl<T: Clone> Hierarchy<T> {
         self.full_path(path).and_then(|p| self.0.get(&p))
     }
 
+    /// Returns the full path of a an item in the current hierarchy.
+    /// If the input path does not exist of is ambiguous, returns None.
     pub fn full_path(&self, path: &[String]) -> Option<Vec<String>> {
         self.0
             .get(path)
