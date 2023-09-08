@@ -1258,10 +1258,10 @@ impl DataType {
                 datatype = dt1.super_intersection(&dt2).unwrap_or(datatype)
             }
             // Set min or max
-            ( function::Function::Gt,[left, right])
-            | ( function::Function::GtEq,[left, right])
-            | ( function::Function::Lt, [right, left])
-            | ( function::Function::LtEq, [right, left])  => {
+            (function::Function::Gt, [left, right])
+            | (function::Function::GtEq, [left, right])
+            | (function::Function::Lt, [right, left])
+            | (function::Function::LtEq, [right, left]) => {
                 let left_dt = left.super_image(&datatype).unwrap();
                 let left_dt = if let DataType::Optional(o) = left_dt {
                     o.data_type().clone()
@@ -1303,7 +1303,7 @@ impl DataType {
                     datatype = datatype.replace(&col, dt)
                 }
             }
-            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))])=> {
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
                 let dt = DataType::from_iter(l.to_vec().clone())
                     .super_intersection(&datatype[col.as_slice()])
                     .unwrap_or(datatype.clone());
@@ -1316,44 +1316,50 @@ impl DataType {
 
     pub fn replace(&self, name: &Identifier, dt: DataType) -> DataType {
         let name = Identifier::from(
-            self.hierarchy().get_key_value(&name.to_vec())
-            .unwrap().0
-            .into_iter()
-            .cloned()
-            .collect::<Vec<String>>()
+            self.hierarchy()
+                .get_key_value(&name.to_vec())
+                .unwrap()
+                .0
+                .into_iter()
+                .cloned()
+                .collect::<Vec<String>>(),
         );
         match self {
             DataType::Struct(st) => {
                 let (head, tail) = name.split_first().unwrap();
                 DataType::structured(
-                    st.iter().map(|(s, d)| if &head == s {
-                        (s, (**d).clone().replace(&tail, dt.clone()))
-                    } else {
-                        (s, (**d).clone())
-                    })
-                    .collect::<Vec<_>>()
+                    st.iter()
+                        .map(|(s, d)| {
+                            if &head == s {
+                                (s, (**d).clone().replace(&tail, dt.clone()))
+                            } else {
+                                (s, (**d).clone())
+                            }
+                        })
+                        .collect::<Vec<_>>(),
                 )
-            },
+            }
             DataType::Union(u) => {
                 let (head, tail) = name.split_first().unwrap();
                 DataType::union(
-                    u.iter().map(|(s, d)| if &head == s {
-                        (s, (**d).clone().replace(&tail, dt.clone()))
-                    } else {
-                        (s, (**d).clone())
-                    })
-                    .collect::<Vec<_>>()
+                    u.iter()
+                        .map(|(s, d)| {
+                            if &head == s {
+                                (s, (**d).clone().replace(&tail, dt.clone()))
+                            } else {
+                                (s, (**d).clone())
+                            }
+                        })
+                        .collect::<Vec<_>>(),
                 )
-            },
+            }
             _ => {
                 assert_eq!(name.len(), 0);
                 dt
             }
         }
     }
-
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -2633,7 +2639,8 @@ mod tests {
 
     #[test]
     fn test_filter_optional() {
-        let dt = DataType::structured([("a", DataType::optional(DataType::float_interval(-10., 10.)))]);
+        let dt =
+            DataType::structured([("a", DataType::optional(DataType::float_interval(-10., 10.)))]);
 
         // (a > 1)
         let x = expr!(gt(a, 1));
@@ -2805,23 +2812,19 @@ mod tests {
 
     #[test]
     fn test_replace_datatype() {
-        let dt = DataType::union([
-            ("table1", DataType::structured([
-                ("a", DataType::float()),
-                ("b", DataType::integer())
-            ]))
-        ]);
-        let correct_dt = DataType::union([
-            ("table1", DataType::structured([
-                ("a", DataType::integer()),
-                ("b", DataType::integer())
-            ]))
-        ]);
-        let name:Identifier = vec!["table1".to_string(), "a".to_string()].into();
+        let dt = DataType::union([(
+            "table1",
+            DataType::structured([("a", DataType::float()), ("b", DataType::integer())]),
+        )]);
+        let correct_dt = DataType::union([(
+            "table1",
+            DataType::structured([("a", DataType::integer()), ("b", DataType::integer())]),
+        )]);
+        let name: Identifier = vec!["table1".to_string(), "a".to_string()].into();
         let new_dt = dt.replace(&name, DataType::integer());
         assert_eq!(new_dt, correct_dt);
 
-        let name:Identifier = vec!["a".to_string()].into();
+        let name: Identifier = vec!["a".to_string()].into();
         let new_dt = dt.replace(&name, DataType::integer());
         assert_eq!(new_dt, correct_dt);
 
