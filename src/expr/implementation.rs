@@ -13,9 +13,9 @@ macro_rules! function_implementations {
             // A (thread local) global map
             thread_local! {
                 static FUNCTION_IMPLEMENTATIONS: FunctionImplementations = FunctionImplementations {
-                    $([< $unary:snake >]: Rc::new(Extended::new(Optional::new(function::[< $unary:snake >]()), DataType::Any)),)*
-                    $([< $binary:snake >]: Rc::new(Extended::new(Optional::new(function::[< $binary:snake >]()), DataType::Any & DataType::Any)),)*
-                    $([< $ternary:snake >]: Rc::new(Extended::new(Optional::new(function::[< $ternary:snake >]()), DataType::Any & DataType::Any & DataType::Any)),)*
+                    $([< $unary:snake >]: Rc::new(Optional::new(function::[< $unary:snake >]())),)*
+                    $([< $binary:snake >]: Rc::new(Optional::new(function::[< $binary:snake >]())),)*
+                    $([< $ternary:snake >]: Rc::new(Optional::new(function::[< $ternary:snake >]())),)*
                 };
             }
 
@@ -94,7 +94,7 @@ macro_rules! aggregate_implementations {
             // A (thread local) global map
             thread_local! {
                 static AGGREGATE_IMPLEMENTATIONS: AggregateImplementations = AggregateImplementations {
-                    $([< $implementation:snake >]: Rc::new(Extended::new(function::[< $implementation:snake >](), DataType::Any)),)*
+                    $([< $implementation:snake >]: Rc::new(Optional::new(function::[< $implementation:snake >]())),)*
                 };
             }
 

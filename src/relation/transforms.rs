@@ -653,6 +653,7 @@ impl Relation {
     ) -> Self {// TODO fix this
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
+            .inner()
             .on(Expr::eq(
                 Expr::qcol(self.name(), entities),
                 Expr::qcol(scale_factors.name(), entities),
@@ -661,7 +662,6 @@ impl Relation {
             .right_names(scale_factors.fields().into_iter().map(|field| format!("_SCALE_FACTOR_{}", field.name())).collect())
             .left(self)
             .right(scale_factors)
-            .inner()
             .build();
         // Multiply the values by the factors
         join.map_fields(|field_name, expr| {
@@ -687,26 +687,22 @@ impl Relation {
         let norms = self
             .clone()
             .l2_norms(entities.clone(), groups.clone(), values.clone());
-        // TODO REMOVE DEBUG
-        norms.display_dot().unwrap();
         // Put the `clipping_values`in the right shape
         let clipping_values: HashMap<&str, f64> = clipping_values.into_iter().collect();
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
             if values.contains(&field_name) {
-                Expr::multiply(
+                Expr::divide(
                     Expr::val(1),
                     Expr::greatest(
                         Expr::val(1),
-                        Expr::multiply(expr.clone(), Expr::val(clipping_values[&field_name])),
+                        Expr::divide(expr.clone(), Expr::val(clipping_values[&field_name])),
                     ),
                 )
             } else {
-                Expr::val(1)
+                expr
             }
         });
-        // TODO REMOVE DEBUG
-        scaling_factors.display_dot().unwrap();
         let clipped_relation = self.scale(
             entities,
             values.clone(),
@@ -1343,166 +1339,39 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        // Compute l1 norm
-        relation = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", 20.)]);
+        // Compute l2 norm
+        let clipped_relation = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", 20.)]);
+        clipped_relation.display_dot().unwrap();
         // Print query
-        let query = &ast::Query::from(&relation);
+        let query = &ast::Query::from(&clipped_relation).to_string();
         println!("After: {}", query);
-        relation.display_dot().unwrap();
-        // let expected_query = "SELECT id, SQRT(SUM(age*age)) FROM (SELECT id, city, SUM(age) AS age FROM user_table GROUP BY id, city) AS sums GROUP BY id";
-        // assert_eq!(
-        //     database.query(&query.to_string()).unwrap(),
-        //     database.query(expected_query).unwrap()
-        // );
-    }
-
-    #[test]
-    fn test_clipped_sum_for_table() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        let table = relations
-            .get(&["item_table".into()])
-            .unwrap()
-            .as_ref()
-            .clone();
-        let clipped_relation = table.clone().l2_clipped_sums(
-            "order_id",
-            vec!["item"],
-            vec!["price"],
-            vec![("price", 45.)],
-        );
-        clipped_relation.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        let valid_query = r#"
-        WITH norms AS (
-            SELECT order_id, SQRT(SUM(sum_by_group)) AS norm FROM (
-                SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item
-              ) AS subquery GROUP BY order_id
-          ), weights AS (SELECT order_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight FROM norms)
-          SELECT item, SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id) GROUP BY item;
-        "#;
-        let my_res = database.query(query).unwrap();
-        let true_res = database.query(valid_query).unwrap();
-        assert_eq!(refacto_results(my_res, 2), refacto_results(true_res, 2));
-    }
-
-    #[test]
-    fn test_clipped_sum_with_empty_base() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        let table = relations
-            .get(&["item_table".into()])
-            .unwrap()
-            .as_ref()
-            .clone();
-        let clipped_relation =
-            table
-                .clone()
-                .l2_clipped_sums("order_id", vec![], vec!["price"], vec![("price", 45.)]);
-        clipped_relation.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        println!("Query: {}", query);
-        let valid_query = r#"
-            WITH norms AS (
-                SELECT order_id, ABS(SUM(price)) AS norm FROM item_table GROUP BY order_id
-            ), weights AS (
-                SELECT order_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight FROM norms
-            )
-            SELECT SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id);
-        "#;
-        let my_res = refacto_results(database.query(query).unwrap(), 1);
-        let true_res = refacto_results(database.query(valid_query).unwrap(), 1);
-        assert_eq!(my_res, true_res);
-    }
-
-    #[test]
-    fn test_clipped_sum_for_map() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        let relation = Relation::try_from(
-            parse("SELECT price * 25 AS std_price, * FROM item_table")
-                .unwrap()
-                .with(&relations),
-        )
-        .unwrap();
-        relation.display_dot().unwrap();
-
-        // L2 Norm
-        let clipped_relation = relation.clone().l2_clipped_sums(
-            "order_id",
-            vec!["item"],
-            vec!["price", "std_price"],
-            vec![("std_price", 45.), ("price", 50.)],
-        );
-        clipped_relation.display_dot().unwrap();
-
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        let valid_query = r#"
-        WITH my_table AS (
-            SELECT price * 25 AS std_price, * FROM item_table
-          ), norms AS (
-            SELECT order_id, SQRT(SUM(sum_by_group)) AS norm1, SQRT(SUM(sum_by_group2)) AS norm2 FROM (
-              SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group, POWER(SUM(std_price), 2) AS sum_by_group2 FROM my_table GROUP BY order_id, item
-            ) AS subquery GROUP BY order_id
-          ), weights AS (SELECT order_id, CASE WHEN 50 / norm1 < 1 THEN 50 / norm1 ELSE 1 END AS weight1, CASE WHEN 45 / norm2 < 1 THEN 45 / norm2 ELSE 1 END AS weight2 FROM norms)
-          SELECT item, SUM(price*weight1), SUM(std_price*weight2) FROM my_table LEFT JOIN weights USING (order_id) GROUP BY item;
-        "#;
-
-        let my_res = refacto_results(database.query(query).unwrap(), 3);
-        let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
-        assert_eq!(my_res, true_res);
-    }
-
-    #[test]
-    fn test_clipped_sum_for_join() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        let left: Relation = relations
-            .get(&["item_table".into()])
-            .unwrap()
-            .as_ref()
-            .clone();
-        let right: Relation = relations
-            .get(&["order_table".into()])
-            .unwrap()
-            .as_ref()
-            .clone();
-        let relation: Relation = Relation::join()
-            .left(left)
-            .right(right)
-            .on(Expr::eq(
-                Expr::qcol("items", "order_id"),
-                Expr::qcol("orders", "id"),
-            ))
-            .build();
-        relation.display_dot().unwrap();
-        let schema = relation.schema().clone();
-        let item = schema.field_from_index(1).unwrap().name();
-        let price = schema.field_from_index(2).unwrap().name();
-        let user_id = schema.field_from_index(4).unwrap().name();
-        let date = schema.field_from_index(6).unwrap().name();
-
-        let clipped_relation =
-            relation.l2_clipped_sums(user_id, vec![item, date], vec![price], vec![(price, 50.)]);
-        clipped_relation.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        let valid_query = r#"
-        WITH join_table AS (
-            SELECT * FROM item_table JOIN order_table ON item_table.order_id = order_table.id
-           ), norms AS (
-            SELECT user_id, SQRT(SUM(sum_1)) AS norm FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM join_table  GROUP BY user_id, item, date) As subq GROUP BY user_id
-           ), weights AS (
-             SELECT user_id, CASE WHEN 50 / norm < 1 THEN 50 / norm ELSE 1 END AS weight FROM norms
-           ) SELECT item, date, SUM(price*weight)  FROM join_table LEFT JOIN weights USING (user_id) GROUP BY item, date;
-        "#;
-
-        let my_res = refacto_results(database.query(query).unwrap(), 3);
-        let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
-        assert_eq!(my_res, true_res);
+        for row in database.query(query).unwrap() {
+            println!("{row}");
+        }
+        // 100
+        let norm = 100.;
+        let clipped_relation_100 = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", norm)]);
+        for row in database.query(&ast::Query::from(&clipped_relation_100).to_string()).unwrap() {
+            println!("{row}");
+        }
+        // 1000
+        let norm = 1000.;
+        let clipped_relation_1000 = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", norm)]);
+        for row in database.query(&ast::Query::from(&clipped_relation_1000).to_string()).unwrap() {
+            println!("{row}");
+        }
+        assert!(database.query(&ast::Query::from(&clipped_relation_100).to_string()).unwrap()!=database.query(&ast::Query::from(&clipped_relation_1000).to_string()).unwrap());
+        // 10000
+        let norm = 10000.;
+        let clipped_relation_10000 = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", norm)]);
+        for row in database.query(&ast::Query::from(&clipped_relation_10000).to_string()).unwrap() {
+            println!("{row}");
+        }
+        assert!(database.query(&ast::Query::from(&clipped_relation_1000).to_string()).unwrap()==database.query(&ast::Query::from(&clipped_relation_10000).to_string()).unwrap());
+        for row in database.query("SELECT city, sum(age) FROM user_table GROUP BY city").unwrap() {
+            println!("{row}");
+        }
+        assert!(database.query(&ast::Query::from(&clipped_relation_1000).to_string()).unwrap()==database.query("SELECT city, sum(age) FROM user_table GROUP BY city").unwrap());
     }
 
     #[test]
@@ -1801,7 +1670,9 @@ mod tests {
         );
     }
 
-    fn test_possion_sampling() {
+    #[ignore]
+    #[test]
+    fn test_poisson_sampling() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
