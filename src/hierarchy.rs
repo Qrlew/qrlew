@@ -137,23 +137,21 @@ impl<T: Clone> Hierarchy<T> {
             .collect()
     }
 
-    pub fn get(&self, path: &[String]) -> Option<&T> {
-        self.full_path(path).and_then(|p| self.0.get(&p))
+    pub fn get<'a>(&'a self, path: &[String]) -> Option<&'a T> {
+        self.get_key_value(path).and_then(|(_, v)| Some(v))
     }
 
-    /// Returns the full path of a an item in the current hierarchy.
-    /// If the input path does not exist of is ambiguous, returns None.
-    pub fn full_path(&self, path: &[String]) -> Option<Vec<String>> {
+    pub fn get_key_value<'a>(&'a self, path: &[String]) -> Option<(&'a [String], &'a T)> {
         self.0
-            .get(path)
-            .and_then(|_| Some(path.iter().map(|s| s.to_string()).collect::<Vec<_>>()))
+            .get_key_value(path)
+            .map(|(k, v)| (k.as_slice(), v))
             .or_else(|| {
                 self.0
                     .iter()
-                    .fold(Found::Zero, |f, (qualified_path, _)| {
+                    .fold(Found::Zero, |f, (qualified_path, object)| {
                         if is_suffix_of(path, qualified_path) {
                             match f {
-                                Found::Zero => Found::One(qualified_path.clone()),
+                                Found::Zero => Found::One((qualified_path.as_ref(), object)),
                                 _ => Found::More,
                             }
                         } else {
@@ -403,29 +401,38 @@ mod tests {
             (vec!["b", "c"], 6),
         ]);
         assert_eq!(
-            values.full_path(&["a".to_string(), "c".to_string()]),
-            Some(vec!["a".to_string(), "c".to_string()])
+            values.get_key_value(&["a".to_string(), "c".to_string()]),
+            Some((["a".to_string(), "c".to_string()].as_slice(), &3))
         );
-        assert_eq!(values.full_path(&["c".to_string()]), None);
+        assert_eq!(values.get_key_value(&vec!["c".to_string()]), None);
         assert_eq!(
-            values.full_path(&["b".to_string(), "c".to_string()]),
-            Some(vec!["b".to_string(), "c".to_string()])
-        );
-        assert_eq!(
-            values.full_path(&["e".to_string()]),
-            Some(vec!["a".to_string(), "e".to_string()])
+            values.get_key_value(&["b".into(), "c".into()]),
+            Some((["b".to_string(), "c".to_string()].as_slice(), &6))
         );
         assert_eq!(
-            values.full_path(&["e".to_string(), "f".to_string()]),
-            Some(vec!["a".to_string(), "e".to_string(), "f".to_string()])
+            values.get_key_value(&["e".to_string()]),
+            Some((["a".to_string(), "e".to_string()].as_slice(), &4))
         );
         assert_eq!(
-            values.full_path(&["b".to_string(), "d".to_string()]),
-            Some(vec!["a".to_string(), "b".to_string(), "d".to_string()])
+            values.get_key_value(&["e".to_string(), "f".to_string()]),
+            Some((
+                ["a".to_string(), "e".to_string(), "f".to_string()].as_slice(),
+                &5
+            ))
         );
         assert_eq!(
-            values.full_path(&["d".to_string()]),
-            Some(vec!["a".to_string(), "b".to_string(), "d".to_string()])
+            values.get_key_value(&["b".to_string(), "d".to_string()]),
+            Some((
+                ["a".to_string(), "b".to_string(), "d".to_string()].as_slice(),
+                &2
+            ))
+        );
+        assert_eq!(
+            values.get_key_value(&["d".to_string()]),
+            Some((
+                ["a".to_string(), "b".to_string(), "d".to_string()].as_slice(),
+                &2
+            ))
         );
     }
 }
