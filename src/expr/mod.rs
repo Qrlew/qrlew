@@ -28,14 +28,8 @@ use std::{
 };
 
 use crate::{
-    builder::With,
-    data_type::{
-        self,
-        function::{greatest, least, Function as _},
-        value, DataType, DataTyped, Struct as DataTypeStruct, Variant as _,
-    },
+    data_type::{self, function::Function as _, value, DataType, DataTyped, Variant as _},
     hierarchy::Hierarchy,
-    namer::{self, FIELD},
     visitor::{self, Acceptor},
 };
 
@@ -873,11 +867,11 @@ pub struct DomainVisitor;
 
 impl<'a> Visitor<'a, DataType> for DomainVisitor {
     fn column(&self, column: &'a Column) -> DataType {
-        if column.len() == 1 {
-            DataType::structured([(&column.head().unwrap(), DataType::Any)]) // TODO fix this
-        } else {
-            DataType::Any
-        }
+        let (col_name, path) = column.split_last().unwrap();
+        path.iter().rev().fold(
+            DataType::structured([(&col_name, DataType::Any)]),
+            |acc, name| DataType::structured([(name, acc)]),
+        )
     }
 
     fn value(&self, _value: &'a Value) -> DataType {
@@ -1906,22 +1900,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cmp() {
-        let dict = DataType::unit()
-            & ("a", DataType::float_interval(-5., 2.))
-            & ("1", DataType::float_interval(-1., 2.));
-        let left = Expr::col("a");
-        let right = Expr::val(0);
-        // gt
-        let ex = Expr::gt(left.clone(), right.clone());
-        println!("{}", ex);
-        // assert_eq!(
-        //     sum.super_image(&dict).unwrap(),
-        //     DataType::float_interval(-6., 4.)
-        // );
-    }
-
-    #[test]
     fn test_filter_column_data_type_float() {
         // set min value
         let col = Column::from("MyCol");
@@ -2299,5 +2277,89 @@ mod tests {
             col4_expr,
         );
         assert_eq!(Expr::filter(columns), true_expr);
+    }
+
+    #[test]
+    fn test_greatest() {
+        let dt = DataType::union([
+            (
+                "table1",
+                DataType::structured([
+                    ("x", DataType::float_interval(1., 4.)),
+                    ("b", DataType::integer_interval(2, 7)),
+                ]),
+            ),
+            (
+                "table2",
+                DataType::structured([
+                    ("x", DataType::float_interval(1., 4.)),
+                    ("y", DataType::float_interval(3.4, 7.1)),
+                ]),
+            ),
+        ]);
+        let value = Value::structured([
+            (
+                "table1",
+                Value::structured([("x", Value::float(2.3)), ("b", Value::integer(5))]),
+            ),
+            (
+                "table2",
+                Value::structured([("x", Value::float(3.5)), ("y", Value::float(4.3))]),
+            ),
+        ]);
+
+        // greatest(table1.x, y)
+        let expression = Expr::greatest(Expr::qcol("table1", "x"), Expr::col("y"));
+        println!("\nexpression = {}", expression);
+        assert_eq!(
+            expression.domain(),
+            DataType::unit()
+                & ("y", DataType::Any)
+                & ("table1", DataType::structured([("x", DataType::Any)]))
+        );
+        println!("expression co_domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        assert_eq!(
+            expression.super_image(&dt).unwrap(),
+            DataType::float_interval(3.4, 7.1)
+        );
+        assert_eq!(expression.value(&value).unwrap(), Value::float(4.3));
+
+        // greatest(b, y)
+        let expression = Expr::greatest(Expr::col("b"), Expr::col("y"));
+        println!("\nexpression = {}", expression);
+        assert_eq!(
+            expression.domain(),
+            DataType::unit() & ("b", DataType::Any) & ("y", DataType::Any)
+        );
+        println!("expression co_domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        assert_eq!(
+            expression.super_image(&dt).unwrap(),
+            DataType::float_interval(3.4, 7.1)
+        );
+        assert_eq!(expression.value(&value).unwrap(), Value::float(5.0));
+
+        // greatest(table1.x, table1.b)
+        let expression = Expr::greatest(Expr::qcol("table1", "x"), Expr::qcol("table1", "b"));
+        println!("\nexpression = {}", expression);
+        println!("{}", expression.domain(),);
+        assert_eq!(
+            expression.domain(),
+            DataType::unit()
+                & (
+                    "table1",
+                    DataType::unit() & ("b", DataType::Any) & ("y", DataType::Any)
+                )
+        );
+        println!("expression co_domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        assert_eq!(
+            expression.super_image(&dt).unwrap(),
+            DataType::float_interval(2., 4.)
+                .super_union(&DataType::integer_interval(5, 7))
+                .unwrap()
+        );
+        assert_eq!(expression.value(&value).unwrap(), Value::float(5.));
     }
 }

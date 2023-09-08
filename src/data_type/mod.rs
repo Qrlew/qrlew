@@ -2338,7 +2338,7 @@ impl DataType {
     }
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
     /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
-    fn hierarchy(&self) -> Hierarchy<&DataType> {
+    pub fn hierarchy(&self) -> Hierarchy<&DataType> {
         for_all_variants!(
             self,
             x,
