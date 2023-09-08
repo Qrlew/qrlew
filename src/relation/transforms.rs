@@ -939,42 +939,6 @@ impl Relation {
             .right_names(right_names)
             .build())
     }
-
-    /// Returns the left join between `self` and `right` where
-    /// the output names of the fields are conserved.
-    /// This fails if one column name is contained in both relations
-    pub fn left_join(self, right: Self, on: Vec<(&str, &str)>) -> Result<Relation> {
-        if on.is_empty() {
-            return Err(Error::InvalidArguments(
-                "Vector `on` cannot be empty.".into(),
-            ));
-        }
-        let left_names: Vec<String> = self.schema().iter().map(|f| f.name().to_string()).collect();
-        let right_names: Vec<String> = right
-            .schema()
-            .iter()
-            .map(|f| f.name().to_string())
-            .collect();
-        let on: Vec<Expr> = on
-            .into_iter()
-            .map(|(l, r)| Expr::eq(Expr::qcol(self.name(), l), Expr::qcol(right.name(), r)))
-            .collect();
-        if left_names.iter().any(|item| right_names.contains(item)) {
-            return Err(
-                Error::InvalidArguments(
-                    "Cannot use `left_join` method for joining two relations containing fields with the same names.".to_string()
-                )
-            );
-        }
-        Ok(Relation::join()
-            .left(self.clone())
-            .right(right.clone())
-            .left_outer()
-            .on_iter(on)
-            .left_names(left_names)
-            .right_names(right_names)
-            .build())
-    }
 }
 
 impl With<(&str, Expr)> for Relation {
@@ -2062,35 +2026,6 @@ mod tests {
             .build();
         let rel = map.possible_values().unwrap();
         rel.display_dot();
-    }
-
-    #[test]
-    fn test_left_join() {
-        let table1: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .build(),
-            )
-            .build();
-
-        let table2: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with(("d", DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-
-        let joined_rel = table1
-            .clone()
-            .left_join(table2.clone(), vec![("a", "c")])
-            .unwrap();
-        _ = joined_rel.display_dot();
     }
 
     #[test]
