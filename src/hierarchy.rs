@@ -138,26 +138,28 @@ impl<T: Clone> Hierarchy<T> {
     }
 
     pub fn get(&self, path: &[String]) -> Option<&T> {
-        self.full_path(path)
-        .and_then(|p| self.0.get(&p))
+        self.full_path(path).and_then(|p| self.0.get(&p))
     }
 
     pub fn full_path(&self, path: &[String]) -> Option<Vec<String>> {
-        self.0.get(path).and_then(|_| Some(path.iter().map(|s| s.to_string()).collect::<Vec<_>>()))
-        .or_else ( ||  self.0
-            .iter()
-            .fold(Found::Zero, |f, (qualified_path, _)| {
-                if is_suffix_of(path, qualified_path) {
-                    match f {
-                        Found::Zero => Found::One(qualified_path.clone()),
-                        _ => Found::More,
-                    }
-                } else {
-                    f
-                }
+        self.0
+            .get(path)
+            .and_then(|_| Some(path.iter().map(|s| s.to_string()).collect::<Vec<_>>()))
+            .or_else(|| {
+                self.0
+                    .iter()
+                    .fold(Found::Zero, |f, (qualified_path, _)| {
+                        if is_suffix_of(path, qualified_path) {
+                            match f {
+                                Found::Zero => Found::One(qualified_path.clone()),
+                                _ => Found::More,
+                            }
+                        } else {
+                            f
+                        }
+                    })
+                    .into()
             })
-            .into()
-        )
     }
 
     pub fn filter(&self, path: &[String]) -> Self {
@@ -402,10 +404,7 @@ mod tests {
             values.full_path(&["a".to_string(), "c".to_string()]),
             Some(vec!["a".to_string(), "c".to_string()])
         );
-        assert_eq!(
-            values.full_path(&["c".to_string()]),
-            None
-        );
+        assert_eq!(values.full_path(&["c".to_string()]), None);
         assert_eq!(
             values.full_path(&["b".to_string(), "c".to_string()]),
             Some(vec!["b".to_string(), "c".to_string()])
