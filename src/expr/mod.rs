@@ -137,8 +137,8 @@ impl Function {
         self.function
     }
 
-    pub fn arguments(&self) -> Vec<&Expr> {
-        self.arguments.iter().map(|x| x.as_ref()).collect()
+    pub fn arguments(&self) -> Vec<Expr> {
+        self.arguments.iter().map(|x| x.as_ref().clone()).collect()
     }
 
     /// Returns the `DataType` of a column filtered by the current `Function`
@@ -1229,7 +1229,7 @@ impl Expr {
 }
 
 impl DataType {
-    pub fn filter(self, predicate: &Expr) -> DataType {
+    pub fn filter(&self, predicate: &Expr) -> DataType {
         match predicate {
             Expr::Column(c) => self.filter_by_column(c),
             Expr::Value(v) => self.filter_by_value(v),
@@ -1239,94 +1239,117 @@ impl DataType {
     }
 
     //TODO
-    fn filter_by_column(self, predicate: &Identifier) -> DataType {
-        self
+    fn filter_by_column(&self, predicate: &Identifier) -> DataType {
+        self.clone()
     }
 
     //TODO
-    fn filter_by_value(self, predicate: &Value) -> DataType {
-        self
+    fn filter_by_value(&self, predicate: &Value) -> DataType {
+        self.clone()
     }
 
-    fn filter_by_function(self, predicate: &Function) -> DataType {
+    fn filter_by_function(&self, predicate: &Function) -> DataType {
         let mut datatype = self.clone();
 
-        match predicate.function() {
-            function::Function::And => {
-                let left = predicate.arguments()[0];
-                let right = predicate.arguments()[0];
-                datatype = self.filter(right).filter(left);
-                //let dt2 = self.filter(left).filter(right); //TODO: remove that ??
-                //datatype = dt1.super_intersection(&dt2).unwrap_or(datatype)
+        match (predicate.function(), predicate.arguments().as_slice()) {
+            (function::Function::And, [left, right]) => {
+                let dt1 = self.filter(right).filter(left);
+                let dt2 = self.filter(left).filter(right);
+                datatype = dt1.super_intersection(&dt2).unwrap_or(datatype)
             }
             // Set min or max
-            function::Function::Gt
-            | function::Function::GtEq
-            | function::Function::Lt
-            | function::Function::LtEq => {
-                let left = predicate.arguments()[0];
-                let right = predicate.arguments()[0];
-
+            ( function::Function::Gt,[left, right])
+            | ( function::Function::GtEq,[left, right])
+            | ( function::Function::Lt, [right, left])
+            | ( function::Function::LtEq, [right, left])  => {
                 let left_dt = left.super_image(&datatype).unwrap();
-                let right_dt = right.super_image(&datatype).unwrap();
-
                 let left_dt = if let DataType::Optional(o) = left_dt {
                     o.data_type().clone()
                 } else {
                     left_dt
                 };
-
+                let right_dt = right.super_image(&datatype).unwrap();
                 let right_dt = if let DataType::Optional(o) = right_dt {
                     o.data_type().clone()
                 } else {
                     right_dt
                 };
-
-                // let set =
-                //     DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                 if let Expr::Column(col) = left {
-                    let dt = Expr::greatest(left.clone(), right.clone())
-                        .super_image(&datatype)
-                        .unwrap_or(datatype.clone())
+                    let dt = data_type::function::greatest()
+                        .super_image(&set)
+                        .unwrap()
                         .super_intersection(&left_dt)
-                        .unwrap_or(datatype.clone());
-                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                        .unwrap();
+                    datatype = datatype.replace(col, dt)
                 }
                 if let Expr::Column(col) = right {
-                    let dt = Expr::least(right.clone(), left.clone())
-                        .super_image(&datatype)
-                        .unwrap_or(datatype.clone())
+                    let dt = data_type::function::least()
+                        .super_image(&set)
+                        .unwrap()
                         .super_intersection(&right_dt)
-                        .unwrap_or(datatype.clone());
-                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                        .unwrap();
+                    datatype = datatype.replace(col, dt)
                 }
             }
-            function::Function::Eq => {
-                let left = predicate.arguments()[0];
-                let right = predicate.arguments()[0];
+            (function::Function::Eq, [left, right]) => {
                 let left_dt = left.super_image(&datatype).unwrap();
                 let right_dt = right.super_image(&datatype).unwrap();
-                let dt = left_dt.super_intersection(&right_dt).unwrap_or(datatype.clone());
+                let dt = left_dt.super_intersection(&right_dt).unwrap();
                 if let Expr::Column(col) = left {
-                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt.clone())
+                    datatype = datatype.replace(&col, dt.clone())
                 }
                 if let Expr::Column(col) = right {
-                    //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
+                    datatype = datatype.replace(&col, dt)
                 }
             }
-            function::Function::InList => {//, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
-                // let dt = DataType::from_iter(l.to_vec().clone())
-                //     .super_intersection(&new_schema.field(&col.head()?).unwrap().data_type())?;
-                // new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
-                todo!()
+            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))])=> {
+                let dt = DataType::from_iter(l.to_vec().clone())
+                    .super_intersection(&datatype[col.as_slice()])
+                    .unwrap_or(datatype.clone());
+                datatype = datatype.replace(col, dt)
             }
             _ => (),
         }
         datatype
     }
 
-    fn with_name_datatype(self, identifier: Identifier, datatype: DataType) -> DataType {
-        todo!()
+    pub fn replace(&self, name: &Identifier, dt: DataType) -> DataType {
+        let name = Identifier::from(
+            self.hierarchy().get_key_value(&name.to_vec())
+            .unwrap().0
+            .into_iter()
+            .cloned()
+            .collect::<Vec<String>>()
+        );
+        match self {
+            DataType::Struct(st) => {
+                let (head, tail) = name.split_first().unwrap();
+                DataType::structured(
+                    st.iter().map(|(s, d)| if &head == s {
+                        (s, (**d).clone().replace(&tail, dt.clone()))
+                    } else {
+                        (s, (**d).clone())
+                    })
+                    .collect::<Vec<_>>()
+                )
+            },
+            DataType::Union(u) => {
+                let (head, tail) = name.split_first().unwrap();
+                DataType::union(
+                    u.iter().map(|(s, d)| if &head == s {
+                        (s, (**d).clone().replace(&tail, dt.clone()))
+                    } else {
+                        (s, (**d).clone())
+                    })
+                    .collect::<Vec<_>>()
+                )
+            },
+            _ => {
+                assert_eq!(name.len(), 0);
+                dt
+            }
+        }
     }
 
 }
@@ -2323,6 +2346,311 @@ mod tests {
     }
 
     #[test]
+    fn test_filter_simple() {
+        let dt = DataType::union([(
+            "table1",
+            DataType::structured([
+                ("a", DataType::float_interval(-10., 10.)),
+                ("b", DataType::integer_interval(0, 8)),
+                ("c", DataType::float()),
+            ]),
+        )]);
+
+        // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
+        let x = expr!(gt(a, 5));
+        println!("{}", x);
+        let filtered_dt = dt.filter(&x);
+        println!("{}", filtered_dt);
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
+                ("a", DataType::float_interval(5., 9.)),
+                ("b", DataType::integer_interval(2, 4)),
+                ("c", DataType::float_value(0.99)),
+            ]),
+        )]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // ((((a > 5) and (b < 4)) and ((9 >= a) and (2 <= b))) and (c = 0.99))
+        let x = expr!(and(
+            and(and(gt(a, 5), lt(b, 4.)), and(gt_eq(9., a), lt_eq(2, b))),
+            eq(c, 0.99)
+        ));
+        println!("{}", x);
+        let filtered_dt = dt.filter(&x);
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
+                ("a", DataType::float_interval(5., 9.)),
+                ("b", DataType::integer_interval(2, 4)),
+                ("c", DataType::float_value(0.99)),
+            ]),
+        )]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // ((a = 45) and (b = 3.5) and (0 = c))
+        let x = expr!(and(eq(a, 45), and(eq(b, 3.5), eq(0, c))));
+        println!("{}", x);
+        let filtered_dt = dt.filter(&x);
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
+                ("a", DataType::Null),
+                ("b", DataType::Null),
+                ("c", DataType::float_value(0.)),
+            ]),
+        )]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (b in (1, 3, 4.5))
+        let val = Expr::list([1., 3., 4.5]);
+        let a = Expr::in_list(Expr::col("a"), val.clone());
+        let b = Expr::in_list(Expr::col("b"), val.clone());
+        let x = Expr::and(a, b);
+        println!("{}", x);
+        let filtered_dt = dt.filter(&x);
+        let true_dt = DataType::union([(
+            "table1",
+            DataType::structured([
+                ("a", DataType::float_values([1., 3., 4.5])),
+                ("b", DataType::integer_values([1, 3])),
+                ("c", DataType::float()),
+            ]),
+        )]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (b = exp(a))
+        let x = expr!(eq(b, exp(a)));
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-1., 1.)),
+            ("b", DataType::float()),
+        ]);
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(-1., 1.)),
+            (
+                "b",
+                DataType::float_interval((-1. as f64).exp(), (1. as f64).exp()),
+            ),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+    }
+
+    #[test]
+    fn test_filter_with_simple_column_deps() {
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 20)),
+        ]);
+        // (b < a)
+        let x = expr!(lt(b, a));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(-0., 10.)),
+            ("b", DataType::integer_interval(0, 10)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+        // (a > b)
+        let x = expr!(gt(a, b));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (b = a)
+        let x = expr!(eq(b, a));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::integer_interval(0, 10)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+        // (a = b)
+        let x = expr!(eq(a, b));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+    }
+
+    #[test]
+    fn test_filter_with_column_deps() {
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 18)),
+            ("c", DataType::float()),
+        ]);
+
+        // ((b < 2) and (b = c))
+        let x = expr!(and(lt(b, 2), eq(b, c)));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_values([0, 1, 2])), // TODO != DataType::integer_interval([0, 2])) ?
+            ("c", DataType::float_values([0., 1., 2.])),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // ((b = c) and (b < 2))
+        let x = expr!(and(lt(b, 2), eq(b, c)));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_values([0, 1, 2])),
+            ("c", DataType::float_values([0., 1., 2.])),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // ((((a > 5) and (b < 14)) and ((b >= a) and (2 <= b))) and (a = c))
+        let x = expr!(and(
+            and(and(gt(a, 5), lt(b, 14.)), and(gt_eq(b, a), lt_eq(2, b))),
+            eq(a, c)
+        ));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(5., 10.)),
+            (
+                "b",
+                DataType::integer_values([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
+            ),
+            ("c", DataType::float_interval(5., 10.)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (a >= (2 * b))
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        let x = expr!(gt_eq(a, 2 * b));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(0., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (a <= (2 * b))
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 2)),
+        ]);
+        let x = expr!(lt_eq(a, 2 * b));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 4.)),
+            ("b", DataType::integer_interval(0, 2)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+    }
+
+    #[test]
+    fn test_filter_composed() {
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+
+        let x1 = expr!(lt(a, (3 * 5 - 8)));
+        let x2 = expr!(gt(b, ((5 / 2 - 1) + 2)));
+        let x3 = expr!(gt_eq(a, 2 * b));
+        println!("x1 = {}, x2 = {}, x3 = {}", x1, x2, x3);
+
+        // (a < ((3 * 5) - 8))
+        let filtered_dt = dt.filter(&x1);
+        println!("x1 = {} -> {}", x1, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 7.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (b > (((5 / 2) - 1) + 2))
+        let filtered_dt = dt.filter(&x2);
+        println!("x2 = {} -> {}", x2, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(3, 8)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (a >= (2 * b))
+        let filtered_dt = dt.filter(&x3);
+        println!("x3 = {} -> {}", x3, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(0., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        let true_dt = DataType::structured([
+            ("a", DataType::float_interval(6.0, 7.)),
+            ("b", DataType::integer_interval(3, 8)),
+        ]);
+
+        //  (x1 and (x2 and x3))
+        let x = Expr::and(x1.clone(), Expr::and(x2.clone(), x3.clone()));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+
+        //  (x3 and (x1 and x2))
+        let x = Expr::and(x3.clone(), Expr::and(x1.clone(), x2.clone()));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+
+        //  (x2 and (x3 and x1))
+        let x = Expr::and(x2.clone(), Expr::and(x3.clone(), x1.clone()));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+
+        // ((x1 and (x3 and x2))
+        let x = Expr::and(x1.clone(), Expr::and(x3.clone(), x2.clone()));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+
+        // ((x2 and (x1 and x3))
+        let x = Expr::and(x2.clone(), Expr::and(x1.clone(), x3.clone()));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+
+        // ((x3 and (x2 and x1))
+        let x = Expr::and(x2.clone(), Expr::and(x1.clone(), x3.clone()));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        assert_eq!(filtered_dt, true_dt);
+    }
+
+    #[test]
+    fn test_filter_optional() {
+        let dt = DataType::structured([("a", DataType::optional(DataType::float_interval(-10., 10.)))]);
+
+        // (a > 1)
+        let x = expr!(gt(a, 1));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([("a", DataType::float_interval(1., 10.))]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // (a < 1)
+        let x = expr!(lt(a, 1));
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([("a", DataType::float_interval(-10., 1.))]);
+        assert_eq!(filtered_dt, true_dt);
+    }
+
+    #[test]
     fn test_filter_column() {
         let x = Expr::filter_column(
             "col1",
@@ -2473,5 +2801,31 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(expression.value(&value).unwrap(), Value::float(5.));
+    }
+
+    #[test]
+    fn test_replace_datatype() {
+        let dt = DataType::union([
+            ("table1", DataType::structured([
+                ("a", DataType::float()),
+                ("b", DataType::integer())
+            ]))
+        ]);
+        let correct_dt = DataType::union([
+            ("table1", DataType::structured([
+                ("a", DataType::integer()),
+                ("b", DataType::integer())
+            ]))
+        ]);
+        let name:Identifier = vec!["table1".to_string(), "a".to_string()].into();
+        let new_dt = dt.replace(&name, DataType::integer());
+        assert_eq!(new_dt, correct_dt);
+
+        let name:Identifier = vec!["a".to_string()].into();
+        let new_dt = dt.replace(&name, DataType::integer());
+        assert_eq!(new_dt, correct_dt);
+
+        let new_dt = DataType::float().replace(&Identifier::empty(), DataType::integer());
+        assert_eq!(new_dt, DataType::integer());
     }
 }
