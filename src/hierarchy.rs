@@ -140,14 +140,14 @@ impl<T: Clone> Hierarchy<T> {
     // pub fn get<'a>(&'a self, path:&'a Vec<String>) -> Option<&T> {
     //     self.get_key_value(path).and_then(|(_, v)| Some(v))
     // }
-    pub fn get<'a>(&'a self, path:&'a[String]) -> Option<&T> {
+    pub fn get<'a>(&'a self, path:&[String]) -> Option<&'a T> {
         self.get_key_value(path).and_then(|(_, v)| Some(v))
     }
 
-    pub fn get_key_value<'a>(&'a self, path: &'a[String]) -> Option<(&[String], &T)> {
+    pub fn get_key_value<'a>(&'a self, path: &[String]) -> Option<(&'a[String], &'a T)> {
         self.0
-            .get(path)
-            .and_then(|object| Some((path, object)))
+            .get_key_value(path)
+            .map(|(k, v)| (k.as_slice(), v))
             .or_else(|| {
                 self.0
                     .iter()
@@ -276,7 +276,7 @@ impl<P: Path, T: Clone> Index<P> for Hierarchy<T> {
     type Output = T;
 
     fn index(&self, index: P) -> &Self::Output {
-        self.get(index.path()).unwrap()
+        self.get(&index.path()).unwrap()
     }
 }
 
@@ -424,15 +424,15 @@ mod tests {
             (vec!["a", "e", "f"], 5),
             (vec!["b", "c"], 6),
         ]);
-        assert_eq!(
-            values.get_key_value(&vec!["a".to_string(), "c".to_string()]),
-            Some((&vec!["a".to_string(), "c".to_string()], &3))
-        );
-        assert_eq!(values.get_key_value(&vec!["c".to_string()]), None);
         // assert_eq!(
-        //     values.get_key_value(&vec!["b".to_string(), "c".to_string()]),
-        //     Some(vec!["b".to_string(), "c".to_string()])
+        //     values.get_key_value(&vec!["a".to_string(), "c".to_string()]),
+        //     Some((&vec!["a".to_string(), "c".to_string()], &3))
         // );
+        assert_eq!(values.get_key_value(&vec!["c".to_string()]), None);
+        assert_eq!(
+            values.get_key_value(&vec!["b".into(), "c".into()]),
+            Some((vec!["b".to_string(), "c".to_string()].as_slice(), &6))
+        );
         // assert_eq!(
         //     values.get_key_value(&vec!["e".to_string()]),
         //     Some(vec!["a".to_string(), "e".to_string()])
