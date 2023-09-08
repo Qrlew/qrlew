@@ -1229,7 +1229,7 @@ impl Expr {
 }
 
 impl DataType {
-    pub fn filter(self, predicate: Expr) -> DataType {
+    pub fn filter(self, predicate: &Expr) -> DataType {
         match predicate {
             Expr::Column(c) => self.filter_by_column(c),
             Expr::Value(v) => self.filter_by_value(v),
@@ -1239,29 +1239,34 @@ impl DataType {
     }
 
     //TODO
-    fn filter_by_column(self, predicate: Identifier) -> DataType {
+    fn filter_by_column(self, predicate: &Identifier) -> DataType {
         self
     }
 
     //TODO
-    fn filter_by_value(self, predicate: Value) -> DataType {
+    fn filter_by_value(self, predicate: &Value) -> DataType {
         self
     }
 
-    fn filter_by_function(self, predicate: Function) -> DataType {
+    fn filter_by_function(self, predicate: &Function) -> DataType {
         let mut datatype = self.clone();
 
-        match (predicate.function(), predicate.arguments().as_slice()) {
-            (function::Function::And, [left, right]) => {
-                let dt1 = self.filter(**right).filter(**left);
-                let dt2 = self.filter(**left).filter(**right); //TODO: remove that ??
-                datatype = dt1.super_intersection(&dt2).unwrap() // TODO: unwrap or ??
+        match predicate.function() {
+            function::Function::And => {
+                let left = predicate.arguments()[0];
+                let right = predicate.arguments()[0];
+                datatype = self.filter(right).filter(left);
+                //let dt2 = self.filter(left).filter(right); //TODO: remove that ??
+                //datatype = dt1.super_intersection(&dt2).unwrap_or(datatype)
             }
             // Set min or max
-            (function::Function::Gt, [left, right])
-            | (function::Function::GtEq, [left, right])
-            | (function::Function::Lt, [right, left])
-            | (function::Function::LtEq, [right, left]) => {
+            function::Function::Gt
+            | function::Function::GtEq
+            | function::Function::Lt
+            | function::Function::LtEq => {
+                let left = predicate.arguments()[0];
+                let right = predicate.arguments()[0];
+
                 let left_dt = left.super_image(&datatype).unwrap();
                 let right_dt = right.super_image(&datatype).unwrap();
 
@@ -1277,27 +1282,31 @@ impl DataType {
                     right_dt
                 };
 
-                let set =
-                    DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                // let set =
+                //     DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
                 if let Expr::Column(col) = left {
-                    let dt = Expr::greatest(**left, **right)
-                        .super_image(&set)
-                        .unwrap()
-                        .super_intersection(&left_dt).unwrap_or(datatype);
+                    let dt = Expr::greatest(left.clone(), right.clone())
+                        .super_image(&datatype)
+                        .unwrap_or(datatype.clone())
+                        .super_intersection(&left_dt)
+                        .unwrap_or(datatype.clone());
                     //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                 }
                 if let Expr::Column(col) = right {
-                    let dt = least()
-                        .super_image(&set)
-                        .unwrap()
-                        .super_intersection(&right_dt)?;
+                    let dt = Expr::least(right.clone(), left.clone())
+                        .super_image(&datatype)
+                        .unwrap_or(datatype.clone())
+                        .super_intersection(&right_dt)
+                        .unwrap_or(datatype.clone());
                     //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                 }
             }
-            (function::Function::Eq, [left, right]) => {
-                let left_dt = left.super_image(&datatype);
-                let right_dt = right.super_image(&datatype);
-                let dt = left_dt.super_intersection(&right_dt);
+            function::Function::Eq => {
+                let left = predicate.arguments()[0];
+                let right = predicate.arguments()[0];
+                let left_dt = left.super_image(&datatype).unwrap();
+                let right_dt = right.super_image(&datatype).unwrap();
+                let dt = left_dt.super_intersection(&right_dt).unwrap_or(datatype.clone());
                 if let Expr::Column(col) = left {
                     //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt.clone())
                 }
@@ -1305,7 +1314,7 @@ impl DataType {
                     //TODO/ new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
                 }
             }
-            (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
+            function::Function::InList => {//, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
                 // let dt = DataType::from_iter(l.to_vec().clone())
                 //     .super_intersection(&new_schema.field(&col.head()?).unwrap().data_type())?;
                 // new_schema = new_schema.with_name_datatype(col.head().unwrap(), dt)
@@ -1313,9 +1322,13 @@ impl DataType {
             }
             _ => (),
         }
-        Ok(data_type)
-
+        datatype
     }
+
+    fn with_name_datatype(self, identifier: Identifier, datatype: DataType) -> DataType {
+        todo!()
+    }
+
 }
 
 
