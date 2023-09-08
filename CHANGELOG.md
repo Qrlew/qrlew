@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Internal code uses `Relation.name()` for table addressing but user facing functions may use `Table.path()` (ie sql addressing)
 - Renamed bivariate_min and bivariate_max to least and greatest
 - Cast to string before MD5 for protection
-- Implemented `least` and `greatest` (untested)
+- Implemented `least` and `greatest` (support qualified and unqualified columns)[MR102](https://github.com/Qrlew/qrlew/pull/102)
 ### Fixed
 - `And` for struct of structs [MR100](https://github.com/Qrlew/qrlew/pull/100)
+### Added
+- `Hierarchy::get_key_value` [MR103](https://github.com/Qrlew/qrlew/pull/103)
 
 ## [0.2.2] - 2023-08-29
 ### Changed
