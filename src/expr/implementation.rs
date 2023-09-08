@@ -1,6 +1,6 @@
 use super::{aggregate::Aggregate, function::Function};
 use crate::data_type::{
-    function::{self, Extended},
+    function::{self, Optional, Extended},
     DataType,
 };
 use paste::paste;
@@ -13,9 +13,9 @@ macro_rules! function_implementations {
             // A (thread local) global map
             thread_local! {
                 static FUNCTION_IMPLEMENTATIONS: FunctionImplementations = FunctionImplementations {
-                    $([< $unary:snake >]: Rc::new(Extended::new(function::[< $unary:snake >](), DataType::Any)),)*
-                    $([< $binary:snake >]: Rc::new(Extended::new(function::[< $binary:snake >](), DataType::Any & DataType::Any)),)*
-                    $([< $ternary:snake >]: Rc::new(Extended::new(function::[< $ternary:snake >](), DataType::Any & DataType::Any & DataType::Any)),)*
+                    $([< $unary:snake >]: Rc::new(Extended::new(Optional::new(function::[< $unary:snake >]()), DataType::Any)),)*
+                    $([< $binary:snake >]: Rc::new(Extended::new(Optional::new(function::[< $binary:snake >]()), DataType::Any & DataType::Any)),)*
+                    $([< $ternary:snake >]: Rc::new(Extended::new(Optional::new(function::[< $ternary:snake >]()), DataType::Any & DataType::Any & DataType::Any)),)*
                 };
             }
 
