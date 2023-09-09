@@ -167,6 +167,8 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
+                let name = join.name();
+                let operator = join.operator();
                 let left = left?;
                 let right = right?;
                 // Compute the mapping between current and new columns //TODO clean this code a bit
@@ -201,7 +203,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 let builder = Relation::join()
                     .left_names(left_names)
                     .right_names(right_names)
-                    .operator(join.operator().rename(&columns))
+                    .operator(operator.rename(&columns))
                     .and(Expr::eq(
                         Expr::qcol(left_name.as_str(), PE_ID),
                         Expr::qcol(right_name.as_str(), PE_ID),
@@ -209,7 +211,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     .left(left)
                     .right(right);
                 let join: Join = builder.build();
-                let mut builder = Relation::map().name(join.name());
+                let mut builder = Relation::map().name(name);
                 builder = builder.with((PE_ID, Expr::col(format!("_LEFT{PE_ID}"))));
                 builder = builder.with((
                     PE_WEIGHT,
