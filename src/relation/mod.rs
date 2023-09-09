@@ -152,13 +152,13 @@ pub trait Variant:
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Table {
     /// The name of the table
-    pub name: String,
+    pub(self) name: String,
     /// The path to the actual table
-    pub path: Identifier,
+    pub(self) path: Identifier,
     /// The schema description of the output
-    pub schema: Schema,
+    pub(self) schema: Schema,
     /// The size of the table
-    pub size: Integer,
+    pub(self) size: Integer,
 }
 
 impl Table {
@@ -244,21 +244,21 @@ impl OrderBy {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Map {
     /// The name of the output
-    pub name: String,
+    pub(self) name: String,
     /// The list of expressions (SELECT items)
-    pub projection: Vec<Expr>,
+    pub(self) projection: Vec<Expr>,
     /// The predicate expression, which must have Boolean type (WHERE clause). It is applied on the input columns.
-    pub filter: Option<Expr>,
+    pub(self) filter: Option<Expr>,
     /// The sort expressions (SORT)
-    pub order_by: Vec<OrderBy>,
+    pub(self) order_by: Vec<OrderBy>,
     /// The limit (LIMIT value)
-    pub limit: Option<usize>,
+    pub(self) limit: Option<usize>,
     /// The schema description of the output
-    pub schema: Schema,
+    pub(self) schema: Schema,
     /// The size of the Map
-    pub size: Integer,
+    pub(self) size: Integer,
     /// The incoming logical plan
-    pub input: Rc<Relation>,
+    pub(self) input: Rc<Relation>,
 }
 
 impl Map {
@@ -331,8 +331,24 @@ impl Map {
         )
     }
 
+    /// Return a new builder
     pub fn builder() -> MapBuilder<WithoutInput> {
         MapBuilder::new()
+    }
+
+    /// Get projections
+    pub fn projection(&self) -> &[Expr] {
+        &self.projection
+    }
+
+    /// Get names and expressions
+    pub fn field_exprs(&self) -> Vec<(&Field, &Expr)> {
+        self.schema.iter().zip(self.projection.iter()).collect()
+    }
+
+    /// Get names and expressions
+    pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
+        self.schema.iter().map(|f| f.name()).zip(self.projection.iter()).collect()
     }
 }
 
@@ -409,17 +425,17 @@ impl Variant for Map {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Reduce {
     /// The name of the output
-    pub name: String,
+    pub(self) name: String,
     /// Aggregate expressions
-    pub aggregate: Vec<Expr>,
+    pub(self) aggregate: Vec<Expr>,
     /// Grouping expressions
-    pub group_by: Vec<Expr>,
+    pub(self) group_by: Vec<Expr>,
     /// The schema description of the output
-    pub schema: Schema,
+    pub(self) schema: Schema,
     /// The size of the Reduce
-    pub size: Integer,
+    pub(self) size: Integer,
     /// The incoming relation
-    pub input: Rc<Relation>,
+    pub(self) input: Rc<Relation>,
 }
 
 impl Reduce {
@@ -477,8 +493,24 @@ impl Reduce {
         )
     }
 
+    /// Return a new builder
     pub fn builder() -> ReduceBuilder<WithoutInput> {
         ReduceBuilder::new()
+    }
+
+    /// Get aggregates
+    pub fn aggregate(&self) -> &[Expr] {
+        &self.aggregate
+    }
+
+    /// Get names and expressions
+    pub fn field_exprs(&self) -> Vec<(&Field, &Expr)> {
+        self.schema.iter().zip(self.aggregate.iter()).collect()
+    }
+
+    /// Get names and expressions
+    pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
+        self.schema.iter().map(|f| f.name()).zip(self.aggregate.iter()).collect()
     }
 }
 
@@ -613,17 +645,17 @@ impl JoinConstraint {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Join {
     /// The name of the output
-    pub name: String,
+    pub(self) name: String,
     /// Join constraint
-    pub operator: JoinOperator,
+    pub(self) operator: JoinOperator,
     /// The schema description of the output
-    pub schema: Schema,
+    pub(self) schema: Schema,
     /// The size of the Join
-    pub size: Integer,
+    pub(self) size: Integer,
     /// Left input
-    pub left: Rc<Relation>,
+    pub(self) left: Rc<Relation>,
     /// Right input
-    pub right: Rc<Relation>,
+    pub(self) right: Rc<Relation>,
 }
 
 impl Join {
@@ -855,19 +887,19 @@ impl fmt::Display for SetQuantifier {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Set {
     /// The name of the output
-    pub name: String,
+    pub(self) name: String,
     /// Set operator
-    pub operator: SetOperator,
+    pub(self) operator: SetOperator,
     /// Set quantifier
-    pub quantifier: SetQuantifier,
+    pub(self) quantifier: SetQuantifier,
     /// The schema description of the output
-    pub schema: Schema,
+    pub(self) schema: Schema,
     /// The size of the Set
-    pub size: Integer,
+    pub(self) size: Integer,
     /// Left input
-    pub left: Rc<Relation>,
+    pub(self) left: Rc<Relation>,
     /// Right input
-    pub right: Rc<Relation>,
+    pub(self) right: Rc<Relation>,
 }
 
 impl Set {
@@ -996,13 +1028,13 @@ impl Variant for Set {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Values {
     /// The name of the output
-    pub name: String,
+    pub(self) name: String,
     /// The values
-    pub values: Vec<Value>,
+    pub(self) values: Vec<Value>,
     /// The schema description of the output
-    pub schema: Schema,
+    pub(self) schema: Schema,
     /// The size of the Set
-    pub size: Integer,
+    pub(self) size: Integer,
 }
 
 impl Values {

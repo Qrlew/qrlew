@@ -185,6 +185,21 @@ impl Reduce {
         self
     }
 
+    pub fn l2_clipped_all_sums(&self, entities: &str) -> Relation {
+        // TODO 
+        let mut entities: Option<&str> = None;
+        let mut groups: Vec<&str> = vec![];
+        let mut values: Vec<&str> = vec![];
+        let mut clipping_values: Vec<(&str, f64)> = vec![];
+        for name_expr in self.named_exprs() {
+            match name_expr {
+                (name, Expr::Aggregate(agg)) => values.push(agg.argument_name().unwrap()),
+                _ => (),
+            }
+        }
+        todo!()
+    }
+
     pub fn clip_aggregates(
         self,
         vectors: &str,

@@ -490,8 +490,14 @@ impl Aggregate {
         }
     }
 
+    /// Get aggregate
     pub fn aggregate(&self) -> aggregate::Aggregate {
         self.aggregate
+    }
+
+    /// Get argument
+    pub fn argument(&self) -> &Expr {
+        self.argument.as_ref()
     }
 
     pub fn argument_name(&self) -> Result<&String> {
