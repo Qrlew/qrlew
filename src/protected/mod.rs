@@ -160,36 +160,35 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         // Preserve names
         let names: Vec<String> = join.schema().iter().map(|f| f.name().to_string()).collect();
         let mut left_names = vec![format!("_LEFT{PE_ID}"), format!("_LEFT{PE_WEIGHT}")];
-        left_names.extend(names.iter().take(join.left.schema().len()).cloned());
+        left_names.extend(names.iter().take(join.left().schema().len()).cloned());
         let mut right_names = vec![format!("_RIGHT{PE_ID}"), format!("_RIGHT{PE_WEIGHT}")];
-        right_names.extend(names.iter().skip(join.left.schema().len()).cloned());
+        right_names.extend(names.iter().skip(join.left().schema().len()).cloned());
         // Create the protected join
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
-                let Join { name, operator, .. } = join;
                 let left = left?;
                 let right = right?;
                 // Compute the mapping between current and new columns //TODO clean this code a bit
                 let columns: Hierarchy<Identifier> = join
-                    .left
+                    .left()
                     .schema()
                     .iter()
                     .zip(left.schema().iter().skip(PROTECTION_COLUMNS))
                     .map(|(o, n)| {
                         (
-                            vec![join.left.name().to_string(), o.name().to_string()],
+                            vec![join.left().name().to_string(), o.name().to_string()],
                             Identifier::from(vec![left_name.clone(), n.name().to_string()]),
                         )
                     })
                     .chain(
-                        join.right
+                        join.right()
                             .schema()
                             .iter()
                             .zip(right.schema().iter().skip(PROTECTION_COLUMNS))
                             .map(|(o, n)| {
                                 (
-                                    vec![join.right.name().to_string(), o.name().to_string()],
+                                    vec![join.right().name().to_string(), o.name().to_string()],
                                     Identifier::from(vec![
                                         right_name.clone(),
                                         n.name().to_string(),
@@ -202,7 +201,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 let builder = Relation::join()
                     .left_names(left_names)
                     .right_names(right_names)
-                    .operator(operator.rename(&columns))
+                    .operator(join.operator().rename(&columns))
                     .and(Expr::eq(
                         Expr::qcol(left_name.as_str(), PE_ID),
                         Expr::qcol(right_name.as_str(), PE_ID),
@@ -210,7 +209,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     .left(left)
                     .right(right);
                 let join: Join = builder.build();
-                let mut builder = Relation::map().name(name);
+                let mut builder = Relation::map().name(join.name());
                 builder = builder.with((PE_ID, Expr::col(format!("_LEFT{PE_ID}"))));
                 builder = builder.with((
                     PE_WEIGHT,
@@ -239,16 +238,10 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         left: Result<Relation>,
         right: Result<Relation>,
     ) -> Result<Relation> {
-        let Set {
-            name,
-            operator,
-            quantifier,
-            ..
-        } = set;
         let builder = Relation::set()
-            .name(name)
-            .operator(operator.clone())
-            .quantifier(quantifier.clone())
+            .name(set.name())
+            .operator(set.operator().clone())
+            .quantifier(set.quantifier().clone())
             .left(left?)
             .right(right?);
         Ok(builder.build())

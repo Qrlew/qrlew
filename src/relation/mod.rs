@@ -330,25 +330,37 @@ impl Map {
             },
         )
     }
-
-    /// Return a new builder
-    pub fn builder() -> MapBuilder<WithoutInput> {
-        MapBuilder::new()
-    }
-
     /// Get projections
     pub fn projection(&self) -> &[Expr] {
         &self.projection
     }
-
+    /// Get filter
+    pub fn filter(&self) -> &Option<Expr> {
+        &self.filter
+    }
+    /// Get order_by
+    pub fn order_by(&self) -> &[OrderBy] {
+        &self.order_by
+    }
+    /// Get limit
+    pub fn limit(&self) -> &Option<usize> {
+        &self.limit
+    }
+    /// Get the input
+    pub fn input(&self) -> &Relation {
+        &self.input
+    }
     /// Get names and expressions
     pub fn field_exprs(&self) -> Vec<(&Field, &Expr)> {
         self.schema.iter().zip(self.projection.iter()).collect()
     }
-
     /// Get names and expressions
     pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
         self.schema.iter().map(|f| f.name()).zip(self.projection.iter()).collect()
+    }
+    /// Return a new builder
+    pub fn builder() -> MapBuilder<WithoutInput> {
+        MapBuilder::new()
     }
 }
 
@@ -483,7 +495,6 @@ impl Reduce {
             .unzip();
         (Schema::new(fields), exprs)
     }
-
     /// Compute the size of the reduce
     /// The size of the reduce can be the same as its input and will be at least 0
     fn size(input: &Relation) -> Integer {
@@ -492,25 +503,29 @@ impl Reduce {
             |&max| Integer::from_interval(0, max),
         )
     }
-
-    /// Return a new builder
-    pub fn builder() -> ReduceBuilder<WithoutInput> {
-        ReduceBuilder::new()
-    }
-
     /// Get aggregates
     pub fn aggregate(&self) -> &[Expr] {
         &self.aggregate
     }
-
+    /// Get group_by
+    pub fn group_by(&self) -> &[Expr] {
+        &self.group_by
+    }
+    /// Get the input
+    pub fn input(&self) -> &Relation {
+        &self.input
+    }
     /// Get names and expressions
     pub fn field_exprs(&self) -> Vec<(&Field, &Expr)> {
         self.schema.iter().zip(self.aggregate.iter()).collect()
     }
-
     /// Get names and expressions
     pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
         self.schema.iter().map(|f| f.name()).zip(self.aggregate.iter()).collect()
+    }
+    /// Return a new builder
+    pub fn builder() -> ReduceBuilder<WithoutInput> {
+        ReduceBuilder::new()
     }
 }
 
@@ -740,11 +755,22 @@ impl Join {
             .zip(left_identifiers.chain(right_identifiers))
             .map(|(f, i)| (f, i))
     }
-
+    /// Get the hyerarchy of names
     pub fn names(&self) -> Hierarchy<String> {
         Hierarchy::from_iter(self.field_inputs().map(|(n, i)| (i, n)))
     }
-
+    /// Get join operator
+    pub fn operator(&self) -> &JoinOperator {
+        &self.operator
+    }
+    /// Get left input
+    pub fn left(&self) -> &Relation {
+        &self.left
+    }
+    /// Get right input
+    pub fn right(&self) -> &Relation {
+        &self.right
+    }
     pub fn builder() -> JoinBuilder<WithoutInput, WithoutInput> {
         JoinBuilder::new()
     }
@@ -974,7 +1000,22 @@ impl Set {
             SetOperator::Intersect => Integer::from_interval(0, left_size_max.min(right_size_max)),
         }
     }
-
+    /// Get set operator
+    pub fn operator(&self) -> &SetOperator {
+        &self.operator
+    }
+    /// Get set quantifier
+    pub fn quantifier(&self) -> &SetQuantifier {
+        &self.quantifier
+    }
+    /// Get left input
+    pub fn left(&self) -> &Relation {
+        &self.left
+    }
+    /// Get right input
+    pub fn right(&self) -> &Relation {
+        &self.right
+    }
     pub fn builder() -> SetBuilder<WithoutInput, WithoutInput> {
         SetBuilder::new()
     }

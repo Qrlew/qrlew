@@ -49,7 +49,7 @@ pub const PE_DISTINCT_COUNT: &str = "_PROTECTED_DISTINCT_COUNT_";
 
 impl Reduce {
     pub fn grouping_columns(&self) -> Result<Vec<String>> {
-        self.group_by
+        self.group_by()
             .iter()
             .cloned()
             .map(|x| {
@@ -73,7 +73,7 @@ impl Reduce {
 
     fn join_with_grouping_values(self, grouping_values: Relation) -> Result<Relation> {
         let on: Vec<Expr> = self
-            .group_by
+            .group_by()
             .clone()
             .into_iter()
             .map(|c| {
@@ -109,7 +109,7 @@ impl Reduce {
         delta: f64,
         sensitivity: f64,
     ) -> Result<Relation> {
-        if self.group_by.is_empty() {
+        if self.group_by().is_empty() {
             // TODO: vec![PE_ID] ?
             return Ok(Relation::from(self));
         }

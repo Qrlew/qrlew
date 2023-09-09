@@ -71,14 +71,14 @@ impl Reduce {
             .schema()
             .clone()
             .iter()
-            .zip(self.aggregate.clone().into_iter())
+            .zip(self.aggregate().clone().into_iter())
             .fold((vec![], vec![]), |(c, s), (f, x)| {
                 if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
                     match agg.aggregate() {
                         aggregate::Aggregate::Sum => {
                             let mut c = c;
                             let cvalue = self
-                                .input
+                                .input()
                                 .schema()
                                 .field(agg.argument_name().unwrap())
                                 .unwrap()

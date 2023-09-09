@@ -10,6 +10,7 @@ use qrlew::{
     ast,
     display::Dot,
     expr,
+    relation::Variant as _,
     io::{postgresql, Database},
     protected::PE_ID,
     sql::parse,
@@ -102,7 +103,7 @@ fn test_on_sqlite() {
     let mut database = sqlite::test_database();
     println!("database {} = {}", database.name(), database.relations());
     for tab in database.tables() {
-        println!("schema {} = {}", tab, tab.schema);
+        println!("schema {} = {}", tab, tab.schema());
     }
     for &query in SQLITE_QUERIES.iter().chain(QUERIES) {
         assert!(test_rewritten_eq(&mut database, query));
@@ -125,7 +126,7 @@ fn test_on_postgresql() {
     let mut database = postgresql::test_database();
     println!("database {} = {}", database.name(), database.relations());
     for tab in database.tables() {
-        println!("schema {} = {}", tab, tab.schema);
+        println!("schema {} = {}", tab, tab.schema());
     }
     for &query in POSTGRESQL_QUERIES.iter().chain(QUERIES) {
         assert!(test_rewritten_eq(&mut database, query));
