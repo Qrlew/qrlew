@@ -10,20 +10,20 @@ pub mod relation;
 pub mod visitor;
 pub mod writer;
 
-use crate::ast as sql;
+use crate::{ast, relation::Variant as _};
 
 // I would put here the abstact AST Visitor.
 // Then in expr.rs module we write an implementation of the abstract visitor for Qrlew expr
 
 pub trait Visitor<'a, T> {
-    fn identifier(&self, identifier: &'a sql::Ident) -> T;
-    fn compound_identifier(&self, qident: &'a Vec<sql::Ident>) -> T;
-    fn unary_op(&self, op: &'a sql::UnaryOperator, expr: &'a Box<sql::Expr>) -> T;
+    fn identifier(&self, identifier: &'a ast::Ident) -> T;
+    fn compound_identifier(&self, qident: &'a Vec<ast::Ident>) -> T;
+    fn unary_op(&self, op: &'a ast::UnaryOperator, expr: &'a Box<ast::Expr>) -> T;
     fn binary_op(
         &self,
-        left: &'a Box<sql::Expr>,
-        op: &'a sql::BinaryOperator,
-        right: &'a Box<sql::Expr>,
+        left: &'a Box<ast::Expr>,
+        op: &'a ast::BinaryOperator,
+        right: &'a Box<ast::Expr>,
     ) -> T;
 }
 
@@ -122,7 +122,7 @@ mod tests {
         let database = postgresql::test_database();
         println!("database {} = {}", database.name(), database.relations());
         for tab in database.tables() {
-            println!("schema {} = {}", tab, tab.schema);
+            println!("schema {} = {}", tab, tab.schema());
         }
         for query in [
             "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",

@@ -152,13 +152,13 @@ pub trait Variant:
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Table {
     /// The name of the table
-    pub(self) name: String,
+    name: String,
     /// The path to the actual table
-    pub(self) path: Identifier,
+    path: Identifier,
     /// The schema description of the output
-    pub(self) schema: Schema,
+    schema: Schema,
     /// The size of the table
-    pub(self) size: Integer,
+    size: Integer,
 }
 
 impl Table {
@@ -244,21 +244,21 @@ impl OrderBy {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Map {
     /// The name of the output
-    pub(self) name: String,
+    name: String,
     /// The list of expressions (SELECT items)
-    pub(self) projection: Vec<Expr>,
+    projection: Vec<Expr>,
     /// The predicate expression, which must have Boolean type (WHERE clause). It is applied on the input columns.
-    pub(self) filter: Option<Expr>,
+    filter: Option<Expr>,
     /// The sort expressions (SORT)
-    pub(self) order_by: Vec<OrderBy>,
+    order_by: Vec<OrderBy>,
     /// The limit (LIMIT value)
-    pub(self) limit: Option<usize>,
+    limit: Option<usize>,
     /// The schema description of the output
-    pub(self) schema: Schema,
+    schema: Schema,
     /// The size of the Map
-    pub(self) size: Integer,
+    size: Integer,
     /// The incoming logical plan
-    pub(self) input: Rc<Relation>,
+    input: Rc<Relation>,
 }
 
 impl Map {
@@ -425,17 +425,17 @@ impl Variant for Map {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Reduce {
     /// The name of the output
-    pub(self) name: String,
+    name: String,
     /// Aggregate expressions
-    pub(self) aggregate: Vec<Expr>,
+    aggregate: Vec<Expr>,
     /// Grouping expressions
-    pub(self) group_by: Vec<Expr>,
+    group_by: Vec<Expr>,
     /// The schema description of the output
-    pub(self) schema: Schema,
+    schema: Schema,
     /// The size of the Reduce
-    pub(self) size: Integer,
+    size: Integer,
     /// The incoming relation
-    pub(self) input: Rc<Relation>,
+    input: Rc<Relation>,
 }
 
 impl Reduce {
@@ -645,17 +645,17 @@ impl JoinConstraint {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Join {
     /// The name of the output
-    pub(self) name: String,
+    name: String,
     /// Join constraint
-    pub(self) operator: JoinOperator,
+    operator: JoinOperator,
     /// The schema description of the output
-    pub(self) schema: Schema,
+    schema: Schema,
     /// The size of the Join
-    pub(self) size: Integer,
+    size: Integer,
     /// Left input
-    pub(self) left: Rc<Relation>,
+    left: Rc<Relation>,
     /// Right input
-    pub(self) right: Rc<Relation>,
+    right: Rc<Relation>,
 }
 
 impl Join {
@@ -887,19 +887,19 @@ impl fmt::Display for SetQuantifier {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Set {
     /// The name of the output
-    pub(self) name: String,
+    name: String,
     /// Set operator
-    pub(self) operator: SetOperator,
+    operator: SetOperator,
     /// Set quantifier
-    pub(self) quantifier: SetQuantifier,
+    quantifier: SetQuantifier,
     /// The schema description of the output
-    pub(self) schema: Schema,
+    schema: Schema,
     /// The size of the Set
-    pub(self) size: Integer,
+    size: Integer,
     /// Left input
-    pub(self) left: Rc<Relation>,
+    left: Rc<Relation>,
     /// Right input
-    pub(self) right: Rc<Relation>,
+    right: Rc<Relation>,
 }
 
 impl Set {
@@ -1028,13 +1028,13 @@ impl Variant for Set {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Values {
     /// The name of the output
-    pub(self) name: String,
+    name: String,
     /// The values
-    pub(self) values: Vec<Value>,
+    values: Vec<Value>,
     /// The schema description of the output
-    pub(self) schema: Schema,
+    schema: Schema,
     /// The size of the Set
-    pub(self) size: Integer,
+    size: Integer,
 }
 
 impl Values {
