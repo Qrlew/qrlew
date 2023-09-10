@@ -489,17 +489,15 @@ impl Aggregate {
             argument,
         }
     }
-
     /// Get aggregate
     pub fn aggregate(&self) -> aggregate::Aggregate {
         self.aggregate
     }
-
     /// Get argument
     pub fn argument(&self) -> &Expr {
         self.argument.as_ref()
     }
-
+    /// Get the argument name
     pub fn argument_name(&self) -> Result<&String> {
         match self.argument.as_ref() {
             Expr::Column(col) => Ok(col.last().unwrap()),

@@ -527,6 +527,13 @@ impl Reduce {
     pub fn builder() -> ReduceBuilder<WithoutInput> {
         ReduceBuilder::new()
     }
+    /// Get group_by_names
+    pub fn group_by_names(&self) -> Vec<&str> {
+        self.group_by.iter().filter_map(|e| match e {
+            Expr::Column(col) => col.last(),
+            _ => None,
+        }).map(|s| s.as_str()).collect()
+    }
 }
 
 impl fmt::Display for Reduce {
