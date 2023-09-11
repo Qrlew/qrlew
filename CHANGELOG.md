@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implemented `least` and `greatest` (support qualified and unqualified columns)[MR102](https://github.com/Qrlew/qrlew/pull/102)
 ### Fixed
 - `And` for struct of structs [MR100](https://github.com/Qrlew/qrlew/pull/100)
+- `Union::is_subset_of` [MR105](https://github.com/Qrlew/qrlew/pull/105)
 ### Added
 - `Hierarchy::get_key_value` [MR103](https://github.com/Qrlew/qrlew/pull/103)
 
