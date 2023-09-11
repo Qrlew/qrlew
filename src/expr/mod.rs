@@ -1969,21 +1969,16 @@ mod tests {
                 DataType::structured([
                     ("a", DataType::float_interval(-10., 10.)),
                     ("x", DataType::float_interval(-20., 5.)),
-                ])
+                ]),
             ),
             (
                 "table2",
-                DataType::structured([
-                    ("x", DataType::float_interval(-15., 3.)),
-                ])
-            )
+                DataType::structured([("x", DataType::float_interval(-15., 3.))]),
+            ),
         ]);
 
         // table1.a < table1.x
-        let x = Expr::lt(
-            Expr::qcol("table1", "a"),
-            Expr::qcol("table1", "x")
-        );
+        let x = Expr::lt(Expr::qcol("table1", "a"), Expr::qcol("table1", "x"));
         println!("{}", x);
         let filtered_dt = dt.filter(&x);
         let true_dt = DataType::union([
@@ -1992,14 +1987,12 @@ mod tests {
                 DataType::structured([
                     ("a", DataType::float_interval(-10., 5.)),
                     ("x", DataType::float_interval(-10., 5.)),
-                ])
+                ]),
             ),
             (
                 "table2",
-                DataType::structured([
-                    ("x", DataType::float_interval(-15., 3.)),
-                ])
-            )
+                DataType::structured([("x", DataType::float_interval(-15., 3.))]),
+            ),
         ]);
         println!("{true_dt}\n{filtered_dt}");
         println!("{}", true_dt[["table1"]] == filtered_dt[["table1"]]);
@@ -2015,14 +2008,12 @@ mod tests {
                 DataType::structured([
                     ("a", DataType::float_interval(-10., 5.)),
                     ("x", DataType::float_interval(-10., 5.)),
-                ])
+                ]),
             ),
             (
                 "table2",
-                DataType::structured([
-                    ("x", DataType::float_interval(-15., 3.)),
-                ])
-            )
+                DataType::structured([("x", DataType::float_interval(-15., 3.))]),
+            ),
         ]);
         println!("{true_dt}\n{filtered_dt}");
         println!("{}", true_dt[["table1"]] == filtered_dt[["table1"]]);
@@ -2038,20 +2029,16 @@ mod tests {
                 DataType::structured([
                     ("a", DataType::float_interval(-10., 3.)),
                     ("x", DataType::float_interval(-20., 5.)),
-                ])
+                ]),
             ),
             (
                 "table2",
-                DataType::structured([
-                    ("x", DataType::float_interval(-10., 3.)),
-                ])
-            )
+                DataType::structured([("x", DataType::float_interval(-10., 3.))]),
+            ),
         ]);
         println!("{true_dt}\n{filtered_dt}");
         println!("{}", true_dt[["table1"]] == filtered_dt[["table1"]]);
         assert_eq!(filtered_dt, true_dt);
-
-
     }
 
     #[test]
@@ -2059,7 +2046,7 @@ mod tests {
         let dt = DataType::structured([
             ("a", DataType::float_interval(-10., 10.)),
             ("b", DataType::integer_interval(0, 8)),
-            ("c", DataType::float())
+            ("c", DataType::float()),
         ]);
 
         // (a > 5)
@@ -2070,7 +2057,7 @@ mod tests {
         let true_dt = DataType::structured([
             ("a", DataType::float_interval(5., 10.)),
             ("b", DataType::integer_interval(0, 8)),
-            ("c", DataType::float())
+            ("c", DataType::float()),
         ]);
         assert_eq!(filtered_dt, true_dt);
 
@@ -2084,7 +2071,7 @@ mod tests {
         let true_dt = DataType::structured([
             ("a", DataType::float_interval(5., 9.)),
             ("b", DataType::integer_interval(2, 4)),
-            ("c", DataType::float_value(0.99))
+            ("c", DataType::float_value(0.99)),
         ]);
         assert_eq!(filtered_dt, true_dt);
 
@@ -2095,7 +2082,7 @@ mod tests {
         let true_dt = DataType::structured([
             ("a", DataType::Null),
             ("b", DataType::Null),
-            ("c", DataType::float_value(0.))
+            ("c", DataType::float_value(0.)),
         ]);
         assert_eq!(filtered_dt, true_dt);
 
@@ -2109,7 +2096,7 @@ mod tests {
         let true_dt = DataType::structured([
             ("a", DataType::float_values([-1., 3., 4.5])),
             ("b", DataType::integer_value(3)),
-            ("c",  DataType::float())
+            ("c", DataType::float()),
         ]);
         assert_eq!(filtered_dt, true_dt);
 
