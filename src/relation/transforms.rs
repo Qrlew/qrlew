@@ -209,77 +209,8 @@ impl Reduce {
             }
         };
         let input_entities = input_entities.ok_or(Error::invalid_arguments(entities))?;
-        println!("DEBUG {:#?}", names);
         Ok(self.input().clone().l2_clipped_sums(input_entities, input_groups, input_values, clipping_values)
             .rename_fields(|s, _| names.get(s).unwrap_or(&s).to_string()))
-    }
-
-    pub fn clip_aggregates(
-        self,
-        vectors: &str,
-        clipping_values: Vec<(&str, f64)>,
-    ) -> Result<Relation> {
-        let (map_names, out_vectors, base, coordinates): (
-            Vec<(String, String)>,
-            Option<String>,
-            Vec<String>,
-            Vec<String>,
-        ) = self
-            .schema()
-            .clone()
-            .iter()
-            .zip(self.aggregate.into_iter())
-            .fold((vec![], None, vec![], vec![]), |(mn, v, b, c), (f, x)| {
-                if let (name, Expr::Aggregate(agg)) = (f.name(), x) {
-                    let argname = agg.argument_name().unwrap().clone();
-                    let mut mn = mn;
-                    mn.push((argname.clone(), name.to_string()));
-                    match agg.aggregate() {
-                        aggregate::Aggregate::Sum => {
-                            let mut c = c;
-                            c.push(argname);
-                            (mn, v, b, c)
-                        }
-                        aggregate::Aggregate::First => {
-                            if name == vectors {
-                                let v = Some(argname);
-                                (mn, v, b, c)
-                            } else {
-                                let mut b = b;
-                                b.push(argname);
-                                (mn, v, b, c)
-                            }
-                        }
-                        _ => (mn, v, b, c),
-                    }
-                } else {
-                    (mn, v, b, c)
-                }
-            });
-
-        let vectors = if let Some(v) = out_vectors {
-            Ok(v)
-        } else {
-            Err(Error::InvalidArguments(format!(
-                "{vectors} should be in the input `Relation`"
-            )))
-        };
-        let len_clipping_values = clipping_values.len();
-        let len_coordinates = coordinates.len();
-        if len_clipping_values != len_coordinates {
-            return Err(Error::InvalidArguments(format!(
-                "You must provide one clipping_value for each output field. \n \
-                Got {len_clipping_values} clipping values for {len_coordinates} output fields"
-            )));
-        }
-        let clipped_relation = self.input.as_ref().clone().l2_clipped_sums(
-            vectors?.as_str(),
-            base.iter().map(|s| s.as_str()).collect(),
-            coordinates.iter().map(|s| s.as_str()).collect(),
-            clipping_values,
-        );
-        let map_names: HashMap<String, String> = map_names.into_iter().collect();
-        Ok(clipped_relation.rename_fields(|n, _| map_names[n].to_string()))
     }
 
     /// Rename fields
@@ -744,13 +675,6 @@ impl Relation {
     pub fn l2_clipped_all_sums(&self, entities: &str) -> Result<Self> {
         match self {
             Relation::Reduce(reduce) => reduce.l2_clipped_all_sums(entities),
-            _ => todo!(),
-        }
-    }
-
-    pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Self> {
-        match self {
-            Relation::Reduce(reduce) => reduce.clip_aggregates(vectors, clipping_values),
             _ => todo!(),
         }
     }
@@ -1398,130 +1322,6 @@ mod tests {
         let clipped_relation = my_relation
             .l2_clipped_all_sums("order_id").unwrap();
         clipped_relation.display_dot().unwrap();
-    }
-
-    #[test]
-    fn test_clip_aggregates_reduce() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        let table = relations
-            .get(&["item_table".into()])
-            .unwrap()
-            .as_ref()
-            .clone();
-
-        // with GROUP BY
-        let my_relation: Relation = Relation::reduce()
-            .input(table.clone())
-            .with(("sum_price", Expr::sum(Expr::col("price"))))
-            .with_group_by_column("item")
-            .with_group_by_column("order_id")
-            .build();
-
-        let schema = my_relation.inputs()[0].schema().clone();
-        let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation
-            .clip_aggregates("order_id", vec![(price, 45.)])
-            .unwrap();
-        let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
-        assert_eq!(name_fields, vec!["item", "sum_price"]);
-        clipped_relation.display_dot();
-
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        println!("Query: {}", query);
-        let valid_query = r#"
-        WITH norms AS (
-            SELECT order_id, SQRT(SUM(sum_by_group)) AS norm FROM (
-                SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item
-              ) AS subquery GROUP BY order_id
-          ), weights AS (SELECT order_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight FROM norms)
-          SELECT item, SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id) GROUP BY item;
-        "#;
-        let my_res = refacto_results(database.query(query).unwrap(), 2);
-        let true_res = refacto_results(database.query(valid_query).unwrap(), 2);
-        assert_eq!(my_res, true_res);
-
-        // without GROUP BY
-        let my_relation: Relation = Relation::reduce()
-            .input(table)
-            .with(("sum_price", Expr::sum(Expr::col("price"))))
-            .with_group_by_column("order_id")
-            .build();
-
-        let schema = my_relation.inputs()[0].schema().clone();
-        let price = schema.field_from_index(0).unwrap().name();
-        let clipped_relation = my_relation
-            .clip_aggregates("order_id", vec![(price, 45.)])
-            .unwrap();
-        let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
-        assert_eq!(name_fields, vec!["sum_price"]);
-        clipped_relation.display_dot();
-
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        println!("Query: {}", query);
-        let valid_query = r#"
-            WITH norms AS (
-                SELECT order_id, ABS(SUM(price)) AS norm FROM item_table GROUP BY order_id
-            ), weights AS (
-                SELECT order_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight FROM norms
-            )
-            SELECT SUM(price*weight) FROM item_table LEFT JOIN weights USING (order_id);
-        "#;
-        let my_res = refacto_results(database.query(query).unwrap(), 1);
-        let true_res = refacto_results(database.query(valid_query).unwrap(), 1);
-        assert_eq!(my_res, true_res);
-    }
-
-    #[test]
-    fn test_clip_aggregates_complex_reduce() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-        let initial_query = r#"
-        SELECT user_id AS user_id, item AS item, 5 * price AS std_price, price AS price, date AS date
-        FROM item_table LEFT JOIN order_table ON item_table.order_id = order_table.id
-        "#;
-        let relation = Relation::try_from(parse(initial_query).unwrap().with(&relations)).unwrap();
-        let relation: Relation = Relation::reduce()
-            .input(relation)
-            .with_group_by_column("user_id")
-            .with_group_by_column("item")
-            .with(("sum1", Expr::sum(Expr::col("price"))))
-            .with(("sum2", Expr::sum(Expr::col("std_price"))))
-            .build();
-        relation.display_dot();
-
-        let schema = relation.inputs()[0].schema().clone();
-        let price = schema.field_from_index(2).unwrap().name();
-        let std_price = schema.field_from_index(3).unwrap().name();
-        let clipped_relation = relation
-            .clip_aggregates("user_id", vec![(price, 45.), (std_price, 50.)])
-            .unwrap();
-        clipped_relation.display_dot();
-        let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
-        assert_eq!(name_fields, vec!["item", "sum1", "sum2"]);
-
-        let query: &str = &ast::Query::from(&clipped_relation).to_string();
-        println!("Query: {}", query);
-        let valid_query = r#"
-        WITH my_table AS (
-            SELECT user_id AS user_id, item AS item, 5 * price AS std_price, price AS price
-            FROM item_table LEFT JOIN order_table ON item_table.order_id = order_table.id
-        ),norms AS (
-            SELECT user_id, SQRT(SUM(sum_1)) AS norm, SQRT(SUM(sum_2)) AS norm2 FROM (SELECT user_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM my_table GROUP BY user_id, item) As subq GROUP BY user_id
-        ), weights AS (
-            SELECT user_id, CASE WHEN 45 / norm < 1 THEN 45 / norm ELSE 1 END AS weight, CASE WHEN 50 / norm2 < 1 THEN 50 / norm2 ELSE 1 END AS weight2 FROM norms
-        )
-        SELECT my_table.item, SUM(price*weight) AS sum1, SUM(std_price*weight2) As sum2 FROM my_table LEFT JOIN weights USING (user_id) GROUP BY item;
-        "#;
-        let my_res: Vec<Vec<String>> = refacto_results(database.query(query).unwrap(), 3);
-        let true_res = refacto_results(database.query(valid_query).unwrap(), 3);
-        // for (r1, r2) in my_res.iter().zip(true_res.iter()) {
-        //     if r1!=r2 {
-        //         println!("{:?} != {:?}", r1, r2);
-        //     }
-        // }
-        // assert_eq!(my_res, true_res); // todo: fix that
     }
 
     #[test]
