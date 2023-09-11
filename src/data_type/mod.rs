@@ -2959,11 +2959,6 @@ impl<'a> Acceptor<'a> for DataType {
 #[cfg(test)]
 mod tests {
     use std::convert::TryFrom;
-
-    use statrs::statistics::Data;
-
-    use crate::data_type;
-
     use super::*;
 
     #[test]
