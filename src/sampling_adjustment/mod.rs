@@ -197,7 +197,7 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
             .fields()
             .iter()
             .map(|field| field.name())
-            .zip((&reduce.aggregate).iter())
+            .zip(reduce.aggregate())
             .collect();
 
         // Apply corrections to aggregate function
@@ -255,14 +255,14 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
             join.schema().iter().map(|f| f.name().to_string()).collect();
 
         let mut left_names = vec![format!("_LEFT{ROW_WEIGHT}")];
-        left_names.extend(schema_names.iter().take(join.left.schema().len()).cloned());
+        left_names.extend(schema_names.iter().take(join.left().schema().len()).cloned());
 
         let mut right_names = vec![format!("_RIGHT{ROW_WEIGHT}")];
-        right_names.extend(schema_names.iter().skip(join.left.schema().len()).cloned());
+        right_names.extend(schema_names.iter().skip(join.left().schema().len()).cloned());
 
         // map old columns names (from the join) into new column names from the left and right
         let columns_mapping: Hierarchy<Identifier> = join
-            .left
+            .left()
             .schema()
             .iter()
             // skip 1 because the left (coming from the RelationWithWeight)
@@ -270,18 +270,18 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
             .zip(left.schema().iter().skip(PROPAGATED_COLUMNS))
             .map(|(o, n)| {
                 (
-                    vec![join.left.name().to_string(), o.name().to_string()],
+                    vec![join.left().name().to_string(), o.name().to_string()],
                     Identifier::from(vec![left_new_name.clone(), n.name().to_string()]),
                 )
             })
             .chain(
-                join.right
+                join.right()
                     .schema()
                     .iter()
                     .zip(right.schema().iter().skip(PROPAGATED_COLUMNS))
                     .map(|(o, n)| {
                         (
-                            vec![join.right.name().to_string(), o.name().to_string()],
+                            vec![join.right().name().to_string(), o.name().to_string()],
                             Identifier::from(vec![right_new_name.clone(), n.name().to_string()]),
                         )
                     }),
@@ -291,7 +291,7 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
         let builder = Relation::join()
             .left_names(left_names)
             .right_names(right_names)
-            .operator(join.operator.clone().rename(&columns_mapping))
+            .operator(join.operator().clone().rename(&columns_mapping))
             .left(left.clone())
             .right(right.clone());
 
@@ -366,34 +366,34 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for TableSamplerVisito
             join.schema().iter().map(|f| f.name().to_string()).collect();
         let left_names: Vec<String> = schema_names
             .iter()
-            .take(join.left.schema().len())
+            .take(join.left().schema().len())
             .cloned()
             .collect();
         let right_names: Vec<String> = schema_names
             .iter()
-            .skip(join.left.schema().len())
+            .skip(join.left().schema().len())
             .cloned()
             .collect();
 
         let columns_mapping: Hierarchy<Identifier> = join
-            .left
+            .left()
             .schema()
             .iter()
             .zip(left.schema().iter())
             .map(|(o, n)| {
                 (
-                    vec![join.left.name().to_string(), o.name().to_string()],
+                    vec![join.left().name().to_string(), o.name().to_string()],
                     Identifier::from(vec![left_new_name.clone(), n.name().to_string()]),
                 )
             })
             .chain(
-                join.right
+                join.right()
                     .schema()
                     .iter()
                     .zip(right.schema().iter())
                     .map(|(o, n)| {
                         (
-                            vec![join.right.name().to_string(), o.name().to_string()],
+                            vec![join.right().name().to_string(), o.name().to_string()],
                             Identifier::from(vec![right_new_name.clone(), n.name().to_string()]),
                         )
                     }),
@@ -404,7 +404,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for TableSamplerVisito
         Relation::join()
             .left_names(left_names)
             .right_names(right_names)
-            .operator(join.operator.clone().rename(&columns_mapping))
+            .operator(join.operator().clone().rename(&columns_mapping))
             .left(left)
             .right(right)
             .build()
