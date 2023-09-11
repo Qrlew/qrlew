@@ -497,12 +497,16 @@ impl Aggregate {
     pub fn argument(&self) -> &Expr {
         self.argument.as_ref()
     }
+    /// Get argument
+    pub fn argument_column(&self) -> Result<&Column> {
+        match self.argument.as_ref() {
+            Expr::Column(col) => Ok(col),
+            _ => Err(Error::other("Cannot return the argument column")),
+        }
+    }
     /// Get the argument name
     pub fn argument_name(&self) -> Result<&String> {
-        match self.argument.as_ref() {
-            Expr::Column(col) => Ok(col.last().unwrap()),
-            _ => Err(Error::other("Cannot return the argument_name")),
-        }
+        Ok(self.argument_column()?.last().unwrap())
     }
 }
 

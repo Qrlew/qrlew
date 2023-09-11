@@ -27,13 +27,19 @@ use std::{
 pub enum Error {
     InvalidRelation(String),
     InvalidArguments(String),
-    NoPublicValuesError(String),
+    NoPublicValues(String),
     Other(String),
 }
 
 impl Error {
     pub fn invalid_relation(relation: impl fmt::Display) -> Error {
         Error::InvalidRelation(format!("{} is invalid", relation))
+    }
+    pub fn invalid_arguments(relation: impl fmt::Display) -> Error {
+        Error::InvalidArguments(format!("{} is invalid", relation))
+    }
+    pub fn no_public_values(relation: impl fmt::Display) -> Error {
+        Error::NoPublicValues(format!("{} is invalid", relation))
     }
 }
 
@@ -42,8 +48,8 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidRelation(desc) => writeln!(f, "InvalidRelation: {}", desc),
             Error::InvalidArguments(desc) => writeln!(f, "InvalidArguments: {}", desc),
-            Error::NoPublicValuesError(desc) => {
-                writeln!(f, "NoPublicValuesError: {}", desc)
+            Error::NoPublicValues(desc) => {
+                writeln!(f, "NoPublicValues: {}", desc)
             }
             Error::Other(err) => writeln!(f, "{}", err),
         }
@@ -183,29 +189,29 @@ impl Reduce {
         self
     }
 
+    /// Clip all sums in the `Reduce`
     pub fn l2_clipped_all_sums(&self, entities: &str) -> Result<Relation> {
         let mut input_entities: Option<&str> = None;
         let input_groups: Vec<&str> = self.group_by_names();
         let mut input_values: Vec<&str> = vec![];
         let mut clipping_values: Vec<(&str, f64)> = vec![];
-        for aggregate in self.aggregate() {
-            match aggregate {
-                Expr::Aggregate(agg) => {
-                    if agg.aggregate() == aggregate::Aggregate::Sum {
-                        if let Expr::Column(col) = agg.argument() {
-                            let value_name = col.last().unwrap().as_str();
-                            let value_data_type = self.input().schema()[value_name].data_type();
-                            let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
-                            input_values.push(value_name);
-                            clipping_values.push((value_name, absolute_bound))// TODO Set a better clipping value
-                        }
-                    }
-                },
-                _ => (),
+        let mut names: HashMap<&str, &str> = HashMap::new();
+        for (name, aggregate) in self.named_aggregates() {
+            if name == entities {
+                input_entities = Some(aggregate.argument_name()?);
+            } else if aggregate.aggregate() == aggregate::Aggregate::Sum {
+                let value_name = aggregate.argument_name()?.as_str();
+                let value_data_type = self.input().schema()[value_name].data_type();
+                let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
+                input_values.push(value_name);
+                names.insert(value_name, name);
+                clipping_values.push((value_name, absolute_bound))// TODO Set a better clipping value
             }
         };
-        println!("DEBUG entities = {entities}\ngroups = {input_groups:?}\nvalues = {input_values:?}\nclipping_values = {clipping_values:?}\n");
-        Ok(self.input().clone().l2_clipped_sums(entities, input_groups, input_values, clipping_values))
+        let input_entities = input_entities.ok_or(Error::invalid_arguments(entities))?;
+        println!("DEBUG {:#?}", names);
+        Ok(self.input().clone().l2_clipped_sums(input_entities, input_groups, input_values, clipping_values)
+            .rename_fields(|s, _| names.get(s).unwrap_or(&s).to_string()))
     }
 
     pub fn clip_aggregates(
@@ -735,9 +741,9 @@ impl Relation {
     }
 
     /// Clip sums in the first `Reduce`s found
-    pub fn l2_clipped_all_sums(&self, vectors: &str) -> Result<Self> {
+    pub fn l2_clipped_all_sums(&self, entities: &str) -> Result<Self> {
         match self {
-            Relation::Reduce(reduce) => reduce.l2_clipped_all_sums(vectors),
+            Relation::Reduce(reduce) => reduce.l2_clipped_all_sums(entities),
             _ => todo!(),
         }
     }
@@ -1384,14 +1390,14 @@ mod tests {
         let my_relation: Relation = Relation::reduce()
             .input(table.clone())
             .with(("sum_price", Expr::sum(Expr::col("price"))))
-            .with_group_by_column("item")
+            .group_by(Expr::col("item"))
             .with_group_by_column("order_id")
             .build();
 
-        my_relation.display_dot();
+        my_relation.display_dot().unwrap();
         let clipped_relation = my_relation
             .l2_clipped_all_sums("order_id").unwrap();
-        clipped_relation.display_dot();
+        clipped_relation.display_dot().unwrap();
     }
 
     #[test]
