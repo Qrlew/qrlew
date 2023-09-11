@@ -74,8 +74,9 @@ impl PEPRelation {
     /// Compile a protected Relation into DP
     pub fn dp_compile_sums(self, epsilon: f64, delta: f64) -> Result<Relation> {// Return a DP relation
         let protected_entity_id = self.protected_entity_id().to_string();
+        let protected_entity_weight = self.protected_entity_weight().to_string();
         if let PEPRelation(Relation::Reduce(reduce)) = self {
-            reduce.dp_compile_sums(&protected_entity_id, epsilon, delta)
+            reduce.dp_compile_sums(&protected_entity_id, &protected_entity_weight, epsilon, delta)
         } else {
             Err(Error::invalid_relation(self.0))
         }
@@ -85,25 +86,35 @@ impl PEPRelation {
 /* Reduce
  */
 impl Reduce {
-    fn dp_compile_sums(self, protected_entity_id: &str, epsilon: f64, delta: f64) -> Result<Relation> {
-        let input_groups: Vec<&str> = self.group_by_names();
+    fn dp_compile_sums(self, protected_entity_id: &str, protected_entity_weight: &str, epsilon: f64, delta: f64) -> Result<Relation> {
+        // Collect groups
+        let mut input_entities: Option<&str> = None;
+        let mut input_groups: HashSet<&str> = self.group_by_names().into_iter().collect();
         let mut input_values_bound: Vec<(&str, f64)> = vec![];
         let mut names: HashMap<&str, &str> = HashMap::new();
+        // Collect names, sums and bounds
         for (name, aggregate) in self.named_aggregates() {
-            if aggregate.aggregate() == aggregate::Aggregate::Sum {
-                let value_name = aggregate.argument_name()?.as_str();
-                let value_data_type = self.input().schema()[value_name].data_type();
-                let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
-                input_values_bound.push((value_name, absolute_bound));
-                names.insert(value_name, name);
+            // Get value name
+            let input_name = aggregate.argument_name()?.as_str();
+            names.insert(input_name, name);
+            if name == protected_entity_id {// remove pe group
+                input_groups.remove(&input_name);
+                input_entities = Some(input_name);
+            } else if aggregate.aggregate() == aggregate::Aggregate::Sum && name != protected_entity_weight {// add aggregate
+                let input_data_type = self.input().schema()[input_name].data_type();
+                let absolute_bound = input_data_type.absolute_upper_bound().unwrap_or(1.0);
+                input_values_bound.push((input_name, absolute_bound));
             }
         };
-        self.input().clone().l2_clipped_sums(
-            protected_entity_id,
+        let clipped_relation = self.input().clone().l2_clipped_sums(
+            input_entities.unwrap(),
             input_groups.into_iter().collect(),
-            input_values_bound.into_iter().collect()
+            input_values_bound.iter().cloned().collect()
         );
-        todo!()
+        let noise_multiplier = 1.; // TODO set this properly
+        let dp_clipped_relation = clipped_relation.add_gaussian_noise(input_values_bound.into_iter().map(|(name, bound)| (name,noise_multiplier*bound)).collect());
+        let renamed_dp_clipped_relation = dp_clipped_relation.rename_fields(|n, e| names[n].to_string());
+        Ok(renamed_dp_clipped_relation)
     }
 
     pub fn dp_compilation<'a>(
@@ -210,6 +221,45 @@ mod tests {
         {
             println!("Row = {row}");
         }
+    }
+
+    #[test]
+    fn test_dp_compile_sums() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
+        // with GROUP BY
+        let relation: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(("sum_price", Expr::sum(Expr::col("price"))))
+            .with_group_by_column("order_id")
+            .build();
+        relation.display_dot().unwrap();
+
+        let pep_relation = relation.force_protect_from_field_paths(&relations, &[
+            (
+                "item_table",
+                &[
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", &[("user_id", "user_table", "id")], "name"),
+            ("user_table", &[], "name"),
+        ]);
+        pep_relation.display_dot().unwrap();
+
+        let epsilon = 1.;
+        let delta = 1e-3;
+        let dp_relation = pep_relation.dp_compile_sums(epsilon, delta).unwrap();
+        dp_relation.display_dot().unwrap();
     }
 
     #[ignore]// TODO reactivate this
