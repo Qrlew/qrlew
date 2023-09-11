@@ -1194,6 +1194,22 @@ impl hash::Hash for Union {
     }
 }
 
+// impl PartialEq for Union {
+//     fn eq(&self, other: &Self) -> bool {
+//         if self.len() == other.len() {
+//             self.iter().map(|f| f.0.clone()).sorted()
+//             .zip(other.iter().map(|f| f.0.clone()).sorted())
+//             .all(|(s1, s2)| (
+//                 s1 == s2 &&
+//                 self.field(&s1).map(|f| f.1.as_ref()).unwrap_or(&DataType::Any) == other.field(&s1).map(|f| f.1.as_ref()).unwrap_or(&DataType::Any))
+//             )
+//         } else {
+//             false
+//         }
+
+//     }
+// }
+
 /// To ease iteration
 impl Deref for Union {
     type Target = [(String, Rc<DataType>)];
@@ -1332,7 +1348,7 @@ impl Variant for Union {
             && self
                 .fields
                 .iter()
-                .all(|(f, t)| t.is_subset_of(&self.data_type(f)))
+                .all(|(f, t)| t.is_subset_of(&other.data_type(f)))
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
@@ -2962,6 +2978,8 @@ mod tests {
 
     use statrs::statistics::Data;
 
+    use crate::data_type;
+
     use super::*;
 
     #[test]
@@ -3045,29 +3063,6 @@ mod tests {
     }
 
     #[test]
-    fn test_equalities_union_struct() {
-        let s1 = DataType::structured([
-            ("a", DataType::float()),
-            ("b", DataType::float()),
-        ]);
-        let s2 = DataType::structured([
-            ("a", DataType::boolean()),
-            ("b", DataType::integer()),
-        ]);
-        assert!(s1 != s2);
-
-        let u1 = DataType::union([
-            ("table1", s1.clone()),
-            ("table2", s2.clone()),
-        ]);
-        let u2 = DataType::union([
-            ("table1", s1.clone()),
-            ("table2", s1.clone()),
-        ]);
-        assert!(u1 != u2)
-    }
-
-    #[test]
     fn test_equalities() {
         let empty_interval = DataType::from(Intervals::<f64>::empty());
         println!(
@@ -3096,6 +3091,39 @@ mod tests {
         );
         assert_eq!(empty_interval, DataType::Null);
         assert_eq!(DataType::Null, empty_interval);
+
+        // structs
+        let s1 = DataType::structured([
+            ("a", DataType::float()),
+            ("b", DataType::float()),
+        ]);
+        let s2 = DataType::structured([
+            ("a", DataType::boolean()),
+            ("b", DataType::integer()),
+        ]);
+        assert!(s1 != s2);
+
+        // struct of struct
+        let ss1 = DataType::structured([
+            ("table1", s1.clone()),
+            ("table2", s2.clone()),
+        ]);
+        let ss2 = DataType::structured([
+            ("table1", s1.clone()),
+            ("table2", s1.clone()),
+        ]);
+        assert!(ss1 != ss2);
+
+        // union of struct
+        let ss1 = DataType::union([
+            ("table1", s1.clone()),
+            ("table2", s2.clone()),
+        ]);
+        let ss2 = DataType::union([
+            ("table1", s1.clone()),
+            ("table2", s1.clone()),
+        ]);
+        assert!(ss1 != ss2);
     }
 
     #[test]
@@ -3593,9 +3621,14 @@ mod tests {
         let union_c = Union::null().or(type_a.clone()).or(type_b.clone());
         let union_a = Union::from_field("0", type_a);
         let union_b = Union::from_field("1", type_b);
-        println!("a = {}, b = {}, c = {}", &union_a, &union_b, &union_c);
+        println!("a = {}, b = {}, c = {}\n", &union_a, &union_b, &union_c);
         assert!(union_a.is_subset_of(&union_c));
         assert!(union_b.is_subset_of(&union_c));
+
+        let union1 = Union::null().or(("a", DataType::float())).or(("b", DataType::float()));
+        let union2 = Union::null().or(("a", DataType::boolean())).or(("b", DataType::integer()));
+        assert!(union2.is_subset_of(&union1));
+        assert!(! union1.is_subset_of(&union2));
     }
 
     #[test]
