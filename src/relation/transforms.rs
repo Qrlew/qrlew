@@ -193,13 +193,15 @@ impl Reduce {
             match aggregate {
                 Expr::Aggregate(agg) => {
                     let value_name = agg.argument_name().unwrap();
+                    let value_data_type = self.input().schema()[value_name.as_str()].data_type();
+                    let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
                     values.push(value_name);
-                    clipping_values.push((value_name, 1.))// TODO Fix this
+                    clipping_values.push((value_name, absolute_bound))// TODO Set a better clipping value
                 },
                 _ => (),
             }
-        }
-        todo!()
+        };
+        self.input().clone().l2_clipped_sums(entities, groups, values, clipping_values)
     }
 
     pub fn clip_aggregates(
@@ -726,6 +728,14 @@ impl Relation {
             scaling_factors,
         );
         clipped_relation.sums_by_group(groups, values)
+    }
+
+    /// Clip sums in the first `Reduce`s found
+    pub fn l2_clipped_all_sums(&self, vectors: &str) -> Self {
+        match self {
+            Relation::Reduce(reduce) => reduce.l2_clipped_all_sums(vectors),
+            _ => todo!(),
+        }
     }
 
     pub fn clip_aggregates(self, vectors: &str, clipping_values: Vec<(&str, f64)>) -> Result<Self> {
@@ -1353,6 +1363,33 @@ mod tests {
             println!("{row}");
         }
         assert!(database.query(&ast::Query::from(&clipped_relation_1000).to_string()).unwrap()==database.query("SELECT city, sum(age) FROM user_table GROUP BY city").unwrap());
+    }
+
+    #[test]
+    fn test_l2_clipped_all_sums_reduce() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+
+        // with GROUP BY
+        let my_relation: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(("sum_price", Expr::sum(Expr::col("price"))))
+            .with_group_by_column("item")
+            .with_group_by_column("order_id")
+            .build();
+
+        let schema = my_relation.inputs()[0].schema().clone();
+        let price = schema.field_from_index(0).unwrap().name();
+        let clipped_relation = my_relation
+            .l2_clipped_all_sums("order_id");
+        let name_fields: Vec<&str> = clipped_relation.schema().iter().map(|f| f.name()).collect();
+        clipped_relation.display_dot();
     }
 
     #[test]

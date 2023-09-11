@@ -3041,6 +3041,19 @@ impl DataType {
     }
 }
 
+// Return the bounds of a DataType if possible
+impl DataType {
+    pub fn absolute_upper_bound(&self) -> Option<f64> {
+        match self {
+            DataType::Boolean(b) => Some(if *b.max()? {1.} else {0.}),
+            DataType::Integer(i) => Some(f64::max(i.min()?.abs() as f64, i.max()?.abs() as f64)),
+            DataType::Float(f) => Some(f64::max(f.min()?.abs(), f.max()?.abs())),
+            DataType::Optional(o) => o.data_type().absolute_upper_bound(),
+            _ => None
+        }
+    }
+}
+
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
