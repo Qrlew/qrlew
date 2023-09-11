@@ -1194,22 +1194,6 @@ impl hash::Hash for Union {
     }
 }
 
-// impl PartialEq for Union {
-//     fn eq(&self, other: &Self) -> bool {
-//         if self.len() == other.len() {
-//             self.iter().map(|f| f.0.clone()).sorted()
-//             .zip(other.iter().map(|f| f.0.clone()).sorted())
-//             .all(|(s1, s2)| (
-//                 s1 == s2 &&
-//                 self.field(&s1).map(|f| f.1.as_ref()).unwrap_or(&DataType::Any) == other.field(&s1).map(|f| f.1.as_ref()).unwrap_or(&DataType::Any))
-//             )
-//         } else {
-//             false
-//         }
-
-//     }
-// }
-
 /// To ease iteration
 impl Deref for Union {
     type Target = [(String, Rc<DataType>)];
