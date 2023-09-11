@@ -2958,8 +2958,8 @@ impl<'a> Acceptor<'a> for DataType {
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
     use super::*;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_null() {
@@ -3072,36 +3072,18 @@ mod tests {
         assert_eq!(DataType::Null, empty_interval);
 
         // structs
-        let s1 = DataType::structured([
-            ("a", DataType::float()),
-            ("b", DataType::float()),
-        ]);
-        let s2 = DataType::structured([
-            ("a", DataType::boolean()),
-            ("b", DataType::integer()),
-        ]);
+        let s1 = DataType::structured([("a", DataType::float()), ("b", DataType::float())]);
+        let s2 = DataType::structured([("a", DataType::boolean()), ("b", DataType::integer())]);
         assert!(s1 != s2);
 
         // struct of struct
-        let ss1 = DataType::structured([
-            ("table1", s1.clone()),
-            ("table2", s2.clone()),
-        ]);
-        let ss2 = DataType::structured([
-            ("table1", s1.clone()),
-            ("table2", s1.clone()),
-        ]);
+        let ss1 = DataType::structured([("table1", s1.clone()), ("table2", s2.clone())]);
+        let ss2 = DataType::structured([("table1", s1.clone()), ("table2", s1.clone())]);
         assert!(ss1 != ss2);
 
         // union of struct
-        let ss1 = DataType::union([
-            ("table1", s1.clone()),
-            ("table2", s2.clone()),
-        ]);
-        let ss2 = DataType::union([
-            ("table1", s1.clone()),
-            ("table2", s1.clone()),
-        ]);
+        let ss1 = DataType::union([("table1", s1.clone()), ("table2", s2.clone())]);
+        let ss2 = DataType::union([("table1", s1.clone()), ("table2", s1.clone())]);
         assert!(ss1 != ss2);
     }
 
@@ -3604,10 +3586,14 @@ mod tests {
         assert!(union_a.is_subset_of(&union_c));
         assert!(union_b.is_subset_of(&union_c));
 
-        let union1 = Union::null().or(("a", DataType::float())).or(("b", DataType::float()));
-        let union2 = Union::null().or(("a", DataType::boolean())).or(("b", DataType::integer()));
+        let union1 = Union::null()
+            .or(("a", DataType::float()))
+            .or(("b", DataType::float()));
+        let union2 = Union::null()
+            .or(("a", DataType::boolean()))
+            .or(("b", DataType::integer()));
         assert!(union2.is_subset_of(&union1));
-        assert!(! union1.is_subset_of(&union2));
+        assert!(!union1.is_subset_of(&union2));
     }
 
     #[test]
