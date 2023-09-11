@@ -273,7 +273,7 @@ impl Ready<Schema> for Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data_type::DataType;
+    use crate::data_type::{DataType, Variant};
     use std::panic::catch_unwind;
 
     #[test]
@@ -407,6 +407,38 @@ mod tests {
             .with(("d", DataType::float()))
             .build();
         let expression = Expr::eq(Expr::col("c"), Expr::val("a".to_string()));
+        assert_eq!(schema.filter(&expression), filtered_schema);
+
+        let schema = Schema::builder()
+            .with(("a", DataType::integer_interval(-10, 2)))
+            .with(("b", DataType::integer_interval(-2, 5)))
+            .with(("c", DataType::text()))
+            .with(("d", DataType::float_interval(-100., 100.)))
+            .build();
+        let filtered_schema = Schema::builder()
+            .with(("a", DataType::integer_interval(-2, 2)))
+            .with((
+                "b",
+                DataType::from(data_type::Integer::from_intervals([
+                    [-2, -2],
+                    [-1, -1],
+                    [0, 0],
+                    [1, 1],
+                    [2, 2],
+                ])),
+            ))
+            .with(("c", DataType::text()))
+            .with((
+                "d",
+                DataType::integer_interval(-2, 2)
+                    .into_variant(&DataType::float())
+                    .unwrap(),
+            ))
+            .build();
+        let expression = Expr::and(
+            Expr::lt(Expr::col("b"), Expr::col("a")),
+            Expr::eq(Expr::col("d"), Expr::col("b")),
+        );
         assert_eq!(schema.filter(&expression), filtered_schema);
     }
 }
