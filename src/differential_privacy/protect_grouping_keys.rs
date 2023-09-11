@@ -7,7 +7,7 @@ use crate::{
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    protected::PE_ID,
+    protection::PE_ID,
     relation::{transforms, Field, Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
     visitor::Acceptor,
     DataType,

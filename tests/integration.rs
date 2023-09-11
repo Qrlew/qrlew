@@ -12,7 +12,7 @@ use qrlew::{
     expr,
     relation::Variant as _,
     io::{postgresql, Database},
-    protected::PE_ID,
+    protection::PE_ID,
     sql::parse,
     Relation, With,
 };
