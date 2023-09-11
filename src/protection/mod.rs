@@ -64,9 +64,9 @@ pub enum Strategy {
 }
 
 #[derive(Clone, Debug)]
-pub struct ProtectedRelation(pub Relation);
+pub struct PEPRelation(pub Relation);
 
-impl ProtectedRelation {
+impl PEPRelation {
     pub fn protected_entity_id(&self) -> &str {
         PE_ID
     }
@@ -76,13 +76,13 @@ impl ProtectedRelation {
     }
 }
 
-impl From<ProtectedRelation> for Relation {
-    fn from(value: ProtectedRelation) -> Self {
+impl From<PEPRelation> for Relation {
+    fn from(value: PEPRelation) -> Self {
         value.0
     }
 }
 
-impl Deref for ProtectedRelation {
+impl Deref for PEPRelation {
     type Target = Relation;
 
     fn deref(&self) -> &Self::Target {
@@ -92,14 +92,14 @@ impl Deref for ProtectedRelation {
 
 /// A visitor to compute Relation protection
 #[derive(Clone, Debug)]
-pub struct ProtectVisitor<F: Fn(&Table) -> Result<ProtectedRelation>> {
+pub struct ProtectVisitor<F: Fn(&Table) -> Result<PEPRelation>> {
     /// The protected entity definition
     protect_tables: F,
     /// Strategy used
     strategy: Strategy,
 }
 
-impl<F: Fn(&Table) -> Result<ProtectedRelation>> ProtectVisitor<F> {
+impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
     pub fn new(protect_tables: F, strategy: Strategy) -> Self {
         ProtectVisitor {
             protect_tables,
@@ -112,13 +112,13 @@ impl<F: Fn(&Table) -> Result<ProtectedRelation>> ProtectVisitor<F> {
 pub fn protect_visitor_from_exprs<'a>(
     protected_entity: &'a [(&'a Table, Expr)],
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<ProtectedRelation> + 'a> {
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
     ProtectVisitor::new(
         move |table: &Table| match protected_entity
             .iter()
             .find_map(|(t, e)| (table == *t).then(|| e.clone()))
         {
-            Some(expr) => Ok(ProtectedRelation(Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()))),
+            Some(expr) => Ok(PEPRelation(Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()))),
             None => Err(Error::unprotected_table(table)),
         },
         strategy,
@@ -130,13 +130,13 @@ pub fn protect_visitor_from_field_paths<'a>(
     relations: &'a Hierarchy<Rc<Relation>>,
     protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<ProtectedRelation> + 'a> {
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
     ProtectVisitor::new(
         move |table: &Table| match protected_entity
             .iter()
             .find(|(tab, _path, _field)| table.name() == relations[*tab].name())
         {
-            Some((_tab, path, field)) => Ok(ProtectedRelation(Relation::from(table.clone())
+            Some((_tab, path, field)) => Ok(PEPRelation(Relation::from(table.clone())
                 .with_field_path(relations, path, field, PE_ID)
                 .map_fields(|n, e| {
                     if n == PE_ID {
@@ -151,24 +151,24 @@ pub fn protect_visitor_from_field_paths<'a>(
     )
 }
 
-impl<'a, F: Fn(&Table) -> Result<ProtectedRelation>> Visitor<'a, Result<ProtectedRelation>> for ProtectVisitor<F> {
-    fn table(&self, table: &'a Table) -> Result<ProtectedRelation> {
-        Ok(ProtectedRelation(Relation::from((self.protect_tables)(table)?)
+impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>> for ProtectVisitor<F> {
+    fn table(&self, table: &'a Table) -> Result<PEPRelation> {
+        Ok(PEPRelation(Relation::from((self.protect_tables)(table)?)
             .insert_field(1, PE_WEIGHT, Expr::val(1))
             // We preserve the name
             .with_name(format!("{}{}", PROTECTION_PREFIX, table.name()))))
     }
 
-    fn map(&self, map: &'a Map, input: Result<ProtectedRelation>) -> Result<ProtectedRelation> {
+    fn map(&self, map: &'a Map, input: Result<PEPRelation>) -> Result<PEPRelation> {
         let builder = Relation::map()
             .with((PE_ID, Expr::col(PE_ID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
             .with(map.clone())
             .input(Relation::from(input?));
-        Ok(ProtectedRelation(builder.build()))
+        Ok(PEPRelation(builder.build()))
     }
 
-    fn reduce(&self, reduce: &'a Reduce, input: Result<ProtectedRelation>) -> Result<ProtectedRelation> {
+    fn reduce(&self, reduce: &'a Reduce, input: Result<PEPRelation>) -> Result<PEPRelation> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce)),
             Strategy::Hard => {
@@ -177,7 +177,7 @@ impl<'a, F: Fn(&Table) -> Result<ProtectedRelation>> Visitor<'a, Result<Protecte
                     .with((PE_WEIGHT, Expr::sum(Expr::col(PE_WEIGHT))))
                     .with(reduce.clone())
                     .input(Relation::from(input?));
-                Ok(ProtectedRelation(builder.build()))
+                Ok(PEPRelation(builder.build()))
             }
         }
     }
@@ -186,9 +186,9 @@ impl<'a, F: Fn(&Table) -> Result<ProtectedRelation>> Visitor<'a, Result<Protecte
         //TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
-        left: Result<ProtectedRelation>,
-        right: Result<ProtectedRelation>,
-    ) -> Result<ProtectedRelation> {
+        left: Result<PEPRelation>,
+        right: Result<PEPRelation>,
+    ) -> Result<PEPRelation> {
         let left_name = left.as_ref().unwrap().name().to_string();
         let right_name: String = right.as_ref().unwrap().name().to_string();
         // Preserve names
@@ -263,7 +263,7 @@ impl<'a, F: Fn(&Table) -> Result<ProtectedRelation>> Visitor<'a, Result<Protecte
                 });
                 let builder = builder.input(Rc::new(join.into()));
 
-                Ok(ProtectedRelation(builder.build()))
+                Ok(PEPRelation(builder.build()))
             }
         }
     }
@@ -271,34 +271,34 @@ impl<'a, F: Fn(&Table) -> Result<ProtectedRelation>> Visitor<'a, Result<Protecte
     fn set(
         &self,
         set: &'a crate::relation::Set,
-        left: Result<ProtectedRelation>,
-        right: Result<ProtectedRelation>,
-    ) -> Result<ProtectedRelation> {
+        left: Result<PEPRelation>,
+        right: Result<PEPRelation>,
+    ) -> Result<PEPRelation> {
         let builder = Relation::set()
             .name(set.name())
             .operator(set.operator().clone())
             .quantifier(set.quantifier().clone())
             .left(Relation::from(left?))
             .right(Relation::from(right?));
-        Ok(ProtectedRelation(builder.build()))
+        Ok(PEPRelation(builder.build()))
     }
 
-    fn values(&self, values: &'a Values) -> Result<ProtectedRelation> {
-        Ok(ProtectedRelation(Relation::Values(values.clone())))
+    fn values(&self, values: &'a Values) -> Result<PEPRelation> {
+        Ok(PEPRelation(Relation::Values(values.clone())))
     }
 }
 
 impl Relation {
     /// Add protection
-    pub fn protect_from_visitor<F: Fn(&Table) -> Result<ProtectedRelation>>(
+    pub fn protect_from_visitor<F: Fn(&Table) -> Result<PEPRelation>>(
         self,
         protect_visitor: ProtectVisitor<F>,
-    ) -> Result<ProtectedRelation> {
+    ) -> Result<PEPRelation> {
         self.accept(protect_visitor)
     }
 
     /// Add protection
-    pub fn protect<F: Fn(&Table) -> Result<ProtectedRelation>>(self, protect_tables: F) -> Result<ProtectedRelation> {
+    pub fn protect<F: Fn(&Table) -> Result<PEPRelation>>(self, protect_tables: F) -> Result<PEPRelation> {
         self.accept(ProtectVisitor::new(protect_tables, Strategy::Soft))
     }
 
@@ -306,7 +306,7 @@ impl Relation {
     pub fn protect_from_exprs<'a>(
         self,
         protected_entity: &'a [(&'a Table, Expr)],
-    ) -> Result<ProtectedRelation> {
+    ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft))
     }
 
@@ -315,7 +315,7 @@ impl Relation {
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
         protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
-    ) -> Result<ProtectedRelation> {
+    ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_field_paths(
             relations,
             protected_entity,
@@ -324,7 +324,7 @@ impl Relation {
     }
 
     /// Force protection
-    pub fn force_protect<F: Fn(&Table) -> Result<ProtectedRelation>>(self, protect_tables: F) -> ProtectedRelation {
+    pub fn force_protect<F: Fn(&Table) -> Result<PEPRelation>>(self, protect_tables: F) -> PEPRelation {
         self.accept(ProtectVisitor::new(protect_tables, Strategy::Hard))
             .unwrap()
     }
@@ -333,7 +333,7 @@ impl Relation {
     pub fn force_protect_from_exprs<'a>(
         self,
         protected_entity: &'a [(&'a Table, Expr)],
-    ) -> ProtectedRelation {
+    ) -> PEPRelation {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Hard))
             .unwrap()
     }
@@ -343,7 +343,7 @@ impl Relation {
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
         protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
-    ) -> ProtectedRelation {
+    ) -> PEPRelation {
         self.accept(protect_visitor_from_field_paths(
             relations,
             protected_entity,

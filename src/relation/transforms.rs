@@ -13,7 +13,7 @@ use crate::{
     hierarchy::Hierarchy,
     io, relation, DataType,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::{
     convert::Infallible,
     error, fmt,
@@ -193,7 +193,6 @@ impl Reduce {
     pub fn l2_clipped_all_sums(&self, entities: &str) -> Result<Relation> {
         let mut input_entities: Option<&str> = None;
         let input_groups: Vec<&str> = self.group_by_names();
-        let mut input_values: Vec<&str> = vec![];
         let mut clipping_values: Vec<(&str, f64)> = vec![];
         let mut names: HashMap<&str, &str> = HashMap::new();
         for (name, aggregate) in self.named_aggregates() {
@@ -203,13 +202,12 @@ impl Reduce {
                 let value_name = aggregate.argument_name()?.as_str();
                 let value_data_type = self.input().schema()[value_name].data_type();
                 let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
-                input_values.push(value_name);
                 names.insert(value_name, name);
                 clipping_values.push((value_name, absolute_bound))// TODO Set a better clipping value
             }
         };
         let input_entities = input_entities.ok_or(Error::invalid_arguments(entities))?;
-        Ok(self.input().clone().l2_clipped_sums(input_entities, input_groups, input_values, clipping_values)
+        Ok(self.input().clone().l2_clipped_sums(input_entities, input_groups, clipping_values)
             .rename_fields(|s, _| names.get(s).unwrap_or(&s).to_string()))
     }
 
@@ -640,23 +638,22 @@ impl Relation {
         self,
         entities: &str,
         groups: Vec<&str>,
-        values: Vec<&str>,
-        clipping_values: Vec<(&str, f64)>,
+        value_clippings: Vec<(&str, f64)>,
     ) -> Self {
+        // Arrange the values
+        let value_clippings: HashMap<&str, f64> = value_clippings.into_iter().collect();
         // Compute the norm
         let norms = self
             .clone()
-            .l2_norms(entities.clone(), groups.clone(), values.clone());
-        // Put the `clipping_values`in the right shape
-        let clipping_values: HashMap<&str, f64> = clipping_values.into_iter().collect();
+            .l2_norms(entities.clone(), groups.clone(), value_clippings.keys().cloned().collect());
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
-            if values.contains(&field_name) {
+            if value_clippings.contains_key(&field_name) {
                 Expr::divide(
                     Expr::val(1),
                     Expr::greatest(
                         Expr::val(1),
-                        Expr::divide(expr.clone(), Expr::val(clipping_values[&field_name])),
+                        Expr::divide(expr.clone(), Expr::val(value_clippings[&field_name])),
                     ),
                 )
             } else {
@@ -665,10 +662,10 @@ impl Relation {
         });
         let clipped_relation = self.scale(
             entities,
-            values.clone(),
+            value_clippings.keys().cloned().collect(),
             scaling_factors,
         );
-        clipped_relation.sums_by_group(groups, values)
+        clipped_relation.sums_by_group(groups, value_clippings.keys().cloned().collect())
     }
 
     /// Clip sums in the first `Reduce`s found
@@ -1265,7 +1262,7 @@ mod tests {
             .as_ref()
             .clone();
         // Compute l2 norm
-        let clipped_relation = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", 20.)]);
+        let clipped_relation = relation.clone().l2_clipped_sums("id", vec!["city"], vec![("age", 20.)]);
         clipped_relation.display_dot().unwrap();
         // Print query
         let query = &ast::Query::from(&clipped_relation).to_string();
@@ -1275,20 +1272,20 @@ mod tests {
         }
         // 100
         let norm = 100.;
-        let clipped_relation_100 = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", norm)]);
+        let clipped_relation_100 = relation.clone().l2_clipped_sums("id", vec!["city"], vec![("age", norm)]);
         for row in database.query(&ast::Query::from(&clipped_relation_100).to_string()).unwrap() {
             println!("{row}");
         }
         // 1000
         let norm = 1000.;
-        let clipped_relation_1000 = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", norm)]);
+        let clipped_relation_1000 = relation.clone().l2_clipped_sums("id", vec!["city"], vec![("age", norm)]);
         for row in database.query(&ast::Query::from(&clipped_relation_1000).to_string()).unwrap() {
             println!("{row}");
         }
         assert!(database.query(&ast::Query::from(&clipped_relation_100).to_string()).unwrap()!=database.query(&ast::Query::from(&clipped_relation_1000).to_string()).unwrap());
         // 10000
         let norm = 10000.;
-        let clipped_relation_10000 = relation.clone().l2_clipped_sums("id", vec!["city"], vec!["age"], vec![("age", norm)]);
+        let clipped_relation_10000 = relation.clone().l2_clipped_sums("id", vec!["city"], vec![("age", norm)]);
         for row in database.query(&ast::Query::from(&clipped_relation_10000).to_string()).unwrap() {
             println!("{row}");
         }

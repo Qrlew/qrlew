@@ -7,28 +7,42 @@ pub mod mechanisms;
 pub mod protect_grouping_keys;
 
 use crate::data_type::DataTyped;
+use crate::protection::PEPRelation;
 use crate::{
-    expr::{aggregate, Expr},
+    expr::{self, aggregate, Expr},
     hierarchy::Hierarchy,
-    protection::PE_ID,
     relation::{field::Field, transforms, Reduce, Relation, Variant as _},
     DataType,
 };
+use std::collections::{HashMap, HashSet};
 use std::{cmp, error, fmt, rc::Rc, result};
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
+    InvalidRelation(String),
     Other(String),
+}
+
+impl Error {
+    pub fn invalid_relation(relation: impl fmt::Display) -> Error {
+        Error::InvalidRelation(format!("{} is invalid", relation))
+    }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::InvalidRelation(relation) => writeln!(f, "{} invalid.", relation),
             Error::Other(err) => writeln!(f, "{}", err),
         }
     }
 }
 
+impl From<expr::Error> for Error {
+    fn from(err: expr::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
 impl From<transforms::Error> for Error {
     fn from(err: transforms::Error) -> Self {
         Error::Other(err.to_string())
@@ -56,9 +70,42 @@ impl Field {
     }
 }
 
+impl PEPRelation {
+    /// Compile a protected Relation into DP
+    pub fn dp_compile_sums(self, epsilon: f64, delta: f64) -> Result<Relation> {// Return a DP relation
+        let protected_entity_id = self.protected_entity_id().to_string();
+        if let PEPRelation(Relation::Reduce(reduce)) = self {
+            reduce.dp_compile_sums(&protected_entity_id, epsilon, delta)
+        } else {
+            Err(Error::invalid_relation(self.0))
+        }
+    }
+}
+
 /* Reduce
  */
 impl Reduce {
+    fn dp_compile_sums(self, protected_entity_id: &str, epsilon: f64, delta: f64) -> Result<Relation> {
+        let input_groups: Vec<&str> = self.group_by_names();
+        let mut input_values_bound: Vec<(&str, f64)> = vec![];
+        let mut names: HashMap<&str, &str> = HashMap::new();
+        for (name, aggregate) in self.named_aggregates() {
+            if aggregate.aggregate() == aggregate::Aggregate::Sum {
+                let value_name = aggregate.argument_name()?.as_str();
+                let value_data_type = self.input().schema()[value_name].data_type();
+                let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
+                input_values_bound.push((value_name, absolute_bound));
+                names.insert(value_name, name);
+            }
+        };
+        self.input().clone().l2_clipped_sums(
+            protected_entity_id,
+            input_groups.into_iter().collect(),
+            input_values_bound.into_iter().collect()
+        );
+        todo!()
+    }
+
     pub fn dp_compilation<'a>(
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
