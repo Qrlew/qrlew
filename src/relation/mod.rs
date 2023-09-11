@@ -22,7 +22,7 @@ use crate::{
         self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Value,
         Variant as _,
     },
-    expr::{self, Expr, Identifier, Split},
+    expr::{self, Expr, Identifier, Split, Aggregate, aggregate, Column},
     hierarchy::Hierarchy,
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -503,13 +503,33 @@ impl Reduce {
             |&max| Integer::from_interval(0, max),
         )
     }
-    /// Get aggregates
+    /// Get aggregate exprs
     pub fn aggregate(&self) -> &[Expr] {
         &self.aggregate
+    }
+    /// Get aggregate aggregates
+    pub fn aggregate_aggregates(&self) -> Vec<&Aggregate> {
+        self.aggregate.iter().filter_map(|e| {
+            if let Expr::Aggregate(aggregate) = e {
+                Some(aggregate)
+            } else {
+                None
+            }
+        }).collect()
     }
     /// Get group_by
     pub fn group_by(&self) -> &[Expr] {
         &self.group_by
+    }
+    /// Get group_by columns
+    pub fn group_by_columns(&self) -> Vec<&Column> {
+        self.group_by.iter().filter_map(|e| {
+            if let Expr::Column(column) = e {
+                Some(column)
+            } else {
+                None
+            }
+        }).collect()
     }
     /// Get the input
     pub fn input(&self) -> &Relation {
@@ -522,6 +542,26 @@ impl Reduce {
     /// Get names and expressions
     pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
         self.schema.iter().map(|f| f.name()).zip(self.aggregate.iter()).collect()
+    }
+    /// Get names and expressions
+    pub fn field_aggregates(&self) -> Vec<(&Field, &Aggregate)> {
+        self.schema.iter().zip(self.aggregate.iter()).filter_map(|(f,e)| {
+            if let Expr::Aggregate(aggregate) = e {
+                Some((f, aggregate))
+            } else {
+                None
+            }
+        }).collect()
+    }
+    /// Get names and expressions
+    pub fn named_aggregates(&self) -> Vec<(&str, &Aggregate)> {
+        self.schema.iter().map(|f| f.name()).zip(self.aggregate.iter()).filter_map(|(f,e)| {
+            if let Expr::Aggregate(aggregate) = e {
+                Some((f, aggregate))
+            } else {
+                None
+            }
+        }).collect()
     }
     /// Return a new builder
     pub fn builder() -> ReduceBuilder<WithoutInput> {
