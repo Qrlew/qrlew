@@ -1332,7 +1332,7 @@ impl Variant for Union {
             && self
                 .fields
                 .iter()
-                .all(|(f, t)| t.is_subset_of(&self.data_type(f)))
+                .all(|(f, t)| t.is_subset_of(&other.data_type(f)))
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
@@ -2958,11 +2958,8 @@ impl<'a> Acceptor<'a> for DataType {
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
-    use statrs::statistics::Data;
-
     use super::*;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_null() {
@@ -3073,6 +3070,21 @@ mod tests {
         );
         assert_eq!(empty_interval, DataType::Null);
         assert_eq!(DataType::Null, empty_interval);
+
+        // structs
+        let s1 = DataType::structured([("a", DataType::float()), ("b", DataType::float())]);
+        let s2 = DataType::structured([("a", DataType::boolean()), ("b", DataType::integer())]);
+        assert!(s1 != s2);
+
+        // struct of struct
+        let ss1 = DataType::structured([("table1", s1.clone()), ("table2", s2.clone())]);
+        let ss2 = DataType::structured([("table1", s1.clone()), ("table2", s1.clone())]);
+        assert!(ss1 != ss2);
+
+        // union of struct
+        let ss1 = DataType::union([("table1", s1.clone()), ("table2", s2.clone())]);
+        let ss2 = DataType::union([("table1", s1.clone()), ("table2", s1.clone())]);
+        assert!(ss1 != ss2);
     }
 
     #[test]
@@ -3570,9 +3582,18 @@ mod tests {
         let union_c = Union::null().or(type_a.clone()).or(type_b.clone());
         let union_a = Union::from_field("0", type_a);
         let union_b = Union::from_field("1", type_b);
-        println!("a = {}, b = {}, c = {}", &union_a, &union_b, &union_c);
+        println!("a = {}, b = {}, c = {}\n", &union_a, &union_b, &union_c);
         assert!(union_a.is_subset_of(&union_c));
         assert!(union_b.is_subset_of(&union_c));
+
+        let union1 = Union::null()
+            .or(("a", DataType::float()))
+            .or(("b", DataType::float()));
+        let union2 = Union::null()
+            .or(("a", DataType::boolean()))
+            .or(("b", DataType::integer()));
+        assert!(union2.is_subset_of(&union1));
+        assert!(!union1.is_subset_of(&union2));
     }
 
     #[test]
