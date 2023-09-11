@@ -3045,6 +3045,29 @@ mod tests {
     }
 
     #[test]
+    fn test_equalities_union_struct() {
+        let s1 = DataType::structured([
+            ("a", DataType::float()),
+            ("b", DataType::float()),
+        ]);
+        let s2 = DataType::structured([
+            ("a", DataType::boolean()),
+            ("b", DataType::integer()),
+        ]);
+        assert!(s1 != s2);
+
+        let u1 = DataType::union([
+            ("table1", s1.clone()),
+            ("table2", s2.clone()),
+        ]);
+        let u2 = DataType::union([
+            ("table1", s1.clone()),
+            ("table2", s1.clone()),
+        ]);
+        assert!(u1 != u2)
+    }
+
+    #[test]
     fn test_equalities() {
         let empty_interval = DataType::from(Intervals::<f64>::empty());
         println!(

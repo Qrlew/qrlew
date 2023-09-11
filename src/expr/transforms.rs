@@ -6,7 +6,7 @@ use std::f64::consts::PI;
 
 impl Expr {
     /// Gaussian noise based on [Box Muller transform](https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform)
-    pub fn gaussian_noise() -> Self {
+    pub fn  gaussian_noise() -> Self {
         Expr::multiply(
             Expr::sqrt(Expr::multiply(
                 Expr::val(-2.0),
