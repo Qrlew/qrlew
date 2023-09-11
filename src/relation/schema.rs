@@ -8,7 +8,7 @@ use std::{
 use super::{field::Field, Error, Result};
 use crate::{
     builder::{Ready, With},
-    data_type::{DataType, DataTyped},
+    data_type::{self, DataType, DataTyped},
     expr::{identifier::Identifier, Expr},
 };
 
@@ -101,7 +101,22 @@ impl Schema {
     /// Returns a new `Schema` where the `fields` of this `Schema`
     /// has been filtered by predicate `Expr`
     pub fn filter(&self, predicate: &Expr) -> Self {
-        Self::new(self.iter().map(|f| f.filter(predicate)).collect())
+        let dt = DataType::structured(
+            self.fields()
+                .iter()
+                .map(|f| (f.name(), f.data_type()))
+                .collect::<Vec<_>>(),
+        )
+        .filter(predicate);
+        if let DataType::Struct(s) = dt {
+            Self::new(
+                s.iter()
+                    .map(|(name, t)| Field::from_name_data_type(name, t.as_ref().clone()))
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            self.clone()
+        }
     }
 }
 
@@ -258,7 +273,7 @@ impl Ready<Schema> for Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data_type::DataType;
+    use crate::data_type::{DataType, Variant};
     use std::panic::catch_unwind;
 
     #[test]
@@ -392,6 +407,38 @@ mod tests {
             .with(("d", DataType::float()))
             .build();
         let expression = Expr::eq(Expr::col("c"), Expr::val("a".to_string()));
+        assert_eq!(schema.filter(&expression), filtered_schema);
+
+        let schema = Schema::builder()
+            .with(("a", DataType::integer_interval(-10, 2)))
+            .with(("b", DataType::integer_interval(-2, 5)))
+            .with(("c", DataType::text()))
+            .with(("d", DataType::float_interval(-100., 100.)))
+            .build();
+        let filtered_schema = Schema::builder()
+            .with(("a", DataType::integer_interval(-2, 2)))
+            .with((
+                "b",
+                DataType::from(data_type::Integer::from_intervals([
+                    [-2, -2],
+                    [-1, -1],
+                    [0, 0],
+                    [1, 1],
+                    [2, 2],
+                ])),
+            ))
+            .with(("c", DataType::text()))
+            .with((
+                "d",
+                DataType::integer_interval(-2, 2)
+                    .into_variant(&DataType::float())
+                    .unwrap(),
+            ))
+            .build();
+        let expression = Expr::and(
+            Expr::lt(Expr::col("b"), Expr::col("a")),
+            Expr::eq(Expr::col("d"), Expr::col("b")),
+        );
         assert_eq!(schema.filter(&expression), filtered_schema);
     }
 }

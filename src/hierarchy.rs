@@ -391,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn test_full_path() {
+    fn test_get_key_value() {
         let values = Hierarchy::from([
             (vec!["a", "b", "c"], 1),
             (vec!["a", "b", "d"], 2),
