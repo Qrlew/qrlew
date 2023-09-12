@@ -433,10 +433,9 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     }
 
     pub fn group_by<E: Into<Expr>>(mut self, expr: E) -> Self {
-        self.split = self
-            .split
-            .map_last_reduce(|reduce| reduce.and(Split::group_by(expr.into())));
+        self.split = self.split.and(Split::group_by(expr.into()).into());
         self
+
     }
 
     pub fn group_by_iter<I: IntoIterator<Item = Expr>>(self, iter: I) -> Self {
