@@ -6,8 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- `Union::is_subset_of` [MR106](https://github.com/Qrlew/qrlew/pull/106)
+### Changed
 - Replaced `Expr::filter_column_data_type` by `DataType::filter`[MR104](https://github.com/Qrlew/qrlew/pull/104)
+### Fixed
+- `Union::is_subset_of` [MR106](https://github.com/Qrlew/qrlew/pull/106)
+### Added
+- support for `expr::Function::Or` in `DataType::filter_by_function` [MR108](https://github.com/Qrlew/qrlew/pull/108)
 
 
 ### Fixed
