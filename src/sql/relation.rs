@@ -907,6 +907,54 @@ mod tests {
     }
 
     #[test]
+    fn test_reduce_with_only_group_by_columns() {
+        let query = parse("SELECT a AS a FROM table_1 GROUP BY a").unwrap();
+        let schema_1: Schema = vec![("a", DataType::integer_interval(0, 10))]
+            .into_iter()
+            .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+    }
+
+    #[test]
+    fn test_reduce_with_only_group_by_columns_multiple_map_reduce() {
+        let schema_1: Schema = vec![("a", DataType::integer_interval(0, 10))]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+
+        let query = parse("
+        WITH tab_a AS (SELECT a FROM table_1),
+        tab_b AS (SELECT a FROM tab_a GROUP BY a),
+        tab_c AS (SELECT LOG(a) AS log_a FROM tab_b),
+        tab_d AS (SELECT SUM(log_a) AS aaa FROM tab_c)
+        SELECT aaa FROM tab_d").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
     #[ignore]
     fn test_values() {
         let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();

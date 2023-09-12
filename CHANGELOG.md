@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced `Expr::filter_column_data_type` by `DataType::filter`[MR104](https://github.com/Qrlew/qrlew/pull/104)
 
 
+### Fixed
+- fix reduce when the query has a group by and doesn't have aggregation functions [MR80](https://github.com/Qrlew/qrlew/pull/80)
 ## [0.2.3] - 2023-09-04
 ### Changed
 - Internal code uses `Relation.name()` for table addressing but user facing functions may use `Table.path()` (ie sql addressing)
