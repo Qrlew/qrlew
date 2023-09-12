@@ -2137,13 +2137,16 @@ mod tests {
         ]);
 
         //  a > 0 or a < -10
-        let x1 =  Expr::lt(Expr::col("a"), Expr::val(-10));
-        let x2 =  Expr::gt(Expr::col("a"), Expr::val(0));
+        let x1 = Expr::lt(Expr::col("a"), Expr::val(-10));
+        let x2 = Expr::gt(Expr::col("a"), Expr::val(0));
         let x = Expr::or(x1, x2);
         let filtered_dt = dt.filter(&x);
         println!("{} -> {}", x, filtered_dt);
         let true_dt = DataType::structured([
-            ("a", DataType::from(data_type::Float::from_intervals([[0., 20.], [-20., -10.]]))),
+            (
+                "a",
+                DataType::from(data_type::Float::from_intervals([[0., 20.], [-20., -10.]])),
+            ),
             ("b", DataType::integer_interval(0, 15)),
         ]);
         assert_eq!(filtered_dt, true_dt);

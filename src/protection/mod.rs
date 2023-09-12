@@ -11,7 +11,7 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
-use std::{error, fmt, rc::Rc, result, ops::Deref};
+use std::{error, fmt, ops::Deref, rc::Rc, result};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -118,7 +118,9 @@ pub fn protect_visitor_from_exprs<'a>(
             .iter()
             .find_map(|(t, e)| (table == *t).then(|| e.clone()))
         {
-            Some(expr) => Ok(PEPRelation(Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()))),
+            Some(expr) => Ok(PEPRelation(
+                Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()),
+            )),
             None => Err(Error::unprotected_table(table)),
         },
         strategy,
@@ -136,27 +138,33 @@ pub fn protect_visitor_from_field_paths<'a>(
             .iter()
             .find(|(tab, _path, _field)| table.name() == relations[*tab].name())
         {
-            Some((_tab, path, field)) => Ok(PEPRelation(Relation::from(table.clone())
-                .with_field_path(relations, path, field, PE_ID)
-                .map_fields(|n, e| {
-                    if n == PE_ID {
-                        Expr::md5(Expr::cast_as_text(e))
-                    } else {
-                        e
-                    }
-                }))),
+            Some((_tab, path, field)) => Ok(PEPRelation(
+                Relation::from(table.clone())
+                    .with_field_path(relations, path, field, PE_ID)
+                    .map_fields(|n, e| {
+                        if n == PE_ID {
+                            Expr::md5(Expr::cast_as_text(e))
+                        } else {
+                            e
+                        }
+                    }),
+            )),
             None => Err(Error::unprotected_table(table)),
         }, //TODO fix MD5 here
         strategy,
     )
 }
 
-impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>> for ProtectVisitor<F> {
+impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
+    for ProtectVisitor<F>
+{
     fn table(&self, table: &'a Table) -> Result<PEPRelation> {
-        Ok(PEPRelation(Relation::from((self.protect_tables)(table)?)
-            .insert_field(1, PE_WEIGHT, Expr::val(1))
-            // We preserve the name
-            .with_name(format!("{}{}", PROTECTION_PREFIX, table.name()))))
+        Ok(PEPRelation(
+            Relation::from((self.protect_tables)(table)?)
+                .insert_field(1, PE_WEIGHT, Expr::val(1))
+                // We preserve the name
+                .with_name(format!("{}{}", PROTECTION_PREFIX, table.name())),
+        ))
     }
 
     fn map(&self, map: &'a Map, input: Result<PEPRelation>) -> Result<PEPRelation> {
@@ -298,7 +306,10 @@ impl Relation {
     }
 
     /// Add protection
-    pub fn protect<F: Fn(&Table) -> Result<PEPRelation>>(self, protect_tables: F) -> Result<PEPRelation> {
+    pub fn protect<F: Fn(&Table) -> Result<PEPRelation>>(
+        self,
+        protect_tables: F,
+    ) -> Result<PEPRelation> {
         self.accept(ProtectVisitor::new(protect_tables, Strategy::Soft))
     }
 
@@ -324,7 +335,10 @@ impl Relation {
     }
 
     /// Force protection
-    pub fn force_protect<F: Fn(&Table) -> Result<PEPRelation>>(self, protect_tables: F) -> PEPRelation {
+    pub fn force_protect<F: Fn(&Table) -> Result<PEPRelation>>(
+        self,
+        protect_tables: F,
+    ) -> PEPRelation {
         self.accept(ProtectVisitor::new(protect_tables, Strategy::Hard))
             .unwrap()
     }

@@ -10,9 +10,9 @@ use qrlew::{
     ast,
     display::Dot,
     expr,
-    relation::Variant as _,
     io::{postgresql, Database},
     protection::PE_ID,
+    relation::Variant as _,
     sql::parse,
     Relation, With,
 };

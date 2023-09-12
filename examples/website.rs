@@ -62,21 +62,23 @@ fn protect() {
     )
     .unwrap();
     println!("relation = {relation}");
-    let relation: Relation = relation.force_protect_from_field_paths(
-        &relations,
-        &[
-            (
-                "item_table",
-                &[
-                    ("order_id", "order_table", "id"),
-                    ("user_id", "user_table", "id"),
-                ],
-                "name",
-            ),
-            ("order_table", &[("user_id", "user_table", "id")], "name"),
-            ("user_table", &[], "name"),
-        ],
-    ).into();
+    let relation: Relation = relation
+        .force_protect_from_field_paths(
+            &relations,
+            &[
+                (
+                    "item_table",
+                    &[
+                        ("order_id", "order_table", "id"),
+                        ("user_id", "user_table", "id"),
+                    ],
+                    "name",
+                ),
+                ("order_table", &[("user_id", "user_table", "id")], "name"),
+                ("user_table", &[], "name"),
+            ],
+        )
+        .into();
     println!("relation = {relation}");
     relation.display_dot().unwrap();
     let query = Query::from(&relation);

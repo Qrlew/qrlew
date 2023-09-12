@@ -255,10 +255,20 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
             join.schema().iter().map(|f| f.name().to_string()).collect();
 
         let mut left_names = vec![format!("_LEFT{ROW_WEIGHT}")];
-        left_names.extend(schema_names.iter().take(join.left().schema().len()).cloned());
+        left_names.extend(
+            schema_names
+                .iter()
+                .take(join.left().schema().len())
+                .cloned(),
+        );
 
         let mut right_names = vec![format!("_RIGHT{ROW_WEIGHT}")];
-        right_names.extend(schema_names.iter().skip(join.left().schema().len()).cloned());
+        right_names.extend(
+            schema_names
+                .iter()
+                .skip(join.left().schema().len())
+                .cloned(),
+        );
 
         // map old columns names (from the join) into new column names from the left and right
         let columns_mapping: Hierarchy<Identifier> = join
