@@ -2974,13 +2974,26 @@ pub trait Visitor<'a, T: Clone> {
 impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
     fn visit(&self, acceptor: &'a DataType, dependencies: visitor::Visited<'a, DataType, T>) -> T {
         match acceptor {
-            DataType::Struct(s) => self.structured(s.fields.iter().map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone())).collect()),
-            DataType::Union(u) => self.union(u.fields.iter().map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone())).collect()),
+            DataType::Struct(s) => self.structured(
+                s.fields
+                    .iter()
+                    .map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone()))
+                    .collect(),
+            ),
+            DataType::Union(u) => self.union(
+                u.fields
+                    .iter()
+                    .map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone()))
+                    .collect(),
+            ),
             DataType::Optional(o) => self.optional(dependencies.get(o.data_type()).clone()),
             DataType::List(l) => self.list(dependencies.get(l.data_type()).clone(), l.size()),
             DataType::Set(s) => self.set(dependencies.get(s.data_type()).clone(), s.size()),
             DataType::Array(a) => self.array(dependencies.get(a.data_type()).clone(), a.shape()),
-            DataType::Function(f) => self.function(dependencies.get(f.domain()).clone(), dependencies.get(f.co_domain()).clone()),
+            DataType::Function(f) => self.function(
+                dependencies.get(f.domain()).clone(),
+                dependencies.get(f.co_domain()).clone(),
+            ),
             primitive => self.primitive(primitive),
         }
     }
@@ -2991,17 +3004,19 @@ struct FlattenOptionalVisitor;
 
 impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
     fn structured(&self, fields: Vec<(String, (bool, DataType))>) -> (bool, DataType) {
-        fields.into_iter().fold(
-            (false, DataType::unit()),
-            |a, (s, (o, d))| (a.0 || o, a.1 & (s, d))
-        )
+        fields
+            .into_iter()
+            .fold((false, DataType::unit()), |a, (s, (o, d))| {
+                (a.0 || o, a.1 & (s, d))
+            })
     }
 
     fn union(&self, fields: Vec<(String, (bool, DataType))>) -> (bool, DataType) {
-        fields.into_iter().fold(
-            (false, DataType::Null),
-            |a, (s, (o, d))| (a.0 || o, a.1 | (s, d))
-        )
+        fields
+            .into_iter()
+            .fold((false, DataType::Null), |a, (s, (o, d))| {
+                (a.0 || o, a.1 | (s, d))
+            })
     }
 
     fn optional(&self, data_type: (bool, DataType)) -> (bool, DataType) {
@@ -3009,11 +3024,17 @@ impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
     }
 
     fn list(&self, data_type: (bool, DataType), size: &'a Integer) -> (bool, DataType) {
-        (data_type.0, List::new(Rc::new(data_type.1), size.clone()).into())
+        (
+            data_type.0,
+            List::new(Rc::new(data_type.1), size.clone()).into(),
+        )
     }
 
     fn set(&self, data_type: (bool, DataType), size: &'a Integer) -> (bool, DataType) {
-        (data_type.0, Set::new(Rc::new(data_type.1), size.clone()).into())
+        (
+            data_type.0,
+            Set::new(Rc::new(data_type.1), size.clone()).into(),
+        )
     }
 
     fn array(&self, data_type: (bool, DataType), shape: &'a [usize]) -> (bool, DataType) {
@@ -3021,7 +3042,10 @@ impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
     }
 
     fn function(&self, domain: (bool, DataType), co_domain: (bool, DataType)) -> (bool, DataType) {
-        (domain.0 || co_domain.0, DataType::function(domain.1, co_domain.1))
+        (
+            domain.0 || co_domain.0,
+            DataType::function(domain.1, co_domain.1),
+        )
     }
 
     fn primitive(&self, acceptor: &'a DataType) -> (bool, DataType) {
@@ -3030,7 +3054,7 @@ impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
 }
 
 impl DataType {
-    /// Return a type with non-optional subtypes, it may be optional if one of the 
+    /// Return a type with non-optional subtypes, it may be optional if one of the
     pub fn flatten_optional(&self) -> DataType {
         let (is_optional, flat) = self.accept(FlattenOptionalVisitor);
         if is_optional {
@@ -3045,11 +3069,11 @@ impl DataType {
 impl DataType {
     pub fn absolute_upper_bound(&self) -> Option<f64> {
         match self {
-            DataType::Boolean(b) => Some(if *b.max()? {1.} else {0.}),
+            DataType::Boolean(b) => Some(if *b.max()? { 1. } else { 0. }),
             DataType::Integer(i) => Some(f64::max(i.min()?.abs() as f64, i.max()?.abs() as f64)),
             DataType::Float(f) => Some(f64::max(f.min()?.abs(), f.max()?.abs())),
             DataType::Optional(o) => o.data_type().absolute_upper_bound(),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -4155,13 +4179,23 @@ mod tests {
 
     #[test]
     fn test_flatten_optional() {
-        let a = DataType::unit() & DataType::float() & DataType::optional(DataType::integer_interval(0, 10));
+        let a = DataType::unit()
+            & DataType::float()
+            & DataType::optional(DataType::integer_interval(0, 10));
         println!("a = {a}");
         println!("flat opt a = {}", a.flatten_optional());
-        assert_eq!(a.flatten_optional(), DataType::optional(DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)));
+        assert_eq!(
+            a.flatten_optional(),
+            DataType::optional(
+                DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)
+            )
+        );
         let b = DataType::unit() & DataType::float() & DataType::integer_interval(0, 10);
         println!("b = {b}");
         println!("flat opt b = {}", b.flatten_optional());
-        assert_eq!(b.flatten_optional(), DataType::unit() & DataType::float() & DataType::integer_interval(0, 10));
+        assert_eq!(
+            b.flatten_optional(),
+            DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)
+        );
     }
 }
