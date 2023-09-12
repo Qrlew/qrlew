@@ -650,9 +650,13 @@ impl<F: Function> Function for Optional<F> {
     fn super_image(&self, set: &DataType) -> Result<DataType> {
         let set = set.flatten_optional();
         match set {
-            DataType::Optional(optional_set) => self.0.super_image(optional_set.data_type()).map(|dt| DataType::optional(dt)),
+            DataType::Optional(optional_set) => self
+                .0
+                .super_image(optional_set.data_type())
+                .map(|dt| DataType::optional(dt)),
             set => self.0.super_image(&set),
-        }.or_else(|err| Ok(self.co_domain()))
+        }
+        .or_else(|err| Ok(self.co_domain()))
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
@@ -662,7 +666,8 @@ impl<F: Function> Function for Optional<F> {
                 None => Ok(Value::none()),
             },
             arg => self.0.value(arg),
-        }.or_else(|err| Ok(Value::none()))
+        }
+        .or_else(|err| Ok(Value::none()))
     }
 }
 
@@ -2178,14 +2183,48 @@ mod tests {
         let optional_greatest = Optional::new(greatest());
         println!("greatest = {}", greatest());
         println!("optional greatest = {}", optional_greatest);
-        println!("super_image([0,1] & [-5,2]) = {}", optional_greatest.super_image(&(DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.))).unwrap());
-        println!("super_image(optional([0,1] & [-5,2])) = {}", optional_greatest.super_image(&DataType::optional((DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.)))).unwrap());
-        println!("super_image(optional([0,1]) & [-5,2]) = {}", optional_greatest.super_image(&(DataType::optional(DataType::float_interval(0.,1.)) & DataType::float_interval(-5.,2.))).unwrap());
-        assert_eq!(
-            optional_greatest.super_image(&DataType::optional((DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.)))).unwrap(),
-            optional_greatest.super_image(&(DataType::optional(DataType::float_interval(0.,1.)) & DataType::float_interval(-5.,2.))).unwrap(),
+        println!(
+            "super_image([0,1] & [-5,2]) = {}",
+            optional_greatest
+                .super_image(
+                    &(DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.))
+                )
+                .unwrap()
         );
-        println!("super_image(text) = {}", optional_greatest.super_image(&DataType::text()).unwrap());
+        println!(
+            "super_image(optional([0,1] & [-5,2])) = {}",
+            optional_greatest
+                .super_image(&DataType::optional(
+                    (DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.))
+                ))
+                .unwrap()
+        );
+        println!(
+            "super_image(optional([0,1]) & [-5,2]) = {}",
+            optional_greatest
+                .super_image(
+                    &(DataType::optional(DataType::float_interval(0., 1.))
+                        & DataType::float_interval(-5., 2.))
+                )
+                .unwrap()
+        );
+        assert_eq!(
+            optional_greatest
+                .super_image(&DataType::optional(
+                    (DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.))
+                ))
+                .unwrap(),
+            optional_greatest
+                .super_image(
+                    &(DataType::optional(DataType::float_interval(0., 1.))
+                        & DataType::float_interval(-5., 2.))
+                )
+                .unwrap(),
+        );
+        println!(
+            "super_image(text) = {}",
+            optional_greatest.super_image(&DataType::text()).unwrap()
+        );
     }
 
     #[test]
@@ -2215,15 +2254,41 @@ mod tests {
         let opt_sum = Optional::new(sum);
         println!("opt_sum = {}", opt_sum);
         let list = DataType::optional(DataType::list(DataType::float_interval(-1., 2.), 2, 20));
-        println!("\n{} is_subset_of {} = {}", list, opt_sum.domain(), list.is_subset_of(&opt_sum.domain()));
-        println!("\nopt_sum({}) = {}", list, opt_sum.super_image(&list).unwrap());
+        println!(
+            "\n{} is_subset_of {} = {}",
+            list,
+            opt_sum.domain(),
+            list.is_subset_of(&opt_sum.domain())
+        );
+        println!(
+            "\nopt_sum({}) = {}",
+            list,
+            opt_sum.super_image(&list).unwrap()
+        );
         let list = DataType::list(DataType::optional(DataType::float_interval(-1., 2.)), 2, 20);
-        println!("\n{} is_subset_of {} = {}", list, opt_sum.domain(), list.is_subset_of(&opt_sum.domain()));
-        println!("\nopt_sum({}) = {}", list, opt_sum.super_image(&list).unwrap());
+        println!(
+            "\n{} is_subset_of {} = {}",
+            list,
+            opt_sum.domain(),
+            list.is_subset_of(&opt_sum.domain())
+        );
+        println!(
+            "\nopt_sum({}) = {}",
+            list,
+            opt_sum.super_image(&list).unwrap()
+        );
         let list = DataType::list(DataType::float_interval(-1., 2.), 2, 20);
-        println!("\n{} is_subset_of {} = {}", list, opt_sum.domain(), list.is_subset_of(&opt_sum.domain()));
-        println!("\nopt_sum({}) = {}", list, opt_sum.super_image(&list).unwrap());
-        
+        println!(
+            "\n{} is_subset_of {} = {}",
+            list,
+            opt_sum.domain(),
+            list.is_subset_of(&opt_sum.domain())
+        );
+        println!(
+            "\nopt_sum({}) = {}",
+            list,
+            opt_sum.super_image(&list).unwrap()
+        );
     }
 
     #[test]

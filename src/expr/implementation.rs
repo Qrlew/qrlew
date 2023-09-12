@@ -1,6 +1,6 @@
 use super::{aggregate::Aggregate, function::Function};
 use crate::data_type::{
-    function::{self, Optional, Extended},
+    function::{self, Extended, Optional},
     DataType,
 };
 use paste::paste;
