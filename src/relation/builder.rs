@@ -10,7 +10,7 @@ use crate::{
     ast,
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    expr::{self, Expr, Identifier, Split},
+    expr::{self, Expr, Identifier, Split, aggregate},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
@@ -495,9 +495,8 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     /// Add a group by column
     pub fn with_group_by_column<S: Into<String>>(mut self, column: S) -> Self {
         let name = column.into();
-        let expr = Expr::col(name.clone());
-        self = self.group_by(expr.clone());
-        self = self.with((name, expr.into_aggregate()));
+        self = self.group_by(Expr::Aggregate(expr::Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col(name.clone())))));
+        self = self.with((name.clone(), aggregate::Aggregate::First, name));
         self
     }
 
@@ -538,7 +537,22 @@ impl<RequireInput> With<Expr> for ReduceBuilder<RequireInput> {
 
 impl<RequireInput, S: Into<String>> With<(S, Expr)> for ReduceBuilder<RequireInput> {
     fn with(mut self, (name, expr): (S, Expr)) -> Self {
-        self.split = self.split.and(Split::from((name.into(), expr)));
+        self.split = self.split.and(Split::from((name, expr)));
+        self
+    }
+}
+
+impl<RequireInput, S: Into<String>> With<(aggregate::Aggregate, S)> for ReduceBuilder<RequireInput> {
+    fn with(self, (agg, col): (aggregate::Aggregate, S)) -> Self {
+        let col = col.into();
+        let name = namer::name_from_content(FIELD, &(&agg, &col));
+        self.with((name, agg, col))
+    }
+}
+
+impl<RequireInput, S: Into<String>> With<(S, aggregate::Aggregate, S)> for ReduceBuilder<RequireInput> {
+    fn with(mut self, (name, agg, col): (S, aggregate::Aggregate, S)) -> Self {
+        self.split = self.split.and(Split::reduce(name, agg, col).into());
         self
     }
 }
@@ -1030,7 +1044,7 @@ impl Ready<Values> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataTyped, display::Dot, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType, expr::aggregate::Aggregate};
 
     #[test]
     fn test_map_building() {
@@ -1062,6 +1076,34 @@ mod tests {
             .input(map)
             .build();
         println!("Reduce = {reduce}");
+    }
+
+    #[test]
+    fn test_reduce_building() {
+        let table: Relation = Relation::table()
+            .path(["db", "schema", "table"])
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
+                    .with(("x", DataType::float_range(0.0..=2.0)))
+                    .with(("y", DataType::float_range(0.0..=5.0)))
+                    .with(("z", DataType::float_range(9.0..=11.)))
+                    .with(("t", DataType::float_range(0.9..=1.1)))
+                    .build(),
+            )
+            .build();
+        println!("Table = {table}");
+        let reduce: Relation = Relation::reduce()
+            .with(("S", Aggregate::Sum, "a"))
+            // .with_group_by_column("b")
+            .group_by(Expr::col("b"))
+            .input(table)
+            .build();
+        println!("Reduce = {reduce}");
+        reduce.display_dot().unwrap();
     }
 
     #[test]

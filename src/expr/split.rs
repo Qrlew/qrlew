@@ -31,6 +31,10 @@ impl Split {
         Map::new(vec![], None, vec![(expr, asc)], None)
     }
 
+    pub fn reduce<S: Into<String>>(name: S, aggregate: aggregate::Aggregate, column: S) -> Reduce {
+        Reduce::new(vec![(name.into(), Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::col(column.into())))))], vec![],  None)
+    }
+
     pub fn group_by(expr: Expr) -> Reduce {
         Reduce::new(vec![], vec![expr], None)
     }
@@ -160,6 +164,7 @@ impl Map {
     }
 
     pub fn into_reduce(self, aggregate: aggregate::Aggregate) -> Reduce {
+        println!("DEBUG into_reduce map = {self}, agg = {aggregate}");
         let Map {
             named_exprs,
             filter,
