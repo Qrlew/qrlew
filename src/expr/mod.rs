@@ -22,7 +22,7 @@ use std::{
     collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub, Deref},
     rc::Rc,
     result,
 };
@@ -455,6 +455,15 @@ macro_rules! impl_aggregation_constructors {
                 )*
             }
         }
+
+        impl AggregateColumn {
+            paste! {
+                $(pub fn [<$Aggregate:snake>]<S: Into<String>>(col: S) -> AggregateColumn {
+                    AggregateColumn::new(aggregate::Aggregate::$Aggregate, Column::from(col.into()))
+                }
+                )*
+            }
+        }
     };
 }
 
@@ -707,6 +716,38 @@ impl<'a> IntoIterator for &'a Expr {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+/// An aggregate column expr
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct AggregateColumn {
+    aggregate: aggregate::Aggregate,
+    column: Column,
+    expr: Expr,
+}
+
+impl AggregateColumn {
+    pub fn new(aggregate: aggregate::Aggregate, column: Column) -> Self {
+        AggregateColumn {
+            aggregate,
+            column: column.clone(),
+            expr: Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::Column(column))))
+        }
+    }
+}
+
+impl Deref for AggregateColumn {
+    type Target = Expr;
+
+    fn deref(&self) -> &Self::Target {
+        &self.expr
+    }
+}
+
+impl From<AggregateColumn> for Expr {
+    fn from(value: AggregateColumn) -> Self {
+        value.expr
     }
 }
 

@@ -6,7 +6,7 @@
 use crate::{
     builder::{self, Ready, With},
     display::Dot,
-    expr::{identifier::Identifier, Expr},
+    expr::{identifier::Identifier, Expr, aggregate::Aggregate},
     hierarchy::{Hierarchy, Path},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
@@ -174,7 +174,7 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>> 
             Strategy::Hard => {
                 let builder = Relation::reduce()
                     .with_group_by_column(PE_ID)
-                    .with((PE_WEIGHT, Expr::sum(Expr::col(PE_WEIGHT))))
+                    .with((PE_WEIGHT, Aggregate::Sum, PE_WEIGHT))
                     .with(reduce.clone())
                     .input(Relation::from(input?));
                 Ok(PEPRelation(builder.build()))
