@@ -1175,7 +1175,7 @@ impl DataType {
     /// Note: for the moment, we support only:
     /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
     /// - `Eq` function comparing a column to any value,
-    /// - `And` function between two supported Expr::Function,
+    /// - `And` and `Or` function between two supported Expr::Function,
     /// - 'InList` test if a column value belongs to a list
     fn filter_by_function(&self, predicate: &Function) -> DataType {
         let mut datatype = self.clone();
@@ -1185,6 +1185,11 @@ impl DataType {
                 let dt1 = self.filter(right).filter(left);
                 let dt2 = self.filter(left).filter(right);
                 datatype = dt1.super_intersection(&dt2).unwrap_or(datatype)
+            }
+            (function::Function::Or, [left, right]) => {
+                let dt1 = self.filter(right);
+                let dt2 = self.filter(left);
+                datatype = dt1.super_union(&dt2).unwrap_or(datatype)
             }
             // Set min or max
             (function::Function::Gt, [left, right])
@@ -2124,6 +2129,29 @@ mod tests {
             ),
         ]);
         assert_eq!(filtered_dt, true_dt);
+
+        // Or
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-20., 20.)),
+            ("b", DataType::integer_interval(0, 15)),
+        ]);
+
+        //  a > 0 or a < -10
+        let x1 =  Expr::lt(Expr::col("a"), Expr::val(-10));
+        let x2 =  Expr::gt(Expr::col("a"), Expr::val(0));
+        let x = Expr::or(x1, x2);
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::from(data_type::Float::from_intervals([[0., 20.], [-20., -10.]]))),
+            ("b", DataType::integer_interval(0, 15)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        let x1 = Expr::lt(Expr::col("a"), Expr::val(-8));
+        let x2 = expr!(gt(b, 5));
+        let x3 = expr!(gt_eq(a, 2 * b));
+        println!("x1 = {}, x2 = {}, x3 = {}", x1, x2, x3);
     }
 
     #[test]
@@ -2278,6 +2306,7 @@ mod tests {
         ]);
         assert_eq!(filtered_dt, true_dt);
 
+        // And
         let true_dt = DataType::structured([
             ("a", DataType::float_interval(6.0, 7.)),
             ("b", DataType::integer_interval(3, 8)),
