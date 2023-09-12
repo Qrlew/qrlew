@@ -22,7 +22,7 @@ use crate::{
         self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Value,
         Variant as _,
     },
-    expr::{self, Expr, Identifier, Split},
+    expr::{self, Expr, Identifier, Split, Aggregate, aggregate, Column},
     hierarchy::Hierarchy,
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -123,10 +123,15 @@ pub trait Variant:
     }
     /// Return the field hierarchy
     fn field_hierarchy(&self) -> Hierarchy<&Field> {
-        self.fields().into_iter().map(|f| (vec![f.name()], f))
-        .chain(
-            self.inputs().into_iter().flat_map(|r| r.fields().into_iter().map(|f| (vec![self.name(), r.name(), f.name()], f))))
-        .collect()
+        self.fields()
+            .into_iter()
+            .map(|f| (vec![f.name()], f))
+            .chain(self.inputs().into_iter().flat_map(|r| {
+                r.fields()
+                    .into_iter()
+                    .map(|f| (vec![self.name(), r.name(), f.name()], f))
+            }))
+            .collect()
     }
     /// Access a field of the Relation by index
     fn field_from_index(&self, index: usize) -> Result<&Field> {
@@ -134,7 +139,10 @@ pub trait Variant:
     }
     /// Access a field of the Relation by identifier
     fn field_from_identifier(&self, identifier: &Identifier) -> Result<&Field> {
-        self.field_hierarchy().get(identifier).copied().ok_or_else(|| Error::InvalidIndex(identifier.to_string()))
+        self.field_hierarchy()
+            .get(identifier)
+            .copied()
+            .ok_or_else(|| Error::InvalidIndex(identifier.to_string()))
     }
 }
 
@@ -144,13 +152,13 @@ pub trait Variant:
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Table {
     /// The name of the table
-    pub name: String,
+    name: String,
     /// The path to the actual table
-    pub path: Identifier,
+    path: Identifier,
     /// The schema description of the output
-    pub schema: Schema,
+    schema: Schema,
     /// The size of the table
-    pub size: Integer,
+    size: Integer,
 }
 
 impl Table {
@@ -236,21 +244,21 @@ impl OrderBy {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Map {
     /// The name of the output
-    pub name: String,
+    name: String,
     /// The list of expressions (SELECT items)
-    pub projection: Vec<Expr>,
+    projection: Vec<Expr>,
     /// The predicate expression, which must have Boolean type (WHERE clause). It is applied on the input columns.
-    pub filter: Option<Expr>,
+    filter: Option<Expr>,
     /// The sort expressions (SORT)
-    pub order_by: Vec<OrderBy>,
+    order_by: Vec<OrderBy>,
     /// The limit (LIMIT value)
-    pub limit: Option<usize>,
+    limit: Option<usize>,
     /// The schema description of the output
-    pub schema: Schema,
+    schema: Schema,
     /// The size of the Map
-    pub size: Integer,
+    size: Integer,
     /// The incoming logical plan
-    pub input: Rc<Relation>,
+    input: Rc<Relation>,
 }
 
 impl Map {
@@ -322,7 +330,35 @@ impl Map {
             },
         )
     }
-
+    /// Get projections
+    pub fn projection(&self) -> &[Expr] {
+        &self.projection
+    }
+    /// Get filter
+    pub fn filter(&self) -> &Option<Expr> {
+        &self.filter
+    }
+    /// Get order_by
+    pub fn order_by(&self) -> &[OrderBy] {
+        &self.order_by
+    }
+    /// Get limit
+    pub fn limit(&self) -> &Option<usize> {
+        &self.limit
+    }
+    /// Get the input
+    pub fn input(&self) -> &Relation {
+        &self.input
+    }
+    /// Get names and expressions
+    pub fn field_exprs(&self) -> Vec<(&Field, &Expr)> {
+        self.schema.iter().zip(self.projection.iter()).collect()
+    }
+    /// Get names and expressions
+    pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
+        self.schema.iter().map(|f| f.name()).zip(self.projection.iter()).collect()
+    }
+    /// Return a new builder
     pub fn builder() -> MapBuilder<WithoutInput> {
         MapBuilder::new()
     }
@@ -401,17 +437,17 @@ impl Variant for Map {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Reduce {
     /// The name of the output
-    pub name: String,
+    name: String,
     /// Aggregate expressions
-    pub aggregate: Vec<Expr>,
+    aggregate: Vec<Expr>,
     /// Grouping expressions
-    pub group_by: Vec<Expr>,
+    group_by: Vec<Expr>,
     /// The schema description of the output
-    pub schema: Schema,
+    schema: Schema,
     /// The size of the Reduce
-    pub size: Integer,
+    size: Integer,
     /// The incoming relation
-    pub input: Rc<Relation>,
+    input: Rc<Relation>,
 }
 
 impl Reduce {
@@ -459,7 +495,6 @@ impl Reduce {
             .unzip();
         (Schema::new(fields), exprs)
     }
-
     /// Compute the size of the reduce
     /// The size of the reduce can be the same as its input and will be at least 0
     fn size(input: &Relation) -> Integer {
@@ -468,9 +503,76 @@ impl Reduce {
             |&max| Integer::from_interval(0, max),
         )
     }
-
+    /// Get aggregate exprs
+    pub fn aggregate(&self) -> &[Expr] {
+        &self.aggregate
+    }
+    /// Get aggregate aggregates
+    pub fn aggregate_aggregates(&self) -> Vec<&Aggregate> {
+        self.aggregate.iter().filter_map(|e| {
+            if let Expr::Aggregate(aggregate) = e {
+                Some(aggregate)
+            } else {
+                None
+            }
+        }).collect()
+    }
+    /// Get group_by
+    pub fn group_by(&self) -> &[Expr] {
+        &self.group_by
+    }
+    /// Get group_by columns
+    pub fn group_by_columns(&self) -> Vec<&Column> {
+        self.group_by.iter().filter_map(|e| {
+            if let Expr::Column(column) = e {
+                Some(column)
+            } else {
+                None
+            }
+        }).collect()
+    }
+    /// Get the input
+    pub fn input(&self) -> &Relation {
+        &self.input
+    }
+    /// Get names and expressions
+    pub fn field_exprs(&self) -> Vec<(&Field, &Expr)> {
+        self.schema.iter().zip(self.aggregate.iter()).collect()
+    }
+    /// Get names and expressions
+    pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
+        self.schema.iter().map(|f| f.name()).zip(self.aggregate.iter()).collect()
+    }
+    /// Get names and expressions
+    pub fn field_aggregates(&self) -> Vec<(&Field, &Aggregate)> {
+        self.schema.iter().zip(self.aggregate.iter()).filter_map(|(f,e)| {
+            if let Expr::Aggregate(aggregate) = e {
+                Some((f, aggregate))
+            } else {
+                None
+            }
+        }).collect()
+    }
+    /// Get names and expressions
+    pub fn named_aggregates(&self) -> Vec<(&str, &Aggregate)> {
+        self.schema.iter().map(|f| f.name()).zip(self.aggregate.iter()).filter_map(|(f,e)| {
+            if let Expr::Aggregate(aggregate) = e {
+                Some((f, aggregate))
+            } else {
+                None
+            }
+        }).collect()
+    }
+    /// Return a new builder
     pub fn builder() -> ReduceBuilder<WithoutInput> {
         ReduceBuilder::new()
+    }
+    /// Get group_by_names
+    pub fn group_by_names(&self) -> Vec<&str> {
+        self.group_by.iter().filter_map(|e| match e {
+            Expr::Column(col) => col.last(),
+            _ => None,
+        }).map(|s| s.as_str()).collect()
     }
 }
 
@@ -605,17 +707,17 @@ impl JoinConstraint {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Join {
     /// The name of the output
-    pub name: String,
+    name: String,
     /// Join constraint
-    pub operator: JoinOperator,
+    operator: JoinOperator,
     /// The schema description of the output
-    pub schema: Schema,
+    schema: Schema,
     /// The size of the Join
-    pub size: Integer,
+    size: Integer,
     /// Left input
-    pub left: Rc<Relation>,
+    left: Rc<Relation>,
     /// Right input
-    pub right: Rc<Relation>,
+    right: Rc<Relation>,
 }
 
 impl Join {
@@ -700,11 +802,22 @@ impl Join {
             .zip(left_identifiers.chain(right_identifiers))
             .map(|(f, i)| (f, i))
     }
-
+    /// Get the hyerarchy of names
     pub fn names(&self) -> Hierarchy<String> {
         Hierarchy::from_iter(self.field_inputs().map(|(n, i)| (i, n)))
     }
-
+    /// Get join operator
+    pub fn operator(&self) -> &JoinOperator {
+        &self.operator
+    }
+    /// Get left input
+    pub fn left(&self) -> &Relation {
+        &self.left
+    }
+    /// Get right input
+    pub fn right(&self) -> &Relation {
+        &self.right
+    }
     pub fn builder() -> JoinBuilder<WithoutInput, WithoutInput> {
         JoinBuilder::new()
     }
@@ -847,19 +960,19 @@ impl fmt::Display for SetQuantifier {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Set {
     /// The name of the output
-    pub name: String,
+    name: String,
     /// Set operator
-    pub operator: SetOperator,
+    operator: SetOperator,
     /// Set quantifier
-    pub quantifier: SetQuantifier,
+    quantifier: SetQuantifier,
     /// The schema description of the output
-    pub schema: Schema,
+    schema: Schema,
     /// The size of the Set
-    pub size: Integer,
+    size: Integer,
     /// Left input
-    pub left: Rc<Relation>,
+    left: Rc<Relation>,
     /// Right input
-    pub right: Rc<Relation>,
+    right: Rc<Relation>,
 }
 
 impl Set {
@@ -934,7 +1047,22 @@ impl Set {
             SetOperator::Intersect => Integer::from_interval(0, left_size_max.min(right_size_max)),
         }
     }
-
+    /// Get set operator
+    pub fn operator(&self) -> &SetOperator {
+        &self.operator
+    }
+    /// Get set quantifier
+    pub fn quantifier(&self) -> &SetQuantifier {
+        &self.quantifier
+    }
+    /// Get left input
+    pub fn left(&self) -> &Relation {
+        &self.left
+    }
+    /// Get right input
+    pub fn right(&self) -> &Relation {
+        &self.right
+    }
     pub fn builder() -> SetBuilder<WithoutInput, WithoutInput> {
         SetBuilder::new()
     }
@@ -988,13 +1116,13 @@ impl Variant for Set {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Values {
     /// The name of the output
-    pub name: String,
+    name: String,
     /// The values
-    pub values: Vec<Value>,
+    values: Vec<Value>,
     /// The schema description of the output
-    pub schema: Schema,
+    schema: Schema,
     /// The size of the Set
-    pub size: Integer,
+    size: Integer,
 }
 
 impl Values {

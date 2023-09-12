@@ -11,17 +11,21 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
-use std::{error, fmt, rc::Rc, result};
+use std::{error, fmt, rc::Rc, result, ops::Deref};
 
 #[derive(Debug, Clone)]
 pub enum Error {
     NotProtectedEntityPreserving(String),
+    UnprotectedTable(String),
     Other(String),
 }
 
 impl Error {
     pub fn not_protected_entity_preserving(relation: impl fmt::Display) -> Error {
         Error::NotProtectedEntityPreserving(format!("{} is not PEP", relation))
+    }
+    pub fn unprotected_table(table: impl fmt::Display) -> Error {
+        Error::NotProtectedEntityPreserving(format!("{} is not protected", table))
     }
 }
 
@@ -30,6 +34,9 @@ impl fmt::Display for Error {
         match self {
             Error::NotProtectedEntityPreserving(desc) => {
                 writeln!(f, "NotProtectedEntityPreserving: {}", desc)
+            }
+            Error::UnprotectedTable(desc) => {
+                writeln!(f, "UnprotectedTable: {}", desc)
             }
             Error::Other(err) => writeln!(f, "{}", err),
         }
@@ -56,16 +63,43 @@ pub enum Strategy {
     Hard,
 }
 
+#[derive(Clone, Debug)]
+pub struct PEPRelation(pub Relation);
+
+impl PEPRelation {
+    pub fn protected_entity_id(&self) -> &str {
+        PE_ID
+    }
+
+    pub fn protected_entity_weight(&self) -> &str {
+        PE_WEIGHT
+    }
+}
+
+impl From<PEPRelation> for Relation {
+    fn from(value: PEPRelation) -> Self {
+        value.0
+    }
+}
+
+impl Deref for PEPRelation {
+    type Target = Relation;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// A visitor to compute Relation protection
 #[derive(Clone, Debug)]
-pub struct ProtectVisitor<F: Fn(&Table) -> Relation> {
+pub struct ProtectVisitor<F: Fn(&Table) -> Result<PEPRelation>> {
     /// The protected entity definition
     protect_tables: F,
     /// Strategy used
     strategy: Strategy,
 }
 
-impl<F: Fn(&Table) -> Relation> ProtectVisitor<F> {
+impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
     pub fn new(protect_tables: F, strategy: Strategy) -> Self {
         ProtectVisitor {
             protect_tables,
@@ -78,14 +112,14 @@ impl<F: Fn(&Table) -> Relation> ProtectVisitor<F> {
 pub fn protect_visitor_from_exprs<'a>(
     protected_entity: &'a [(&'a Table, Expr)],
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Relation + 'a> {
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
     ProtectVisitor::new(
         move |table: &Table| match protected_entity
             .iter()
             .find_map(|(t, e)| (table == *t).then(|| e.clone()))
         {
-            Some(expr) => Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()),
-            None => table.clone().into(),
+            Some(expr) => Ok(PEPRelation(Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()))),
+            None => Err(Error::unprotected_table(table)),
         },
         strategy,
     )
@@ -96,39 +130,45 @@ pub fn protect_visitor_from_field_paths<'a>(
     relations: &'a Hierarchy<Rc<Relation>>,
     protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Relation + 'a> {
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
     ProtectVisitor::new(
         move |table: &Table| match protected_entity
             .iter()
             .find(|(tab, _path, _field)| table.name() == relations[*tab].name())
         {
-            Some((_tab, path, field)) => Relation::from(table.clone())
+            Some((_tab, path, field)) => Ok(PEPRelation(Relation::from(table.clone())
                 .with_field_path(relations, path, field, PE_ID)
-                .map_fields(|n, e| if n == PE_ID { Expr::md5(Expr::cast_as_text(e)) } else { e }),
-            None => table.clone().into(),
-        },//TODO fix MD5 here
+                .map_fields(|n, e| {
+                    if n == PE_ID {
+                        Expr::md5(Expr::cast_as_text(e))
+                    } else {
+                        e
+                    }
+                }))),
+            None => Err(Error::unprotected_table(table)),
+        }, //TODO fix MD5 here
         strategy,
     )
 }
 
-impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVisitor<F> {
-    fn table(&self, table: &'a Table) -> Result<Relation> {
-        Ok((self.protect_tables)(table)
+impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>> for ProtectVisitor<F> {
+    fn table(&self, table: &'a Table) -> Result<PEPRelation> {
+        Ok(PEPRelation(Relation::from((self.protect_tables)(table)?)
             .insert_field(1, PE_WEIGHT, Expr::val(1))
             // We preserve the name
-            .with_name(format!("{}{}", PROTECTION_PREFIX, table.name())))
+            .with_name(format!("{}{}", PROTECTION_PREFIX, table.name()))))
     }
 
-    fn map(&self, map: &'a Map, input: Result<Relation>) -> Result<Relation> {
+    fn map(&self, map: &'a Map, input: Result<PEPRelation>) -> Result<PEPRelation> {
         let builder = Relation::map()
             .with((PE_ID, Expr::col(PE_ID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
             .with(map.clone())
-            .input(input?);
-        Ok(builder.build())
+            .input(Relation::from(input?));
+        Ok(PEPRelation(builder.build()))
     }
 
-    fn reduce(&self, reduce: &'a Reduce, input: Result<Relation>) -> Result<Relation> {
+    fn reduce(&self, reduce: &'a Reduce, input: Result<PEPRelation>) -> Result<PEPRelation> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce)),
             Strategy::Hard => {
@@ -136,8 +176,8 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                     .with_group_by_column(PE_ID)
                     .with((PE_WEIGHT, Expr::sum(Expr::col(PE_WEIGHT))))
                     .with(reduce.clone())
-                    .input(input?);
-                Ok(builder.build())
+                    .input(Relation::from(input?));
+                Ok(PEPRelation(builder.build()))
             }
         }
     }
@@ -146,44 +186,45 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
         //TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
-        left: Result<Relation>,
-        right: Result<Relation>,
-    ) -> Result<Relation> {
+        left: Result<PEPRelation>,
+        right: Result<PEPRelation>,
+    ) -> Result<PEPRelation> {
         let left_name = left.as_ref().unwrap().name().to_string();
         let right_name: String = right.as_ref().unwrap().name().to_string();
         // Preserve names
         let names: Vec<String> = join.schema().iter().map(|f| f.name().to_string()).collect();
         let mut left_names = vec![format!("_LEFT{PE_ID}"), format!("_LEFT{PE_WEIGHT}")];
-        left_names.extend(names.iter().take(join.left.schema().len()).cloned());
+        left_names.extend(names.iter().take(join.left().schema().len()).cloned());
         let mut right_names = vec![format!("_RIGHT{PE_ID}"), format!("_RIGHT{PE_WEIGHT}")];
-        right_names.extend(names.iter().skip(join.left.schema().len()).cloned());
+        right_names.extend(names.iter().skip(join.left().schema().len()).cloned());
         // Create the protected join
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
-                let Join { name, operator, .. } = join;
+                let name = join.name();
+                let operator = join.operator();
                 let left = left?;
                 let right = right?;
                 // Compute the mapping between current and new columns //TODO clean this code a bit
                 let columns: Hierarchy<Identifier> = join
-                    .left
+                    .left()
                     .schema()
                     .iter()
                     .zip(left.schema().iter().skip(PROTECTION_COLUMNS))
                     .map(|(o, n)| {
                         (
-                            vec![join.left.name().to_string(), o.name().to_string()],
+                            vec![join.left().name().to_string(), o.name().to_string()],
                             Identifier::from(vec![left_name.clone(), n.name().to_string()]),
                         )
                     })
                     .chain(
-                        join.right
+                        join.right()
                             .schema()
                             .iter()
                             .zip(right.schema().iter().skip(PROTECTION_COLUMNS))
                             .map(|(o, n)| {
                                 (
-                                    vec![join.right.name().to_string(), o.name().to_string()],
+                                    vec![join.right().name().to_string(), o.name().to_string()],
                                     Identifier::from(vec![
                                         right_name.clone(),
                                         n.name().to_string(),
@@ -201,8 +242,8 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                         Expr::qcol(left_name.as_str(), PE_ID),
                         Expr::qcol(right_name.as_str(), PE_ID),
                     ))
-                    .left(left)
-                    .right(right);
+                    .left(Relation::from(left))
+                    .right(Relation::from(right));
                 let join: Join = builder.build();
                 let mut builder = Relation::map().name(name);
                 builder = builder.with((PE_ID, Expr::col(format!("_LEFT{PE_ID}"))));
@@ -222,7 +263,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
                 });
                 let builder = builder.input(Rc::new(join.into()));
 
-                Ok(builder.build())
+                Ok(PEPRelation(builder.build()))
             }
         }
     }
@@ -230,40 +271,34 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Result<Relation>> for ProtectVis
     fn set(
         &self,
         set: &'a crate::relation::Set,
-        left: Result<Relation>,
-        right: Result<Relation>,
-    ) -> Result<Relation> {
-        let Set {
-            name,
-            operator,
-            quantifier,
-            ..
-        } = set;
+        left: Result<PEPRelation>,
+        right: Result<PEPRelation>,
+    ) -> Result<PEPRelation> {
         let builder = Relation::set()
-            .name(name)
-            .operator(operator.clone())
-            .quantifier(quantifier.clone())
-            .left(left?)
-            .right(right?);
-        Ok(builder.build())
+            .name(set.name())
+            .operator(set.operator().clone())
+            .quantifier(set.quantifier().clone())
+            .left(Relation::from(left?))
+            .right(Relation::from(right?));
+        Ok(PEPRelation(builder.build()))
     }
 
-    fn values(&self, values: &'a Values) -> Result<Relation> {
-        Ok(Relation::Values(values.clone()))
+    fn values(&self, values: &'a Values) -> Result<PEPRelation> {
+        Ok(PEPRelation(Relation::Values(values.clone())))
     }
 }
 
 impl Relation {
     /// Add protection
-    pub fn protect_from_visitor<F: Fn(&Table) -> Relation>(
+    pub fn protect_from_visitor<F: Fn(&Table) -> Result<PEPRelation>>(
         self,
         protect_visitor: ProtectVisitor<F>,
-    ) -> Result<Relation> {
+    ) -> Result<PEPRelation> {
         self.accept(protect_visitor)
     }
 
     /// Add protection
-    pub fn protect<F: Fn(&Table) -> Relation>(self, protect_tables: F) -> Result<Relation> {
+    pub fn protect<F: Fn(&Table) -> Result<PEPRelation>>(self, protect_tables: F) -> Result<PEPRelation> {
         self.accept(ProtectVisitor::new(protect_tables, Strategy::Soft))
     }
 
@@ -271,7 +306,7 @@ impl Relation {
     pub fn protect_from_exprs<'a>(
         self,
         protected_entity: &'a [(&'a Table, Expr)],
-    ) -> Result<Relation> {
+    ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft))
     }
 
@@ -280,7 +315,7 @@ impl Relation {
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
         protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
-    ) -> Result<Relation> {
+    ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_field_paths(
             relations,
             protected_entity,
@@ -289,7 +324,7 @@ impl Relation {
     }
 
     /// Force protection
-    pub fn force_protect<F: Fn(&Table) -> Relation>(self, protect_tables: F) -> Relation {
+    pub fn force_protect<F: Fn(&Table) -> Result<PEPRelation>>(self, protect_tables: F) -> PEPRelation {
         self.accept(ProtectVisitor::new(protect_tables, Strategy::Hard))
             .unwrap()
     }
@@ -298,7 +333,7 @@ impl Relation {
     pub fn force_protect_from_exprs<'a>(
         self,
         protected_entity: &'a [(&'a Table, Expr)],
-    ) -> Relation {
+    ) -> PEPRelation {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Hard))
             .unwrap()
     }
@@ -308,7 +343,7 @@ impl Relation {
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
         protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
-    ) -> Relation {
+    ) -> PEPRelation {
         self.accept(protect_visitor_from_field_paths(
             relations,
             protected_entity,
@@ -363,7 +398,7 @@ mod tests {
             .unwrap();
         table.display_dot().unwrap();
         println!("Schema protected = {}", table.schema());
-        println!("Query protected = {}", ast::Query::from(&table));
+        println!("Query protected = {}", ast::Query::from(&*table));
         assert_eq!(table.schema()[0].name(), PE_ID)
     }
 
@@ -398,7 +433,7 @@ mod tests {
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PE_ID);
         // Print query
-        let query: &str = &ast::Query::from(&relation).to_string();
+        let query: &str = &ast::Query::from(&*relation).to_string();
         println!(
             "{}\n{}",
             format!("{query}").yellow(),
@@ -423,10 +458,7 @@ mod tests {
             &[
                 (
                     "items",
-                    &[
-                        ("order_id", "orders", "id"),
-                        ("user_id", "users", "id"),
-                    ],
+                    &[("order_id", "orders", "id"), ("user_id", "users", "id")],
                     "name",
                 ),
                 ("order_table", &[("user_id", "users", "id")], "name"),
@@ -440,7 +472,7 @@ mod tests {
         let vector = PE_ID.clone();
         let base = vec!["item"];
         let coordinates = vec!["price"];
-        let norm = relation.l2_norm(vector, base, coordinates);
+        let norm = Relation::from(relation).l2_norms(vector, base, coordinates);
         norm.display_dot().unwrap();
         // Print query
         let query: &str = &ast::Query::from(&norm).to_string();
@@ -486,7 +518,7 @@ mod tests {
         println!("Schema protected = {}", relation.schema());
         assert_eq!(relation.schema()[0].name(), PE_ID);
         // Print query
-        let query: &str = &ast::Query::from(&relation).to_string();
+        let query: &str = &ast::Query::from(&*relation).to_string();
         println!("{}", format!("{query}").yellow());
         println!(
             "{}\n{}",
@@ -505,7 +537,7 @@ mod tests {
         // Change schema and table names
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        
+
         println!("{relations}");
     }
 }

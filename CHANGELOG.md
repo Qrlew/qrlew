@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- `Union::is_subset_of` [MR106](https://github.com/Qrlew/qrlew/pull/106)
+- Replaced `Expr::filter_column_data_type` by `DataType::filter`[MR104](https://github.com/Qrlew/qrlew/pull/104)
+
 
 ### Fixed
 - fix reduce when the query has a group by and doesn't have aggregation functions [MR80](https://github.com/Qrlew/qrlew/pull/80)
@@ -14,7 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Internal code uses `Relation.name()` for table addressing but user facing functions may use `Table.path()` (ie sql addressing)
 - Renamed bivariate_min and bivariate_max to least and greatest
 - Cast to string before MD5 for protection
-- Implemented `least` and `greatest` (untested)
+- Implemented `least` and `greatest` (support qualified and unqualified columns)[MR102](https://github.com/Qrlew/qrlew/pull/102)
+### Fixed
+- `And` for struct of structs [MR100](https://github.com/Qrlew/qrlew/pull/100)
+### Added
+- `Hierarchy::get_key_value` [MR103](https://github.com/Qrlew/qrlew/pull/103)
 
 ## [0.2.2] - 2023-08-29
 ### Changed
@@ -23,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated sqlparser version
 - Deactivate graphviz display by default
 - Deactivate multiplicity testing by default
-- 
+-
 ### Added
 - In `sampling_adjustments` added differenciated sampling and adjustments [MR77](https://github.com/Qrlew/qrlew/pull/77)
 - Updated sqlparser version

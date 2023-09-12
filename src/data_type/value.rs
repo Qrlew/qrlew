@@ -22,8 +22,7 @@ use super::{
     function,
     injection::{self, InjectInto, Injection},
     intervals::Bound,
-    And, DataType, DataTyped, Variant as _,
-    Hierarchy, Path
+    And, DataType, DataTyped, Hierarchy, Path, Variant as _,
 };
 
 // Error handling
@@ -490,14 +489,13 @@ impl Struct {
         &self.0[index]
     }
     pub fn hierarchy(&self) -> Hierarchy<&Value> {
-        let h: Hierarchy<&Value> = self.iter().map(|(s, v)| (vec![s.to_string()], v.as_ref())).collect();
-        self.iter()
-        .fold(
-            h,
-            |acc, (s, v)|
+        let h: Hierarchy<&Value> = self
+            .iter()
+            .map(|(s, v)| (vec![s.to_string()], v.as_ref()))
+            .collect();
+        self.iter().fold(h, |acc, (s, v)| {
             acc.chain(v.hierarchy().prepend(&[s.to_string()]))
-
-        )
+        })
     }
 }
 
@@ -699,8 +697,16 @@ impl Union {
         Union::new(namer::new_name(""), Rc::new(value))
     }
     pub fn hierarchy(&self) -> Hierarchy<&Value> {
-        let h: Hierarchy<&Value> = [(self.0.0.to_string(), self.0.1.as_ref())].into_iter().collect();
-        h.chain(self.0.1.as_ref().hierarchy().prepend(&[self.0.0.to_string()]))
+        let h: Hierarchy<&Value> = [(self.0 .0.to_string(), self.0 .1.as_ref())]
+            .into_iter()
+            .collect();
+        h.chain(
+            self.0
+                 .1
+                .as_ref()
+                .hierarchy()
+                .prepend(&[self.0 .0.to_string()]),
+        )
     }
 }
 
@@ -1286,7 +1292,7 @@ impl Value {
         Value::Function(Function(f.into()))
     }
 
-    fn hierarchy(&self) -> Hierarchy<&Value> {
+    pub fn hierarchy(&self) -> Hierarchy<&Value> {
         match self {
             Value::Struct(x) => x.hierarchy(),
             _ => Hierarchy::from([(Vec::<&str>::new(), self)]),
@@ -1730,14 +1736,8 @@ mod tests {
 
     #[test]
     fn test_index() {
-        let a = Value::structured([
-            ("a_0", Value::from(-10)),
-            ("a_1", Value::from(1)),
-        ]);
-        let b = Value::structured([
-            ("b_0", Value::from(0.1)),
-            ("b_1", Value::from(10.0)),
-        ]);
+        let a = Value::structured([("a_0", Value::from(-10)), ("a_1", Value::from(1))]);
+        let b = Value::structured([("b_0", Value::from(0.1)), ("b_1", Value::from(10.0))]);
         let x = Value::structured([("a", a), ("b", b)]);
         println!("x = {}", x);
         println!("x['a'] = {}", x["a"]);

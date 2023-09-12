@@ -141,7 +141,7 @@ pub type IterWith<'a, O, A, V> =
 
 /// A generic acceptor trait
 pub trait Acceptor<'a>: 'a + Sized + Debug + Eq + Hash {
-    /// All the sub-objects to visit    
+    /// All the sub-objects to visit
     fn dependencies(&'a self) -> Dependencies<'a, Self>;
 
     fn accept<O: Clone, V: Visitor<'a, Self, O>>(&'a self, visitor: V) -> O {

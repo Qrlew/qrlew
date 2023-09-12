@@ -122,32 +122,44 @@ impl<T: Clone> Hierarchy<T> {
     pub fn chain(self, other: Self) -> Self {
         self.into_iter().chain(other.into_iter()).collect()
     }
-    
+
     pub fn prepend(self, head: &[String]) -> Self {
         self.into_iter()
-            .map(|(s, d)| (
-                head.iter().map(|s| s.clone()).chain(s.into_iter()).collect::<Vec<String>>(),
-                d
-            ))
+            .map(|(s, d)| {
+                (
+                    head.iter()
+                        .map(|s| s.clone())
+                        .chain(s.into_iter())
+                        .collect::<Vec<String>>(),
+                    d,
+                )
+            })
             .collect()
     }
 
-    pub fn get(&self, path: &[String]) -> Option<&T> {
-        self.0.get(path).or_else(|| {
-            self.0
-                .iter()
-                .fold(Found::Zero, |f, (qualified_path, object)| {
-                    if is_suffix_of(path, qualified_path) {
-                        match f {
-                            Found::Zero => Found::One(object),
-                            _ => Found::More,
+    pub fn get<'a>(&'a self, path: &[String]) -> Option<&'a T> {
+        self.get_key_value(path).and_then(|(_, v)| Some(v))
+    }
+
+    pub fn get_key_value<'a>(&'a self, path: &[String]) -> Option<(&'a [String], &'a T)> {
+        self.0
+            .get_key_value(path)
+            .map(|(k, v)| (k.as_slice(), v))
+            .or_else(|| {
+                self.0
+                    .iter()
+                    .fold(Found::Zero, |f, (qualified_path, object)| {
+                        if is_suffix_of(path, qualified_path) {
+                            match f {
+                                Found::Zero => Found::One((qualified_path.as_ref(), object)),
+                                _ => Found::More,
+                            }
+                        } else {
+                            f
                         }
-                    } else {
-                        f
-                    }
-                })
-                .into()
-        })
+                    })
+                    .into()
+            })
     }
 
     pub fn filter(&self, path: &[String]) -> Self {
@@ -367,10 +379,7 @@ mod tests {
 
     #[test]
     fn test_preprend() {
-        let h1 = Hierarchy::from([
-            (["a"], DataType::float()),
-            (["b"], DataType::integer()),
-        ]);
+        let h1 = Hierarchy::from([(["a"], DataType::float()), (["b"], DataType::integer())]);
         let prepended_h = h1.prepend(&["table_1".to_string()]);
         assert_eq!(
             prepended_h,
@@ -379,5 +388,51 @@ mod tests {
                 (["table_1", "b"], DataType::integer()),
             ])
         )
+    }
+
+    #[test]
+    fn test_get_key_value() {
+        let values = Hierarchy::from([
+            (vec!["a", "b", "c"], 1),
+            (vec!["a", "b", "d"], 2),
+            (vec!["a", "c"], 3),
+            (vec!["a", "e"], 4),
+            (vec!["a", "e", "f"], 5),
+            (vec!["b", "c"], 6),
+        ]);
+        assert_eq!(
+            values.get_key_value(&["a".to_string(), "c".to_string()]),
+            Some((["a".to_string(), "c".to_string()].as_slice(), &3))
+        );
+        assert_eq!(values.get_key_value(&vec!["c".to_string()]), None);
+        assert_eq!(
+            values.get_key_value(&["b".into(), "c".into()]),
+            Some((["b".to_string(), "c".to_string()].as_slice(), &6))
+        );
+        assert_eq!(
+            values.get_key_value(&["e".to_string()]),
+            Some((["a".to_string(), "e".to_string()].as_slice(), &4))
+        );
+        assert_eq!(
+            values.get_key_value(&["e".to_string(), "f".to_string()]),
+            Some((
+                ["a".to_string(), "e".to_string(), "f".to_string()].as_slice(),
+                &5
+            ))
+        );
+        assert_eq!(
+            values.get_key_value(&["b".to_string(), "d".to_string()]),
+            Some((
+                ["a".to_string(), "b".to_string(), "d".to_string()].as_slice(),
+                &2
+            ))
+        );
+        assert_eq!(
+            values.get_key_value(&["d".to_string()]),
+            Some((
+                ["a".to_string(), "b".to_string(), "d".to_string()].as_slice(),
+                &2
+            ))
+        );
     }
 }

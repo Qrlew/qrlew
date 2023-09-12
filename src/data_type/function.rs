@@ -365,10 +365,10 @@ impl Function for Pointwise {
     }
 }
 
-/// Partitionned monotonic function (plus some complex periodic cases)
-/// The domain is a (cartesian) product of Intervals<B> types
-/// P and T are convenient representations of the product and elements of the product
-/// The partition function maps a product into a vector of products where the value function is supposed to be monotonic
+/// Partitionned monotonic function (plus some complex periodic cases).
+/// The domain is a (cartesian) product of `Intervals<B>` types.
+/// `P` and `T` are convenient representations of the product and elements of the product.
+/// The partition function maps a product into a vector of products where the value function is supposed to be monotonic.
 #[derive(Clone)]
 pub struct PartitionnedMonotonic<P, T, Prod: IntervalsProduct, U: Bound>
 where
@@ -624,6 +624,52 @@ where
 /// Functions can be wrapped with this `Extended` object.
 /// The co_domain is usually Option<original CoDomain> unless the domain is included in the original domain.
 #[derive(Debug)]
+pub struct Optional<F: Function>(F);
+
+impl<F: Function> Optional<F> {
+    pub fn new(function: F) -> Optional<F> {
+        Optional(function)
+    }
+}
+
+impl<F: Function> fmt::Display for Optional<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "optional{{{} -> {}}}", self.domain(), self.co_domain())
+    }
+}
+
+impl<F: Function> Function for Optional<F> {
+    fn domain(&self) -> DataType {
+        DataType::Any
+    }
+
+    fn co_domain(&self) -> DataType {
+        DataType::optional(self.0.co_domain()).flatten_optional()
+    }
+
+    fn super_image(&self, set: &DataType) -> Result<DataType> {
+        let set = set.flatten_optional();
+        match set {
+            DataType::Optional(optional_set) => self.0.super_image(optional_set.data_type()).map(|dt| DataType::optional(dt)),
+            set => self.0.super_image(&set),
+        }.or_else(|err| Ok(self.co_domain()))
+    }
+
+    fn value(&self, arg: &Value) -> Result<Value> {
+        match arg {
+            Value::Optional(optional_arg) => match optional_arg.as_deref() {
+                Some(arg) => self.0.value(arg).map(Value::some),
+                None => Ok(Value::none()),
+            },
+            arg => self.0.value(arg),
+        }.or_else(|err| Ok(Value::none()))
+    }
+}
+
+/// # Extended function
+/// Functions can be wrapped with this `Extended` object.
+/// The co_domain is usually Option<original CoDomain> unless the domain is included in the original domain.
+#[derive(Debug)]
 pub struct Extended<F: Function> {
     function: F,
     domain: DataType,
@@ -638,12 +684,6 @@ impl<F: Function> Extended<F> {
 impl<F: Function> fmt::Display for Extended<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "extended{{{} -> {}}}", self.domain(), self.co_domain())
-    }
-}
-
-impl<F: Function + Clone> Clone for Extended<F> {
-    fn clone(&self) -> Self {
-        Extended::new(self.function.clone(), self.domain.clone())
     }
 }
 
@@ -677,30 +717,6 @@ impl<F: Function> Function for Extended<F> {
         } else {
             Err(Error::argument_out_of_range(arg, &self.domain))
         }
-    }
-}
-
-/// A function is extensible if it can be extended to a different domain
-pub trait Extensible {
-    type Extended;
-
-    fn extend(self, domain: DataType) -> Self::Extended;
-}
-
-// Implement extensible for all borrowed function
-impl<'a, F: Function + Clone> Extensible for &'a F {
-    type Extended = Extended<F>;
-
-    fn extend(self: &'a F, domain: DataType) -> Self::Extended {
-        Extended::new(self.clone(), domain)
-    }
-}
-
-impl<F: Function> Extensible for Extended<F> {
-    type Extended = Extended<F>;
-
-    fn extend(self: Extended<F>, domain: DataType) -> Extended<F> {
-        Extended::new(self.function, domain)
     }
 }
 
@@ -817,7 +833,7 @@ where
 //     domain: Domain,
 //     value: ValueFunction,
 // }
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct Polymorphic(Vec<Rc<dyn Function>>);
 
 impl Polymorphic {
@@ -1023,7 +1039,7 @@ We list here all the functions to expose
 */
 
 // Invalid function
-pub fn null() -> impl Function + Clone {
+pub fn null() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Text::default(), |_x| "null".to_string())
 }
 
@@ -1032,10 +1048,12 @@ Conversion function
  */
 
 /// Builds the cast operator
-pub fn cast(into: DataType) -> impl Function + Clone {
+pub fn cast(into: DataType) -> impl Function {
     // TODO Only cast as text is working for now
     match into {
-        DataType::Text(t) if t==data_type::Text::full() => Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into()),
+        DataType::Text(t) if t == data_type::Text::full() => {
+            Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into())
+        }
         _ => todo!(),
     }
 }
@@ -1043,18 +1061,18 @@ pub fn cast(into: DataType) -> impl Function + Clone {
 // Unary operators
 
 /// Builds the minus `Function`
-pub fn opposite() -> impl Function + Clone {
+pub fn opposite() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Float::default(), |x| -x)
 }
 /// Builds the minus `Function`
-pub fn not() -> impl Function + Clone {
+pub fn not() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Boolean::default(), |x| !x)
 }
 
 // Arithmetic binary operators
 
 /// The sum (polymorphic)
-pub fn plus() -> impl Function + Clone {
+pub fn plus() -> impl Function {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1068,7 +1086,7 @@ pub fn plus() -> impl Function + Clone {
 }
 
 /// The difference
-pub fn minus() -> impl Function + Clone {
+pub fn minus() -> impl Function {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1082,7 +1100,7 @@ pub fn minus() -> impl Function + Clone {
 }
 
 /// The product (the domain is partitionned)
-pub fn multiply() -> impl Function + Clone {
+pub fn multiply() -> impl Function {
     Polymorphic::from((
         // Integer implementation
         PartitionnedMonotonic::piecewise_bivariate(
@@ -1132,7 +1150,7 @@ pub fn multiply() -> impl Function + Clone {
 }
 
 /// The division (the domain is partitionned)
-pub fn divide() -> impl Function + Clone {
+pub fn divide() -> impl Function {
     Polymorphic::from((
         // Integer implementation
         PartitionnedMonotonic::piecewise_bivariate(
@@ -1182,7 +1200,7 @@ pub fn divide() -> impl Function + Clone {
 }
 
 /// The modulo
-pub fn modulo() -> impl Function + Clone {
+pub fn modulo() -> impl Function {
     Pointwise::bivariate(
         (data_type::Integer::default(), data_type::Integer::default()),
         data_type::Integer::default(),
@@ -1190,7 +1208,7 @@ pub fn modulo() -> impl Function + Clone {
     )
 }
 
-pub fn string_concat() -> impl Function + Clone {
+pub fn string_concat() -> impl Function {
     Pointwise::bivariate(
         (data_type::Text::default(), data_type::Text::default()),
         data_type::Text::default(),
@@ -1198,13 +1216,13 @@ pub fn string_concat() -> impl Function + Clone {
     )
 }
 
-pub fn concat(n: usize) -> impl Function + Clone {
+pub fn concat(n: usize) -> impl Function {
     Pointwise::variadic(vec![DataType::Any; n], data_type::Text::default(), |v| {
         v.into_iter().map(|v| v.to_string()).join("")
     })
 }
 
-pub fn md5() -> impl Function + Clone {
+pub fn md5() -> impl Function {
     Stateful::new(
         DataType::text(),
         DataType::text(),
@@ -1216,7 +1234,7 @@ pub fn md5() -> impl Function + Clone {
     )
 }
 
-pub fn random<R: rand::Rng + 'static>(mut rng: R) -> impl Function + Clone {
+pub fn random<R: rand::Rng + 'static>(mut rng: R) -> impl Function {
     Stateful::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
@@ -1224,7 +1242,7 @@ pub fn random<R: rand::Rng + 'static>(mut rng: R) -> impl Function + Clone {
     )
 }
 
-pub fn gt() -> impl Function + Clone {
+pub fn gt() -> impl Function {
     Polymorphic::default()
         .with(Pointwise::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1261,7 +1279,7 @@ pub fn gt() -> impl Function + Clone {
         ))
 }
 
-pub fn lt() -> impl Function + Clone {
+pub fn lt() -> impl Function {
     Polymorphic::default()
         .with(Pointwise::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1298,7 +1316,7 @@ pub fn lt() -> impl Function + Clone {
         ))
 }
 
-pub fn gt_eq() -> impl Function + Clone {
+pub fn gt_eq() -> impl Function {
     Polymorphic::default()
         .with(Pointwise::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1335,7 +1353,7 @@ pub fn gt_eq() -> impl Function + Clone {
         ))
 }
 
-pub fn lt_eq() -> impl Function + Clone {
+pub fn lt_eq() -> impl Function {
     Polymorphic::default()
         .with(Pointwise::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1372,7 +1390,7 @@ pub fn lt_eq() -> impl Function + Clone {
         ))
 }
 
-pub fn eq() -> impl Function + Clone {
+pub fn eq() -> impl Function {
     Pointwise::bivariate(
         (DataType::Any, DataType::Any),
         data_type::Boolean::default(),
@@ -1380,7 +1398,7 @@ pub fn eq() -> impl Function + Clone {
     )
 }
 
-pub fn not_eq() -> impl Function + Clone {
+pub fn not_eq() -> impl Function {
     Pointwise::bivariate(
         (DataType::Any, DataType::Any),
         data_type::Boolean::default(),
@@ -1391,21 +1409,21 @@ pub fn not_eq() -> impl Function + Clone {
 // Boolean binary operators
 
 /// The conjunction
-pub fn and() -> impl Function + Clone {
+pub fn and() -> impl Function {
     PartitionnedMonotonic::bivariate(
         (data_type::Boolean::default(), data_type::Boolean::default()),
         |x, y| x && y,
     )
 }
 /// The disjunction
-pub fn or() -> impl Function + Clone {
+pub fn or() -> impl Function {
     PartitionnedMonotonic::bivariate(
         (data_type::Boolean::default(), data_type::Boolean::default()),
         |x, y| x || y,
     )
 }
 /// The exclusive or
-pub fn xor() -> impl Function + Clone {
+pub fn xor() -> impl Function {
     PartitionnedMonotonic::bivariate(
         (data_type::Boolean::default(), data_type::Boolean::default()),
         |x, y| x ^ y,
@@ -1414,7 +1432,7 @@ pub fn xor() -> impl Function + Clone {
 
 // Bitwise binary operators
 
-pub fn bitwise_or() -> impl Function + Clone {
+pub fn bitwise_or() -> impl Function {
     Pointwise::bivariate(
         (data_type::Boolean::default(), data_type::Boolean::default()),
         data_type::Boolean::default(),
@@ -1422,7 +1440,7 @@ pub fn bitwise_or() -> impl Function + Clone {
     )
 }
 
-pub fn bitwise_and() -> impl Function + Clone {
+pub fn bitwise_and() -> impl Function {
     Pointwise::bivariate(
         (data_type::Boolean::default(), data_type::Boolean::default()),
         data_type::Boolean::default(),
@@ -1430,7 +1448,7 @@ pub fn bitwise_and() -> impl Function + Clone {
     )
 }
 
-pub fn bitwise_xor() -> impl Function + Clone {
+pub fn bitwise_xor() -> impl Function {
     Pointwise::bivariate(
         (data_type::Boolean::default(), data_type::Boolean::default()),
         data_type::Boolean::default(),
@@ -1441,21 +1459,21 @@ pub fn bitwise_xor() -> impl Function + Clone {
 // Real functions
 
 /// Builds the exponential `Function`
-pub fn exp() -> impl Function + Clone {
+pub fn exp() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Float::default(), |x| {
         x.exp().clamp(0.0, <f64 as Bound>::max())
     })
 }
 
 /// Builds the logarithm `Function`
-pub fn ln() -> impl Function + Clone {
+pub fn ln() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Float::from(0.0..), |x| {
         x.ln().clamp(<f64 as Bound>::min(), <f64 as Bound>::max())
     })
 }
 
 /// Builds the decimal logarithm `Function`
-pub fn log() -> impl Function + Clone {
+pub fn log() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Float::from(0.0..), |x| {
         x.log(10.)
             .clamp(<f64 as Bound>::min(), <f64 as Bound>::max())
@@ -1463,14 +1481,14 @@ pub fn log() -> impl Function + Clone {
 }
 
 /// Builds the sqrt `Function`
-pub fn sqrt() -> impl Function + Clone {
+pub fn sqrt() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Float::from(0.0..), |x| {
         x.sqrt().clamp(<f64 as Bound>::min(), <f64 as Bound>::max())
     })
 }
 
 /// The pow function
-pub fn pow() -> impl Function + Clone {
+pub fn pow() -> impl Function {
     PartitionnedMonotonic::piecewise_bivariate(
         [
             (
@@ -1490,7 +1508,7 @@ pub fn pow() -> impl Function + Clone {
 }
 
 /// Builds the abs `Function`, a piecewise monotonic function
-pub fn abs() -> impl Function + Clone {
+pub fn abs() -> impl Function {
     PartitionnedMonotonic::piecewise_univariate(
         [
             data_type::Float::from(..=0.0),
@@ -1501,7 +1519,7 @@ pub fn abs() -> impl Function + Clone {
 }
 
 /// sine
-pub fn sin() -> impl Function + Clone {
+pub fn sin() -> impl Function {
     PartitionnedMonotonic::periodic_univariate(
         [
             data_type::Float::from(-0.5 * std::f64::consts::PI..=0.5 * std::f64::consts::PI),
@@ -1512,7 +1530,7 @@ pub fn sin() -> impl Function + Clone {
 }
 
 /// cosine
-pub fn cos() -> impl Function + Clone {
+pub fn cos() -> impl Function {
     PartitionnedMonotonic::periodic_univariate(
         [
             data_type::Float::from(0.0..=std::f64::consts::PI),
@@ -1522,7 +1540,7 @@ pub fn cos() -> impl Function + Clone {
     )
 }
 
-pub fn least() -> impl Function + Clone {
+pub fn least() -> impl Function {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1535,7 +1553,7 @@ pub fn least() -> impl Function + Clone {
     ))
 }
 
-pub fn greatest() -> impl Function + Clone {
+pub fn greatest() -> impl Function {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
@@ -1551,17 +1569,17 @@ pub fn greatest() -> impl Function + Clone {
 // String functions
 
 /// Builds the lower `Function`
-pub fn lower() -> impl Function + Clone {
+pub fn lower() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Text::default(), |x| x.to_lowercase())
 }
 
 /// Builds the upper `Function`
-pub fn upper() -> impl Function + Clone {
+pub fn upper() -> impl Function {
     PartitionnedMonotonic::univariate(data_type::Text::default(), |x| x.to_uppercase())
 }
 
 /// Builds the char_length `Function`
-pub fn char_length() -> impl Function + Clone {
+pub fn char_length() -> impl Function {
     Pointwise::univariate(
         data_type::Text::default(),
         data_type::Integer::default(),
@@ -1570,7 +1588,7 @@ pub fn char_length() -> impl Function + Clone {
 }
 
 /// Builds the position `Function`
-pub fn position() -> impl Function + Clone {
+pub fn position() -> impl Function {
     Pointwise::bivariate(
         (data_type::Text::default(), data_type::Text::default()),
         DataType::optional(DataType::integer()),
@@ -1584,12 +1602,12 @@ pub fn position() -> impl Function + Clone {
 }
 
 // Case function
-pub fn case() -> impl Function + Clone {
+pub fn case() -> impl Function {
     Case
 }
 
 // In operator
-pub fn in_list() -> impl Function + Clone {
+pub fn in_list() -> impl Function {
     Polymorphic::from((
         InList(data_type::Integer::default().into()),
         InList(data_type::Float::default().into()),
@@ -1602,16 +1620,16 @@ Aggregation functions
  */
 
 /// Median aggregation
-pub fn median() -> impl Function + Clone {
+pub fn median() -> impl Function {
     null()
 }
 
-pub fn n_unique() -> impl Function + Clone {
+pub fn n_unique() -> impl Function {
     null()
 }
 
 /// First element in group
-pub fn first() -> impl Function + Clone {
+pub fn first() -> impl Function {
     Aggregate::from(
         DataType::Any,
         |values| values.first().unwrap().clone(),
@@ -1623,7 +1641,7 @@ pub fn first() -> impl Function + Clone {
 }
 
 /// Last element in group
-pub fn last() -> impl Function + Clone {
+pub fn last() -> impl Function {
     Aggregate::from(
         DataType::Any,
         |values| values.last().unwrap().clone(),
@@ -1635,7 +1653,7 @@ pub fn last() -> impl Function + Clone {
 }
 
 /// Mean aggregation
-pub fn mean() -> impl Function + Clone {
+pub fn mean() -> impl Function {
     // Only works on types that can be converted to floats
     Aggregate::from(
         data_type::Float::full(),
@@ -1650,12 +1668,12 @@ pub fn mean() -> impl Function + Clone {
 }
 
 /// Aggregate as a list
-pub fn list() -> impl Function + Clone {
+pub fn list() -> impl Function {
     null()
 }
 
 /// Count aggregation
-pub fn count() -> impl Function + Clone {
+pub fn count() -> impl Function {
     Polymorphic::from((
         // Any implementation
         Aggregate::from(
@@ -1679,7 +1697,7 @@ pub fn count() -> impl Function + Clone {
 }
 
 /// Min aggregation
-pub fn min() -> impl Function + Clone {
+pub fn min() -> impl Function {
     Polymorphic::from((
         // Integer implementation
         Aggregate::from(
@@ -1711,7 +1729,7 @@ pub fn min() -> impl Function + Clone {
 }
 
 /// Max aggregation
-pub fn max() -> impl Function + Clone {
+pub fn max() -> impl Function {
     Polymorphic::from((
         // Integer implementation
         Aggregate::from(
@@ -1743,17 +1761,17 @@ pub fn max() -> impl Function + Clone {
 }
 
 /// Quantile aggregation
-pub fn quantile(_p: f64) -> impl Function + Clone {
+pub fn quantile(_p: f64) -> impl Function {
     null()
 }
 
 /// Multi-quantileq aggregation
-pub fn quantiles(_p: Vec<f64>) -> impl Function + Clone {
+pub fn quantiles(_p: Vec<f64>) -> impl Function {
     null()
 }
 
 /// Sum aggregation
-pub fn sum() -> impl Function + Clone {
+pub fn sum() -> impl Function {
     Polymorphic::from((
         // Integer implementation
         Aggregate::from(
@@ -1779,12 +1797,12 @@ pub fn sum() -> impl Function + Clone {
 }
 
 /// Agg groups aggregation
-pub fn agg_groups() -> impl Function + Clone {
+pub fn agg_groups() -> impl Function {
     null()
 }
 
 /// Standard deviation aggregation
-pub fn std() -> impl Function + Clone {
+pub fn std() -> impl Function {
     // Only works on types that can be converted to floats
     Aggregate::from(
         data_type::Float::full(),
@@ -1810,7 +1828,7 @@ pub fn std() -> impl Function + Clone {
 }
 
 /// Variance aggregation
-pub fn var() -> impl Function + Clone {
+pub fn var() -> impl Function {
     // Only works on types that can be converted to floats
     Aggregate::from(
         data_type::Float::full(),
@@ -2019,6 +2037,40 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Float(_)));
+
+        // im(struct{0: float[1, 100], 1: integer{-30, 0, 20}}) = float[-29, 120]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_interval(1.0, 100.0),
+            DataType::integer_values([20, 0, -30]),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_interval(-29.0, 120.0));
+
+        // im(struct{0: float[1, 100], 1: float{-30, 0, 20}}) = float[-29, 120]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_interval(1.0, 100.0),
+            DataType::float_values([20.0, 0.0, -30.0]),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_interval(-29.0, 120.0));
+
+        // im(struct{0: float[1, 10], 1: float{-30, 0, 20}}) = float[-29.0, -20.0] U float[1.0, 10.0] U float[21.0, 30.0]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_interval(1.0, 10.0),
+            DataType::float_values([20.0, 0.0, -30.0]),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::from(data_type::Float::from_intervals([
+                [-29.0, -20.0],
+                [1.0, 10.0],
+                [21.0, 30.0],
+            ]))
+        );
     }
 
     #[test]
@@ -2121,53 +2173,73 @@ mod tests {
     }
 
     #[test]
+    fn test_optional() {
+        println!("Test optional");
+        let optional_greatest = Optional::new(greatest());
+        println!("greatest = {}", greatest());
+        println!("optional greatest = {}", optional_greatest);
+        println!("super_image([0,1] & [-5,2]) = {}", optional_greatest.super_image(&(DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.))).unwrap());
+        println!("super_image(optional([0,1] & [-5,2])) = {}", optional_greatest.super_image(&DataType::optional((DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.)))).unwrap());
+        println!("super_image(optional([0,1]) & [-5,2]) = {}", optional_greatest.super_image(&(DataType::optional(DataType::float_interval(0.,1.)) & DataType::float_interval(-5.,2.))).unwrap());
+        assert_eq!(
+            optional_greatest.super_image(&DataType::optional((DataType::float_interval(0.,1.) & DataType::float_interval(-5.,2.)))).unwrap(),
+            optional_greatest.super_image(&(DataType::optional(DataType::float_interval(0.,1.)) & DataType::float_interval(-5.,2.))).unwrap(),
+        );
+        println!("super_image(text) = {}", optional_greatest.super_image(&DataType::text()).unwrap());
+    }
+
+    #[test]
     fn test_extended() {
         println!("Test extended");
-        let extended_cos = cos().extend(DataType::Any);
+        let extended_cos = Extended::new(cos(), DataType::Any);
         println!("cos = {}", cos());
         println!("extended cos = {}", extended_cos);
-        println!(
-            "extended extended cos = {}",
-            extended_cos.clone().extend(DataType::integer())
-        );
-        println!(
-            "extended extended cos = {}",
-            extended_cos.clone().extend(DataType::Any)
-        );
         assert_eq!(
-            extended_cos.clone().extend(DataType::integer()).co_domain(),
-            DataType::float_range(-1.0..=1.0)
-        );
-        assert_eq!(
-            extended_cos.extend(DataType::Any).co_domain(),
+            extended_cos.co_domain(),
             DataType::optional(DataType::float_range(-1.0..=1.0))
         );
+    }
+
+    #[test]
+    fn test_optional_aggregate_sum() {
+        println!("Test sum aggregate");
+        // Test an aggregate function
+        let sum = sum();
+        println!("sum = {}", sum);
+        let list = DataType::list(DataType::float_interval(-1., 2.), 2, 20);
+        println!("sum({}) = {}", list, sum.super_image(&list).unwrap());
+        assert_eq!(
+            sum.super_image(&list).unwrap(),
+            DataType::float_interval(-20., 40.)
+        );
+        let opt_sum = Optional::new(sum);
+        println!("opt_sum = {}", opt_sum);
+        let list = DataType::optional(DataType::list(DataType::float_interval(-1., 2.), 2, 20));
+        println!("\n{} is_subset_of {} = {}", list, opt_sum.domain(), list.is_subset_of(&opt_sum.domain()));
+        println!("\nopt_sum({}) = {}", list, opt_sum.super_image(&list).unwrap());
+        let list = DataType::list(DataType::optional(DataType::float_interval(-1., 2.)), 2, 20);
+        println!("\n{} is_subset_of {} = {}", list, opt_sum.domain(), list.is_subset_of(&opt_sum.domain()));
+        println!("\nopt_sum({}) = {}", list, opt_sum.super_image(&list).unwrap());
+        let list = DataType::list(DataType::float_interval(-1., 2.), 2, 20);
+        println!("\n{} is_subset_of {} = {}", list, opt_sum.domain(), list.is_subset_of(&opt_sum.domain()));
+        println!("\nopt_sum({}) = {}", list, opt_sum.super_image(&list).unwrap());
+        
     }
 
     #[test]
     fn test_extended_binary() {
         println!("Test extended");
         // Test a bivariate monotonic function
-        let extended_add = plus().extend(DataType::Any & DataType::Any);
+        let extended_add = Extended::new(plus(), DataType::Any & DataType::Any);
         println!("add = {}", plus());
         println!("extended add = {}", extended_add);
-        println!(
-            "extended extended add = {}",
-            extended_add
-                .clone()
-                .extend(DataType::integer() & DataType::integer())
-        );
-        println!(
-            "extended extended add = {}",
-            extended_add.extend(DataType::Any & DataType::Any)
-        );
     }
 
     #[test]
     fn test_extended_plus() {
         println!("Test extended");
         // Test a bivariate monotonic function
-        let extended_plus = plus().extend(DataType::Any & DataType::Any);
+        let extended_plus = Extended::new(plus(), DataType::Any & DataType::Any);
         println!("plus = {}", plus());
         println!("extended plus = {}", extended_plus);
         println!(
@@ -2250,7 +2322,7 @@ mod tests {
     fn test_extended_aggregate_sum() {
         println!("Test extended");
         // Test a bivariate monotonic function
-        let extended_sum = sum().extend(DataType::Any);
+        let extended_sum = Extended::new(sum(), DataType::Any);
         println!("sum = {}", sum());
         println!("sum domain = {}", sum().domain());
         println!("extended sum = {}", extended_sum);
@@ -2587,21 +2659,35 @@ mod tests {
     }
 
     #[test]
-    fn test_bivariate_min() {
-        println!("Test bivariate_min");
+    fn test_least() {
+        println!("Test least");
         let fun = least();
         println!("type = {}", fun);
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
 
-        // im(struct{0: float{1, 100}, 1: float{-30, 0, 20}}) = int{-30, 0, 1, 20}
+        // im(struct{0: float[1, 100], 1: float{-30, 0, 20}}) = float{-30, 0} U float[1, 20]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_values([100.0, 1.0]),
             DataType::float_values([20.0, 0.0, -30.0]),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
-        assert_eq!(im, DataType::float_values([-30.0, 0.0, 1.0, 20.0]));
+        assert_eq!(im, DataType::float_values([-30.0, 0.0, 1.0, 20.]));
+
+        // im(struct{0: float[1, 100], 1: float{-30, 0, 20}}) = float{-30, 0} U float[1, 20]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_interval(1.0, 100.),
+            DataType::float_values([20.0, 0.0, -30.0]),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::float_values([-30.0, 0.0])
+                .super_union(&DataType::float_interval(1., 20.))
+                .unwrap()
+        );
 
         // im(struct{0: float[1, +∞), 1: float(-∞, 100]}) = float(-∞, 100]
         let set: DataType = DataType::structured_from_data_types([
@@ -2630,7 +2716,7 @@ mod tests {
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::float_max(10.0));
 
-        // im(struct{0: float[1 10], 1: int[100, +∞)}) = float[1 10]
+        // im(struct{0: float[1 10], 1: int[100, 200]}) = float[1 10]
         let set: DataType = DataType::structured_from_data_types([
             DataType::float_interval(1., 10.),
             DataType::integer_interval(100, 200),
@@ -2656,5 +2742,91 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::float_max(10.0));
+    }
+
+    #[test]
+    fn test_greatest() {
+        println!("Test greatest");
+        let fun = greatest();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        // im(struct{0: float{1, 100}, 1: float{-30, 0, 20}}) = float{1, 20, 100}
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_values([100.0, 1.0]),
+            DataType::float_values([20.0, 0.0, -30.0]),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_values([1., 20., 100.]));
+
+        // im(struct{0: float[1, 100], 1: float{-30, 0, 20}}) = float[1, 100]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_interval(1.0, 100.0),
+            DataType::float_values([20.0, 0.0, -30.0]),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_interval(1.0, 100.));
+
+        // im(struct{0: float[1, +∞), 1: float(-∞, 100]}) = float[1, ∞)
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_min(1.0),
+            DataType::float_max(100.0),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_min(1.0));
+
+        // im(struct{0: float{1}, 1: float{100}}) = int{100}
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_value(1.0),
+            DataType::float_value(100.0),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_value(100.0));
+
+        // im(struct{0: float(-∞, 10], 1: float[100, +∞)}) = float[100, +∞)
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_max(10.0),
+            DataType::float_min(100.0),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_min(100.0));
+
+        // im(struct{0: float[1 10], 1: int[100, 200]}) = float[1 10]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_interval(1., 10.),
+            DataType::integer_interval(100, 200),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::integer_interval(100, 200));
+
+        // im(struct{0: int[1 10], 1: float[100, +∞)}) = int[1, 10]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::integer_interval(1, 10),
+            DataType::float_min(100.0),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::float_min(100.0));
+
+        // im(struct{0: float(-∞, 10], 1: int[2 100]}) = float(-∞, 10]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_max(10.0),
+            DataType::integer_interval(2, 100),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::float_interval(2., 10.)
+                .super_union(&DataType::integer_interval(10, 100))
+                .unwrap()
+        );
     }
 }

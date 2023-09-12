@@ -1,6 +1,6 @@
 use super::{aggregate::Aggregate, function::Function};
 use crate::data_type::{
-    function::{self, Extensible},
+    function::{self, Optional, Extended},
     DataType,
 };
 use paste::paste;
@@ -13,9 +13,9 @@ macro_rules! function_implementations {
             // A (thread local) global map
             thread_local! {
                 static FUNCTION_IMPLEMENTATIONS: FunctionImplementations = FunctionImplementations {
-                    $([< $unary:snake >]: Rc::new(function::[< $unary:snake >]().extend(DataType::Any)),)*
-                    $([< $binary:snake >]: Rc::new(function::[< $binary:snake >]().extend(DataType::Any & DataType::Any)),)*
-                    $([< $ternary:snake >]: Rc::new(function::[< $ternary:snake >]().extend(DataType::Any & DataType::Any & DataType::Any)),)*
+                    $([< $unary:snake >]: Rc::new(Optional::new(function::[< $unary:snake >]())),)*
+                    $([< $binary:snake >]: Rc::new(Optional::new(function::[< $binary:snake >]())),)*
+                    $([< $ternary:snake >]: Rc::new(Optional::new(function::[< $ternary:snake >]())),)*
                 };
             }
 
@@ -39,9 +39,9 @@ macro_rules! function_implementations {
     };
 }
 
-// All functions: Opposite, Not, Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Exp, Ln, Abs, Sin, Cos, CharLength, Lower, Upper, Position, Md5, Concat
+// All functions:
 // Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, CharLength, Lower, Upper, Md5
-// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position, Concat
+// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position, Concat, Greatest, Least
 // Ternary: Case, Position
 // Nary: Concat
 function_implementations!(
@@ -94,7 +94,7 @@ macro_rules! aggregate_implementations {
             // A (thread local) global map
             thread_local! {
                 static AGGREGATE_IMPLEMENTATIONS: AggregateImplementations = AggregateImplementations {
-                    $([< $implementation:snake >]: Rc::new(function::[< $implementation:snake >]().extend(DataType::Any)),)*
+                    $([< $implementation:snake >]: Rc::new(Optional::new(function::[< $implementation:snake >]())),)*
                 };
             }
 

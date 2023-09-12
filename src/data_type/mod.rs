@@ -61,10 +61,10 @@ use std::{
 };
 
 use crate::{
+    hierarchy::{Hierarchy, Path},
     namer,
     types::{And, Or},
     visitor::{self, Acceptor},
-    hierarchy::{Hierarchy, Path}
 };
 use injection::{Base, InjectInto, Injection};
 use intervals::{Bound, Intervals};
@@ -871,11 +871,11 @@ impl Struct {
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
     /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
     pub fn hierarchy(&self) -> Hierarchy<&DataType> {
-        self.iter()
-        .fold(
-            self.iter().map(|(s, d)| (vec![s.clone()], d.as_ref())).collect(),
-            |h, (s, d)|
-            h.chain(d.hierarchy().prepend(&[s.clone()]))
+        self.iter().fold(
+            self.iter()
+                .map(|(s, d)| (vec![s.clone()], d.as_ref()))
+                .collect(),
+            |h, (s, d)| h.chain(d.hierarchy().prepend(&[s.clone()])),
         )
     }
 }
@@ -913,12 +913,29 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
         let field: String = other.0.into();
         let data_type: Rc<DataType> = other.1.into();
         // Remove existing elements with the same name
-        let mut fields: Vec<(String, Rc<DataType>)> = self
-            .fields
-            .iter()
-            .filter_map(|(f, t)| (&field != f).then_some((f.clone(), t.clone())))
-            .collect();
-        fields.push((field, data_type));
+        let (mut fields, push_other): (Vec<_>, _) =
+            self.fields.iter().fold((vec![], true), |(v, b), (f, t)| {
+                let mut v = v;
+                let mut b = b;
+                if &field != f {
+                    v.push((f.clone(), t.clone()));
+                } else {
+                    b = false;
+                    v.push((
+                        f.clone(),
+                        Rc::new(
+                            t.as_ref()
+                                .clone()
+                                .super_intersection(data_type.as_ref())
+                                .unwrap(),
+                        ),
+                    ));
+                }
+                (v, b)
+            });
+        if push_other {
+            fields.push((field, data_type))
+        }
         Struct::new(fields.into())
     }
 }
@@ -935,11 +952,7 @@ impl<T: Into<Rc<DataType>>> And<(T,)> for Struct {
 impl And<Struct> for Struct {
     type Product = Struct;
     fn and(self, other: Struct) -> Self::Product {
-        let mut result = self;
-        for field in other.fields() {
-            result = result.and(field.clone())
-        }
-        result
+        self.super_intersection(&other).unwrap()
     }
 }
 
@@ -948,8 +961,7 @@ impl And<DataType> for Struct {
     fn and(self, other: DataType) -> Self::Product {
         // Simplify in the case of struct and Unit
         match other {
-            //DataType::Unit(_u) => self, // TODO remove that ?
-            DataType::Struct(s) => self.and(s),
+            DataType::Struct(s) => self.super_intersection(&s).unwrap(), //self.and(s),
             other => self.and((other,)),
         }
     }
@@ -1156,11 +1168,11 @@ impl Union {
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
     /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
     pub fn hierarchy(&self) -> Hierarchy<&DataType> {
-        self.iter()
-        .fold(
-            self.iter().map(|(s, d)| (vec![s.clone()], d.as_ref())).collect(),
-            |h, (s, d)|
-            h.chain(d.hierarchy().prepend(&[s.clone()]))
+        self.iter().fold(
+            self.iter()
+                .map(|(s, d)| (vec![s.clone()], d.as_ref()))
+                .collect(),
+            |h, (s, d)| h.chain(d.hierarchy().prepend(&[s.clone()])),
         )
     }
 }
@@ -1320,7 +1332,7 @@ impl Variant for Union {
             && self
                 .fields
                 .iter()
-                .all(|(f, t)| t.is_subset_of(&self.data_type(f)))
+                .all(|(f, t)| t.is_subset_of(&other.data_type(f)))
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
@@ -2326,7 +2338,7 @@ impl DataType {
     }
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
     /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
-    fn hierarchy(&self) -> Hierarchy<&DataType> {
+    pub fn hierarchy(&self) -> Hierarchy<&DataType> {
         for_all_variants!(
             self,
             x,
@@ -2724,8 +2736,8 @@ impl DataType {
         )))
     }
 
-    pub fn array<S: AsRef<[usize]>>(data_type: DataType, shape: &[usize]) -> DataType {
-        DataType::from(Array::from((data_type, shape)))
+    pub fn array<S: AsRef<[usize]>>(data_type: DataType, shape: S) -> DataType {
+        DataType::from(Array::from((data_type, shape.as_ref())))
     }
 
     pub fn function(domain: DataType, co_domain: DataType) -> DataType {
@@ -2841,7 +2853,7 @@ impl And<DataType> for DataType {
         // Simplify in the case of struct and Unit
         match self {
             DataType::Null => DataType::Null,
-            //DataType::Unit(_u) => other, // TODO: reactivate ?
+            DataType::Unit(_) => other,
             DataType::Struct(s) => s.and(other).into(),
             s => Struct::from_data_type(s).and(other).into(),
         }
@@ -2943,14 +2955,110 @@ impl<'a> Acceptor<'a> for DataType {
     }
 }
 
+// Visitors
+
+/// A Visitor for the type Expr
+pub trait Visitor<'a, T: Clone> {
+    // Composed types
+    fn structured(&self, fields: Vec<(String, T)>) -> T;
+    fn union(&self, fields: Vec<(String, T)>) -> T;
+    fn optional(&self, data_type: T) -> T;
+    fn list(&self, data_type: T, size: &'a Integer) -> T;
+    fn set(&self, data_type: T, size: &'a Integer) -> T;
+    fn array(&self, data_type: T, shape: &'a [usize]) -> T;
+    fn function(&self, domain: T, co_domain: T) -> T;
+    fn primitive(&self, acceptor: &'a DataType) -> T;
+}
+
+/// Implement a specific visitor to dispatch the dependencies more easily
+impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
+    fn visit(&self, acceptor: &'a DataType, dependencies: visitor::Visited<'a, DataType, T>) -> T {
+        match acceptor {
+            DataType::Struct(s) => self.structured(s.fields.iter().map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone())).collect()),
+            DataType::Union(u) => self.union(u.fields.iter().map(|(s, t)| (s.clone(), dependencies.get(t.as_ref()).clone())).collect()),
+            DataType::Optional(o) => self.optional(dependencies.get(o.data_type()).clone()),
+            DataType::List(l) => self.list(dependencies.get(l.data_type()).clone(), l.size()),
+            DataType::Set(s) => self.set(dependencies.get(s.data_type()).clone(), s.size()),
+            DataType::Array(a) => self.array(dependencies.get(a.data_type()).clone(), a.shape()),
+            DataType::Function(f) => self.function(dependencies.get(f.domain()).clone(), dependencies.get(f.co_domain()).clone()),
+            primitive => self.primitive(primitive),
+        }
+    }
+}
+
+/// Implement a LiftOptionalVisitor
+struct FlattenOptionalVisitor;
+
+impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
+    fn structured(&self, fields: Vec<(String, (bool, DataType))>) -> (bool, DataType) {
+        fields.into_iter().fold(
+            (false, DataType::unit()),
+            |a, (s, (o, d))| (a.0 || o, a.1 & (s, d))
+        )
+    }
+
+    fn union(&self, fields: Vec<(String, (bool, DataType))>) -> (bool, DataType) {
+        fields.into_iter().fold(
+            (false, DataType::Null),
+            |a, (s, (o, d))| (a.0 || o, a.1 | (s, d))
+        )
+    }
+
+    fn optional(&self, data_type: (bool, DataType)) -> (bool, DataType) {
+        (true, data_type.1)
+    }
+
+    fn list(&self, data_type: (bool, DataType), size: &'a Integer) -> (bool, DataType) {
+        (data_type.0, List::new(Rc::new(data_type.1), size.clone()).into())
+    }
+
+    fn set(&self, data_type: (bool, DataType), size: &'a Integer) -> (bool, DataType) {
+        (data_type.0, Set::new(Rc::new(data_type.1), size.clone()).into())
+    }
+
+    fn array(&self, data_type: (bool, DataType), shape: &'a [usize]) -> (bool, DataType) {
+        (data_type.0, DataType::array(data_type.1, shape))
+    }
+
+    fn function(&self, domain: (bool, DataType), co_domain: (bool, DataType)) -> (bool, DataType) {
+        (domain.0 || co_domain.0, DataType::function(domain.1, co_domain.1))
+    }
+
+    fn primitive(&self, acceptor: &'a DataType) -> (bool, DataType) {
+        (false, acceptor.clone())
+    }
+}
+
+impl DataType {
+    /// Return a type with non-optional subtypes, it may be optional if one of the 
+    pub fn flatten_optional(&self) -> DataType {
+        let (is_optional, flat) = self.accept(FlattenOptionalVisitor);
+        if is_optional {
+            DataType::optional(flat)
+        } else {
+            flat
+        }
+    }
+}
+
+// Return the bounds of a DataType if possible
+impl DataType {
+    pub fn absolute_upper_bound(&self) -> Option<f64> {
+        match self {
+            DataType::Boolean(b) => Some(if *b.max()? {1.} else {0.}),
+            DataType::Integer(i) => Some(f64::max(i.min()?.abs() as f64, i.max()?.abs() as f64)),
+            DataType::Float(f) => Some(f64::max(f.min()?.abs(), f.max()?.abs())),
+            DataType::Optional(o) => o.data_type().absolute_upper_bound(),
+            _ => None
+        }
+    }
+}
+
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
-    use statrs::statistics::Data;
-
     use super::*;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_null() {
@@ -3061,6 +3169,21 @@ mod tests {
         );
         assert_eq!(empty_interval, DataType::Null);
         assert_eq!(DataType::Null, empty_interval);
+
+        // structs
+        let s1 = DataType::structured([("a", DataType::float()), ("b", DataType::float())]);
+        let s2 = DataType::structured([("a", DataType::boolean()), ("b", DataType::integer())]);
+        assert!(s1 != s2);
+
+        // struct of struct
+        let ss1 = DataType::structured([("table1", s1.clone()), ("table2", s2.clone())]);
+        let ss2 = DataType::structured([("table1", s1.clone()), ("table2", s1.clone())]);
+        assert!(ss1 != ss2);
+
+        // union of struct
+        let ss1 = DataType::union([("table1", s1.clone()), ("table2", s2.clone())]);
+        let ss2 = DataType::union([("table1", s1.clone()), ("table2", s1.clone())]);
+        assert!(ss1 != ss2);
     }
 
     #[test]
@@ -3324,8 +3447,17 @@ mod tests {
     #[test]
     fn test_struct_and() {
         let a = Struct::default()
+            .and(("a", DataType::integer_interval(-10, 10)))
+            .and(("a", DataType::float_interval(1., 3.)));
+        println!("a = {a}");
+        assert_eq!(
+            a,
+            Struct::default().and(("a", DataType::float_values([1., 2., 3.])))
+        );
+
+        let a = Struct::default()
             .and(DataType::float())
-            .and(("a", DataType::integer()))
+            .and(("a", DataType::integer_interval(-10, 10)))
             .and(DataType::float())
             .and(DataType::float())
             .and(DataType::float());
@@ -3333,14 +3465,131 @@ mod tests {
             .and(("b", DataType::integer()))
             .and(("c", DataType::float()))
             .and(("d", DataType::float()))
-            .and(("d", DataType::float()));
+            .and(("d", DataType::float()))
+            .and(("a", DataType::float_interval(1., 3.)));
+        println!("a = {a}");
+        println!("b = {b}");
+
+        // a and b
         let c = a.clone().and(b.clone());
+        let true_c = Struct::default()
+            .and(("0", DataType::float()))
+            .and(("1", DataType::float()))
+            .and(("2", DataType::float()))
+            .and(("3", DataType::float()))
+            .and(("a", DataType::float_values([1., 2., 3.])))
+            .and(("b", DataType::integer()))
+            .and(("c", DataType::float()))
+            .and(("d", DataType::float()));
+        println!("\na and b = {c}");
+        println!("\na and b = {true_c}");
+        assert_eq!(c, true_c);
+
+        // a and unit
         let d = a.clone().and(DataType::unit());
-        let e = a.and(DataType::Struct(b));
-        println!("{c}");
-        println!("{d}");
-        println!("{e}");
+        println!("\na and unit = {d}");
+        assert_eq!(
+            d,
+            Struct::default()
+                .and(("0", DataType::float()))
+                .and(("a", DataType::integer_interval(-10, 10)))
+                .and(("1", DataType::float()))
+                .and(("2", DataType::float()))
+                .and(("3", DataType::float()))
+                .and(("4", DataType::unit()))
+        );
+
+        // a and DataType(b)
+        let e = a.clone().and(DataType::Struct(b.clone()));
+        println!("\na and b = {e}");
         assert_eq!(e.fields().len(), 8);
+        assert_eq!(
+            e,
+            Struct::default()
+                .and(("0", DataType::float()))
+                .and(("1", DataType::float()))
+                .and(("2", DataType::float()))
+                .and(("3", DataType::float()))
+                .and(("a", DataType::float_values([1., 2., 3.])))
+                .and(("b", DataType::integer()))
+                .and(("c", DataType::float()))
+                .and(("d", DataType::float()))
+        );
+
+        //struct(table1: a) and b
+        let f = DataType::structured([("table1", DataType::Struct(a.clone()))])
+            .and(DataType::Struct(b.clone()));
+        println!("\na and struct(table1: b) = {f}");
+        assert_eq!(
+            f,
+            DataType::structured([
+                (
+                    "table1",
+                    DataType::structured([
+                        ("0", DataType::float()),
+                        ("a", DataType::integer_interval(-10, 10)),
+                        ("1", DataType::float()),
+                        ("2", DataType::float()),
+                        ("3", DataType::float())
+                    ])
+                ),
+                ("b", DataType::integer()),
+                ("c", DataType::float()),
+                ("d", DataType::float()),
+                ("a", DataType::float_interval(1., 3.))
+            ])
+        );
+
+        //struct(table1: a) and struct(table1: b)
+        let g = DataType::structured([("table1", DataType::Struct(a.clone()))]).and(
+            DataType::structured([("table1", DataType::Struct(b.clone()))]),
+        );
+        println!("\nstruct(table1: a) and struct(table1: b) = {g}");
+        assert_eq!(
+            g,
+            DataType::structured([(
+                "table1",
+                DataType::structured([
+                    ("0", DataType::float()),
+                    ("1", DataType::float()),
+                    ("2", DataType::float()),
+                    ("3", DataType::float()),
+                    ("a", DataType::float_values([1., 2., 3.])),
+                    ("b", DataType::integer()),
+                    ("c", DataType::float()),
+                    ("d", DataType::float()),
+                ])
+            )])
+        );
+
+        // struct(table1: a) and struct(table2: b)
+        let h = DataType::structured([("table1", DataType::Struct(a))])
+            .and(DataType::structured([("table2", DataType::Struct(b))]));
+        println!("\nstruct(table1: a) and struct(table2: b) = {h}");
+        assert_eq!(
+            h,
+            DataType::structured([
+                (
+                    "table1",
+                    DataType::structured([
+                        ("0", DataType::float()),
+                        ("a", DataType::integer_interval(-10, 10)),
+                        ("1", DataType::float()),
+                        ("2", DataType::float()),
+                        ("3", DataType::float())
+                    ])
+                ),
+                (
+                    "table2",
+                    DataType::structured([
+                        ("b", DataType::integer()),
+                        ("c", DataType::float()),
+                        ("d", DataType::float()),
+                        ("a", DataType::float_interval(1., 3.))
+                    ])
+                )
+            ])
+        );
     }
 
     #[test]
@@ -3357,24 +3606,16 @@ mod tests {
             & ("c", DataType::boolean())
             & ("d", DataType::float());
         println!("b = {b}");
-        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 7);
+        assert_eq!(Struct::try_from(b).unwrap().fields.len(), 6);
     }
 
     #[test]
     fn test_index() {
         let dt = DataType::float();
         assert_eq!(dt[Vec::<String>::new()], dt);
-        let dt1 = DataType::structured([
-            ("a", DataType::integer()),
-            ("b", DataType::boolean())
-        ]);
-        let dt2 = DataType::structured([
-            ("a", DataType::float()),
-            ("c", DataType::integer())
-        ]);
-        let dt = DataType::Null
-        | ("table1", dt1.clone())
-        | ("table2", dt2.clone());
+        let dt1 = DataType::structured([("a", DataType::integer()), ("b", DataType::boolean())]);
+        let dt2 = DataType::structured([("a", DataType::float()), ("c", DataType::integer())]);
+        let dt = DataType::Null | ("table1", dt1.clone()) | ("table2", dt2.clone());
         assert_eq!(dt["table1"], dt1);
         assert_eq!(dt["table2"], dt2);
         assert_eq!(dt[["table1", "a"]], DataType::integer());
@@ -3440,9 +3681,18 @@ mod tests {
         let union_c = Union::null().or(type_a.clone()).or(type_b.clone());
         let union_a = Union::from_field("0", type_a);
         let union_b = Union::from_field("1", type_b);
-        println!("a = {}, b = {}, c = {}", &union_a, &union_b, &union_c);
+        println!("a = {}, b = {}, c = {}\n", &union_a, &union_b, &union_c);
         assert!(union_a.is_subset_of(&union_c));
         assert!(union_b.is_subset_of(&union_c));
+
+        let union1 = Union::null()
+            .or(("a", DataType::float()))
+            .or(("b", DataType::float()));
+        let union2 = Union::null()
+            .or(("a", DataType::boolean()))
+            .or(("b", DataType::integer()));
+        assert!(union2.is_subset_of(&union1));
+        assert!(!union1.is_subset_of(&union2));
     }
 
     #[test]
@@ -3506,6 +3756,13 @@ mod tests {
 
     #[test]
     fn test_intersection() {
+        let left = DataType::float_interval(1., 3.);
+        let right = DataType::integer_interval(-10, 10);
+        let inter = left.super_intersection(&right).unwrap();
+        println!("{left} ∩ {right} = {inter}");
+        assert_eq!(inter, DataType::integer_interval(1, 3));
+        assert_eq!(inter, right.super_intersection(&left).unwrap());
+
         let left = DataType::integer_interval(0, 10);
         let right = DataType::float_interval(5., 12.);
 
@@ -3869,26 +4126,16 @@ mod tests {
     }
 
     #[test]
-    fn test_hierarchy(){
+    fn test_hierarchy() {
         let dt_float = DataType::float();
         let dt_int = DataType::integer();
-        let struct_dt = DataType::structured([
-            ("a", DataType::float()),
-            ("b", DataType::integer()),
-        ]);
+        let struct_dt =
+            DataType::structured([("a", DataType::float()), ("b", DataType::integer())]);
         println!("{}", struct_dt.hierarchy());
-        let correct_hierarchy = Hierarchy::from([
-            (vec!["a"], &dt_float),
-            (vec!["b"], &dt_int),
-        ]);
-        assert_eq!(
-            struct_dt.hierarchy(),
-            correct_hierarchy
-        );
-        let struct_dt2 = DataType::structured([
-            ("a", DataType::integer()),
-            ("c", DataType::integer()),
-        ]);
+        let correct_hierarchy = Hierarchy::from([(vec!["a"], &dt_float), (vec!["b"], &dt_int)]);
+        assert_eq!(struct_dt.hierarchy(), correct_hierarchy);
+        let struct_dt2 =
+            DataType::structured([("a", DataType::integer()), ("c", DataType::integer())]);
         let union_dt = DataType::union([
             ("table1", struct_dt.clone()),
             ("table2", struct_dt2.clone()),
@@ -3904,5 +4151,17 @@ mod tests {
         let h = union_dt.hierarchy();
         println!("{}", h);
         assert_eq!(h, correct_hierarchy);
+    }
+
+    #[test]
+    fn test_flatten_optional() {
+        let a = DataType::unit() & DataType::float() & DataType::optional(DataType::integer_interval(0, 10));
+        println!("a = {a}");
+        println!("flat opt a = {}", a.flatten_optional());
+        assert_eq!(a.flatten_optional(), DataType::optional(DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)));
+        let b = DataType::unit() & DataType::float() & DataType::integer_interval(0, 10);
+        println!("b = {b}");
+        println!("flat opt b = {}", b.flatten_optional());
+        assert_eq!(b.flatten_optional(), DataType::unit() & DataType::float() & DataType::integer_interval(0, 10));
     }
 }
