@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `Union::is_subset_of` [MR106](https://github.com/Qrlew/qrlew/pull/106)
 ### Added
-- support for `expr::Function::Or` in `DataType::filter_by_function` [MR108](https://github.com/Qrlew/qrlew/pull/108)
+- support for `expr::Function::Or` in `DataType::filter_by_function` [MR110](https://github.com/Qrlew/qrlew/pull/110)
 
 
 ### Fixed
