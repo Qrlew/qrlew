@@ -113,6 +113,7 @@ impl And<Split> for Split {
     type Product = Split;
 
     fn and(self, other: Split) -> Self::Product {
+        println!("DEBUG split {self} and {other}");
         match (self, other) {
             (Split::Map(s), Split::Map(o)) => s.and(o).into(),
             (Split::Map(s), Split::Reduce(o)) => s.and(o).into(),
@@ -588,8 +589,8 @@ impl And<Expr> for Reduce {
             .columns()
             .into_iter()
             .map(|c| {
-                let column = AggregateColumn::from(c.clone());
-                (namer::name_from_content(FIELD, &column), column.into())
+                let column = Expr::Column(c.clone());
+                (namer::name_from_content(FIELD, &column), column)
             })
             .chain(
                 group_by
@@ -754,9 +755,9 @@ mod tests {
         let reduce = reduce.and(Reduce::new(vec![], vec![Expr::col("z")], None));
         println!("reduce and group by = {}", reduce);
         assert_eq!(reduce.len(), 1);
-        let reduce = reduce.into_map();
-        println!("reduce into map = {}", reduce);
-        assert_eq!(reduce.len(), 2);
+        let map = reduce.into_map();
+        println!("reduce into map = {}", map);
+        assert_eq!(map.len(), 2);
     }
 
     #[test]
