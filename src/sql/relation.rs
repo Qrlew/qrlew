@@ -529,6 +529,8 @@ impl<'a> TryFrom<QueryWithRelations<'a>> for Relation {
         let QueryWithRelations(query, relations) = value;
         // Visit the query to get query names
         let query_names = query.accept(IntoQueryNamesVisitor);
+        println!("DEBUG relations {relations}");
+        println!("DEBUG query_names {query_names}");
         // Visit for conversion
         query
             .accept(TryIntoRelationVisitor::new(relations, query_names))

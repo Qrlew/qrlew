@@ -252,7 +252,6 @@ impl<P: Path, T: Clone> Index<P> for Hierarchy<T> where T: fmt::Display {
     type Output = T;
 
     fn index(&self, index: P) -> &Self::Output {
-        println!("DEBUG hierarchy {} \nentry {:?}", self, index.clone().path());
         self.get(&index.path()).unwrap()
     }
 }
