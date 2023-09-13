@@ -153,7 +153,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
 
     /// Add a group by
     pub fn group_by(mut self, expr: Expr) -> Self {
-        self.split = self.split.and(Split::group_by(expr.into()).into());
+        self.split = self.split.and(Split::group_by(expr).into());
         self
     }
 
@@ -495,7 +495,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     /// Add a group by column
     pub fn with_group_by_column<S: Into<String>>(mut self, column: S) -> Self {
         let name = column.into();
-        self = self.group_by(Expr::Aggregate(expr::Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col(name.clone())))));
+        self = self.group_by(Expr::col(name.clone()));
         self = self.with((name.clone(), AggregateColumn::from(name)));
         self
     }
