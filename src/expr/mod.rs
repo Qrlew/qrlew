@@ -735,6 +735,18 @@ impl AggregateColumn {
             expr: Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::Column(column))))
         }
     }
+    /// Access aggregate
+    pub fn aggregate(&self) -> &aggregate::Aggregate {
+        &self.aggregate
+    }
+    /// Access column
+    pub fn column(&self) -> &Column {
+        &self.column
+    }
+    /// A constructor
+    pub fn col<S: Into<String>>(field: S) -> AggregateColumn {
+        AggregateColumn::first(field)
+    }
 }
 
 impl Deref for AggregateColumn {
@@ -748,6 +760,33 @@ impl Deref for AggregateColumn {
 impl From<AggregateColumn> for Expr {
     fn from(value: AggregateColumn) -> Self {
         value.expr
+    }
+}
+
+impl TryFrom<Expr> for AggregateColumn {
+    type Error = Error;
+
+    fn try_from(value: Expr) -> result::Result<Self, Self::Error> {
+        match value {
+            Expr::Column(column) => Ok(column.into()),
+            Expr::Aggregate(Aggregate {
+                aggregate,
+                argument,
+            }) => {
+                if let Expr::Column(column) = argument.as_ref() {
+                    Ok(AggregateColumn::new(aggregate, column.clone()))
+                } else {
+                    Err(Error::invalid_conversion(argument, "Column"))
+                }
+            },
+            _ => Err(Error::invalid_conversion(value, "AggregateColumn")),
+        }
+    }
+}
+
+impl From<Column> for AggregateColumn {
+    fn from(value: Column) -> Self {
+        AggregateColumn::new(aggregate::Aggregate::First, value)
     }
 }
 

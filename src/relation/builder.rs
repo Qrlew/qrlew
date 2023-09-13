@@ -10,7 +10,7 @@ use crate::{
     ast,
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    expr::{self, Expr, Identifier, Split, aggregate},
+    expr::{self, Expr, Identifier, Split, aggregate, AggregateColumn},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
@@ -127,7 +127,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self.split = self.split.map_last(|split| match split {
             Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
             Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
-                reduce.named_exprs,
+                reduce.named_aggregates,
                 reduce.group_by,
                 Some(Split::filter(filter.into())),
             )),
@@ -446,7 +446,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         self.split = self.split.map_last(|split| match split {
             Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
             Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
-                reduce.named_exprs,
+                reduce.named_aggregates,
                 reduce.group_by,
                 Some(Split::filter(filter.into())),
             )),
@@ -482,8 +482,8 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
                 schema
                     .into_iter()
                     .zip(aggregate)
-                    .filter_map(|(field, expr)| {
-                        predicate(field.name()).then_some((field.name().to_string(), expr))
+                    .filter_map(|(field, aggregate)| {
+                        predicate(field.name()).then_some((field.name().to_string(), aggregate))
                     }),
             )
             .input(input);
@@ -542,17 +542,17 @@ impl<RequireInput, S: Into<String>> With<(S, Expr)> for ReduceBuilder<RequireInp
     }
 }
 
-impl<RequireInput, S: Into<String>> With<(aggregate::Aggregate, S)> for ReduceBuilder<RequireInput> {
-    fn with(self, (agg, col): (aggregate::Aggregate, S)) -> Self {
+impl<RequireInput> With<AggregateColumn> for ReduceBuilder<RequireInput> {
+    fn with(self, aggregate: AggregateColumn) -> Self {
         let col = col.into();
         let name = namer::name_from_content(FIELD, &(&agg, &col));
         self.with((name, agg, col))
     }
 }
 
-impl<RequireInput, S: Into<String>> With<(S, aggregate::Aggregate, S)> for ReduceBuilder<RequireInput> {
-    fn with(mut self, (name, agg, col): (S, aggregate::Aggregate, S)) -> Self {
-        self.split = self.split.and(Split::reduce(name, agg, col).into());
+impl<RequireInput, S: Into<String>> With<(S, AggregateColumn)> for ReduceBuilder<RequireInput> {
+    fn with(mut self, (name, aggregate): (S, AggregateColumn)) -> Self {
+        self.split = self.split.and(Split::reduce(name, aggregate).into());
         self
     }
 }
@@ -611,7 +611,7 @@ impl Ready<Reduce> for ReduceBuilder<WithInput> {
             // Build the Relation
             Ok(Reduce::new(
                 name,
-                reduce.named_exprs,
+                reduce.named_aggregates,
                 reduce.group_by,
                 input,
             ))

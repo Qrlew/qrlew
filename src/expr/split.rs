@@ -282,28 +282,28 @@ impl And<Self> for Map {
     type Product = Self;
 
     fn and(self, other: Self) -> Self::Product {
-        match (self.reduce, other.reduce) {
-            (None, None) => Map::new(
-                self.named_exprs
+        match (self, self.reduce, other, other.reduce) {
+            (left, None, right, None) => Map::new(
+                left.named_exprs
                     .into_iter()
-                    .chain(other.named_exprs)
+                    .chain(right.named_exprs)
                     .collect(),
-                self.filter.into_iter().chain(other.filter).last(),
-                self.order_by.into_iter().chain(other.order_by).collect(),
+                left.filter.into_iter().chain(right.filter).last(),
+                left.order_by.into_iter().chain(right.order_by).collect(),
                 None,
             ),
-            (Some(s), Some(o)) => Map::new(
-                self.named_exprs
+            (left_map, Some(left_red), right_map, Some(right_red)) => Map::new(
+                left_map.named_exprs
                     .into_iter()
-                    .chain(other.named_exprs)
+                    .chain(right_map.named_exprs)
                     .collect(),
-                self.filter.into_iter().chain(other.filter).last(),
-                self.order_by.into_iter().chain(other.order_by).collect(),
-                Some(s.and(*o)),
+                    left_map.filter.into_iter().chain(right_map.filter).last(),
+                    left_map.order_by.into_iter().chain(right_map.order_by).collect(),
+                Some(left_red.and(*right_red)),
             ),
-            (None, Some(o)) => {
-                let (reduce, named_exprs) = self.named_exprs.into_iter().fold(
-                    (*o, vec![]),
+            (comp_map, Some(comp_red), simpl_map, None) | (simpl_map, None, comp_map, Some(comp_red)) => {
+                let (reduce, named_exprs) = simpl_map.named_exprs.into_iter().fold(
+                    (*comp_red, vec![]),
                     |(reduce, mut named_exprs), (name, expr)| {
                         let (reduce, expr) = reduce.and(expr);
                         named_exprs.push((name, expr));
@@ -311,45 +311,14 @@ impl And<Self> for Map {
                     },
                 );
                 let (reduce, filter) =
-                    self.filter
-                        .into_iter()
-                        .fold((reduce, None), |(reduce, _), expr| {
-                            let (reduce, expr) = reduce.and(expr);
-                            (reduce, Some(expr))
-                        });
-                let (reduce, order_by) = self.order_by.into_iter().fold(
-                    (reduce, vec![]),
-                    |(reduce, mut order_by), (expr, asc)| {
-                        let (reduce, expr) = reduce.and(expr);
-                        order_by.push((expr, asc));
-                        (reduce, order_by)
-                    },
-                );
-                Map::new(
-                    named_exprs.into_iter().chain(other.named_exprs).collect(),
-                    filter.into_iter().chain(other.filter).last(),
-                    order_by.into_iter().chain(other.order_by).collect(),
-                    Some(reduce),
-                )
-            }
-            (Some(s), None) => {
-                let (reduce, named_exprs) = other.named_exprs.into_iter().fold(
-                    (*s, vec![]),
-                    |(reduce, mut named_exprs), (name, expr)| {
-                        let (reduce, expr) = reduce.and(expr);
-                        named_exprs.push((name, expr));
-                        (reduce, named_exprs)
-                    },
-                );
-                let (reduce, filter) =
-                    other
+                simpl_map
                         .filter
                         .into_iter()
                         .fold((reduce, None), |(reduce, _), expr| {
                             let (reduce, expr) = reduce.and(expr);
                             (reduce, Some(expr))
                         });
-                let (reduce, order_by) = other.order_by.into_iter().fold(
+                let (reduce, order_by) = simpl_map.order_by.into_iter().fold(
                     (reduce, vec![]),
                     |(reduce, mut order_by), (expr, asc)| {
                         let (reduce, expr) = reduce.and(expr);
@@ -358,9 +327,9 @@ impl And<Self> for Map {
                     },
                 );
                 Map::new(
-                    self.named_exprs.into_iter().chain(named_exprs).collect(),
-                    self.filter.into_iter().chain(filter).last(),
-                    self.order_by.into_iter().chain(order_by).collect(),
+                    comp_map.named_exprs.into_iter().chain(named_exprs).collect(),
+                    comp_map.filter.into_iter().chain(filter).last(),
+                    comp_map.order_by.into_iter().chain(order_by).collect(),
                     Some(reduce),
                 )
             }
@@ -542,67 +511,43 @@ impl And<Self> for Reduce {
     type Product = Self;
 
     fn and(self, other: Self) -> Self::Product {
-        match (self.map, other.map) {
-            (None, None) => Reduce::new(
-                self.named_aggregates
+        match (self, self.map, other, other.map) {
+            (left, None, right, None) => Reduce::new(
+                left.named_aggregates
                     .into_iter()
-                    .chain(other.named_aggregates)
+                    .chain(right.named_aggregates)
                     .collect(),
-                self.group_by.into_iter().chain(other.group_by).collect(),
+                    left.group_by.into_iter().chain(right.group_by).collect(),
                 None,
             ),
-            (Some(s), Some(o)) => Reduce::new(
-                self.named_aggregates
+            (left_red, Some(left_map), right_red, Some(right_map)) => Reduce::new(
+                left_red.named_aggregates
                     .into_iter()
-                    .chain(other.named_aggregates)
+                    .chain(right_red.named_aggregates)
                     .collect(),
-                self.group_by.into_iter().chain(other.group_by).collect(),
-                Some(s.and(*o)),
+                    left_red.group_by.into_iter().chain(right_red.group_by).collect(),
+                Some(left_map.and(*right_map)),
             ),
-            (None, Some(o)) => {
-                let (map, named_aggregates) = self.named_aggregates.into_iter().fold(
-                    (*o, vec![]),
-                    |(map, mut named_aggregates), (name, aggregate)| {
-                        let (map, aggregate) = map.and(aggregate);
-                        named_aggregates.push((name, aggregate));
-                        (map, named_aggregates)
-                    },
-                );
-                let (map, group_by) =
-                    self.group_by
-                        .into_iter()
-                        .fold((map, vec![]), |(map, mut group_by), expr| {
-                            let (map, expr) = map.and(expr);
-                            group_by.push(expr);
-                            (map, group_by)
-                        });
-                Reduce::new(
-                    named_aggregates.into_iter().chain(other.named_aggregates).collect(),
-                    group_by.into_iter().chain(other.group_by).collect(),
-                    Some(map),
-                )
-            }
-            (Some(s), None) => {
-                let (map, named_aggregates) = other.named_aggregates.into_iter().fold(
-                    (*s, vec![]),
+            (comp_red, Some(comp_map), simp_red, None) | (simp_red, None, comp_red, Some(comp_map)) => {
+                let (map, named_aggregates) = simp_red.named_aggregates.into_iter().fold(
+                    (*comp_map, vec![]),
                     |(map, mut named_exprs), (name, aggregate)| {
                         let (map, expr) = map.and(Expr::from(aggregate));
                         named_exprs.push((name, expr));
                         (map, named_exprs)
                     },
                 );
-                let (map, group_by) =
-                    other
-                        .group_by
-                        .into_iter()
-                        .fold((map, vec![]), |(map, mut group_by), expr| {
-                            let (map, expr) = map.and(expr);
-                            group_by.push(expr);
-                            (map, group_by)
-                        });
+                let (map, group_by) = simp_red
+                    .group_by
+                    .into_iter()
+                    .fold((*comp_map, vec![]), |(map, mut group_by), expr| {
+                        let (map, expr) = map.and(expr);
+                        group_by.push(expr);
+                        (map, group_by)
+                    });
                 Reduce::new(
-                    self.named_aggregates.into_iter().chain(named_aggregates).collect(),
-                    self.group_by.into_iter().chain(group_by).collect(),
+                    comp_red.named_aggregates.into_iter().chain(simp_red.named_aggregates).collect(),
+                    comp_red.group_by.into_iter().chain(group_by).collect(),
                     Some(map),
                 )
             }
@@ -640,8 +585,8 @@ impl And<Expr> for Reduce {
             .columns()
             .into_iter()
             .map(|c| {
-                let column = Expr::Column(c.clone());
-                (namer::name_from_content(FIELD, &column), column)
+                let column = AggregateColumn::from(c.clone());
+                (namer::name_from_content(FIELD, &column), column.into())
             })
             .chain(
                 group_by
@@ -656,7 +601,7 @@ impl And<Expr> for Reduce {
         // Express matched sub-expressions as aggregates
         let matched: Vec<_> = matched
             .into_iter()
-            .map(|(n, e)| (n, e.into_aggregate()))
+            .map(|(n, e)| (n, AggregateColumn::try_from(e).unwrap()))// We know the expression is an Aggregate Column
             .collect();
         // Add matched sub-expressions
         (
