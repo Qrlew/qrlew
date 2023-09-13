@@ -583,7 +583,6 @@ mod tests {
         print!("{}", map)
     }
 
-    #[ignore]
     #[test]
     fn test_parse() {
         let query = parse("SELECT 2 * (price - 1) FROM schema.table").unwrap();
@@ -606,6 +605,7 @@ mod tests {
         let query2 = &ast::Query::from(&map);
         //println!("\nquery2: {:?}", query2);
         println!("\n{}", query2.to_string());
+        map.display_dot().unwrap();
     }
 
     fn complex_query() -> ast::Query {
@@ -637,9 +637,7 @@ mod tests {
         query_names_3.insert((&query_3, name_3.clone()), None);
         query_names_1.extend(query_names_2);
         query_names_1.extend(query_names_3);
-        println!("BEFORE: {query_names_1}");
         query_names_1.set(name_3.clone(), &query_4);
-        println!("AFTER: {query_names_1}");
     }
 
     #[test]
