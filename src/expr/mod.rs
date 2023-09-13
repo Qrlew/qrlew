@@ -422,8 +422,8 @@ impl Aggregate {
         }
     }
     /// Get the argument name
-    pub fn argument_name(&self) -> Result<&String> {
-        Ok(self.argument_column()?.last().unwrap())
+    pub fn argument_name(&self) -> Result<&str> {
+        Ok(self.argument_column()?.last()?)
     }
 }
 
@@ -742,6 +742,10 @@ impl AggregateColumn {
     /// Access column
     pub fn column(&self) -> &Column {
         &self.column
+    }
+    /// Access column name
+    pub fn column_name(&self) -> Result<&str> {
+        Ok(&self.column.last()?)
     }
     /// A constructor
     pub fn col<S: Into<String>>(field: S) -> AggregateColumn {
@@ -1214,7 +1218,7 @@ impl Expr {
                 .into_iter()
                 .filter_map(|(p, r)| {
                     if let Expr::Column(c) = r {
-                        Some((c.last()?.clone(), p))
+                        Some((c.last().ok()?.to_string(), p))
                     } else {
                         None
                     }
@@ -1341,7 +1345,7 @@ impl DataType {
         );
         match self {
             DataType::Struct(st) => {
-                let (head, tail) = name.split_first().unwrap();
+                let (head, tail) = name.split_head().unwrap();
                 DataType::structured(
                     st.iter()
                         .map(|(s, d)| {
@@ -1355,7 +1359,7 @@ impl DataType {
                 )
             }
             DataType::Union(u) => {
-                let (head, tail) = name.split_first().unwrap();
+                let (head, tail) = name.split_head().unwrap();
                 DataType::union(
                     u.iter()
                         .map(|(s, d)| {

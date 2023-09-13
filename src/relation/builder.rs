@@ -233,7 +233,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     /// Initialize a builder with filtered existing map
-    pub fn rename_with<F: Fn(&str, Expr) -> String>(self, map: Map, f: F) -> MapBuilder<WithInput> {
+    pub fn rename_with<F: Fn(&str, &Expr) -> String>(self, map: Map, f: F) -> MapBuilder<WithInput> {
         let Map {
             name,
             projection,
@@ -250,7 +250,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
                 schema
                     .into_iter()
                     .zip(projection)
-                    .map(|(field, expr)| (f(field.name(), expr.clone()), expr)),
+                    .map(|(field, expr)| (f(field.name(), &expr), expr)),
             )
             .input(input);
         // Filter
@@ -496,12 +496,12 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     pub fn with_group_by_column<S: Into<String>>(mut self, column: S) -> Self {
         let name = column.into();
         self = self.group_by(Expr::Aggregate(expr::Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col(name.clone())))));
-        self = self.with((name.clone(), AggregateColumn::from(column)));
+        self = self.with((name.clone(), AggregateColumn::from(name)));
         self
     }
 
     /// Rename fields in the reduce
-    pub fn rename_with<F: Fn(&str, AggregateColumn) -> String>(
+    pub fn rename_with<F: Fn(&str, &Expr) -> String>(
         self,
         reduce: Reduce,
         f: F,
@@ -520,7 +520,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
                 schema
                     .into_iter()
                     .zip(aggregate)
-                    .map(|(field, aggregate)| (f(field.name(), aggregate.clone()), aggregate)),
+                    .map(|(field, aggregate)| (f(field.name(), &aggregate), aggregate)),
             )
             .group_by_iter(group_by.into_iter())
             .input(input);

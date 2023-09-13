@@ -540,9 +540,9 @@ impl Reduce {
     /// Get group_by_names
     pub fn group_by_names(&self) -> Vec<&str> {
         self.group_by.iter().filter_map(|e| match e {
-            Expr::Column(col) => col.last(),
+            Expr::Column(col) => col.last().ok(),
             _ => None,
-        }).map(|s| s.as_str()).collect()
+        }).collect()
     }
 }
 

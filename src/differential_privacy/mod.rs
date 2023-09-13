@@ -95,12 +95,12 @@ impl Reduce {
         // Collect names, sums and bounds
         for (name, aggregate) in self.named_aggregates() {
             // Get value name
-            let input_name = aggregate.argument_name()?.as_str();
+            let input_name = aggregate.column_name()?;
             names.insert(input_name, name);
             if name == protected_entity_id {// remove pe group
                 input_groups.remove(&input_name);
                 input_entities = Some(input_name);
-            } else if aggregate.aggregate() == aggregate::Aggregate::Sum && name != protected_entity_weight {// add aggregate
+            } else if aggregate.aggregate() == &aggregate::Aggregate::Sum && name != protected_entity_weight {// add aggregate
                 let input_data_type = self.input().schema()[input_name].data_type();
                 let absolute_bound = input_data_type.absolute_upper_bound().unwrap_or(1.0);
                 input_values_bound.push((input_name, absolute_bound));

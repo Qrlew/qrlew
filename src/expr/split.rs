@@ -178,9 +178,9 @@ impl Map {
                 (
                     (
                         name,
-                        AggregateColumn::new(aggregate, alias.into()),
+                        AggregateColumn::new(aggregate, alias.clone().into()),
                     ),
-                    (alias.clone(), expr),
+                    (alias, expr),
                 )
             })
             .unzip();
@@ -281,8 +281,10 @@ impl fmt::Display for Map {
 impl And<Self> for Map {
     type Product = Self;
 
-    fn and(self, other: Self) -> Self::Product {
-        match (self, self.reduce, other, other.reduce) {
+    fn and(self, other: Self) -> Self::Product {// TODO avoid useless copies here
+        let self_red = self.reduce.clone();
+        let other_red = other.reduce.clone();
+        match (self, self_red, other, other_red) {
             (left, None, right, None) => Map::new(
                 left.named_exprs
                     .into_iter()
@@ -510,8 +512,10 @@ impl fmt::Display for Reduce {
 impl And<Self> for Reduce {
     type Product = Self;
 
-    fn and(self, other: Self) -> Self::Product {
-        match (self, self.map, other, other.map) {
+    fn and(self, other: Self) -> Self::Product {// TODO avoid useless copies here
+        let self_map = self.map.clone();
+        let other_map = other.map.clone();
+        match (self, self_map, other, other_map) {
             (left, None, right, None) => Reduce::new(
                 left.named_aggregates
                     .into_iter()
@@ -531,22 +535,22 @@ impl And<Self> for Reduce {
             (comp_red, Some(comp_map), simp_red, None) | (simp_red, None, comp_red, Some(comp_map)) => {
                 let (map, named_aggregates) = simp_red.named_aggregates.into_iter().fold(
                     (*comp_map, vec![]),
-                    |(map, mut named_exprs), (name, aggregate)| {
+                    |(map, mut named_aggregates), (name, aggregate)| {
                         let (map, expr) = map.and(Expr::from(aggregate));
-                        named_exprs.push((name, expr));
-                        (map, named_exprs)
+                        named_aggregates.push((name, expr.try_into().unwrap()));
+                        (map, named_aggregates)
                     },
                 );
                 let (map, group_by) = simp_red
                     .group_by
                     .into_iter()
-                    .fold((*comp_map, vec![]), |(map, mut group_by), expr| {
+                    .fold((map, vec![]), |(map, mut group_by), expr| {
                         let (map, expr) = map.and(expr);
                         group_by.push(expr);
                         (map, group_by)
                     });
                 Reduce::new(
-                    comp_red.named_aggregates.into_iter().chain(simp_red.named_aggregates).collect(),
+                    comp_red.named_aggregates.into_iter().chain(named_aggregates).collect(),
                     comp_red.group_by.into_iter().chain(group_by).collect(),
                     Some(map),
                 )
@@ -743,7 +747,7 @@ mod tests {
     #[test]
     fn test_reduce() {
         let reduce = Reduce::new(
-            vec![("a".into(), expr!(count(x))), ("b".into(), expr!(sum(y)))],
+            vec![("a".into(), expr!(count(x)).try_into().unwrap()), ("b".into(), expr!(sum(y)).try_into().unwrap())],
             vec![],
             None,
         );
@@ -826,7 +830,7 @@ mod tests {
     #[test]
     fn test_reduce_and_where() {
         let reduce = Reduce::new(
-            vec![("a".into(), expr!(count(x))), ("b".into(), expr!(sum(y)))],
+            vec![("a".into(), expr!(count(x)).try_into().unwrap()), ("b".into(), expr!(sum(y)).try_into().unwrap())],
             vec![],
             None,
         );
