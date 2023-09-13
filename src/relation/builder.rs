@@ -496,14 +496,14 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     pub fn with_group_by_column<S: Into<String>>(mut self, column: S) -> Self {
         let name = column.into();
         self = self.group_by(Expr::Aggregate(expr::Aggregate::new(aggregate::Aggregate::First, Rc::new(Expr::col(name.clone())))));
-        self = self.with((name.clone(), aggregate::Aggregate::First, name));
+        self = self.with((name.clone(), AggregateColumn::from(column)));
         self
     }
 
     /// Rename fields in the reduce
-    pub fn rename_with<F: Fn(&str, Expr) -> String>(
+    pub fn rename_with<F: Fn(&str, AggregateColumn) -> String>(
         self,
-        red: Reduce,
+        reduce: Reduce,
         f: F,
     ) -> ReduceBuilder<WithInput> {
         let Reduce {
@@ -513,14 +513,14 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
             schema,
             size: _,
             input,
-        } = red;
+        } = reduce;
         let builder = self
             .name(name)
             .with_iter(
                 schema
                     .into_iter()
                     .zip(aggregate)
-                    .map(|(field, expr)| (f(field.name(), expr.clone()), expr)),
+                    .map(|(field, aggregate)| (f(field.name(), aggregate.clone()), aggregate)),
             )
             .group_by_iter(group_by.into_iter())
             .input(input);
@@ -544,9 +544,8 @@ impl<RequireInput, S: Into<String>> With<(S, Expr)> for ReduceBuilder<RequireInp
 
 impl<RequireInput> With<AggregateColumn> for ReduceBuilder<RequireInput> {
     fn with(self, aggregate: AggregateColumn) -> Self {
-        let col = col.into();
-        let name = namer::name_from_content(FIELD, &(&agg, &col));
-        self.with((name, agg, col))
+        let name = namer::name_from_content(FIELD, &aggregate);
+        self.with((name, aggregate))
     }
 }
 
@@ -1097,7 +1096,7 @@ mod tests {
             .build();
         println!("Table = {table}");
         let reduce: Relation = Relation::reduce()
-            .with(("S", Aggregate::Sum, "a"))
+            .with(("S", AggregateColumn::sum("a")))
             // .with_group_by_column("b")
             .group_by(Expr::col("b"))
             .input(table)

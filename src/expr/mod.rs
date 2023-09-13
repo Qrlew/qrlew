@@ -790,6 +790,12 @@ impl From<Column> for AggregateColumn {
     }
 }
 
+impl<S: Into<String>> From<S> for AggregateColumn {
+    fn from(value: S) -> Self {
+        AggregateColumn::new(aggregate::Aggregate::First, Column::from(value.into()))
+    }
+}
+
 // Visitors
 
 /// A Visitor for the type Expr
