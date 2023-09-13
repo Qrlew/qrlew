@@ -411,7 +411,7 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        // let relation = Relation::try_from(parse("SELECT * FROM primary_table").unwrap().with(&relations)).unwrap();
+        relation.display_dot().unwrap();
         // Table
         let relation = relation.force_protect_from_field_paths(
             &relations,
