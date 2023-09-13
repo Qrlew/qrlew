@@ -164,7 +164,6 @@ impl Map {
     }
 
     pub fn into_reduce(self, aggregate: aggregate::Aggregate) -> Reduce {
-        println!("DEBUG into_reduce map = {self}, agg = {aggregate}");
         let Map {
             named_exprs,
             filter,

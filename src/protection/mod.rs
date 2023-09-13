@@ -388,7 +388,6 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        println!("DEBUG {}", relations);
         // Table
         let table = table
             .protect_from_field_paths(
