@@ -6,16 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.3.0] - 2023-09-14
 ### Changed
 - Replaced `Expr::filter_column_data_type` by `DataType::filter`[MR104](https://github.com/Qrlew/qrlew/pull/104)
 ### Fixed
 - `Union::is_subset_of` [MR106](https://github.com/Qrlew/qrlew/pull/106)
+- fix reduce when the query has a group by and doesn't have aggregation functions [MR80](https://github.com/Qrlew/qrlew/pull/80)
 ### Added
 - support for `expr::Function::Or` in `DataType::filter_by_function` [MR110](https://github.com/Qrlew/qrlew/pull/110)
+- Can compile recursively
+- Checks for possible values
+- Can compile more than sums
 
-
-### Fixed
-- fix reduce when the query has a group by and doesn't have aggregation functions [MR80](https://github.com/Qrlew/qrlew/pull/80)
 ## [0.2.3] - 2023-09-04
 ### Changed
 - Internal code uses `Relation.name()` for table addressing but user facing functions may use `Table.path()` (ie sql addressing)
