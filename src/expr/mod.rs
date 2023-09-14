@@ -22,7 +22,7 @@ use std::{
     collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub, Deref},
     rc::Rc,
     result,
 };
@@ -422,8 +422,8 @@ impl Aggregate {
         }
     }
     /// Get the argument name
-    pub fn argument_name(&self) -> Result<&String> {
-        Ok(self.argument_column()?.last().unwrap())
+    pub fn argument_name(&self) -> Result<&str> {
+        Ok(self.argument_column()?.last()?)
     }
 }
 
@@ -451,6 +451,15 @@ macro_rules! impl_aggregation_constructors {
             paste! {
                 $(pub fn [<$Aggregate:snake>]<E: Into<Expr>>(expr: E) -> Expr {
                     Expr::from(Aggregate::[<$Aggregate:snake>](expr))
+                }
+                )*
+            }
+        }
+
+        impl AggregateColumn {
+            paste! {
+                $(pub fn [<$Aggregate:snake>]<S: Into<String>>(col: S) -> AggregateColumn {
+                    AggregateColumn::new(aggregate::Aggregate::$Aggregate, Column::from(col.into()))
                 }
                 )*
             }
@@ -707,6 +716,87 @@ impl<'a> IntoIterator for &'a Expr {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+/// An aggregate column expr
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct AggregateColumn {
+    aggregate: aggregate::Aggregate,
+    column: Column,
+    expr: Expr,
+}
+
+impl AggregateColumn {
+    pub fn new(aggregate: aggregate::Aggregate, column: Column) -> Self {
+        AggregateColumn {
+            aggregate,
+            column: column.clone(),
+            expr: Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::Column(column))))
+        }
+    }
+    /// Access aggregate
+    pub fn aggregate(&self) -> &aggregate::Aggregate {
+        &self.aggregate
+    }
+    /// Access column
+    pub fn column(&self) -> &Column {
+        &self.column
+    }
+    /// Access column name
+    pub fn column_name(&self) -> Result<&str> {
+        Ok(&self.column.last()?)
+    }
+    /// A constructor
+    pub fn col<S: Into<String>>(field: S) -> AggregateColumn {
+        AggregateColumn::first(field)
+    }
+}
+
+impl Deref for AggregateColumn {
+    type Target = Expr;
+
+    fn deref(&self) -> &Self::Target {
+        &self.expr
+    }
+}
+
+impl From<AggregateColumn> for Expr {
+    fn from(value: AggregateColumn) -> Self {
+        value.expr
+    }
+}
+
+impl TryFrom<Expr> for AggregateColumn {
+    type Error = Error;
+
+    fn try_from(value: Expr) -> result::Result<Self, Self::Error> {
+        match value {
+            Expr::Column(column) => Ok(column.into()),
+            Expr::Aggregate(Aggregate {
+                aggregate,
+                argument,
+            }) => {
+                if let Expr::Column(column) = argument.as_ref() {
+                    Ok(AggregateColumn::new(aggregate, column.clone()))
+                } else {
+                    Err(Error::invalid_conversion(argument, "Column"))
+                }
+            },
+            _ => Err(Error::invalid_conversion(value, "AggregateColumn")),
+        }
+    }
+}
+
+impl From<Column> for AggregateColumn {
+    fn from(value: Column) -> Self {
+        AggregateColumn::new(aggregate::Aggregate::First, value)
+    }
+}
+
+impl<S: Into<String>> From<S> for AggregateColumn {
+    fn from(value: S) -> Self {
+        AggregateColumn::new(aggregate::Aggregate::First, Column::from(value.into()))
     }
 }
 
@@ -1128,7 +1218,7 @@ impl Expr {
                 .into_iter()
                 .filter_map(|(p, r)| {
                     if let Expr::Column(c) = r {
-                        Some((c.last()?.clone(), p))
+                        Some((c.last().ok()?.to_string(), p))
                     } else {
                         None
                     }
@@ -1260,7 +1350,7 @@ impl DataType {
         );
         match self {
             DataType::Struct(st) => {
-                let (head, tail) = name.split_first().unwrap();
+                let (head, tail) = name.split_head().unwrap();
                 DataType::structured(
                     st.iter()
                         .map(|(s, d)| {
@@ -1274,7 +1364,7 @@ impl DataType {
                 )
             }
             DataType::Union(u) => {
-                let (head, tail) = name.split_first().unwrap();
+                let (head, tail) = name.split_head().unwrap();
                 DataType::union(
                     u.iter()
                         .map(|(s, d)| {

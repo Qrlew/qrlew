@@ -9,7 +9,7 @@ use crate::{
     expr::{identifier::Identifier, Expr},
     visitor::Acceptor,
 };
-use std::{collections::HashSet, convert::TryFrom, iter::Iterator};
+use std::{collections::HashSet, convert::TryFrom, iter::Iterator, ops::Deref};
 
 /// A simple Relation -> ast::Query conversion Visitor using CTE
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -309,8 +309,8 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     .clone()
                     .into_iter()
                     .zip(reduce.schema.clone())
-                    .map(|(expr, field)| ast::SelectItem::ExprWithAlias {
-                        expr: ast::Expr::from(&expr),
+                    .map(|(aggregate, field)| ast::SelectItem::ExprWithAlias {
+                        expr: ast::Expr::from(aggregate.deref()),
                         alias: field.name().into(),
                     })
                     .collect(),

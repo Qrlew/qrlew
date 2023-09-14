@@ -10,7 +10,7 @@ use crate::{
     ast,
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    expr::{self, Expr, Identifier, Split},
+    expr::{self, Expr, Identifier, Split, aggregate, AggregateColumn},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
@@ -127,7 +127,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self.split = self.split.map_last(|split| match split {
             Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
             Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
-                reduce.named_exprs,
+                reduce.named_aggregates,
                 reduce.group_by,
                 Some(Split::filter(filter.into())),
             )),
@@ -153,7 +153,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
 
     /// Add a group by
     pub fn group_by(mut self, expr: Expr) -> Self {
-        self.split = self.split.and(Split::group_by(expr.into()).into());
+        self.split = self.split.and(Split::group_by(expr).into());
         self
     }
 
@@ -233,7 +233,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     /// Initialize a builder with filtered existing map
-    pub fn rename_with<F: Fn(&str, Expr) -> String>(self, map: Map, f: F) -> MapBuilder<WithInput> {
+    pub fn rename_with<F: Fn(&str, &Expr) -> String>(self, map: Map, f: F) -> MapBuilder<WithInput> {
         let Map {
             name,
             projection,
@@ -250,7 +250,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
                 schema
                     .into_iter()
                     .zip(projection)
-                    .map(|(field, expr)| (f(field.name(), expr.clone()), expr)),
+                    .map(|(field, expr)| (f(field.name(), &expr), expr)),
             )
             .input(input);
         // Filter
@@ -445,7 +445,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         self.split = self.split.map_last(|split| match split {
             Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
             Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
-                reduce.named_exprs,
+                reduce.named_aggregates,
                 reduce.group_by,
                 Some(Split::filter(filter.into())),
             )),
@@ -481,8 +481,8 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
                 schema
                     .into_iter()
                     .zip(aggregate)
-                    .filter_map(|(field, expr)| {
-                        predicate(field.name()).then_some((field.name().to_string(), expr))
+                    .filter_map(|(field, aggregate)| {
+                        predicate(field.name()).then_some((field.name().to_string(), aggregate))
                     }),
             )
             .input(input);
@@ -494,16 +494,15 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     /// Add a group by column
     pub fn with_group_by_column<S: Into<String>>(mut self, column: S) -> Self {
         let name = column.into();
-        let expr = Expr::col(name.clone());
-        self = self.group_by(expr.clone());
-        self = self.with((name, expr.into_aggregate()));
+        self = self.group_by(Expr::col(name.clone()));
+        self = self.with((name.clone(), AggregateColumn::from(name)));
         self
     }
 
     /// Rename fields in the reduce
-    pub fn rename_with<F: Fn(&str, Expr) -> String>(
+    pub fn rename_with<F: Fn(&str, &Expr) -> String>(
         self,
-        red: Reduce,
+        reduce: Reduce,
         f: F,
     ) -> ReduceBuilder<WithInput> {
         let Reduce {
@@ -513,14 +512,14 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
             schema,
             size: _,
             input,
-        } = red;
+        } = reduce;
         let builder = self
             .name(name)
             .with_iter(
                 schema
                     .into_iter()
                     .zip(aggregate)
-                    .map(|(field, expr)| (f(field.name(), expr.clone()), expr)),
+                    .map(|(field, aggregate)| (f(field.name(), &aggregate), aggregate)),
             )
             .group_by_iter(group_by.into_iter())
             .input(input);
@@ -537,7 +536,21 @@ impl<RequireInput> With<Expr> for ReduceBuilder<RequireInput> {
 
 impl<RequireInput, S: Into<String>> With<(S, Expr)> for ReduceBuilder<RequireInput> {
     fn with(mut self, (name, expr): (S, Expr)) -> Self {
-        self.split = self.split.and(Split::from((name.into(), expr)));
+        self.split = self.split.and(Split::from((name, expr)));
+        self
+    }
+}
+
+impl<RequireInput> With<AggregateColumn> for ReduceBuilder<RequireInput> {
+    fn with(self, aggregate: AggregateColumn) -> Self {
+        let name = namer::name_from_content(FIELD, &aggregate);
+        self.with((name, aggregate))
+    }
+}
+
+impl<RequireInput, S: Into<String>> With<(S, AggregateColumn)> for ReduceBuilder<RequireInput> {
+    fn with(mut self, (name, aggregate): (S, AggregateColumn)) -> Self {
+        self.split = self.split.and(Split::reduce(name, aggregate).into());
         self
     }
 }
@@ -596,7 +609,7 @@ impl Ready<Reduce> for ReduceBuilder<WithInput> {
             // Build the Relation
             Ok(Reduce::new(
                 name,
-                reduce.named_exprs,
+                reduce.named_aggregates,
                 reduce.group_by,
                 input,
             ))
@@ -1029,7 +1042,7 @@ impl Ready<Values> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataTyped, display::Dot, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType, expr::aggregate::Aggregate};
 
     #[test]
     fn test_map_building() {
@@ -1061,6 +1074,34 @@ mod tests {
             .input(map)
             .build();
         println!("Reduce = {reduce}");
+    }
+
+    #[test]
+    fn test_reduce_building() {
+        let table: Relation = Relation::table()
+            .path(["db", "schema", "table"])
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
+                    .with(("x", DataType::float_range(0.0..=2.0)))
+                    .with(("y", DataType::float_range(0.0..=5.0)))
+                    .with(("z", DataType::float_range(9.0..=11.)))
+                    .with(("t", DataType::float_range(0.9..=1.1)))
+                    .build(),
+            )
+            .build();
+        println!("Table = {table}");
+        let reduce: Relation = Relation::reduce()
+            .with(("S", AggregateColumn::sum("a")))
+            // .with_group_by_column("b")
+            .group_by(Expr::col("b"))
+            .input(table)
+            .build();
+        println!("Reduce = {reduce}");
+        reduce.display_dot().unwrap();
     }
 
     #[test]

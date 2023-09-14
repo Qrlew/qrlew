@@ -248,7 +248,7 @@ impl<'a, P: Path, T: Clone, I: IntoIterator<Item = (P, T)>> With<I> for Hierarch
 }
 
 /// Index
-impl<P: Path, T: Clone> Index<P> for Hierarchy<T> {
+impl<P: Path, T: Clone> Index<P> for Hierarchy<T> where T: fmt::Display {
     type Output = T;
 
     fn index(&self, index: P) -> &Self::Output {

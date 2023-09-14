@@ -14,11 +14,12 @@ impl Identifier {
     }
 
     /// Return the first element
-    /// Panics if len == 0
-    pub fn head(&self) -> Result<String> {
-        self.get(0)
-            .cloned()
-            .ok_or_else(|| Error::invalid_expression("Identifier too short"))
+    /// Fails if len == 0
+    pub fn head(&self) -> Result<&str> {
+        self.0.get(0).map_or_else(
+            || Err(Error::invalid_expression("Identifier too short")),
+            |h| Ok(h.as_str())
+        )
     }
 
     /// Return the tail
@@ -32,6 +33,13 @@ impl Identifier {
             .collect())
     }
 
+    pub fn last(&self) -> Result<&str> {
+        self.0.last().map_or_else(
+            || Err(Error::invalid_expression("Identifier too short")),
+            |h| Ok(h.as_str())
+        )
+    }
+
     pub fn from_name<S: Into<String>>(name: S) -> Identifier {
         Identifier(vec![name.into()])
     }
@@ -40,7 +48,7 @@ impl Identifier {
         Identifier(vec![path.into(), name.into()])
     }
 
-    pub fn split_first(&self) -> Result<(String, Identifier)> {
+    pub fn split_head(&self) -> Result<(String, Identifier)> {
         let (head, tail) = self.0.split_first().ok_or(Error::other("Split failed"))?;
         Ok((head.clone(), Identifier::from(tail.to_vec())))
     }

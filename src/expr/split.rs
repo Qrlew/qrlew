@@ -2,7 +2,7 @@
 //! Each split has named Expr and anonymous exprs
 use super::{
     aggregate, function, visitor::Acceptor, Aggregate, Column, Expr, Function, Identifier, Value,
-    Visitor,
+    Visitor, AggregateColumn,
 };
 use crate::{
     namer::{self, FIELD},
@@ -29,6 +29,10 @@ impl Split {
 
     pub fn order_by(expr: Expr, asc: bool) -> Map {
         Map::new(vec![], None, vec![(expr, asc)], None)
+    }
+
+    pub fn reduce<S: Into<String>>(name: S, aggregate: AggregateColumn) -> Reduce {
+        Reduce::new(vec![(name.into(), aggregate)], vec![],  None)
     }
 
     pub fn group_by(expr: Expr) -> Reduce {
@@ -166,19 +170,16 @@ impl Map {
             order_by,
             reduce,
         } = self;
-        let (named_aliases, aliased_expr): (Vec<(String, Expr)>, Vec<(String, Expr)>) = named_exprs
+        let (named_aliases, aliased_expr): (Vec<(String, AggregateColumn)>, Vec<(String, Expr)>) = named_exprs
             .into_iter()
             .map(|(name, expr)| {
                 let alias = namer::name_from_content(FIELD, &expr);
                 (
                     (
                         name,
-                        Expr::Aggregate(Aggregate {
-                            aggregate,
-                            argument: Rc::new(Expr::col(alias.clone())),
-                        }),
+                        AggregateColumn::new(aggregate, alias.clone().into()),
                     ),
-                    (alias.clone(), expr),
+                    (alias, expr),
                 )
             })
             .unzip();
@@ -278,7 +279,7 @@ impl fmt::Display for Map {
 /// Concatenate two Reduce split into one
 impl And<Self> for Map {
     type Product = Self;
-
+    
     fn and(self, other: Self) -> Self::Product {
         match (self.reduce, other.reduce) {
             (None, None) => Map::new(
@@ -419,29 +420,22 @@ impl And<Expr> for Map {
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, Eq)]
 pub struct Reduce {
-    pub named_exprs: Vec<(String, Expr)>,
+    pub named_aggregates: Vec<(String, AggregateColumn)>,
     pub group_by: Vec<Expr>,
     pub map: Option<Box<Map>>,
 }
 
 impl Reduce {
-    pub fn new(named_exprs: Vec<(String, Expr)>, group_by: Vec<Expr>, map: Option<Map>) -> Self {
-        // A reduce can only contain aggregations
-        assert!(
-            named_exprs
-                .iter()
-                .all(|(_n, e)| matches!(e, Expr::Aggregate(_))),
-            "A Reduce split can only have aggregations"
-        );
+    pub fn new(named_aggregates: Vec<(String, AggregateColumn)>, group_by: Vec<Expr>, map: Option<Map>) -> Self {
         Reduce {
-            named_exprs: named_exprs.into_iter().unique().collect(),
+            named_aggregates: named_aggregates.into_iter().unique().collect(),
             group_by: group_by.into_iter().unique().collect(),
             map: map.map(Box::new),
         }
     }
 
-    pub fn named_exprs(&self) -> &[(String, Expr)] {
-        &self.named_exprs
+    pub fn named_aggregates(&self) -> &[(String, AggregateColumn)] {
+        &self.named_aggregates
     }
 
     pub fn group_by(&self) -> &[Expr] {
@@ -454,15 +448,15 @@ impl Reduce {
 
     pub fn into_map(self) -> Map {
         let Reduce {
-            named_exprs,
+            named_aggregates,
             group_by,
             map,
         } = self;
-        let (named_aliases, aliased_expr): (Vec<(String, Expr)>, Vec<(String, Expr)>) = named_exprs
+        let (named_aliases, aliased_expr): (Vec<(String, Expr)>, Vec<(String, AggregateColumn)>) = named_aggregates
             .into_iter()
-            .map(|(name, expr)| {
-                let alias = namer::name_from_content(FIELD, &expr);
-                ((name, Expr::col(alias.clone())), (alias.clone(), expr))
+            .map(|(name, aggregate)| {
+                let alias = namer::name_from_content(FIELD, &aggregate);
+                ((name, Expr::col(alias.clone())), (alias.clone(), aggregate))
             })
             .unzip();
         // If the reduce is empty, remove it
@@ -484,7 +478,7 @@ impl Reduce {
 
     pub fn map_last<F: FnOnce(Split) -> Split>(self, f: F) -> Self {
         match self.map {
-            Some(map) => Reduce::new(self.named_exprs, self.group_by, Some(map.map_last(f))),
+            Some(map) => Reduce::new(self.named_aggregates, self.group_by, Some(map.map_last(f))),
             None => {
                 let split = f(self.clone().into());
                 if let Split::Reduce(reduce) = split {
@@ -498,7 +492,7 @@ impl Reduce {
 
     pub fn map_last_map<F: FnOnce(Map) -> Map>(self, f: F) -> Self {
         match self.map {
-            Some(map) => Reduce::new(self.named_exprs, self.group_by, Some(map.map_last_map(f))),
+            Some(map) => Reduce::new(self.named_aggregates, self.group_by, Some(map.map_last_map(f))),
             None => self,
         }
     }
@@ -507,11 +501,11 @@ impl Reduce {
         match self.map {
             Some(map) => match map.reduce {
                 Some(_) => Reduce::new(
-                    self.named_exprs,
+                    self.named_aggregates,
                     self.group_by,
                     Some(map.map_last_reduce(f)),
                 ),
-                None => f(Reduce::new(self.named_exprs, self.group_by, Some(*map))),
+                None => f(Reduce::new(self.named_aggregates, self.group_by, Some(*map))),
             },
             None => f(self),
         }
@@ -521,7 +515,7 @@ impl Reduce {
 impl fmt::Display for Reduce {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Reduce {
-            named_exprs,
+            named_aggregates: named_exprs,
             group_by,
             map,
         } = self;
@@ -549,28 +543,28 @@ impl And<Self> for Reduce {
     fn and(self, other: Self) -> Self::Product {
         match (self.map, other.map) {
             (None, None) => Reduce::new(
-                self.named_exprs
+                self.named_aggregates
                     .into_iter()
-                    .chain(other.named_exprs)
+                    .chain(other.named_aggregates)
                     .collect(),
                 self.group_by.into_iter().chain(other.group_by).collect(),
                 None,
             ),
             (Some(s), Some(o)) => Reduce::new(
-                self.named_exprs
+                self.named_aggregates
                     .into_iter()
-                    .chain(other.named_exprs)
+                    .chain(other.named_aggregates)
                     .collect(),
                 self.group_by.into_iter().chain(other.group_by).collect(),
                 Some(s.and(*o)),
             ),
             (None, Some(o)) => {
-                let (map, named_exprs) = self.named_exprs.into_iter().fold(
+                let (map, named_aggregates) = self.named_aggregates.into_iter().fold(
                     (*o, vec![]),
-                    |(map, mut named_exprs), (name, expr)| {
-                        let (map, expr) = map.and(expr);
-                        named_exprs.push((name, expr));
-                        (map, named_exprs)
+                    |(map, mut named_aggregates), (name, aggregate)| {
+                        let (map, expr) = map.and(Expr::from(aggregate));
+                        named_aggregates.push((name, expr.try_into().unwrap()));
+                        (map, named_aggregates)
                     },
                 );
                 let (map, group_by) =
@@ -582,18 +576,18 @@ impl And<Self> for Reduce {
                             (map, group_by)
                         });
                 Reduce::new(
-                    named_exprs.into_iter().chain(other.named_exprs).collect(),
+                    named_aggregates.into_iter().chain(other.named_aggregates).collect(),
                     group_by.into_iter().chain(other.group_by).collect(),
                     Some(map),
                 )
             }
             (Some(s), None) => {
-                let (map, named_exprs) = other.named_exprs.into_iter().fold(
+                let (map, named_aggregates) = other.named_aggregates.into_iter().fold(
                     (*s, vec![]),
-                    |(map, mut named_exprs), (name, expr)| {
-                        let (map, expr) = map.and(expr);
-                        named_exprs.push((name, expr));
-                        (map, named_exprs)
+                    |(map, mut named_aggregates), (name, aggregate)| {
+                        let (map, expr) = map.and(Expr::from(aggregate));
+                        named_aggregates.push((name, expr.try_into().unwrap()));
+                        (map, named_aggregates)
                     },
                 );
                 let (map, group_by) =
@@ -606,7 +600,7 @@ impl And<Self> for Reduce {
                             (map, group_by)
                         });
                 Reduce::new(
-                    self.named_exprs.into_iter().chain(named_exprs).collect(),
+                    self.named_aggregates.into_iter().chain(named_aggregates).collect(),
                     self.group_by.into_iter().chain(group_by).collect(),
                     Some(map),
                 )
@@ -629,7 +623,7 @@ impl And<Expr> for Reduce {
 
     fn and(self, expr: Expr) -> Self::Product {
         let Reduce {
-            named_exprs,
+            named_aggregates,
             group_by,
             map,
         } = self;
@@ -661,12 +655,12 @@ impl And<Expr> for Reduce {
         // Express matched sub-expressions as aggregates
         let matched: Vec<_> = matched
             .into_iter()
-            .map(|(n, e)| (n, e.into_aggregate()))
+            .map(|(n, e)| (n, AggregateColumn::try_from(e).unwrap()))// We know the expression is an Aggregate Column
             .collect();
         // Add matched sub-expressions
         (
             Reduce::new(
-                named_exprs.into_iter().chain(matched).collect(),
+                named_aggregates.into_iter().chain(matched).collect(),
                 group_by,
                 map,
             ),
@@ -803,7 +797,7 @@ mod tests {
     #[test]
     fn test_reduce() {
         let reduce = Reduce::new(
-            vec![("a".into(), expr!(count(x))), ("b".into(), expr!(sum(y)))],
+            vec![("a".into(), expr!(count(x)).try_into().unwrap()), ("b".into(), expr!(sum(y)).try_into().unwrap())],
             vec![],
             None,
         );
@@ -811,9 +805,9 @@ mod tests {
         let reduce = reduce.and(Reduce::new(vec![], vec![Expr::col("z")], None));
         println!("reduce and group by = {}", reduce);
         assert_eq!(reduce.len(), 1);
-        let reduce = reduce.into_map();
-        println!("reduce into map = {}", reduce);
-        assert_eq!(reduce.len(), 2);
+        let map = reduce.into_map();
+        println!("reduce into map = {}", map);
+        assert_eq!(map.len(), 2);
     }
 
     #[test]
@@ -886,7 +880,7 @@ mod tests {
     #[test]
     fn test_reduce_and_where() {
         let reduce = Reduce::new(
-            vec![("a".into(), expr!(count(x))), ("b".into(), expr!(sum(y)))],
+            vec![("a".into(), expr!(count(x)).try_into().unwrap()), ("b".into(), expr!(sum(y)).try_into().unwrap())],
             vec![],
             None,
         );

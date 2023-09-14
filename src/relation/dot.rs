@@ -83,7 +83,7 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
                 .fields()
                 .iter()
                 .zip(&reduce.aggregate)
-                .map(|(field, expr)| (field.clone(), expr.clone()))
+                .map(|(field, aggregate)| (field.clone(), aggregate.clone().into()))
                 .collect(),
         )
     }

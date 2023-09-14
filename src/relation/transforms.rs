@@ -2,6 +2,7 @@
 //!
 
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
+use crate::expr::AggregateColumn;
 use crate::namer;
 use crate::{
     builder::{Ready, With, WithIterator},
@@ -153,7 +154,7 @@ impl Map {
         Relation::map().map_with(self, f).build()
     }
     /// Rename fields
-    pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Map {
+    pub fn rename_fields<F: Fn(&str, &Expr) -> String>(self, f: F) -> Map {
         Relation::map().rename_with(self, f).build()
     }
 }
@@ -194,9 +195,9 @@ impl Reduce {
         let mut names: HashMap<&str, &str> = HashMap::new();
         for (name, aggregate) in self.named_aggregates() {
             if name == entities {
-                input_entities = Some(aggregate.argument_name()?);
-            } else if aggregate.aggregate() == aggregate::Aggregate::Sum {
-                let value_name = aggregate.argument_name()?.as_str();
+                input_entities = aggregate.column().last().ok();
+            } else if aggregate.aggregate() == &aggregate::Aggregate::Sum {
+                let value_name = aggregate.column().last()?;
                 let value_data_type = self.input().schema()[value_name].data_type();
                 let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
                 names.insert(value_name, name);
@@ -212,7 +213,7 @@ impl Reduce {
     }
 
     /// Rename fields
-    pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Reduce {
+    pub fn rename_fields<F: Fn(&str, &Expr) -> String>(self, f: F) -> Reduce {
         Relation::reduce().rename_with(self, f).build()
     }
 }
@@ -533,14 +534,14 @@ impl Relation {
         }
     }
     /// Rename fields
-    pub fn rename_fields<F: Fn(&str, Expr) -> String>(self, f: F) -> Relation {
+    pub fn rename_fields<F: Fn(&str, &Expr) -> String>(self, f: F) -> Relation {
         match self {
             Relation::Map(map) => map.rename_fields(f).into(),
             Relation::Reduce(red) => red.rename_fields(f).into(),
             relation => Relation::map()
                 .with_iter(relation.schema().iter().map(|field| {
                     (
-                        f(field.name(), Expr::col(field.name())),
+                        f(field.name(), &Expr::col(field.name())),
                         Expr::col(field.name()),
                     )
                 }))
