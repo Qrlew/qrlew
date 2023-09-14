@@ -6,15 +6,18 @@
 pub mod mechanisms;
 pub mod protect_grouping_keys;
 
+use crate::Ready;
 use crate::data_type::DataTyped;
+use crate::display::Dot;
 use crate::protection::PEPRelation;
 use crate::{
     expr::{self, aggregate, Expr},
     hierarchy::Hierarchy,
-    relation::{field::Field, transforms, Reduce, Relation, Variant as _},
+    relation::{field::Field, transforms, Map, Reduce, Relation, Variant as _},
     DataType,
 };
 use std::collections::{HashMap, HashSet};
+use std::process::Output;
 use std::{cmp, error, fmt, rc::Rc, result};
 
 #[derive(Debug, PartialEq)]
@@ -86,6 +89,7 @@ impl PEPRelation {
 /* Reduce
  */
 impl Reduce {
+    /// DP compile the sums
     fn dp_compile_sums(self, protected_entity_id: &str, protected_entity_weight: &str, epsilon: f64, delta: f64) -> Result<Relation> {
         // Collect groups
         let mut input_entities: Option<&str> = None;
@@ -113,8 +117,26 @@ impl Reduce {
         );
         let noise_multiplier = 1.; // TODO set this properly
         let dp_clipped_relation = clipped_relation.add_gaussian_noise(input_values_bound.into_iter().map(|(name, bound)| (name,noise_multiplier*bound)).collect());
-        let renamed_dp_clipped_relation = dp_clipped_relation.rename_fields(|n, e| names[n].to_string());
+        let renamed_dp_clipped_relation = dp_clipped_relation.rename_fields(|n, e| names.get(n).unwrap_or(&n).to_string());
         Ok(renamed_dp_clipped_relation)
+    }
+
+    /// Rewrite aggregations as sums and compile sums
+    pub fn dp_compile(self, protected_entity_id: &str, protected_entity_weight: &str, epsilon: f64, delta: f64) -> Result<Relation> {
+        let output = Map::builder();
+        let sums = Reduce::builder();
+        // Add aggregate colums
+        for aggregate in self.aggregate().iter() {
+            match aggregate {
+                Expr::Column(_) => todo!(),
+                Expr::Value(_) => todo!(),
+                Expr::Function(_) => todo!(),
+                Expr::Aggregate(_) => todo!(),
+                Expr::Struct(_) => todo!(),
+            }
+        }
+        let sums: Relation = sums.input(Relation::from(self)).build();
+        Ok(output.input(sums).build())
     }
 
     pub fn dp_compilation<'a>(
@@ -238,7 +260,8 @@ mod tests {
         let relation: Relation = Relation::reduce()
             .input(table.clone())
             .with(("sum_price", Expr::sum(Expr::col("price"))))
-            .with_group_by_column("order_id")
+            // .with_group_by_column("order_id")
+            .group_by(Expr::col("order_id"))
             .build();
         relation.display_dot().unwrap();
 
