@@ -356,7 +356,11 @@ impl Map {
     }
     /// Get names and expressions
     pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
-        self.schema.iter().map(|f| f.name()).zip(self.projection.iter()).collect()
+        self.schema
+            .iter()
+            .map(|f| f.name())
+            .zip(self.projection.iter())
+            .collect()
     }
     /// Return a new builder
     pub fn builder() -> MapBuilder<WithoutInput> {
@@ -513,13 +517,16 @@ impl Reduce {
     }
     /// Get group_by columns
     pub fn group_by_columns(&self) -> Vec<&Column> {
-        self.group_by.iter().filter_map(|e| {
-            if let Expr::Column(column) = e {
-                Some(column)
-            } else {
-                None
-            }
-        }).collect()
+        self.group_by
+            .iter()
+            .filter_map(|e| {
+                if let Expr::Column(column) = e {
+                    Some(column)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
     /// Get the input
     pub fn input(&self) -> &Relation {

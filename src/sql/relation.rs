@@ -930,20 +930,23 @@ mod tests {
     #[test]
     fn test_reduce_with_only_group_by_columns_multiple_map_reduce() {
         let schema_1: Schema = vec![("a", DataType::integer_interval(0, 10))]
-        .into_iter()
-        .collect();
+            .into_iter()
+            .collect();
         let table_1 = Relation::table()
             .name("tab_1")
             .schema(schema_1.clone())
             .size(100)
             .build();
 
-        let query = parse("
+        let query = parse(
+            "
         WITH tab_a AS (SELECT a FROM table_1),
         tab_b AS (SELECT a FROM tab_a GROUP BY a),
         tab_c AS (SELECT LOG(a) AS log_a FROM tab_b),
         tab_d AS (SELECT SUM(log_a) AS aaa FROM tab_c)
-        SELECT aaa FROM tab_d").unwrap();
+        SELECT aaa FROM tab_d",
+        )
+        .unwrap();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
             &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),

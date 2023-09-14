@@ -136,7 +136,8 @@ impl Reduce {
             // Get value name
             let input_name = aggregate.column_name()?;
             names.insert(input_name, name);
-            if name == protected_entity_id {// remove pe group
+            if name == protected_entity_id {
+                // remove pe group
                 input_groups.remove(&input_name);
                 input_entities = Some(input_name);
             } else if aggregate.aggregate() == &aggregate::Aggregate::Sum && name != protected_entity_weight {// add aggregate
@@ -161,7 +162,7 @@ impl Reduce {
         let clipped_relation = self.input().clone().l2_clipped_sums(
             input_entities.unwrap(),
             input_groups.into_iter().collect(),
-            input_values_bound.iter().cloned().collect()
+            input_values_bound.iter().cloned().collect(),
         );
         let noise_multiplier = 1.; // TODO set this properly
         let dp_clipped_relation = clipped_relation.add_gaussian_noise(input_values_bound.into_iter().map(|(name, bound)| (name,noise_multiplier*bound)).collect());
@@ -269,18 +270,21 @@ mod tests {
             .build();
         relation.display_dot().unwrap();
 
-        let pep_relation = relation.force_protect_from_field_paths(&relations, &[
-            (
-                "item_table",
-                &[
-                    ("order_id", "order_table", "id"),
-                    ("user_id", "user_table", "id"),
-                ],
-                "name",
-            ),
-            ("order_table", &[("user_id", "user_table", "id")], "name"),
-            ("user_table", &[], "name"),
-        ]);
+        let pep_relation = relation.force_protect_from_field_paths(
+            &relations,
+            &[
+                (
+                    "item_table",
+                    &[
+                        ("order_id", "order_table", "id"),
+                        ("user_id", "user_table", "id"),
+                    ],
+                    "name",
+                ),
+                ("order_table", &[("user_id", "user_table", "id")], "name"),
+                ("user_table", &[], "name"),
+            ],
+        );
         pep_relation.display_dot().unwrap();
 
         let epsilon = 1.;
