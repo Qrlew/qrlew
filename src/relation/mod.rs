@@ -688,6 +688,12 @@ impl JoinOperator {
     }
 }
 
+// impl From<Unit> for Struct {
+//     fn from(_value: Unit) -> Self {
+//         Struct::unit()
+//     }
+// }
+
 impl fmt::Display for JoinOperator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -756,7 +762,7 @@ impl Join {
         left: Rc<Relation>,
         right: Rc<Relation>,
     ) -> Self {
-        let schema = Join::schema(left_names, right_names, &left, &right);
+        let schema = Join::schema(left_names, right_names, &left, &right, &operator);
         // The size of the join can go from 0 to
         let size = Join::size(&operator, &left, &right);
         Join {
@@ -775,6 +781,7 @@ impl Join {
         right_names: Vec<String>,
         left: &Relation,
         right: &Relation,
+        operator: &JoinOperator
     ) -> Schema {
         let left_fields = left_names
             .into_iter()
@@ -785,6 +792,13 @@ impl Join {
             .zip(right.schema().iter())
             .map(|(name, field)| Field::from_name_data_type(name, field.data_type()));
         left_fields.chain(right_fields).collect()
+
+        // let dt = DataType::union([
+        //     (left.name(), left.schema().data_type()),
+        //     (right.name(), right.schema().data_type()),
+        // ]);
+
+
     }
 
     /// Compute the size of the join
