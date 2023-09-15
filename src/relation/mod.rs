@@ -192,6 +192,8 @@ impl Table {
     pub fn builder() -> TableBuilder<WithoutSchema> {
         TableBuilder::new()
     }
+
+
 }
 
 impl fmt::Display for Table {
@@ -295,8 +297,8 @@ impl Map {
         filter: &Option<Expr>,
         input: &Relation,
     ) -> (Schema, Vec<Expr>) {
-        let input_data_type = if let Some(f) = filter {
-            input.schema().filter(f).data_type()
+        let input_data_type = if let Some(x) = filter {
+            input.schema().filter(x).data_type()
         } else {
             input.data_type()
         };
@@ -689,37 +691,56 @@ impl JoinOperator {
 }
 
 impl JoinOperator {
-    fn filter_data_types(&self, left: &DataType, right: &DataType) -> (DataType, DataType) {
-        let struct_dt = DataType::structured([
-            ("left".to_string(), left.clone()),
-            ("right".to_string(), right.clone()),
-        ]);
+    fn filter_data_type(&self, dt: &DataType) -> DataType {
+        let names = dt.fields()
+            .iter()
+            .map(|(s, _)| s.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names.len(), 2);
         match self {
             JoinOperator::Inner(c) => {
-                let x = Expr::from((left, c, right));
-                let union_dt = union_dt.filter(&x);
-                (union_dt[["left"]].clone(), union_dt[["right"]].clone())
+                let x = Expr::from((c, dt));
+                dt.filter(&x)
             },
             JoinOperator::LeftOuter(c) => {
-                let x = Expr::from((left, c, right));
-                let filtered_union_dt = union_dt.filter(&x);
-                (union_dt[["left"]].clone(), filtered_union_dt[["right"]].clone())
+                let x = Expr::from((c, dt));
+                let filtered_dt = dt.filter(&x);
+                DataType::structured([
+                    (names[0], dt[names[0]].clone()),
+                    (names[1], filtered_dt[names[1]].clone())
+                ])
             },
             JoinOperator::RightOuter(c) => {
-                let x = Expr::from((left, c, right));
-                let filtered_union_dt = union_dt.filter(&x);
-                (filtered_union_dt[["left"]].clone(), union_dt[["right"]].clone())
+                let x = Expr::from((c, dt));
+                let filtered_dt = dt.filter(&x);
+                DataType::structured([
+                    (names[0], filtered_dt[names[0]].clone()),
+                    (names[1], dt[names[1]].clone())
+                ])
             },
             JoinOperator::FullOuter(_)
-            | JoinOperator::Cross => (union_dt[["left"]].clone(), union_dt[["right"]].clone()),
+            | JoinOperator::Cross => dt.clone(),
         }
+    }
 
+    fn filtered_schemas(&self, left: &Relation, right: &Relation) -> (Schema, Schema) {
+        let dt = DataType::structured([
+            (left.name(), left.schema().data_type()),
+            (right.name(), right.schema().data_type()),
+        ]);
+        let dt = self.filter_data_type(&dt);
+        (dt[left.name()].clone().into(), dt[right.name()].clone().into())
     }
 }
 
-impl From<(&DataType, &JoinConstraint, &DataType)> for Expr {
-    fn from(value: (&DataType, &JoinConstraint, &DataType)) -> Self {
-        let (left, constraint, right) = value;
+impl From<(&JoinConstraint, &DataType)> for Expr {
+    fn from(value: (&JoinConstraint, &DataType)) -> Self {
+        let ( constraint, dt) = value;
+        let names = dt.fields()
+            .iter()
+            .map(|(s, _)| s.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names.len(), 2);
         match constraint {
             JoinConstraint::On(x) => x.clone(),
             JoinConstraint::Using(x) => {
@@ -730,20 +751,20 @@ impl From<(&DataType, &JoinConstraint, &DataType)> for Expr {
                     |f, v| Expr::and(
                         f,
                         Expr::eq(
-                            Expr::qcol("left", v.head().unwrap().as_str()),
-                            Expr::qcol("right", v.head().unwrap().as_str())
+                            Expr::qcol(names[0], v.head().unwrap().as_str()),
+                            Expr::qcol(names[1], v.head().unwrap().as_str())
                         )
                     )
                 )
             },
             JoinConstraint::Natural => {
-                let h = right.hierarchy();
-                let v = left.hierarchy().into_iter()
+                let h = dt[names[1]].hierarchy();
+                let v = dt[names[0]].hierarchy().into_iter()
                 .filter_map(|(s, _)| {
                     h.get(&s).map(|_| Identifier::from(s))
                 })
                 .collect::<Vec<_>>();
-                (left, &JoinConstraint::Using(v), right).into()
+                (&JoinConstraint::Using(v), dt).into()
             },
             JoinConstraint::None => Expr::val(true),
         }
@@ -839,22 +860,14 @@ impl Join {
         right: &Relation,
         operator: &JoinOperator
     ) -> Schema {
-        let (left_dt, right_dt)= operator.filter_data_types(
-            &left.schema().data_type(),
-            &right.schema().data_type()
-        );
-        // let (left_dt, right_dt)= (left.schema().data_type(), right.schema().data_type());
-        // println!("{left_dt}, {right_dt}");
-        // let left_fields = left_dt.iter()
-        //     .collect::<Vec<_>>();
-        // println!("left_fields = {left_fields:?}");
+        let (left_schema, right_schema) = operator.filtered_schemas(left, right);
         let left_fields = left_names
             .into_iter()
-            .zip(left_dt.iter())
+            .zip(left_schema.iter())
             .map(|(name, d)| Field::from_name_data_type(name, d.clone()));
         let right_fields = right_names
             .into_iter()
-            .zip(right_dt.iter())
+            .zip(right_schema.iter())
             .map(|(name, d)| Field::from_name_data_type(name, d.clone()));
         left_fields.chain(right_fields).collect()
     }
@@ -1601,7 +1614,7 @@ impl Ready<Relation> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::{schema::Schema, *};
-    use crate::{builder::With, data_type::DataType, display::Dot};
+    use crate::{builder::With, data_type::DataType};
 
     #[test]
     fn test_table() {
@@ -1750,7 +1763,6 @@ mod tests {
                 Expr::qcol("right", "id"),
             ))
             .build();
-        join.display_dot().unwrap();
         println!("join = {}", join);
         println!("join.data_type() = {}", join.data_type());
         println!("join.schema() = {}", join.schema());

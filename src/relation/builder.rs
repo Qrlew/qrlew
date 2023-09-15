@@ -1103,7 +1103,7 @@ mod tests {
     #[test]
     fn test_join() {
         let table1: Relation = Relation::table()
-            .name("table")
+            .name("table1")
             .schema(
                 Schema::builder()
                     .with(("a", DataType::integer_range(1..=10)))
@@ -1113,7 +1113,7 @@ mod tests {
             .build();
 
         let table2: Relation = Relation::table()
-            .name("table")
+            .name("table2")
             .schema(
                 Schema::builder()
                     .with(("c", DataType::integer_range(5..=20)))

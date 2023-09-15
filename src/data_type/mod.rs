@@ -2348,6 +2348,14 @@ impl DataType {
             Hierarchy::from([(Vec::<&str>::new(), self)])
         )
     }
+
+    pub fn fields(&self) -> &[(String, Rc<DataType>)] {
+        match self {
+            DataType::Struct(s) => s.fields(),
+            DataType::Union(u) => u.fields(),
+            _ => panic!()
+        }
+    }
 }
 
 impl Variant for DataType {
@@ -2751,6 +2759,23 @@ impl<P: Path> Index<P> for DataType {
 
     fn index(&self, index: P) -> &Self::Output {
         self.hierarchy()[index]
+    }
+}
+
+impl Index<usize> for DataType {
+    type Output = Rc<DataType>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match self {
+            DataType::Enum(_) => todo!(),
+            DataType::Struct(s) => s.index(index),
+            DataType::Union(u) => u.index(index),
+            DataType::Optional(_) => todo!(),
+            DataType::List(_) => todo!(),
+            DataType::Set(_) => todo!(),
+            DataType::Array(_) => todo!(),
+            _ => panic!()
+        }
     }
 }
 
@@ -4217,5 +4242,22 @@ mod tests {
             b.flatten_optional(),
             DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)
         );
+    }
+
+    #[test]
+    fn test_struct_of_struct(){
+        let s1 = DataType::structured([
+            ("a".to_string(), DataType::float()),
+            ("b".to_string(), DataType::integer()),
+        ]);
+        let s2 = DataType::structured([
+            ("a".to_string(), DataType::boolean()),
+            ("c".to_string(), DataType::integer()),
+        ]);
+        let s = DataType::structured([
+            ("tab1", s1),
+            ("tab2", s2),
+        ]);
+        println!("{}", s[0]);
     }
 }

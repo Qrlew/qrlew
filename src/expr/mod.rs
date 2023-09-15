@@ -1222,6 +1222,8 @@ impl DataType {
                 }
             }
             (function::Function::Eq, [left, right]) => {
+                println!("left = {left}, rught = {right}");
+                println!("datatype = {datatype}");
                 let left_dt = left.super_image(&datatype).unwrap();
                 let right_dt = right.super_image(&datatype).unwrap();
                 let dt = left_dt.super_intersection(&right_dt).unwrap();
