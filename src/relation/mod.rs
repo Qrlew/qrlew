@@ -690,7 +690,7 @@ impl JoinOperator {
 
 impl JoinOperator {
     fn filter_data_types(&self, left: &DataType, right: &DataType) -> (DataType, DataType) {
-        let union_dt = DataType::union([
+        let struct_dt = DataType::structured([
             ("left".to_string(), left.clone()),
             ("right".to_string(), right.clone()),
         ]);
@@ -831,7 +831,7 @@ impl Join {
         }
     }
 
-    /// Compute the schema and exprs of the reduce
+    /// Compute the schema and exprs of the join
     fn schema(
         left_names: Vec<String>,
         right_names: Vec<String>,
@@ -839,15 +839,15 @@ impl Join {
         right: &Relation,
         operator: &JoinOperator
     ) -> Schema {
-        // let (left_dt, right_dt)= operator.filter_data_types(
-        //     &left.schema().data_type(),
-        //     &right.schema().data_type()
-        // );
-        let (left_dt, right_dt)= (left.schema().data_type(), right.schema().data_type());
-        println!("{left_dt}, {right_dt}");
-        let left_fields = left_dt.iter()
-            .collect::<Vec<_>>();
-        println!("left_fields = {left_fields:?}");
+        let (left_dt, right_dt)= operator.filter_data_types(
+            &left.schema().data_type(),
+            &right.schema().data_type()
+        );
+        // let (left_dt, right_dt)= (left.schema().data_type(), right.schema().data_type());
+        // println!("{left_dt}, {right_dt}");
+        // let left_fields = left_dt.iter()
+        //     .collect::<Vec<_>>();
+        // println!("left_fields = {left_fields:?}");
         let left_fields = left_names
             .into_iter()
             .zip(left_dt.iter())

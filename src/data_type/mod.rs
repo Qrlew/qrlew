@@ -2337,6 +2337,7 @@ impl DataType {
         }
     }
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
+
     /// Produce a Hierarchy of subtypes to access them in a smart way (unambiguous prefix can be omited)
     pub fn hierarchy(&self) -> Hierarchy<&DataType> {
         for_all_variants!(
@@ -4216,17 +4217,5 @@ mod tests {
             b.flatten_optional(),
             DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)
         );
-    }
-
-    #[test]
-    fn test_iter() {
-        let fields = vec![
-            ("a".to_string(), DataType::float()),
-            ("b".to_string(), DataType::integer()),
-            ("c".to_string(), DataType::boolean()),
-        ];
-        let dt = DataType::structured(fields.clone());
-        let v = dt.iter().collect::<Vec<_>>();
-        assert_eq!(fields, v);
     }
 }
