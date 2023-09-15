@@ -2353,7 +2353,7 @@ impl DataType {
 impl Variant for DataType {
     type Element = value::Value;
 
-    fn contains(&self, element: &Self::Element) -> bool {
+    fn contains(&self, element: &Self::Element ) -> bool {
         match (self, element) {
             // If self and other are from the same variant
             (DataType::Null, _) => false, // Any element of self is also in other
