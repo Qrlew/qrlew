@@ -6,7 +6,7 @@
 use crate::{
     builder::{self, Ready, With},
     display::Dot,
-    expr::{identifier::Identifier, Expr},
+    expr::{aggregate::Aggregate, identifier::Identifier, AggregateColumn, Expr},
     hierarchy::{Hierarchy, Path},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
@@ -182,7 +182,7 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
             Strategy::Hard => {
                 let builder = Relation::reduce()
                     .with_group_by_column(PE_ID)
-                    .with((PE_WEIGHT, Expr::sum(Expr::col(PE_WEIGHT))))
+                    .with((PE_WEIGHT, AggregateColumn::sum(PE_WEIGHT)))
                     .with(reduce.clone())
                     .input(Relation::from(input?));
                 Ok(PEPRelation(builder.build()))
@@ -402,7 +402,6 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        println!("DEBUG {}", relations);
         // Table
         let table = table
             .protect_from_field_paths(
@@ -426,7 +425,7 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        // let relation = Relation::try_from(parse("SELECT * FROM primary_table").unwrap().with(&relations)).unwrap();
+        relation.display_dot().unwrap();
         // Table
         let relation = relation.force_protect_from_field_paths(
             &relations,

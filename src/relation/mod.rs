@@ -11,7 +11,12 @@ pub mod schema;
 pub mod sql;
 pub mod transforms;
 
-use std::{cmp, error, fmt, hash, ops::Index, rc::Rc, result};
+use std::{
+    cmp, error, fmt, hash,
+    ops::{Deref, Index},
+    rc::Rc,
+    result,
+};
 
 use colored::Colorize;
 use itertools::Itertools;
@@ -22,7 +27,7 @@ use crate::{
         self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Value,
         Variant as _,
     },
-    expr::{self, aggregate, Aggregate, Column, Expr, Identifier, Split},
+    expr::{self, aggregate, Aggregate, AggregateColumn, Column, Expr, Identifier, Split},
     hierarchy::Hierarchy,
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -445,7 +450,7 @@ pub struct Reduce {
     /// The name of the output
     name: String,
     /// Aggregate expressions
-    aggregate: Vec<Expr>,
+    aggregate: Vec<AggregateColumn>,
     /// Grouping expressions
     group_by: Vec<Expr>,
     /// The schema description of the output
@@ -463,16 +468,16 @@ impl Reduce {
     /// Are built at construction time, while less important are lazily recomputed
     pub fn new(
         name: String,
-        named_exprs: Vec<(String, Expr)>,
+        named_aggregate: Vec<(String, AggregateColumn)>,
         group_by: Vec<Expr>,
         input: Rc<Relation>,
     ) -> Self {
         // assert!(Split::from_iter(named_exprs.clone()).len()==1);
-        let (schema, exprs) = Reduce::schema_exprs(named_exprs, &input);
+        let (schema, aggregate) = Reduce::schema_aggregate(named_aggregate, &input);
         let size = Reduce::size(&input);
         Reduce {
             name,
-            aggregate: exprs,
+            aggregate,
             group_by,
             schema,
             size,
@@ -481,25 +486,30 @@ impl Reduce {
     }
 
     /// Compute the schema and exprs of the reduce
-    fn schema_exprs(named_exprs: Vec<(String, Expr)>, input: &Relation) -> (Schema, Vec<Expr>) {
+    fn schema_aggregate(
+        named_aggregate_columns: Vec<(String, AggregateColumn)>,
+        input: &Relation,
+    ) -> (Schema, Vec<AggregateColumn>) {
         // The input schema HAS to be a Struct
         let input_data_type: Struct = input.data_type().try_into().unwrap();
         let input_columns_data_type: DataType =
             Struct::from_schema_size(input_data_type, input.size()).into();
-        let (fields, exprs) = named_exprs
+        let (fields, aggregates) = named_aggregate_columns
             .into_iter()
-            .map(|(name, expr)| {
+            .map(|(name, aggregate_column)| {
                 (
                     Field::new(
                         name,
-                        expr.super_image(&input_columns_data_type).unwrap(),
+                        aggregate_column
+                            .super_image(&input_columns_data_type)
+                            .unwrap(),
                         None,
                     ),
-                    expr,
+                    aggregate_column,
                 )
             })
             .unzip();
-        (Schema::new(fields), exprs)
+        (Schema::new(fields), aggregates)
     }
     /// Compute the size of the reduce
     /// The size of the reduce can be the same as its input and will be at least 0
@@ -510,21 +520,8 @@ impl Reduce {
         )
     }
     /// Get aggregate exprs
-    pub fn aggregate(&self) -> &[Expr] {
+    pub fn aggregate(&self) -> &[AggregateColumn] {
         &self.aggregate
-    }
-    /// Get aggregate aggregates
-    pub fn aggregate_aggregates(&self) -> Vec<&Aggregate> {
-        self.aggregate
-            .iter()
-            .filter_map(|e| {
-                if let Expr::Aggregate(aggregate) = e {
-                    Some(aggregate)
-                } else {
-                    None
-                }
-            })
-            .collect()
     }
     /// Get group_by
     pub fn group_by(&self) -> &[Expr] {
@@ -548,44 +545,15 @@ impl Reduce {
         &self.input
     }
     /// Get names and expressions
-    pub fn field_exprs(&self) -> Vec<(&Field, &Expr)> {
+    pub fn field_aggregates(&self) -> Vec<(&Field, &AggregateColumn)> {
         self.schema.iter().zip(self.aggregate.iter()).collect()
     }
     /// Get names and expressions
-    pub fn named_exprs(&self) -> Vec<(&str, &Expr)> {
+    pub fn named_aggregates(&self) -> Vec<(&str, &AggregateColumn)> {
         self.schema
             .iter()
             .map(|f| f.name())
             .zip(self.aggregate.iter())
-            .collect()
-    }
-    /// Get names and expressions
-    pub fn field_aggregates(&self) -> Vec<(&Field, &Aggregate)> {
-        self.schema
-            .iter()
-            .zip(self.aggregate.iter())
-            .filter_map(|(f, e)| {
-                if let Expr::Aggregate(aggregate) = e {
-                    Some((f, aggregate))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-    /// Get names and expressions
-    pub fn named_aggregates(&self) -> Vec<(&str, &Aggregate)> {
-        self.schema
-            .iter()
-            .map(|f| f.name())
-            .zip(self.aggregate.iter())
-            .filter_map(|(f, e)| {
-                if let Expr::Aggregate(aggregate) = e {
-                    Some((f, aggregate))
-                } else {
-                    None
-                }
-            })
             .collect()
     }
     /// Return a new builder
@@ -597,10 +565,9 @@ impl Reduce {
         self.group_by
             .iter()
             .filter_map(|e| match e {
-                Expr::Column(col) => col.last(),
+                Expr::Column(col) => col.last().ok(),
                 _ => None,
             })
-            .map(|s| s.as_str())
             .collect()
     }
 }
@@ -611,10 +578,10 @@ impl fmt::Display for Reduce {
             .aggregate
             .iter()
             .zip(self.schema.fields().iter())
-            .map(|(expr, field)| {
+            .map(|(aggregate, field)| {
                 format!(
                     "{} {} {}",
-                    expr,
+                    aggregate.deref(),
                     "AS".to_string().bold().blue(),
                     field.name()
                 )

@@ -101,27 +101,29 @@ fn compile() {
     )
     .unwrap();
     println!("relation = {relation}");
-    let relation = relation
-        .dp_compilation(
-            &relations,
-            &[
-                (
-                    "item_table",
-                    &[
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
-                    ],
-                    "name",
-                ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
-            ],
-            1.,   // epsilon
-            1e-5, // delta
-        )
-        .unwrap();
-    println!("relation = {relation}");
+    let pep_relation = relation.force_protect_from_field_paths(
+        &relations,
+        &[
+            (
+                "item_table",
+                &[
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", &[("user_id", "user_table", "id")], "name"),
+            ("user_table", &[], "name"),
+        ],
+    );
+    pep_relation.display_dot().unwrap();
+
+    let epsilon = 1.;
+    let delta = 1e-3;
+    let dp_relation = pep_relation.dp_compile(epsilon, delta).unwrap();
+    let relation = dp_relation.0;
     relation.display_dot().unwrap();
+    println!("relation = {relation}");
     let query = Query::from(&relation);
     println!("query = {query}");
 }

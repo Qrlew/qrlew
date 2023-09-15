@@ -5,7 +5,7 @@
 
 use crate::{
     builder::{Ready, With},
-    expr::{aggregate, identifier::Identifier, Expr},
+    expr::{aggregate, identifier::Identifier, AggregateColumn, Expr},
     hierarchy::Hierarchy,
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
@@ -192,7 +192,7 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
             .build();
 
         // Extract field from the visited reduce
-        let field_aggexpr_map: Vec<(&str, &Expr)> = reduce
+        let field_aggexpr_map: Vec<(&str, &AggregateColumn)> = reduce
             .schema()
             .fields()
             .iter()
@@ -203,29 +203,24 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
         // Apply corrections to aggregate function
         let new_exprs: Vec<(&str, Expr)> = field_aggexpr_map
             .into_iter()
-            .map(|(name, expr)| match &expr {
-                Expr::Aggregate(agg) => match agg.aggregate() {
-                    aggregate::Aggregate::Count => (
-                        name,
-                        Expr::multiply(
-                            Expr::col(CORRECTION_FACTOR),
-                            Expr::multiply(Expr::val(input.1), Expr::col(name)),
-                        ),
+            .map(|(name, agg)| match agg.aggregate() {
+                aggregate::Aggregate::Count => (
+                    name,
+                    Expr::multiply(
+                        Expr::col(CORRECTION_FACTOR),
+                        Expr::multiply(Expr::val(input.1), Expr::col(name)),
                     ),
-                    aggregate::Aggregate::Sum => {
-                        (name, Expr::multiply(Expr::val(input.1), Expr::col(name)))
-                    }
-                    aggregate::Aggregate::Mean => (
-                        name,
-                        Expr::divide(Expr::col(name), Expr::col(CORRECTION_FACTOR)),
-                    ),
-                    aggregate::Aggregate::First | aggregate::Aggregate::Last => {
-                        (name, Expr::col(name))
-                    }
-                    // todo for aggregation function that we don't know how to correct yet such as MIN and MAX.
-                    _ => todo!(),
-                },
-                _ => (name, Expr::col(name)),
+                ),
+                aggregate::Aggregate::Sum => {
+                    (name, Expr::multiply(Expr::val(input.1), Expr::col(name)))
+                }
+                aggregate::Aggregate::Mean => (
+                    name,
+                    Expr::divide(Expr::col(name), Expr::col(CORRECTION_FACTOR)),
+                ),
+                aggregate::Aggregate::First | aggregate::Aggregate::Last => (name, Expr::col(name)),
+                // todo for aggregation function that we don't know how to correct yet such as MIN and MAX.
+                _ => todo!(),
             })
             .collect();
 

@@ -22,7 +22,7 @@ use std::{
     collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub},
+    ops::{Add, BitAnd, BitOr, BitXor, Deref, Div, Mul, Neg, Not, Rem, Sub},
     rc::Rc,
     result,
 };
@@ -422,8 +422,8 @@ impl Aggregate {
         }
     }
     /// Get the argument name
-    pub fn argument_name(&self) -> Result<&String> {
-        Ok(self.argument_column()?.last().unwrap())
+    pub fn argument_name(&self) -> Result<&str> {
+        Ok(self.argument_column()?.last()?)
     }
 }
 
@@ -451,6 +451,15 @@ macro_rules! impl_aggregation_constructors {
             paste! {
                 $(pub fn [<$Aggregate:snake>]<E: Into<Expr>>(expr: E) -> Expr {
                     Expr::from(Aggregate::[<$Aggregate:snake>](expr))
+                }
+                )*
+            }
+        }
+
+        impl AggregateColumn {
+            paste! {
+                $(pub fn [<$Aggregate:snake>]<S: Into<String>>(col: S) -> AggregateColumn {
+                    AggregateColumn::new(aggregate::Aggregate::$Aggregate, Column::from(col.into()))
                 }
                 )*
             }
@@ -707,6 +716,87 @@ impl<'a> IntoIterator for &'a Expr {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+/// An aggregate column expr
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct AggregateColumn {
+    aggregate: aggregate::Aggregate,
+    column: Column,
+    expr: Expr,
+}
+
+impl AggregateColumn {
+    pub fn new(aggregate: aggregate::Aggregate, column: Column) -> Self {
+        AggregateColumn {
+            aggregate,
+            column: column.clone(),
+            expr: Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::Column(column)))),
+        }
+    }
+    /// Access aggregate
+    pub fn aggregate(&self) -> &aggregate::Aggregate {
+        &self.aggregate
+    }
+    /// Access column
+    pub fn column(&self) -> &Column {
+        &self.column
+    }
+    /// Access column name
+    pub fn column_name(&self) -> Result<&str> {
+        Ok(&self.column.last()?)
+    }
+    /// A constructor
+    pub fn col<S: Into<String>>(field: S) -> AggregateColumn {
+        AggregateColumn::first(field)
+    }
+}
+
+impl Deref for AggregateColumn {
+    type Target = Expr;
+
+    fn deref(&self) -> &Self::Target {
+        &self.expr
+    }
+}
+
+impl From<AggregateColumn> for Expr {
+    fn from(value: AggregateColumn) -> Self {
+        value.expr
+    }
+}
+
+impl TryFrom<Expr> for AggregateColumn {
+    type Error = Error;
+
+    fn try_from(value: Expr) -> result::Result<Self, Self::Error> {
+        match value {
+            Expr::Column(column) => Ok(column.into()),
+            Expr::Aggregate(Aggregate {
+                aggregate,
+                argument,
+            }) => {
+                if let Expr::Column(column) = argument.as_ref() {
+                    Ok(AggregateColumn::new(aggregate, column.clone()))
+                } else {
+                    Err(Error::invalid_conversion(argument, "Column"))
+                }
+            }
+            _ => Err(Error::invalid_conversion(value, "AggregateColumn")),
+        }
+    }
+}
+
+impl From<Column> for AggregateColumn {
+    fn from(value: Column) -> Self {
+        AggregateColumn::new(aggregate::Aggregate::First, value)
+    }
+}
+
+impl<S: Into<String>> From<S> for AggregateColumn {
+    fn from(value: S) -> Self {
+        AggregateColumn::new(aggregate::Aggregate::First, Column::from(value.into()))
     }
 }
 
@@ -1128,7 +1218,7 @@ impl Expr {
                 .into_iter()
                 .filter_map(|(p, r)| {
                     if let Expr::Column(c) = r {
-                        Some((c.last()?.clone(), p))
+                        Some((c.last().ok()?.to_string(), p))
                     } else {
                         None
                     }
@@ -1175,7 +1265,7 @@ impl DataType {
     /// Note: for the moment, we support only:
     /// - `Gt`, `GtEq`, `Lt`, `LtEq` functions comparing a column to a float or an integer value,
     /// - `Eq` function comparing a column to any value,
-    /// - `And` function between two supported Expr::Function,
+    /// - `And` and `Or` function between two supported Expr::Function,
     /// - 'InList` test if a column value belongs to a list
     fn filter_by_function(&self, predicate: &Function) -> DataType {
         let mut datatype = self.clone();
@@ -1185,6 +1275,11 @@ impl DataType {
                 let dt1 = self.filter(right).filter(left);
                 let dt2 = self.filter(left).filter(right);
                 datatype = dt1.super_intersection(&dt2).unwrap_or(datatype)
+            }
+            (function::Function::Or, [left, right]) => {
+                let dt1 = self.filter(right);
+                let dt2 = self.filter(left);
+                datatype = dt1.super_union(&dt2).unwrap_or(datatype)
             }
             // Set min or max
             (function::Function::Gt, [left, right])
@@ -1257,7 +1352,7 @@ impl DataType {
         );
         match self {
             DataType::Struct(st) => {
-                let (head, tail) = name.split_first().unwrap();
+                let (head, tail) = name.split_head().unwrap();
                 DataType::structured(
                     st.iter()
                         .map(|(s, d)| {
@@ -1271,7 +1366,7 @@ impl DataType {
                 )
             }
             DataType::Union(u) => {
-                let (head, tail) = name.split_first().unwrap();
+                let (head, tail) = name.split_head().unwrap();
                 DataType::union(
                     u.iter()
                         .map(|(s, d)| {
@@ -2126,6 +2221,32 @@ mod tests {
             ),
         ]);
         assert_eq!(filtered_dt, true_dt);
+
+        // Or
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-20., 20.)),
+            ("b", DataType::integer_interval(0, 15)),
+        ]);
+
+        //  a > 0 or a < -10
+        let x1 = Expr::lt(Expr::col("a"), Expr::val(-10));
+        let x2 = Expr::gt(Expr::col("a"), Expr::val(0));
+        let x = Expr::or(x1, x2);
+        let filtered_dt = dt.filter(&x);
+        println!("{} -> {}", x, filtered_dt);
+        let true_dt = DataType::structured([
+            (
+                "a",
+                DataType::from(data_type::Float::from_intervals([[0., 20.], [-20., -10.]])),
+            ),
+            ("b", DataType::integer_interval(0, 15)),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
+
+        let x1 = Expr::lt(Expr::col("a"), Expr::val(-8));
+        let x2 = expr!(gt(b, 5));
+        let x3 = expr!(gt_eq(a, 2 * b));
+        println!("x1 = {}, x2 = {}, x3 = {}", x1, x2, x3);
     }
 
     #[test]
@@ -2280,6 +2401,7 @@ mod tests {
         ]);
         assert_eq!(filtered_dt, true_dt);
 
+        // And
         let true_dt = DataType::structured([
             ("a", DataType::float_interval(6.0, 7.)),
             ("b", DataType::integer_interval(3, 8)),

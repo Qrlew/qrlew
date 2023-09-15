@@ -207,7 +207,7 @@ impl Relation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{display::Dot, relation::Schema};
+    use crate::{display::Dot, expr::AggregateColumn, relation::Schema};
     use std::rc::Rc;
 
     #[test]
@@ -296,7 +296,7 @@ mod tests {
         // Without GROUPBY
         let red = Reduce::new(
             "reduce_relation".to_string(),
-            vec![("sum_a".to_string(), Expr::sum(Expr::col("a")))],
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![],
             Rc::new(table.clone()),
         );
@@ -307,7 +307,7 @@ mod tests {
         // With GROUPBY
         let red = Reduce::new(
             "reduce_relation".to_string(),
-            vec![("sum_a".to_string(), Expr::sum(Expr::col("a")))],
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         );
@@ -319,8 +319,8 @@ mod tests {
         let red = Reduce::new(
             "reduce_relation".to_string(),
             vec![
-                ("sum_a".to_string(), Expr::sum(Expr::col("a"))),
-                ("b".to_string(), Expr::first(Expr::col("a"))),
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("b".to_string(), AggregateColumn::col("b")),
             ],
             vec![Expr::col("b")],
             Rc::new(table.clone()),

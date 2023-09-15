@@ -61,6 +61,7 @@ use std::{
 };
 
 use crate::{
+    builder::With,
     hierarchy::{Hierarchy, Path},
     namer,
     types::{And, Or},
@@ -875,7 +876,7 @@ impl Struct {
             self.iter()
                 .map(|(s, d)| (vec![s.clone()], d.as_ref()))
                 .collect(),
-            |h, (s, d)| h.chain(d.hierarchy().prepend(&[s.clone()])),
+            |h, (s, d)| h.with(d.hierarchy().prepend(&[s.clone()]).into_iter()),
         )
     }
 }
@@ -1172,7 +1173,7 @@ impl Union {
             self.iter()
                 .map(|(s, d)| (vec![s.clone()], d.as_ref()))
                 .collect(),
-            |h, (s, d)| h.chain(d.hierarchy().prepend(&[s.clone()])),
+            |h, (s, d)| h.with(d.hierarchy().prepend(&[s.clone()]).into_iter()),
         )
     }
 }
