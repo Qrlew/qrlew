@@ -2763,23 +2763,6 @@ impl<P: Path> Index<P> for DataType {
     }
 }
 
-impl Index<usize> for DataType {
-    type Output = Rc<DataType>;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        match self {
-            DataType::Enum(_) => todo!(),
-            DataType::Struct(s) => s.index(index),
-            DataType::Union(u) => u.index(index),
-            DataType::Optional(_) => todo!(),
-            DataType::List(_) => todo!(),
-            DataType::Set(_) => todo!(),
-            DataType::Array(_) => todo!(),
-            _ => panic!()
-        }
-    }
-}
-
 // Some more conversions
 
 /// DataType -> (Intervals<A>)
@@ -3109,7 +3092,7 @@ impl DataType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{convert::TryFrom, path};
+    use std::convert::TryFrom;
 
     #[test]
     fn test_null() {
@@ -4205,25 +4188,6 @@ mod tests {
     }
 
     #[test]
-    fn test_hierarchy2() {
-        let struct_dt =
-            DataType::structured([("a", DataType::float()), ("b", DataType::integer())]);
-
-        let struct_dt2 =
-            DataType::structured([("a", DataType::integer()), ("c", DataType::integer())]);
-
-        let h1 = struct_dt.hierarchy();
-        let h2 = struct_dt2.hierarchy();
-        let v = h1.iter()
-            .filter_map(|(s, _)| {
-                h2.get(s).map(|_| s)
-            })
-            .collect::<Vec<_>>();
-        println!("{:?}", v);
-
-    }
-
-    #[test]
     fn test_flatten_optional() {
         let a = DataType::unit()
             & DataType::float()
@@ -4243,22 +4207,5 @@ mod tests {
             b.flatten_optional(),
             DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)
         );
-    }
-
-    #[test]
-    fn test_struct_of_struct(){
-        let s1 = DataType::structured([
-            ("a".to_string(), DataType::float()),
-            ("b".to_string(), DataType::integer()),
-        ]);
-        let s2 = DataType::structured([
-            ("a".to_string(), DataType::boolean()),
-            ("c".to_string(), DataType::integer()),
-        ]);
-        let s = DataType::structured([
-            ("tab1", s1),
-            ("tab2", s2),
-        ]);
-        println!("{}", s[0]);
     }
 }

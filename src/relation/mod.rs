@@ -718,8 +718,8 @@ impl From<(&JoinConstraint, &DataType)> for Expr {
                     |f, v| Expr::and(
                         f,
                         Expr::eq(
-                            Expr::qcol(names[0], v.head().unwrap().as_str()),
-                            Expr::qcol(names[1], v.head().unwrap().as_str())
+                            Expr::qcol(names[0], v.head().unwrap()),
+                            Expr::qcol(names[1], v.head().unwrap())
                         )
                     )
                 )
@@ -831,11 +831,11 @@ impl Join {
         let left_fields = left_names
             .into_iter()
             .zip(left_schema.iter())
-            .map(|(name, d)| Field::from_name_data_type(name, d.clone()));
+            .map(|(name, field)| Field::from_name_data_type(name, field.data_type()));
         let right_fields = right_names
             .into_iter()
             .zip(right_schema.iter())
-            .map(|(name, d)| Field::from_name_data_type(name, d.clone()));
+            .map(|(name, field)| Field::from_name_data_type(name, field.data_type()));
         left_fields.chain(right_fields).collect()
     }
 
