@@ -207,7 +207,7 @@ impl Relation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{display::Dot, relation::Schema, expr::AggregateColumn};
+    use crate::{display::Dot, expr::AggregateColumn, relation::Schema};
     use std::rc::Rc;
 
     #[test]

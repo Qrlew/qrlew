@@ -18,7 +18,7 @@ impl Identifier {
     pub fn head(&self) -> Result<&str> {
         self.0.get(0).map_or_else(
             || Err(Error::invalid_expression("Identifier too short")),
-            |h| Ok(h.as_str())
+            |h| Ok(h.as_str()),
         )
     }
 
@@ -36,7 +36,7 @@ impl Identifier {
     pub fn last(&self) -> Result<&str> {
         self.0.last().map_or_else(
             || Err(Error::invalid_expression("Identifier too short")),
-            |h| Ok(h.as_str())
+            |h| Ok(h.as_str()),
         )
     }
 

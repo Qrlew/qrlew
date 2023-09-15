@@ -6,7 +6,7 @@
 use crate::{
     builder::{self, Ready, With},
     display::Dot,
-    expr::{identifier::Identifier, Expr, aggregate::Aggregate, AggregateColumn},
+    expr::{aggregate::Aggregate, identifier::Identifier, AggregateColumn, Expr},
     hierarchy::{Hierarchy, Path},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,

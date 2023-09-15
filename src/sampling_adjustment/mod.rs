@@ -5,7 +5,7 @@
 
 use crate::{
     builder::{Ready, With},
-    expr::{aggregate, identifier::Identifier, Expr, AggregateColumn},
+    expr::{aggregate, identifier::Identifier, AggregateColumn, Expr},
     hierarchy::Hierarchy,
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
@@ -218,9 +218,7 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
                     name,
                     Expr::divide(Expr::col(name), Expr::col(CORRECTION_FACTOR)),
                 ),
-                aggregate::Aggregate::First | aggregate::Aggregate::Last => {
-                    (name, Expr::col(name))
-                }
+                aggregate::Aggregate::First | aggregate::Aggregate::Last => (name, Expr::col(name)),
                 // todo for aggregation function that we don't know how to correct yet such as MIN and MAX.
                 _ => todo!(),
             })

@@ -11,7 +11,12 @@ pub mod schema;
 pub mod sql;
 pub mod transforms;
 
-use std::{cmp, error, fmt, hash, ops::{Index, Deref}, rc::Rc, result};
+use std::{
+    cmp, error, fmt, hash,
+    ops::{Deref, Index},
+    rc::Rc,
+    result,
+};
 
 use colored::Colorize;
 use itertools::Itertools;
@@ -22,7 +27,7 @@ use crate::{
         self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Value,
         Variant as _,
     },
-    expr::{self, Expr, Identifier, Split, Aggregate, aggregate, Column, AggregateColumn},
+    expr::{self, aggregate, Aggregate, AggregateColumn, Column, Expr, Identifier, Split},
     hierarchy::Hierarchy,
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -479,7 +484,10 @@ impl Reduce {
     }
 
     /// Compute the schema and exprs of the reduce
-    fn schema_aggregate(named_aggregate_columns: Vec<(String, AggregateColumn)>, input: &Relation) -> (Schema, Vec<AggregateColumn>) {
+    fn schema_aggregate(
+        named_aggregate_columns: Vec<(String, AggregateColumn)>,
+        input: &Relation,
+    ) -> (Schema, Vec<AggregateColumn>) {
         // The input schema HAS to be a Struct
         let input_data_type: Struct = input.data_type().try_into().unwrap();
         let input_columns_data_type: DataType =
@@ -490,7 +498,9 @@ impl Reduce {
                 (
                     Field::new(
                         name,
-                        aggregate_column.super_image(&input_columns_data_type).unwrap(),
+                        aggregate_column
+                            .super_image(&input_columns_data_type)
+                            .unwrap(),
                         None,
                     ),
                     aggregate_column,
@@ -538,7 +548,11 @@ impl Reduce {
     }
     /// Get names and expressions
     pub fn named_aggregates(&self) -> Vec<(&str, &AggregateColumn)> {
-        self.schema.iter().map(|f| f.name()).zip(self.aggregate.iter()).collect()
+        self.schema
+            .iter()
+            .map(|f| f.name())
+            .zip(self.aggregate.iter())
+            .collect()
     }
     /// Return a new builder
     pub fn builder() -> ReduceBuilder<WithoutInput> {
@@ -546,10 +560,13 @@ impl Reduce {
     }
     /// Get group_by_names
     pub fn group_by_names(&self) -> Vec<&str> {
-        self.group_by.iter().filter_map(|e| match e {
-            Expr::Column(col) => col.last().ok(),
-            _ => None,
-        }).collect()
+        self.group_by
+            .iter()
+            .filter_map(|e| match e {
+                Expr::Column(col) => col.last().ok(),
+                _ => None,
+            })
+            .collect()
     }
 }
 
