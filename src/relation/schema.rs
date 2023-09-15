@@ -101,22 +101,7 @@ impl Schema {
     /// Returns a new `Schema` where the `fields` of this `Schema`
     /// has been filtered by predicate `Expr`
     pub fn filter(&self, predicate: &Expr) -> Self {
-        let dt = DataType::structured(
-            self.fields()
-                .iter()
-                .map(|f| (f.name(), f.data_type()))
-                .collect::<Vec<_>>(),
-        )
-        .filter(predicate);
-        if let DataType::Struct(s) = dt {
-            Self::new(
-                s.iter()
-                    .map(|(name, t)| Field::from_name_data_type(name, t.as_ref().clone()))
-                    .collect::<Vec<_>>(),
-            )
-        } else {
-            self.clone()
-        }
+        self.data_type().filter(predicate).into()
     }
 }
 
@@ -197,7 +182,15 @@ impl<F: Into<Field>, const N: usize> From<[F; N]> for Schema {
 
 impl From<DataType> for Schema {
     fn from(data_type: DataType) -> Self {
-        Schema::from_field(Field::from_data_type(data_type))
+        match data_type {
+            DataType::Struct(s) => Self::new(
+                s.iter()
+                    .map(|(name, t)| Field::from_name_data_type(name, t.as_ref().clone()))
+                    .collect::<Vec<_>>(),
+            ),
+            DataType::Union(_) => todo!(),
+            _ => Schema::from_field(Field::from_data_type(data_type)),
+        }
     }
 }
 
