@@ -3082,7 +3082,7 @@ impl DataType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, path};
 
     #[test]
     fn test_null() {
@@ -4178,6 +4178,25 @@ mod tests {
     }
 
     #[test]
+    fn test_hierarchy2() {
+        let struct_dt =
+            DataType::structured([("a", DataType::float()), ("b", DataType::integer())]);
+
+        let struct_dt2 =
+            DataType::structured([("a", DataType::integer()), ("c", DataType::integer())]);
+
+        let h1 = struct_dt.hierarchy();
+        let h2 = struct_dt2.hierarchy();
+        let v = h1.iter()
+            .filter_map(|(s, _)| {
+                h2.get(s).map(|_| s)
+            })
+            .collect::<Vec<_>>();
+        println!("{:?}", v);
+
+    }
+
+    #[test]
     fn test_flatten_optional() {
         let a = DataType::unit()
             & DataType::float()
@@ -4197,5 +4216,17 @@ mod tests {
             b.flatten_optional(),
             DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)
         );
+    }
+
+    #[test]
+    fn test_iter() {
+        let fields = vec![
+            ("a".to_string(), DataType::float()),
+            ("b".to_string(), DataType::integer()),
+            ("c".to_string(), DataType::boolean()),
+        ];
+        let dt = DataType::structured(fields.clone());
+        let v = dt.iter().collect::<Vec<_>>();
+        assert_eq!(fields, v);
     }
 }

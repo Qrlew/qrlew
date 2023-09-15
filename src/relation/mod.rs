@@ -688,11 +688,67 @@ impl JoinOperator {
     }
 }
 
-// impl From<Unit> for Struct {
-//     fn from(_value: Unit) -> Self {
-//         Struct::unit()
-//     }
-// }
+impl JoinOperator {
+    fn filter_data_types(&self, left: &DataType, right: &DataType) -> (DataType, DataType) {
+        let union_dt = DataType::union([
+            ("left".to_string(), left.clone()),
+            ("right".to_string(), right.clone()),
+        ]);
+        match self {
+            JoinOperator::Inner(c) => {
+                let x = Expr::from((left, c, right));
+                let union_dt = union_dt.filter(&x);
+                (union_dt[["left"]].clone(), union_dt[["right"]].clone())
+            },
+            JoinOperator::LeftOuter(c) => {
+                let x = Expr::from((left, c, right));
+                let filtered_union_dt = union_dt.filter(&x);
+                (union_dt[["left"]].clone(), filtered_union_dt[["right"]].clone())
+            },
+            JoinOperator::RightOuter(c) => {
+                let x = Expr::from((left, c, right));
+                let filtered_union_dt = union_dt.filter(&x);
+                (filtered_union_dt[["left"]].clone(), union_dt[["right"]].clone())
+            },
+            JoinOperator::FullOuter(_)
+            | JoinOperator::Cross => (union_dt[["left"]].clone(), union_dt[["right"]].clone()),
+        }
+
+    }
+}
+
+impl From<(&DataType, &JoinConstraint, &DataType)> for Expr {
+    fn from(value: (&DataType, &JoinConstraint, &DataType)) -> Self {
+        let (left, constraint, right) = value;
+        match constraint {
+            JoinConstraint::On(x) => x.clone(),
+            JoinConstraint::Using(x) => {
+                assert_eq!(x.len(), 1);
+                x.iter()
+                .fold(
+                    Expr::val(true),
+                    |f, v| Expr::and(
+                        f,
+                        Expr::eq(
+                            Expr::qcol("left", v.head().unwrap().as_str()),
+                            Expr::qcol("right", v.head().unwrap().as_str())
+                        )
+                    )
+                )
+            },
+            JoinConstraint::Natural => {
+                let h = right.hierarchy();
+                let v = left.hierarchy().into_iter()
+                .filter_map(|(s, _)| {
+                    h.get(&s).map(|_| Identifier::from(s))
+                })
+                .collect::<Vec<_>>();
+                (left, &JoinConstraint::Using(v), right).into()
+            },
+            JoinConstraint::None => Expr::val(true),
+        }
+    }
+}
 
 impl fmt::Display for JoinOperator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -783,22 +839,24 @@ impl Join {
         right: &Relation,
         operator: &JoinOperator
     ) -> Schema {
+        // let (left_dt, right_dt)= operator.filter_data_types(
+        //     &left.schema().data_type(),
+        //     &right.schema().data_type()
+        // );
+        let (left_dt, right_dt)= (left.schema().data_type(), right.schema().data_type());
+        println!("{left_dt}, {right_dt}");
+        let left_fields = left_dt.iter()
+            .collect::<Vec<_>>();
+        println!("left_fields = {left_fields:?}");
         let left_fields = left_names
             .into_iter()
-            .zip(left.schema().iter())
-            .map(|(name, field)| Field::from_name_data_type(name, field.data_type()));
+            .zip(left_dt.iter())
+            .map(|(name, d)| Field::from_name_data_type(name, d.clone()));
         let right_fields = right_names
             .into_iter()
-            .zip(right.schema().iter())
-            .map(|(name, field)| Field::from_name_data_type(name, field.data_type()));
+            .zip(right_dt.iter())
+            .map(|(name, d)| Field::from_name_data_type(name, d.clone()));
         left_fields.chain(right_fields).collect()
-
-        // let dt = DataType::union([
-        //     (left.name(), left.schema().data_type()),
-        //     (right.name(), right.schema().data_type()),
-        // ]);
-
-
     }
 
     /// Compute the size of the join
@@ -1543,7 +1601,7 @@ impl Ready<Relation> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::{schema::Schema, *};
-    use crate::{builder::With, data_type::DataType};
+    use crate::{builder::With, data_type::DataType, display::Dot};
 
     #[test]
     fn test_table() {
@@ -1670,7 +1728,7 @@ mod tests {
             ("a", DataType::float()),
             ("b", DataType::float_interval(-2., 2.)),
             ("c", DataType::float_interval(0., 1.)),
-            ("id", DataType::integer()),
+            ("id", DataType::integer_interval(0, 100)),
         ]
         .into_iter()
         .collect();
@@ -1692,6 +1750,7 @@ mod tests {
                 Expr::qcol("right", "id"),
             ))
             .build();
+        join.display_dot().unwrap();
         println!("join = {}", join);
         println!("join.data_type() = {}", join.data_type());
         println!("join.schema() = {}", join.schema());
