@@ -3,7 +3,7 @@
 //! A typed value with runtime type checking
 //!
 
-use crate::namer;
+use crate::{builder::With, namer};
 use chrono;
 use itertools::Itertools;
 use serde::{ser::SerializeStruct, Deserialize, Serialize};
@@ -494,7 +494,7 @@ impl Struct {
             .map(|(s, v)| (vec![s.to_string()], v.as_ref()))
             .collect();
         self.iter().fold(h, |acc, (s, v)| {
-            acc.chain(v.hierarchy().prepend(&[s.to_string()]))
+            acc.with(v.hierarchy().prepend(&[s.to_string()]).into_iter())
         })
     }
 }
@@ -700,12 +700,13 @@ impl Union {
         let h: Hierarchy<&Value> = [(self.0 .0.to_string(), self.0 .1.as_ref())]
             .into_iter()
             .collect();
-        h.chain(
+        h.with(
             self.0
                  .1
                 .as_ref()
                 .hierarchy()
-                .prepend(&[self.0 .0.to_string()]),
+                .prepend(&[self.0 .0.to_string()])
+                .into_iter(),
         )
     }
 }

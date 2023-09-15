@@ -22,7 +22,7 @@ use std::{
     collections::BTreeMap,
     convert::identity,
     error, fmt, hash,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Sub, Deref},
+    ops::{Add, BitAnd, BitOr, BitXor, Deref, Div, Mul, Neg, Not, Rem, Sub},
     rc::Rc,
     result,
 };
@@ -732,7 +732,7 @@ impl AggregateColumn {
         AggregateColumn {
             aggregate,
             column: column.clone(),
-            expr: Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::Column(column))))
+            expr: Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::Column(column)))),
         }
     }
     /// Access aggregate
@@ -782,7 +782,7 @@ impl TryFrom<Expr> for AggregateColumn {
                 } else {
                     Err(Error::invalid_conversion(argument, "Column"))
                 }
-            },
+            }
             _ => Err(Error::invalid_conversion(value, "AggregateColumn")),
         }
     }

@@ -119,10 +119,6 @@ impl<T: Clone> Hierarchy<T> {
         Hierarchy::new(BTreeMap::new())
     }
 
-    pub fn chain(self, other: Self) -> Self {
-        self.into_iter().chain(other.into_iter()).collect()
-    }
-
     pub fn prepend(self, head: &[String]) -> Self {
         self.into_iter()
             .map(|(s, d)| {
@@ -248,7 +244,10 @@ impl<'a, P: Path, T: Clone, I: IntoIterator<Item = (P, T)>> With<I> for Hierarch
 }
 
 /// Index
-impl<P: Path, T: Clone> Index<P> for Hierarchy<T> where T: fmt::Display {
+impl<P: Path, T: Clone> Index<P> for Hierarchy<T>
+where
+    T: fmt::Display,
+{
     type Output = T;
 
     fn index(&self, index: P) -> &Self::Output {
@@ -365,7 +364,8 @@ mod tests {
             (["table_2", "a"], DataType::float()),
             (["table_2", "c"], DataType::integer()),
         ]);
-        let joined_h = h1.chain(h2);
+        //let joined_h = h1.chain(h2);
+        let joined_h = h1.with(h2.into_iter());
         assert_eq!(
             joined_h,
             Hierarchy::from([

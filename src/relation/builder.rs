@@ -10,7 +10,7 @@ use crate::{
     ast,
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    expr::{self, Expr, Identifier, Split, aggregate, AggregateColumn},
+    expr::{self, aggregate, AggregateColumn, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
@@ -233,7 +233,11 @@ impl<RequireInput> MapBuilder<RequireInput> {
     }
 
     /// Initialize a builder with filtered existing map
-    pub fn rename_with<F: Fn(&str, &Expr) -> String>(self, map: Map, f: F) -> MapBuilder<WithInput> {
+    pub fn rename_with<F: Fn(&str, &Expr) -> String>(
+        self,
+        map: Map,
+        f: F,
+    ) -> MapBuilder<WithInput> {
         let Map {
             name,
             projection,
@@ -1042,7 +1046,7 @@ impl Ready<Values> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataTyped, display::Dot, DataType, expr::aggregate::Aggregate};
+    use crate::{data_type::DataTyped, display::Dot, expr::aggregate::Aggregate, DataType};
 
     #[test]
     fn test_map_building() {
