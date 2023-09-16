@@ -304,6 +304,12 @@ mod tests {
     fn test_dp_compile() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
+
+        let query = parse("SELECT price
+        FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)").unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+
         let query = parse("SELECT sum(price) AS sum_price,
         count(price) AS count_price,
         avg(price) AS mean_price
