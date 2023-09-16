@@ -126,7 +126,7 @@ impl PEPRelation {
                         .build(),
                 ))
             }
-            Relation::Reduce(reduce) => reduce.dp_compile_sums(
+            Relation::Reduce(reduce) => reduce.dp_compile(
                 &protected_entity_id,
                 &protected_entity_weight,
                 epsilon,
@@ -313,7 +313,7 @@ mod tests {
         let query = parse("SELECT sum(price) AS sum_price,
         count(price) AS count_price,
         avg(price) AS mean_price
-        FROM item_table GROUP BY order_id WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)").unwrap();
+        FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id").unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
 

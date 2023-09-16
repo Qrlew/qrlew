@@ -353,7 +353,6 @@ impl<'a> VisitedQueryRelations<'a> {
             .iter()
             .map(|e| e.with(columns).try_into())
             .collect();
-        println!("DEBUG filter = {:#?}", filter);
         // Build a Relation
         let relation = match split {
             Split::Map(map) => {
@@ -363,11 +362,9 @@ impl<'a> VisitedQueryRelations<'a> {
                 builder.input(from).build()
             }
             Split::Reduce(reduce) => {
-                println!("DEBUG reduce filter = {:#?}", filter);
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
-                println!("DEBUG reduce builder = {:#?}", builder);
                 builder.input(from).build()
             }
         };
