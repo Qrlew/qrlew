@@ -6,6 +6,8 @@
 pub mod mechanisms;
 pub mod protect_grouping_keys;
 
+use itertools::Itertools;
+
 use crate::{
     builder::With,
     data_type::DataTyped,
@@ -24,19 +26,24 @@ use std::{cmp, error, fmt, rc::Rc, result};
 #[derive(Debug, PartialEq)]
 pub enum Error {
     InvalidRelation(String),
+    UnsafeGroups(String),
     Other(String),
 }
 
 impl Error {
     pub fn invalid_relation(relation: impl fmt::Display) -> Error {
-        Error::InvalidRelation(format!("{} is invalid", relation))
+        Error::InvalidRelation(format!("{relation} is invalid"))
+    }
+    pub fn unsafe_groups(groups: impl fmt::Display) -> Error {
+        Error::UnsafeGroups(format!("{groups} should be public"))
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::InvalidRelation(relation) => writeln!(f, "{} invalid.", relation),
+            Error::InvalidRelation(relation) => writeln!(f, "{relation} invalid."),
+            Error::UnsafeGroups(groups) => writeln!(f, "{groups} should be public."),
             Error::Other(err) => writeln!(f, "{}", err),
         }
     }
@@ -177,8 +184,7 @@ impl Reduce {
                 _ => false,
             })
         {
-            //return Err(Error::invalid_relation(self));
-            println!("GROUPS SHOULD BE PUBLIC")
+            return Err(Error::unsafe_groups(input_groups.iter().map(|e| self.input().schema()[*e].data_type()).join(", ")));
         };
         // Clip the relation
         let clipped_relation = self.input().clone().l2_clipped_sums(
@@ -298,22 +304,11 @@ mod tests {
     fn test_dp_compile() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
-        let table = relations
-            .get(&["item_table".into()])
-            .unwrap()
-            .as_ref()
-            .clone();
-
-        // with GROUP BY
-        let relation: Relation = Relation::reduce()
-            .input(table.clone())
-            .with(("sum_price", Expr::sum(Expr::col("price"))))
-            .with(("count_price", Expr::count(Expr::col("price"))))
-            .with(("mean_price", Expr::mean(Expr::col("price"))))
-            // .with_group_by_column("order_id")
-            .group_by(Expr::col("order_id"))
-            .build();
+        let query = parse("SELECT sum(price) AS sum_price,
+        count(price) AS count_price,
+        avg(price) AS mean_price
+        FROM item_table GROUP BY order_id WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)").unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
 
         let pep_relation = relation.force_protect_from_field_paths(
@@ -337,5 +332,9 @@ mod tests {
         let delta = 1e-3;
         let dp_relation = pep_relation.dp_compile(epsilon, delta).unwrap();
         dp_relation.display_dot().unwrap();
+        let dp_query = ast::Query::from(dp_relation.deref());
+        for row in database.query(&dp_query.to_string()).unwrap() {
+            println!("{row}");
+        }
     }
 }
