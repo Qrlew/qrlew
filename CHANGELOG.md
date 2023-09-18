@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.1] - 2023-09-16
 ### Fixed
 - Fixed the dp compilation
+- Datatype filtering for joins [MR121](https://github.com/Qrlew/qrlew/pull/121)
+- conversion DataType -> Value for Expr::Function [MR122](https://github.com/Qrlew/qrlew/pull/122)
+
 
 ## [0.3.0] - 2023-09-14
 ### Changed
@@ -23,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Can compile recursively
 - Checks for possible values
 - Can compile more than sums
-- Datatype filtering for joins [MR121](https://github.com/Qrlew/qrlew/pull/121)
 
 ## [0.2.3] - 2023-09-04
 ### Changed
