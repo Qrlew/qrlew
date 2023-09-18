@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Replaced `Expr::filter_column_data_type` by `DataType::filter`[MR104](https://github.com/Qrlew/qrlew/pull/104)
 - Remove `Hierarchy::chain` and replace it by `with` when needed [MR113](https://github.com/Qrlew/qrlew/pull/113)
-- `Schema::from(DataType)` and `Schema::filter`
 ### Fixed
 - `Union::is_subset_of` [MR106](https://github.com/Qrlew/qrlew/pull/106)
 - fix reduce when the query has a group by and doesn't have aggregation functions [MR80](https://github.com/Qrlew/qrlew/pull/80)
@@ -24,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Can compile recursively
 - Checks for possible values
 - Can compile more than sums
+- Datatype filtering for joins [MR121](https://github.com/Qrlew/qrlew/pull/121)
 
 ## [0.2.3] - 2023-09-04
 ### Changed
