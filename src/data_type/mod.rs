@@ -2353,7 +2353,7 @@ impl DataType {
         match self {
             DataType::Struct(s) => s.fields(),
             DataType::Union(u) => u.fields(),
-            _ => panic!()
+            _ => panic!(),
         }
     }
 }

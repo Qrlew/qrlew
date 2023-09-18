@@ -699,7 +699,8 @@ impl JoinConstraint {
 
 impl JoinOperator {
     fn filter_data_type(&self, dt: &DataType) -> DataType {
-        let names = dt.fields()
+        let names = dt
+            .fields()
             .iter()
             .map(|(s, _)| s.as_str())
             .collect::<Vec<_>>();
@@ -708,25 +709,24 @@ impl JoinOperator {
             JoinOperator::Inner(c) => {
                 let x = Expr::from((c, dt));
                 dt.filter(&x)
-            },
+            }
             JoinOperator::LeftOuter(c) => {
                 let x = Expr::from((c, dt));
                 let filtered_dt = dt.filter(&x);
                 DataType::structured([
                     (names[0], dt[names[0]].clone()),
-                    (names[1], filtered_dt[names[1]].clone())
+                    (names[1], filtered_dt[names[1]].clone()),
                 ])
-            },
+            }
             JoinOperator::RightOuter(c) => {
                 let x = Expr::from((c, dt));
                 let filtered_dt = dt.filter(&x);
                 DataType::structured([
                     (names[0], filtered_dt[names[0]].clone()),
-                    (names[1], dt[names[1]].clone())
+                    (names[1], dt[names[1]].clone()),
                 ])
-            },
-            JoinOperator::FullOuter(_)
-            | JoinOperator::Cross => dt.clone(),
+            }
+            JoinOperator::FullOuter(_) | JoinOperator::Cross => dt.clone(),
         }
     }
 
@@ -747,8 +747,9 @@ impl JoinOperator {
 
 impl From<(&JoinConstraint, &DataType)> for Expr {
     fn from(value: (&JoinConstraint, &DataType)) -> Self {
-        let ( constraint, dt) = value;
-        let names = dt.fields()
+        let (constraint, dt) = value;
+        let names = dt
+            .fields()
             .iter()
             .map(|(s, _)| s.as_str())
             .collect::<Vec<_>>();
@@ -757,27 +758,25 @@ impl From<(&JoinConstraint, &DataType)> for Expr {
             JoinConstraint::On(x) => x.clone(),
             JoinConstraint::Using(x) => {
                 assert_eq!(x.len(), 1);
-                x.iter()
-                .fold(
-                    Expr::val(true),
-                    |f, v| Expr::and(
+                x.iter().fold(Expr::val(true), |f, v| {
+                    Expr::and(
                         f,
                         Expr::eq(
                             Expr::qcol(names[0], v.head().unwrap()),
-                            Expr::qcol(names[1], v.head().unwrap())
-                        )
+                            Expr::qcol(names[1], v.head().unwrap()),
+                        ),
                     )
-                )
-            },
+                })
+            }
             JoinConstraint::Natural => {
                 let h = dt[names[1]].hierarchy();
-                let v = dt[names[0]].hierarchy().into_iter()
-                .filter_map(|(s, _)| {
-                    h.get(&s).map(|_| Identifier::from(s))
-                })
-                .collect::<Vec<_>>();
+                let v = dt[names[0]]
+                    .hierarchy()
+                    .into_iter()
+                    .filter_map(|(s, _)| h.get(&s).map(|_| Identifier::from(s)))
+                    .collect::<Vec<_>>();
                 (&JoinConstraint::Using(v), dt).into()
-            },
+            }
             JoinConstraint::None => Expr::val(true),
         }
     }
@@ -828,7 +827,7 @@ impl Join {
         right_names: Vec<String>,
         left: &Relation,
         right: &Relation,
-        operator: &JoinOperator
+        operator: &JoinOperator,
     ) -> Schema {
         let (left_schema, right_schema) = operator.filtered_schemas(left, right);
         //let (left_schema, right_schema) = (left.schema(), right.schema());

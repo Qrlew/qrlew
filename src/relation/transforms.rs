@@ -220,18 +220,18 @@ impl Reduce {
     /// In the current `Reduce` contains grouping columns,
     /// adds them to the `aggregate` field.
     pub fn push_grouping_columns(self) -> Reduce {
-
         if self.group_by().is_empty() {
             self
         } else {
             Reduce::builder()
-            .with(self.clone())
-            .with_iter(
-                self.grouping_columns()
-                .iter()
-                .map(|s| (s.last().unwrap(), Expr::first(Expr::Column(s.clone().into()))))
-            )
-            .build()
+                .with(self.clone())
+                .with_iter(self.grouping_columns().iter().map(|s| {
+                    (
+                        s.last().unwrap(),
+                        Expr::first(Expr::Column(s.clone().into())),
+                    )
+                }))
+                .build()
         }
     }
 }
@@ -2006,9 +2006,7 @@ mod tests {
         // no GROUP BY
         let red = Reduce::new(
             "reduce_relation".to_string(),
-            vec![
-                ("sum_a".to_string(), AggregateColumn::sum("a")),
-            ],
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![],
             Rc::new(table.clone()),
         );
@@ -2029,16 +2027,17 @@ mod tests {
         assert_eq!(red2.aggregate().len(), 2);
         let names_aggs = vec!["sum_a", "b"];
         assert_eq!(
-            red2.named_aggregates().iter().map(|(s, _)| *s).collect::<Vec<_>>(),
+            red2.named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
             names_aggs
         );
 
         // grouping columns are not in `aggregate`
         let red = Reduce::new(
             "reduce_relation".to_string(),
-            vec![
-                ("sum_a".to_string(), AggregateColumn::sum("a")),
-            ],
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         );
@@ -2046,7 +2045,10 @@ mod tests {
         assert_eq!(red2.aggregate().len(), 2);
         let names_aggs = vec!["sum_a", "b"];
         assert_eq!(
-            red2.named_aggregates().iter().map(|(s, _)| *s).collect::<Vec<_>>(),
+            red2.named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
             names_aggs
         );
 
@@ -2063,7 +2065,10 @@ mod tests {
         let red2 = red.clone().push_grouping_columns();
         let names_aggs = vec!["b", "sum_a", "c"];
         assert_eq!(
-            red2.named_aggregates().iter().map(|(s, _)| *s).collect::<Vec<_>>(),
+            red2.named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
             names_aggs
         );
     }
