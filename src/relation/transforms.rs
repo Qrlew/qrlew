@@ -219,18 +219,18 @@ impl Reduce {
 
     /// In the current `Reduce` contains grouping columns,
     /// adds them to the `aggregate` field.
-    pub fn push_grouping_columns(self) -> Reduce {
+    pub fn with_grouping_columns(self) -> Reduce {
         if self.group_by().is_empty() {
             self
         } else {
             Reduce::builder()
-                .with(self.clone())
                 .with_iter(self.grouping_columns().iter().map(|s| {
                     (
                         s.last().unwrap(),
                         Expr::first(Expr::Column(s.clone().into())),
                     )
                 }))
+                .with(self)
                 .build()
         }
     }
@@ -2010,7 +2010,7 @@ mod tests {
             vec![],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().push_grouping_columns();
+        let red2 = red.clone().with_grouping_columns();
         assert_eq!(red, red2);
 
         // grouping columns are already in `aggregate`
@@ -2023,9 +2023,9 @@ mod tests {
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().push_grouping_columns();
+        let red2 = red.clone().with_grouping_columns();
         assert_eq!(red2.aggregate().len(), 2);
-        let names_aggs = vec!["sum_a", "b"];
+        let names_aggs = vec!["b", "sum_a"];
         assert_eq!(
             red2.named_aggregates()
                 .iter()
@@ -2041,9 +2041,9 @@ mod tests {
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().push_grouping_columns();
+        let red2 = red.clone().with_grouping_columns();
         assert_eq!(red2.aggregate().len(), 2);
-        let names_aggs = vec!["sum_a", "b"];
+        let names_aggs = vec!["b", "sum_a"];
         assert_eq!(
             red2.named_aggregates()
                 .iter()
@@ -2062,8 +2062,8 @@ mod tests {
             vec![Expr::col("b"), Expr::col("c")],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().push_grouping_columns();
-        let names_aggs = vec!["b", "sum_a", "c"];
+        let red2 = red.clone().with_grouping_columns();
+        let names_aggs = vec!["c", "b", "sum_a"];
         assert_eq!(
             red2.named_aggregates()
                 .iter()

@@ -88,7 +88,7 @@ impl Reduce {
             .iter()
             .map(|f| (f.name().to_string(), Expr::col(f.name())))
             .collect();
-        let right = Relation::from(self.push_grouping_columns());
+        let right = Relation::from(self.with_grouping_columns());
         let join_rel: Relation = Relation::join()
             .left(grouping_values)
             .right(right)
