@@ -671,7 +671,6 @@ mod tests {
     #[test]
     fn test_try_from_complex_query() {
         let query = parse(QUERIES[4]).unwrap();
-        println!("query = {query}");
         let schema_1: Schema = vec![
             ("a", DataType::float()),
             ("b", DataType::float_interval(-2., 2.)),
