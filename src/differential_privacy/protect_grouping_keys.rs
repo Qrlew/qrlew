@@ -247,6 +247,7 @@ mod tests {
                     .build(),
             )
             .build();
+        table.display_dot();
         let rel = table.released_values(1., 0.003, 5.).unwrap();
         matches!(rel, Relation::Join(_));
         rel.display_dot();
@@ -261,6 +262,7 @@ mod tests {
                     .build(),
             )
             .build();
+        table.display_dot();
         let rel = table.released_values(1., 0.003, 5.).unwrap();
         matches!(rel, Relation::Map(_));
         rel.display_dot();
@@ -275,6 +277,7 @@ mod tests {
                     .build(),
             )
             .build();
+        table.display_dot();
         let rel = table.released_values(1., 0.003, 5.).unwrap();
         matches!(rel, Relation::Join(_));
         rel.display_dot();
@@ -301,6 +304,7 @@ mod tests {
             vec![],
             Rc::new(table.clone()),
         );
+        Relation::from(red.clone()).display_dot();
         let rel = red.protect_grouping_keys(1., 0.003, 5.).unwrap();
         rel.display_dot();
         assert_eq!(rel.schema().fields().len(), 1);
