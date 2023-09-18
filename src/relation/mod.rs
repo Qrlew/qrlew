@@ -831,7 +831,6 @@ impl Join {
         operator: &JoinOperator,
     ) -> Schema {
         let (left_schema, right_schema) = operator.filtered_schemas(left, right);
-        //let (left_schema, right_schema) = (left.schema(), right.schema());
         let left_fields = left_names
             .into_iter()
             .zip(left_schema.iter())
