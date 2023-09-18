@@ -2010,8 +2010,8 @@ mod tests {
             vec![],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().with_grouping_columns();
-        assert_eq!(red, red2);
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        assert_eq!(red, red_with_grouping_columns);
 
         // grouping columns are already in `aggregate`
         let red = Reduce::new(
@@ -2023,11 +2023,12 @@ mod tests {
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().with_grouping_columns();
-        assert_eq!(red2.aggregate().len(), 2);
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
         let names_aggs = vec!["b", "sum_a"];
         assert_eq!(
-            red2.named_aggregates()
+            red_with_grouping_columns
+                .named_aggregates()
                 .iter()
                 .map(|(s, _)| *s)
                 .collect::<Vec<_>>(),
@@ -2041,11 +2042,12 @@ mod tests {
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().with_grouping_columns();
-        assert_eq!(red2.aggregate().len(), 2);
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
         let names_aggs = vec!["b", "sum_a"];
         assert_eq!(
-            red2.named_aggregates()
+            red_with_grouping_columns
+                .named_aggregates()
                 .iter()
                 .map(|(s, _)| *s)
                 .collect::<Vec<_>>(),
@@ -2062,10 +2064,11 @@ mod tests {
             vec![Expr::col("b"), Expr::col("c")],
             Rc::new(table.clone()),
         );
-        let red2 = red.clone().with_grouping_columns();
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
         let names_aggs = vec!["c", "b", "sum_a"];
         assert_eq!(
-            red2.named_aggregates()
+            red_with_grouping_columns
+                .named_aggregates()
                 .iter()
                 .map(|(s, _)| *s)
                 .collect::<Vec<_>>(),
