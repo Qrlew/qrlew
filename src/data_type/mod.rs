@@ -2348,6 +2348,14 @@ impl DataType {
             Hierarchy::from([(Vec::<&str>::new(), self)])
         )
     }
+
+    pub fn fields(&self) -> &[(String, Rc<DataType>)] {
+        match self {
+            DataType::Struct(s) => s.fields(),
+            DataType::Union(u) => u.fields(),
+            _ => panic!()
+        }
+    }
 }
 
 impl Variant for DataType {

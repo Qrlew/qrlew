@@ -697,6 +697,92 @@ impl JoinConstraint {
     }
 }
 
+impl JoinOperator {
+    fn filter_data_type(&self, dt: &DataType) -> DataType {
+        let names = dt.fields()
+            .iter()
+            .map(|(s, _)| s.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names.len(), 2);
+        match self {
+            JoinOperator::Inner(c) => {
+                let x = Expr::from((c, dt));
+                dt.filter(&x)
+            },
+            JoinOperator::LeftOuter(c) => {
+                let x = Expr::from((c, dt));
+                let filtered_dt = dt.filter(&x);
+                DataType::structured([
+                    (names[0], dt[names[0]].clone()),
+                    (names[1], filtered_dt[names[1]].clone())
+                ])
+            },
+            JoinOperator::RightOuter(c) => {
+                let x = Expr::from((c, dt));
+                let filtered_dt = dt.filter(&x);
+                DataType::structured([
+                    (names[0], filtered_dt[names[0]].clone()),
+                    (names[1], dt[names[1]].clone())
+                ])
+            },
+            JoinOperator::FullOuter(_)
+            | JoinOperator::Cross => dt.clone(),
+        }
+    }
+
+    fn filtered_schemas(&self, left: &Relation, right: &Relation) -> (Schema, Schema) {
+        let (left_name, right_name) = if left.name() == right.name() {
+            ("left", "right")
+        } else {
+            (left.name(), right.name())
+        };
+        let dt = DataType::structured([
+            (left_name, left.schema().data_type()),
+            (right_name, right.schema().data_type()),
+        ]);
+        let dt = self.filter_data_type(&dt);
+        (dt[left_name].clone().into(), dt[right_name].clone().into())
+    }
+}
+
+impl From<(&JoinConstraint, &DataType)> for Expr {
+    fn from(value: (&JoinConstraint, &DataType)) -> Self {
+        let ( constraint, dt) = value;
+        let names = dt.fields()
+            .iter()
+            .map(|(s, _)| s.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names.len(), 2);
+        match constraint {
+            JoinConstraint::On(x) => x.clone(),
+            JoinConstraint::Using(x) => {
+                assert_eq!(x.len(), 1);
+                x.iter()
+                .fold(
+                    Expr::val(true),
+                    |f, v| Expr::and(
+                        f,
+                        Expr::eq(
+                            Expr::qcol(names[0], v.head().unwrap()),
+                            Expr::qcol(names[1], v.head().unwrap())
+                        )
+                    )
+                )
+            },
+            JoinConstraint::Natural => {
+                let h = dt[names[1]].hierarchy();
+                let v = dt[names[0]].hierarchy().into_iter()
+                .filter_map(|(s, _)| {
+                    h.get(&s).map(|_| Identifier::from(s))
+                })
+                .collect::<Vec<_>>();
+                (&JoinConstraint::Using(v), dt).into()
+            },
+            JoinConstraint::None => Expr::val(true),
+        }
+    }
+}
+
 /// Join two relations on one or more join columns
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Join {
@@ -723,7 +809,7 @@ impl Join {
         left: Rc<Relation>,
         right: Rc<Relation>,
     ) -> Self {
-        let schema = Join::schema(left_names, right_names, &left, &right);
+        let schema = Join::schema(left_names, right_names, &left, &right, &operator);
         // The size of the join can go from 0 to
         let size = Join::size(&operator, &left, &right);
         Join {
@@ -736,20 +822,23 @@ impl Join {
         }
     }
 
-    /// Compute the schema and exprs of the reduce
+    /// Compute the schema and exprs of the join
     fn schema(
         left_names: Vec<String>,
         right_names: Vec<String>,
         left: &Relation,
         right: &Relation,
+        operator: &JoinOperator
     ) -> Schema {
+        let (left_schema, right_schema) = operator.filtered_schemas(left, right);
+        //let (left_schema, right_schema) = (left.schema(), right.schema());
         let left_fields = left_names
             .into_iter()
-            .zip(left.schema().iter())
+            .zip(left_schema.iter())
             .map(|(name, field)| Field::from_name_data_type(name, field.data_type()));
         let right_fields = right_names
             .into_iter()
-            .zip(right.schema().iter())
+            .zip(right_schema.iter())
             .map(|(name, field)| Field::from_name_data_type(name, field.data_type()));
         left_fields.chain(right_fields).collect()
     }

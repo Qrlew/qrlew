@@ -83,12 +83,12 @@ impl Reduce {
                 )
             })
             .collect();
-        let right = Relation::from(self);
-        let fields: Vec<(String, Expr)> = right
+        let fields: Vec<(String, Expr)> = self
             .schema()
             .iter()
             .map(|f| (f.name().to_string(), Expr::col(f.name())))
             .collect();
+        let right = Relation::from(self.push_grouping_columns());
         let join_rel: Relation = Relation::join()
             .left(grouping_values)
             .right(right)
