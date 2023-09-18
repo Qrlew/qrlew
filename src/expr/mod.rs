@@ -607,12 +607,31 @@ macro_rules! impl_traits {
                 }
             }
         }
-
-        $(impl_conversions!($Variant);)*
     }
 }
 
 impl_traits!(Column, Value, Function, Aggregate, Struct);
+impl_conversions!(Column);
+impl_conversions!(Function);
+impl_conversions!(Aggregate);
+impl_conversions!(Struct);
+
+impl From<Value> for Expr {
+    fn from(v: Value) -> Self {
+        Expr::Value(v)
+    }
+}
+impl TryFrom<Expr> for Value {
+    type Error = Error;
+    fn try_from(expr: Expr) -> Result<Self> {
+        let v = TryInto::<Vec<Value>>::try_into(expr.co_domain())?;
+        if v.len() == 1 {
+            Ok(v[0].clone())
+        } else {
+            Err(Error::invalid_conversion(expr, "Value"))
+        }
+    }
+}
 
 impl Variant for Expr {}
 
@@ -2635,5 +2654,20 @@ mod tests {
 
         let new_dt = DataType::float().replace(&Identifier::empty(), DataType::integer());
         assert_eq!(new_dt, DataType::integer());
+    }
+
+    #[test]
+    fn test_conversion() {
+        let x = Expr::val(5);
+        let v = Value::try_from(x).unwrap();
+        assert_eq!(v, Value::from(5));
+
+        let x = expr!(3 * 5);
+        let v = Value::try_from(x).unwrap();
+        assert_eq!(v, Value::from(15));
+
+        let x = Expr::val(-5.);
+        let v = Value::try_from(x).unwrap();
+        assert_eq!(v, Value::from(-5.));
     }
 }

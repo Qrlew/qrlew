@@ -5,7 +5,7 @@
 use super::{Error, Result};
 use crate::{
     builder::{With, WithContext, WithoutContext},
-    expr::{identifier::Identifier, Expr, Value, function::Function},
+    expr::{function::Function, identifier::Identifier, Expr, Value},
     hierarchy::{Hierarchy, Path},
     visitor::{self, Acceptor, Dependencies, Visited},
 };
@@ -730,17 +730,9 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         let list: Result<Vec<Value>> = list
             .into_iter()
             .map(|r| {
-                // if let Ok(Expr::Value(v)) = x {
-                //     Ok(v)
-                // } else if let Ok(Expr::Function(Function { function: Opposite, arguments})) = x{
-                //     todo!()
-                // } else {
-                //     println!("{:?}", x);
-                //     Err(Error::Other(
-                //         "Listed expression in IN expression must be Expr::Value".into(),
-                //     ))
-                // }
-                r.map(|x| Value::try_from(&x).unwrap())
+                r.map(|x| Value::try_from(x).map_err(|e| Error::other(e)))
+                    .and_then(|x| x)
+                    .map_err(|e| Error::other(e))
             })
             .collect();
         Ok(Expr::in_list(expr?, Expr::val(Value::list(list?))))

@@ -4054,10 +4054,10 @@ mod tests {
 
     #[test]
     fn test_try_into_values() {
-        let dt = DataType::float_values([1., 2., 3.]);
+        let dt = DataType::float_values([-1., 2., 3.]);
         assert_eq!(
             TryInto::<Vec<Value>>::try_into(dt).unwrap(),
-            vec![1.0.into(), 2.0.into(), 3.0.into()]
+            vec![(-1.0).into(), 2.0.into(), 3.0.into()]
         );
 
         let dt = DataType::float_interval(1., 1.);
