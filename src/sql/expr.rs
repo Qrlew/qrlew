@@ -5,7 +5,7 @@
 use super::{Error, Result};
 use crate::{
     builder::{With, WithContext, WithoutContext},
-    expr::{function::Function, identifier::Identifier, Expr, Value},
+    expr::{identifier::Identifier, Expr, Value},
     hierarchy::{Hierarchy, Path},
     visitor::{self, Acceptor, Dependencies, Visited},
 };
