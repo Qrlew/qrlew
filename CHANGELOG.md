@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2023-09-16
+### Fixed
+- Fixed the dp compilation
+
 ## [0.3.0] - 2023-09-14
 ### Changed
 - Replaced `Expr::filter_column_data_type` by `DataType::filter`[MR104](https://github.com/Qrlew/qrlew/pull/104)

@@ -796,7 +796,9 @@ mod tests {
     fn test_where() {
         let query = parse(
             "
-            SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4;
+            --SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4;
+            SELECT SUM(a), count(b) FROM table_1 WHERE a IN (1, 2, 13);
+            --SELECT a, count(b) FROM table_1 GROUP BY a WHERE a IN (1, 2, 13);
         ",
         )
         .unwrap();

@@ -223,6 +223,7 @@ mod tests {
                     .build(),
             )
             .build();
+        table.display_dot();
 
         let rel = table.clone().tau_thresholded_values(1., 0.003, 5.).unwrap();
         rel.display_dot();
