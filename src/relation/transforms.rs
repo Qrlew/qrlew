@@ -216,6 +216,24 @@ impl Reduce {
     pub fn rename_fields<F: Fn(&str, &Expr) -> String>(self, f: F) -> Reduce {
         Relation::reduce().rename_with(self, f).build()
     }
+
+    /// In the current `Reduce` contains grouping columns,
+    /// adds them to the `aggregate` field.
+    pub fn with_grouping_columns(self) -> Reduce {
+        if self.group_by().is_empty() {
+            self
+        } else {
+            Reduce::builder()
+                .with_iter(self.grouping_columns().iter().map(|s| {
+                    (
+                        s.last().unwrap(),
+                        Expr::first(Expr::Column(s.clone().into())),
+                    )
+                }))
+                .with(self)
+                .build()
+        }
+    }
 }
 
 /* Join
@@ -1970,5 +1988,91 @@ mod tests {
 
         let joined_rel = table_1.clone().cross_join(table_2.clone()).unwrap();
         joined_rel.display_dot();
+    }
+
+    #[test]
+    fn test_push_grouping_columns() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // no GROUP BY
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
+            vec![],
+            Rc::new(table.clone()),
+        );
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        assert_eq!(red, red_with_grouping_columns);
+
+        // grouping columns are already in `aggregate`
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("b".to_string(), AggregateColumn::first("b")),
+            ],
+            vec![Expr::col("b")],
+            Rc::new(table.clone()),
+        );
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
+        let names_aggs = vec!["b", "sum_a"];
+        assert_eq!(
+            red_with_grouping_columns
+                .named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
+            names_aggs
+        );
+
+        // grouping columns are not in `aggregate`
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
+            vec![Expr::col("b")],
+            Rc::new(table.clone()),
+        );
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
+        let names_aggs = vec!["b", "sum_a"];
+        assert_eq!(
+            red_with_grouping_columns
+                .named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
+            names_aggs
+        );
+
+        // grouping columns are not in `aggregate`
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("b".to_string(), AggregateColumn::first("b")),
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+            ],
+            vec![Expr::col("b"), Expr::col("c")],
+            Rc::new(table.clone()),
+        );
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        let names_aggs = vec!["c", "b", "sum_a"];
+        assert_eq!(
+            red_with_grouping_columns
+                .named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
+            names_aggs
+        );
     }
 }
