@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Can compile recursively
 - Checks for possible values
 - Can compile more than sums
+- Datatype filtering for joins [MR121](https://github.com/Qrlew/qrlew/pull/121)
 
 ## [0.2.3] - 2023-09-04
 ### Changed

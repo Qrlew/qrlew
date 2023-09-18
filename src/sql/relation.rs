@@ -665,7 +665,7 @@ mod tests {
         "
         with view_1 as (select table_1.a,b,c as s,d from schema.table_1),
         view_2 as (select 2*sum(tu.a) as a, count(tu.b) as b, sum(table_2.u) as u, 10+sum(table_2.v) as v from (select s as a, d as b from view_1) as tu join table_2 on a=b)
-        select cos(0.1*ta.b) as cs, tb.b as l, tb.a from view_2 as ta left outer join table_1 as tb on a=b;",
+        select cos(0.1*ta.b) as cs, tb.b as l, tb.a from view_2 as ta left outer join table_1 as tb on ta.a=tb.b;",
         ];
 
     #[test]
