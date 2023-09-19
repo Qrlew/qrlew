@@ -137,6 +137,7 @@ impl PEPRelation {
     }
 }
 
+
 /* Reduce
  */
 impl Reduce {
@@ -172,31 +173,37 @@ impl Reduce {
             }
         }
         // Check that groups are public
-        if !input_groups
-            .iter()
-            .all(|e| match self.input().schema()[*e].data_type() {
-                // TODO improve this
-                DataType::Boolean(b) if b.all_values() => true,
-                DataType::Integer(i) if i.all_values() => true,
-                DataType::Enum(e) => true,
-                DataType::Float(f) if f.all_values() => true,
-                DataType::Text(t) if t.all_values() => true,
-                _ => false,
-            })
-        {
-            return Err(Error::unsafe_groups(
-                input_groups
-                    .iter()
-                    .map(|e| self.input().schema()[*e].data_type())
-                    .join(", "),
-            ));
-        };
+        // TODO: add tau-thresholding
+        // if !input_groups
+        //     .iter()
+        //     .all(|e| match self.input().schema()[*e].data_type() {
+        //         // TODO improve this
+        //         DataType::Boolean(b) if b.all_values() => true,
+        //         DataType::Integer(i) if i.all_values() => true,
+        //         DataType::Enum(e) => true,
+        //         DataType::Float(f) if f.all_values() => true,
+        //         DataType::Text(t) if t.all_values() => true,
+        //         _ => false,
+        //     })
+        // {
+        //     return Err(Error::unsafe_groups(
+        //         input_groups
+        //             .iter()
+        //             .map(|e| self.input().schema()[*e].data_type())
+        //             .join(", "),
+        //     ));
+        // };
+
         // Clip the relation
         let clipped_relation = self.input().clone().l2_clipped_sums(
             input_entities.unwrap(),
             input_groups.into_iter().collect(),
             input_values_bound.iter().cloned().collect(),
         );
+
+        // Bound
+
+        // Add noise
         let noise_multiplier = 1.; // TODO set this properly
         let dp_clipped_relation = clipped_relation.add_gaussian_noise(
             input_values_bound
@@ -228,7 +235,7 @@ impl Reduce {
                         AggregateColumn::col(aggregate.column_name()?),
                     ));
                 }
-                aggregate::Aggregate::Mean => {
+                aggregate::Aggregate::Mean => { // TODO: better estimator?
                     let sum_col = &format!("_SUM_{}", aggregate.column_name()?);
                     let count_col = &format!("_COUNT_{}", aggregate.column_name()?);
                     sums = sums

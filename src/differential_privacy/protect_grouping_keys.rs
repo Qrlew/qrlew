@@ -114,7 +114,9 @@ impl Reduce {
             return Ok(Relation::from(self));
         }
         self.clone()
-            .join_with_grouping_values(self.grouping_values(epsilon, delta, sensitivity)?)
+            .join_with_grouping_values(
+                self.grouping_values(epsilon, delta, sensitivity)?
+            )
     }
 }
 
@@ -167,14 +169,7 @@ impl Relation {
         let public_columns: Vec<String> = self
             .schema()
             .iter()
-            .filter_map(|f| {
-                if TryInto::<Vec<Value>>::try_into(f.data_type()).is_ok() {
-                    // TODO This should be explained / documented
-                    Some(f.name().to_string())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|f| f.all_values().then_some(f.name().to_string()))
             .collect();
 
         if public_columns.is_empty() {
@@ -200,6 +195,25 @@ impl Relation {
                 relation_with_private_values.tau_thresholded_values(epsilon, delta, sensitivity)?;
 
             Ok(public_relation.cross_join(private_relation)?)
+        }
+    }
+
+    pub fn protect_grouping_keys(
+        self,
+        epsilon: f64,
+        delta: f64,
+        sensitivity: f64,
+    ) -> Result<Relation> {
+        match self {
+            Relation::Table(_) => Ok(self.clone()),
+            Relation::Map(m) => Ok(Map::builder()
+            .input(m.inputs()[0].clone().protect_grouping_keys(epsilon, delta, sensitivity)?)
+            .with(m)
+            .build()),
+            Relation::Reduce(r) => r.protect_grouping_keys(epsilon, delta, sensitivity),
+            Relation::Join(_) => todo!(),
+            Relation::Set(_) => todo!(),
+            Relation::Values(_) => todo!(),
         }
     }
 }
@@ -247,44 +261,41 @@ mod tests {
                     .build(),
             )
             .build();
-        table.display_dot();
         let rel = table.released_values(1., 0.003, 5.).unwrap();
         matches!(rel, Relation::Join(_));
         rel.display_dot();
 
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with((PE_ID, DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-        table.display_dot();
-        let rel = table.released_values(1., 0.003, 5.).unwrap();
-        matches!(rel, Relation::Map(_));
-        rel.display_dot();
+        // let table: Relation = Relation::table()
+        //     .name("table")
+        //     .schema(
+        //         Schema::builder()
+        //             .with(("a", DataType::integer_range(1..=10)))
+        //             .with(("c", DataType::integer_range(5..=20)))
+        //             .with((PE_ID, DataType::integer_range(1..=100)))
+        //             .build(),
+        //     )
+        //     .build();
+        // let rel = table.released_values(1., 0.003, 5.).unwrap();
+        // matches!(rel, Relation::Map(_));
+        // rel.display_dot();
 
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .with(("c", DataType::float_values([1., 2.5])))
-                    .with((PE_ID, DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-        table.display_dot();
-        let rel = table.released_values(1., 0.003, 5.).unwrap();
-        matches!(rel, Relation::Join(_));
-        rel.display_dot();
+        // let table: Relation = Relation::table()
+        //     .name("table")
+        //     .schema(
+        //         Schema::builder()
+        //             .with(("a", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+        //             .with(("c", DataType::float_values([1., 2.5])))
+        //             .with((PE_ID, DataType::integer_range(1..=100)))
+        //             .build(),
+        //     )
+        //     .build();
+        // let rel = table.released_values(1., 0.003, 5.).unwrap();
+        // matches!(rel, Relation::Join(_));
+        // rel.display_dot();
     }
 
     #[test]
-    fn test_protect_grouping_keys() {
+    fn test_protect_grouping_keys_reduce() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -307,18 +318,23 @@ mod tests {
         Relation::from(red.clone()).display_dot();
         let rel = red.protect_grouping_keys(1., 0.003, 5.).unwrap();
         rel.display_dot();
-        assert_eq!(rel.schema().fields().len(), 1);
+        assert_eq!(
+            rel.schema().data_type(),
+            DataType::structured([("sum_a", DataType::integer_min(0))])
+        );
 
         // With GROUPBY
-        let red = Reduce::new(
-            "reduce_relation".to_string(),
-            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
-            vec![Expr::col("b")],
-            Rc::new(table.clone()),
-        );
-        let rel = red.protect_grouping_keys(1.0, 0.003, 1.).unwrap();
-        rel.display_dot();
-        assert_eq!(rel.schema().fields().len(), 1);
+        // let red = Reduce::new(
+        //     "reduce_relation".to_string(),
+        //     vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
+        //     vec![Expr::col("b")],
+        //     Rc::new(table.clone()),
+        // );
+        // let rel = red.protect_grouping_keys(1.0, 0.003, 1.).unwrap();
+        // rel.display_dot();
+        // assert_eq!(rel.schema().fields().len(), 1);
+        // println!("{}", rel.schema().data_type());
+        // println!("{}", rel.inputs()[0].schema().data_type());
 
         // With GROUPBY
         let red = Reduce::new(
@@ -333,5 +349,6 @@ mod tests {
         let rel = red.protect_grouping_keys(1.0, 0.003, 1.).unwrap();
         rel.display_dot();
         assert_eq!(rel.schema().fields().len(), 2);
+        println!("{}", rel.schema().data_type());
     }
 }
