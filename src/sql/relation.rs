@@ -797,7 +797,8 @@ mod tests {
         let query = parse(
             "
             --SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4;
-            SELECT SUM(a), count(b) FROM table_1 WHERE a IN (1, 2, 13);
+            --SELECT SUM(a), count(b) FROM table_1 WHERE a IN (1, 2, 13);
+            SELECT a, SUM(b) FROM table_1 WHERE a IN (1, -0.5, 2, 13) GROUP BY a;
             --SELECT a, count(b) FROM table_1 GROUP BY a WHERE a IN (1, 2, 13);
         ",
         )

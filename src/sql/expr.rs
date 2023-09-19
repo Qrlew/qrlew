@@ -729,14 +729,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     fn in_list(&self, expr: Result<Expr>, list: Vec<Result<Expr>>) -> Result<Expr> {
         let list: Result<Vec<Value>> = list
             .into_iter()
-            .map(|x| {
-                if let Ok(Expr::Value(v)) = x {
-                    Ok(v)
-                } else {
-                    Err(Error::Other(
-                        "Listed expression in IN expression must be Expr::Value".into(),
-                    ))
-                }
+            .map(|r| {
+                r.map(|x| Value::try_from(x).map_err(|e| Error::other(e)))
+                    .and_then(|x| x)
+                    .map_err(|e| Error::other(e))
             })
             .collect();
         Ok(Expr::in_list(expr?, Expr::val(Value::list(list?))))
