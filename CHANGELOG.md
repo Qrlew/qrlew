@@ -6,13 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- conversion DataType -> Value for Expr::Function [MR122](https://github.com/Qrlew/qrlew/pull/122)
 
 ## [0.3.1] - 2023-09-16
 ### Fixed
 - Fixed the dp compilation
 - Datatype filtering for joins [MR121](https://github.com/Qrlew/qrlew/pull/121)
-- conversion DataType -> Value for Expr::Function [MR122](https://github.com/Qrlew/qrlew/pull/122)
-
 
 ## [0.3.0] - 2023-09-14
 ### Changed
