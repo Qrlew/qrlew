@@ -121,7 +121,7 @@ impl Reduce {
 }
 
 impl Relation {
-    pub fn tau_thresholded_values(
+    pub fn tau_thresholding_values(
         self,
         epsilon: f64,
         delta: f64,
@@ -165,6 +165,21 @@ impl Relation {
         Ok(rel.filter_columns(columns))
     }
 
+
+    fn with_tau_thresholding_values(&self, public_columns: &Vec<String>, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
+        let relation_with_private_values = self
+            .clone()
+            .filter_fields(|f| !public_columns.contains(&f.to_string()));
+        relation_with_private_values.tau_thresholding_values(epsilon, delta, sensitivity)
+    }
+
+    fn with_public_values(&self, public_columns: &Vec<String>) -> Result<Relation> {
+        let relation_with_private_values = self
+            .clone()
+            .filter_fields(|f| public_columns.contains(&f.to_string()));
+        Ok(relation_with_private_values.public_values()?)
+    }
+
     pub fn released_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
         let public_columns: Vec<String> = self
             .schema()
@@ -173,28 +188,15 @@ impl Relation {
             .collect();
 
         if public_columns.is_empty() {
-            let relation_with_private_values = self
-                .clone()
-                .filter_fields(|f| !public_columns.contains(&f.to_string()));
-            relation_with_private_values.tau_thresholded_values(epsilon, delta, sensitivity)
-        } else if public_columns.len() == self.schema().len() - 1 {
-            let relation_with_public_values = self
-                .clone()
-                .filter_fields(|f| public_columns.contains(&f.to_string()));
-            Ok(relation_with_public_values.possible_values()?)
+            self.with_tau_thresholding_values(&public_columns, epsilon, delta, sensitivity)
+        } else if public_columns.len() == self.schema().len() - 1 { // TODO: This condition is very obscure ....
+            self.with_public_values(&public_columns)
         } else {
-            let relation_with_public_values = self
-                .clone()
-                .filter_fields(|f| public_columns.contains(&f.to_string()));
-            let public_relation = relation_with_public_values.possible_values()?;
-
-            let relation_with_private_values = self
-                .clone()
-                .filter_fields(|f| !public_columns.contains(&f.to_string()));
-            let private_relation =
-                relation_with_private_values.tau_thresholded_values(epsilon, delta, sensitivity)?;
-
-            Ok(public_relation.cross_join(private_relation)?)
+            Ok(
+                self.with_public_values(&public_columns)?.cross_join(
+                    self.with_public_values(&public_columns)?
+                )?
+            )
         }
     }
 
@@ -239,11 +241,11 @@ mod tests {
             .build();
         table.display_dot();
 
-        let rel = table.clone().tau_thresholded_values(1., 0.003, 5.).unwrap();
+        let rel = table.clone().tau_thresholding_values(1., 0.003, 5.).unwrap();
         rel.display_dot();
         assert_eq!(rel.schema().fields().len(), 4);
 
-        let rel = table.tau_thresholded_values(1.0, 0.003, 1.).unwrap();
+        let rel = table.tau_thresholding_values(1.0, 0.003, 1.).unwrap();
         rel.display_dot();
         assert_eq!(rel.schema().fields().len(), 4);
     }

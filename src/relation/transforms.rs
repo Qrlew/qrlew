@@ -875,17 +875,17 @@ impl Relation {
         red.ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
+    pub fn public_values_column(&self, colname: &str) -> Result<Relation> {
         let data_type = self.schema().field(colname).unwrap().data_type();
         let values: Vec<Value> = data_type.try_into()?;
         Ok(Relation::values().name(colname).values(values).build())
     }
 
-    pub fn possible_values(&self) -> Result<Relation> {
+    pub fn public_values(&self) -> Result<Relation> {
         let vec_of_rel: Result<Vec<Relation>> = self
             .schema()
             .iter()
-            .map(|c| self.possible_values_column(c.name()))
+            .map(|c| self.public_values_column(c.name()))
             .collect();
 
         Ok(vec_of_rel?
@@ -1876,11 +1876,11 @@ mod tests {
             .build();
 
         // table
-        let rel = table.possible_values_column("b").unwrap();
+        let rel = table.public_values_column("b").unwrap();
         let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
         rel.display_dot();
         assert_eq!(rel, rel_values);
-        assert!(table.possible_values_column("a").is_err());
+        assert!(table.public_values_column("a").is_err());
 
         // map
         let map: Relation = Relation::map()
@@ -1889,9 +1889,9 @@ mod tests {
             .input(table.clone())
             .with(("exp_b", Expr::exp(Expr::col("b"))))
             .build();
-        let rel = map.possible_values_column("exp_b").unwrap();
+        let rel = map.public_values_column("exp_b").unwrap();
         rel.display_dot();
-        assert!(map.possible_values_column("exp_a").is_err());
+        assert!(map.public_values_column("exp_a").is_err());
     }
 
     #[test]
@@ -1906,7 +1906,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let rel = table.possible_values().unwrap();
+        let rel = table.public_values().unwrap();
         rel.display_dot();
 
         let table: Relation = Relation::table()
@@ -1918,7 +1918,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let rel = table.possible_values();
+        let rel = table.public_values();
         assert!(rel.is_err());
 
         // map
@@ -1937,7 +1937,7 @@ mod tests {
             .with(("b", Expr::col("b")))
             .input(table)
             .build();
-        let rel = map.possible_values().unwrap();
+        let rel = map.public_values().unwrap();
         rel.display_dot();
 
         // map
@@ -1960,7 +1960,7 @@ mod tests {
             ))
             .input(table)
             .build();
-        let rel = map.possible_values().unwrap();
+        let rel = map.public_values().unwrap();
         rel.display_dot();
     }
 
