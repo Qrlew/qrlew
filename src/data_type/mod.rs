@@ -1048,9 +1048,20 @@ impl Variant for Struct {
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
-        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        self_fields.into_iter()
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
             .chain(other_fields.into_iter())
             .map(|f| {
                 Ok((
@@ -1062,9 +1073,20 @@ impl Variant for Struct {
     }
 
     fn super_intersection(&self, other: &Self) -> Result<Self> {
-        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        self_fields.into_iter()
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
             .chain(other_fields.into_iter())
             .unique()
             .map(|f| {
@@ -1336,9 +1358,20 @@ impl Variant for Union {
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
-        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        self_fields.into_iter()
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
             .chain(other_fields.into_iter())
             .map(|f| {
                 Ok((
@@ -1350,9 +1383,20 @@ impl Variant for Union {
     }
 
     fn super_intersection(&self, other: &Self) -> Result<Self> {
-        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
-        self_fields.into_iter()
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
             .chain(other_fields.into_iter())
             .map(|f| {
                 Ok((
@@ -3952,7 +3996,6 @@ mod tests {
         assert!(left.is_subset_of(&left.super_union(&right).unwrap()));
         assert!(right.is_subset_of(&left.super_union(&right).unwrap()));
 
-
         // struct of struct
         let dt = DataType::structured([
             (
@@ -3968,17 +4011,11 @@ mod tests {
                     ("c", DataType::integer_min(0)),
                     ("d", DataType::integer_interval(-1, 5)),
                     ("a", DataType::integer_interval(-2, 25)),
-                ])
-            )
+                ]),
+            ),
         ]);
-        println!(
-            "\nintersection = {}",
-            dt.super_intersection(&dt).unwrap()
-        );
-        println!(
-            "union = {}",
-            dt.super_union(&dt).unwrap()
-        );
+        println!("\nintersection = {}", dt.super_intersection(&dt).unwrap());
+        println!("union = {}", dt.super_union(&dt).unwrap());
         // check that the order of the keys is conserved
         let true_schema = crate::relation::Schema::from(dt.clone());
         assert_eq!(

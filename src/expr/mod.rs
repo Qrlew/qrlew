@@ -2177,12 +2177,12 @@ mod tests {
                     ("sum_a", DataType::integer_min(0)),
                     ("b", DataType::integer_interval(-1, 5)),
                     ("c", DataType::integer_interval(-2, 25)),
-                ])
-            )
+                ]),
+            ),
         ]);
         let x = Expr::and(
             Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")),
-            Expr::eq(Expr::qcol("left", "c"), Expr::qcol("right", "c"))
+            Expr::eq(Expr::qcol("left", "c"), Expr::qcol("right", "c")),
         );
         let filtered_dt = dt.filter(&x);
         let true_dt = DataType::structured([
@@ -2199,8 +2199,8 @@ mod tests {
                     ("sum_a", DataType::integer_min(0)),
                     ("b", DataType::integer_interval(1, 5)),
                     ("c", DataType::integer_interval(-2, 20)),
-                ])
-            )
+                ]),
+            ),
         ]);
         println!("{true_dt}\n{filtered_dt}");
         assert_eq!(filtered_dt, true_dt);

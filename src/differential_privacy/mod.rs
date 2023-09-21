@@ -142,7 +142,6 @@ impl PEPRelation {
     }
 }
 
-
 /* Reduce
  */
 impl Reduce {
@@ -249,7 +248,8 @@ impl Reduce {
                         AggregateColumn::col(aggregate.column_name()?),
                     ));
                 }
-                aggregate::Aggregate::Mean => { // TODO: better estimator?
+                aggregate::Aggregate::Mean => {
+                    // TODO: better estimator?
                     let sum_col = &format!("_SUM_{}", aggregate.column_name()?);
                     let count_col = &format!("_COUNT_{}", aggregate.column_name()?);
                     sums = sums
@@ -381,17 +381,14 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let query = parse(
-            "SELECT order_id, sum(price) AS sum_price FROM item_table GROUP BY order_id",
-        )
-        .unwrap();
+        let query =
+            parse("SELECT order_id, sum(price) AS sum_price FROM item_table GROUP BY order_id")
+                .unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
 
-        let pep_relation = relation.force_protect_from_field_paths(
-            &relations,
-            &[("item_table", &[], "order_id")],
-        );
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, &[("item_table", &[], "order_id")]);
         pep_relation.display_dot().unwrap();
         let protected_grouping_keys = pep_relation.protect_grouping_keys(1., 1.).unwrap();
         protected_grouping_keys.display_dot().unwrap();

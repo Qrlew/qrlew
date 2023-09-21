@@ -1173,9 +1173,10 @@ mod tests {
             .right(table2)
             .right_names(vec!["a2", "c2"])
             .right_outer()
-            .on_iter(
-                vec![Expr::eq(Expr::qcol("table1", "a"), Expr::qcol("table2", "a"))]
-            )
+            .on_iter(vec![Expr::eq(
+                Expr::qcol("table1", "a"),
+                Expr::qcol("table2", "a"),
+            )])
             .build();
         join.display_dot();
         assert_eq!(

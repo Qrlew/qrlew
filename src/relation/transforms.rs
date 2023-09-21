@@ -227,8 +227,9 @@ impl Reduce {
             Reduce::builder()
                 .with(self) // Must be first in order to conserve the order
                 .with_iter(
-                    grouping_columns.iter()
-                    .map(|s| (s, Expr::first(Expr::col(s))))
+                    grouping_columns
+                        .iter()
+                        .map(|s| (s, Expr::first(Expr::col(s)))),
                 )
                 .build()
         }

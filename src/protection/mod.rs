@@ -87,9 +87,15 @@ impl TryFrom<Relation> for PEPRelation {
 
     fn try_from(value: Relation) -> Result<Self> {
         if value.schema().field(PE_ID).is_err() {
-            Err(Error::NotProtectedEntityPreserving(format!("Field '{}' is missing", PE_ID)))
+            Err(Error::NotProtectedEntityPreserving(format!(
+                "Field '{}' is missing",
+                PE_ID
+            )))
         } else if value.schema().field(PE_WEIGHT).is_err() {
-            Err(Error::NotProtectedEntityPreserving(format!("Field '{}' is missing", PE_WEIGHT)))
+            Err(Error::NotProtectedEntityPreserving(format!(
+                "Field '{}' is missing",
+                PE_WEIGHT
+            )))
         } else {
             Ok(PEPRelation(value))
         }
