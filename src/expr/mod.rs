@@ -1293,12 +1293,12 @@ impl DataType {
             (function::Function::And, [left, right]) => {
                 let dt1 = self.filter(right).filter(left);
                 let dt2 = self.filter(left).filter(right);
-                datatype = dt1.super_intersection(&dt2).unwrap_or(datatype)
+                datatype = dt1.super_intersection(&dt2).unwrap_or(datatype);
             }
             (function::Function::Or, [left, right]) => {
                 let dt1 = self.filter(right);
                 let dt2 = self.filter(left);
-                datatype = dt1.super_union(&dt2).unwrap_or(datatype)
+                datatype = dt1.super_union(&dt2).unwrap_or(datatype);
             }
             // Set min or max
             (function::Function::Gt, [left, right])
@@ -1324,7 +1324,7 @@ impl DataType {
                         .unwrap()
                         .super_intersection(&left_dt)
                         .unwrap();
-                    datatype = datatype.replace(col, dt)
+                    datatype = datatype.replace(col, dt);
                 }
                 if let Expr::Column(col) = right {
                     let dt = data_type::function::least()
@@ -1332,7 +1332,7 @@ impl DataType {
                         .unwrap()
                         .super_intersection(&right_dt)
                         .unwrap();
-                    datatype = datatype.replace(col, dt)
+                    datatype = datatype.replace(col, dt);
                 }
             }
             (function::Function::Eq, [left, right]) => {
@@ -1340,17 +1340,17 @@ impl DataType {
                 let right_dt = right.super_image(&datatype).unwrap();
                 let dt = left_dt.super_intersection(&right_dt).unwrap();
                 if let Expr::Column(col) = left {
-                    datatype = datatype.replace(&col, dt.clone())
+                    datatype = datatype.replace(&col, dt.clone());
                 }
                 if let Expr::Column(col) = right {
-                    datatype = datatype.replace(&col, dt)
+                    datatype = datatype.replace(&col, dt);
                 }
             }
             (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
                 let dt = DataType::from_iter(l.to_vec().clone())
                     .super_intersection(&datatype[col.as_slice()])
                     .unwrap_or(datatype.clone());
-                datatype = datatype.replace(col, dt)
+                datatype = datatype.replace(col, dt);
             }
             _ => (),
         }
@@ -2160,6 +2160,49 @@ mod tests {
         ]);
         println!("{true_dt}\n{filtered_dt}");
         println!("{}", true_dt[["table1"]] == filtered_dt[["table1"]]);
+        assert_eq!(filtered_dt, true_dt);
+
+        // Similar to a join condition
+        let dt = DataType::structured([
+            (
+                "left",
+                DataType::structured([
+                    ("b", DataType::integer_interval(1, 8)),
+                    ("c", DataType::integer_interval(-5, 20)),
+                ]),
+            ),
+            (
+                "right",
+                DataType::structured([
+                    ("sum_a", DataType::integer_min(0)),
+                    ("b", DataType::integer_interval(-1, 5)),
+                    ("c", DataType::integer_interval(-2, 25)),
+                ])
+            )
+        ]);
+        let x = Expr::and(
+            Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")),
+            Expr::eq(Expr::qcol("left", "c"), Expr::qcol("right", "c"))
+        );
+        let filtered_dt = dt.filter(&x);
+        let true_dt = DataType::structured([
+            (
+                "left",
+                DataType::structured([
+                    ("b", DataType::integer_interval(1, 5)),
+                    ("c", DataType::integer_interval(-2, 20)),
+                ]),
+            ),
+            (
+                "right",
+                DataType::structured([
+                    ("sum_a", DataType::integer_min(0)),
+                    ("b", DataType::integer_interval(1, 5)),
+                    ("c", DataType::integer_interval(-2, 20)),
+                ])
+            )
+        ]);
+        println!("{true_dt}\n{filtered_dt}");
         assert_eq!(filtered_dt, true_dt);
     }
 

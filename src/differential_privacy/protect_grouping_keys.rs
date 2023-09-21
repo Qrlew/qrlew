@@ -7,17 +7,19 @@ use crate::{
     },
     expr::{aggregate, Aggregate, Expr, Value},
     hierarchy::Hierarchy,
-    protection::PE_ID,
+    protection::{PEPRelation, PE_ID, PE_WEIGHT, self},
     relation::{transforms, Field, Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
     visitor::Acceptor,
     DataType,
 };
-use std::{error, fmt, result};
+use std::{error, fmt, result, ops::Deref};
+use crate::display::Dot;
 
 #[derive(Debug, Clone)]
 pub enum Error {
     TauThresholdingError(String),
-    NoPossibleValuesError(String),
+    NonPEPRelationError(String),
+    NoGroupingColumnsError,
     Other(String),
 }
 
@@ -27,8 +29,11 @@ impl fmt::Display for Error {
             Error::TauThresholdingError(desc) => {
                 writeln!(f, "TauThresholdingError: {}", desc)
             }
-            Error::NoPossibleValuesError(desc) => {
-                writeln!(f, "NoPossibleValuesError: {}", desc)
+            Error::NonPEPRelationError(desc) => {
+                writeln!(f, "NonPEPRelationError: {}", desc)
+            }
+            Error::NoGroupingColumnsError => {
+                writeln!(f, "No grouping columns")
             }
             Error::Other(err) => writeln!(f, "{}", err),
         }
@@ -43,9 +48,15 @@ impl From<transforms::Error> for Error {
     }
 }
 
+impl From<protection::Error> for Error {
+    fn from(err: protection::Error) -> Self {
+        Error::NonPEPRelationError(err.to_string())
+    }
+}
+
 pub type Result<T> = result::Result<T, Error>;
 
-pub const PE_DISTINCT_COUNT: &str = "_PROTECTED_DISTINCT_COUNT_";
+pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
 
 impl Reduce {
     pub fn grouping_columns(&self) -> Result<Vec<String>> {
@@ -65,136 +76,151 @@ impl Reduce {
     }
 
     // Returns a `Relation` outputing all grouping keys that can be safely released
-    pub fn grouping_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
-        self.inputs()[0]
-            .clone()
-            .released_values(epsilon, delta, sensitivity)
+    pub fn grouping_values(&self, epsilon: f64, delta: f64) -> Result<Relation> {
+        let grouping_cols = self.grouping_columns()?;
+        if !grouping_cols.is_empty()  {
+            PEPRelation::try_from(
+                self.inputs()[0]
+                .clone()
+                .filter_fields(|f| grouping_cols.contains(&f.to_string()) || f == PE_ID || f == PE_WEIGHT )
+            )?.released_values(epsilon, delta)
+        } else {
+            Err(Error::NoGroupingColumnsError)
+        }
     }
 
     fn join_with_grouping_values(self, grouping_values: Relation) -> Result<Relation> {
-        let on: Vec<Expr> = self
-            .group_by()
-            .clone()
-            .into_iter()
-            .map(|c| {
-                Expr::eq(
-                    Expr::qcol(self.name().to_string(), c.to_string()),
-                    Expr::qcol(grouping_values.name().to_string(), c.to_string()),
-                )
-            })
+        let on: Vec<Expr> = grouping_values.schema()
+            .iter()
+            .map(|f| Expr::eq(
+                Expr::qcol(self.name().to_string(), f.name().to_string()),
+                Expr::qcol(grouping_values.name().to_string(), f.name().to_string()),
+            ))
             .collect();
-        let fields: Vec<(String, Expr)> = self
+
+        let right = Relation::from(self.with_grouping_columns());
+        let right_names = right
             .schema()
             .iter()
-            .map(|f| (f.name().to_string(), Expr::col(f.name())))
-            .collect();
-        let right = Relation::from(self.with_grouping_columns());
+            .map(|f| f.name().to_string())
+            .collect::<Vec<_>>();
+
         let join_rel: Relation = Relation::join()
-            .left(grouping_values)
             .right(right)
+            .right_names(right_names.clone())
+            .left(grouping_values)
             .left_outer()
             .on_iter(on)
-            .right_names(fields.iter().map(|(c, _)| c).collect())
             .build();
-        let map = Relation::map().input(join_rel).with_iter(fields).build();
-        Ok(map)
+
+        Ok(
+            join_rel.filter_fields(|f| right_names.contains(&f.to_string()))
+        )
     }
 
-    // Convert the current `Reduce` to a `Relation` and join it to a Relation that output all the
-    // grouping keys that can be released.
-    // For the moment, the grouping keys list is computed with tau-thresholding.
+    // TODO update docs
+    ///Convert the current `Reduce` to a `Relation` and join it to a Relation that output all the
+    /// grouping keys that can be released.
     pub fn protect_grouping_keys(
         self,
         epsilon: f64,
         delta: f64,
-        sensitivity: f64,
-    ) -> Result<Relation> {
-        if self.group_by().is_empty() {
-            // TODO: vec![PE_ID] ?
-            return Ok(Relation::from(self));
-        }
-        self.clone()
-            .join_with_grouping_values(
-                self.grouping_values(epsilon, delta, sensitivity)?
-            )
+        peid: &str,
+    ) -> Result<PEPRelation> {
+        Ok(PEPRelation::try_from(
+            if self.group_by().is_empty() {
+                todo!() // error must be pep
+            } else if self.grouping_columns()? == vec![peid.to_string()] {
+                Relation::from(self)
+            } else {
+                let columns = self.schema()
+                    .iter()
+                    .map(|f| f.name().to_string())
+                    .collect::<Vec<_>>();
+                self.clone()
+                .join_with_grouping_values(
+                    self.grouping_values(epsilon, delta)?
+                )?
+                .filter_fields(|f| columns.contains(&f.to_string()))
+            }
+        )?)
     }
 }
 
-impl Relation {
+impl PEPRelation {
     pub fn tau_thresholding_values(
         self,
         epsilon: f64,
         delta: f64,
-        sensitivity: f64,
     ) -> Result<Relation> {
-        if self.schema().field(PE_ID).is_err() {
-            return Err(Error::TauThresholdingError(format!(
-                "{PE_ID} column has not been found in the Relation"
-            )));
-        }
-
         // compute COUNT (DISTINCT PE_ID) GROUP BY columns
         let columns: Vec<String> = self
             .schema()
             .iter()
             .cloned()
             .filter_map(|f| {
-                if f.name() != PE_ID {
-                    Some(f.name().to_string())
-                } else {
+                if f.name() == self.protected_entity_id() || f.name() == self.protected_entity_weight() {
                     None
+                } else {
+                    Some(f.name().to_string())
                 }
             })
             .collect();
         let columns: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
-        let aggregates = vec![(PE_DISTINCT_COUNT, aggregate::Aggregate::Count)];
-        let rel = self.distinct_aggregates(PE_ID, columns.clone(), aggregates);
+        let aggregates = vec![
+            (COUNT_DISTINCT_PE_ID, aggregate::Aggregate::Count),
+        ];
+        let peid = self.protected_entity_id().to_string();
+        let rel = Relation::from(self).distinct_aggregates(
+            peid.as_ref(),
+            columns.clone(),
+            aggregates
+        );
 
         // Apply noise
         let name_sigmas = vec![(
-            PE_DISTINCT_COUNT,
+            COUNT_DISTINCT_PE_ID,
             super::mechanisms::gaussian_noise(epsilon, delta, 1.),
         )];
         let rel = rel.add_gaussian_noise(name_sigmas);
 
         // Returns a `Relation::Map` with the right field names and with `COUNT(DISTINCT PE_ID) > tau`
-        let tau = super::mechanisms::gaussian_tau(epsilon, delta, sensitivity);
-        let columns = [(PE_DISTINCT_COUNT, (Some(tau.into()), None, vec![]))]
+        let tau = super::mechanisms::gaussian_tau(epsilon, delta, 1.0);
+        let filter_column = [(COUNT_DISTINCT_PE_ID, (Some(tau.into()), None, vec![]))]
             .into_iter()
             .collect();
-        Ok(rel.filter_columns(columns))
+        Ok(
+            rel.filter_columns(filter_column)
+            .filter_fields(|f| columns.contains(&f))
+        )
     }
 
-
-    fn with_tau_thresholding_values(&self, public_columns: &Vec<String>, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
-        let relation_with_private_values = self
-            .clone()
+    fn with_tau_thresholding_values(self, public_columns: &Vec<String>, epsilon: f64, delta: f64) -> Result<Relation> {
+        let relation_with_private_values = Relation::from(self)
             .filter_fields(|f| !public_columns.contains(&f.to_string()));
-        relation_with_private_values.tau_thresholding_values(epsilon, delta, sensitivity)
+        PEPRelation(relation_with_private_values).tau_thresholding_values(epsilon, delta)
     }
 
-    fn with_public_values(&self, public_columns: &Vec<String>) -> Result<Relation> {
-        let relation_with_private_values = self
-            .clone()
-            .filter_fields(|f| public_columns.contains(&f.to_string()));
-        Ok(relation_with_private_values.public_values()?)
-    }
-
-    pub fn released_values(self, epsilon: f64, delta: f64, sensitivity: f64) -> Result<Relation> {
+    pub fn released_values(self, epsilon: f64, delta: f64) -> Result<Relation> {
         let public_columns: Vec<String> = self
             .schema()
             .iter()
-            .filter_map(|f| f.all_values().then_some(f.name().to_string()))
+            .filter_map(|f| (
+                f.name() != self.protected_entity_id()
+                && f.name() != self.protected_entity_weight()
+                && f.all_values()
+            ).then_some(f.name().to_string()))
             .collect();
+        let all_columns_are_public = public_columns.len() == self.schema().len() - 2;
 
         if public_columns.is_empty() {
-            self.with_tau_thresholding_values(&public_columns, epsilon, delta, sensitivity)
-        } else if public_columns.len() == self.schema().len() - 1 { // TODO: This condition is very obscure ....
+            self.with_tau_thresholding_values(&public_columns, epsilon, delta)
+        } else if all_columns_are_public {
             self.with_public_values(&public_columns)
         } else {
             Ok(
                 self.with_public_values(&public_columns)?.cross_join(
-                    self.with_public_values(&public_columns)?
+                    self.with_tau_thresholding_values(&public_columns, epsilon, delta)?
                 )?
             )
         }
@@ -204,20 +230,65 @@ impl Relation {
         self,
         epsilon: f64,
         delta: f64,
-        sensitivity: f64,
-    ) -> Result<Relation> {
-        match self {
-            Relation::Table(_) => Ok(self.clone()),
-            Relation::Map(m) => Ok(Map::builder()
-            .input(m.inputs()[0].clone().protect_grouping_keys(epsilon, delta, sensitivity)?)
-            .with(m)
-            .build()),
-            Relation::Reduce(r) => r.protect_grouping_keys(epsilon, delta, sensitivity),
-            Relation::Join(_) => todo!(),
+    ) -> Result<PEPRelation> {
+        let peid = self.protected_entity_id();
+        match self.deref() {
+            Relation::Table(_) => Ok(PEPRelation::try_from(self.released_values(epsilon, delta)?)?),
+            Relation::Map(m) => {
+                let rel: Relation = Map::builder()
+                .input(Relation::from(PEPRelation::try_from(m.inputs()[0].clone())?.protect_grouping_keys(epsilon, delta)?))
+                .with(m.clone())
+                .build();
+                Ok(PEPRelation::try_from(rel)?)
+            },
+            Relation::Reduce(r) => r.clone().protect_grouping_keys(epsilon, delta, peid),
+            Relation::Join(j) => {
+                let rel: Relation = Join::builder()
+                .left(Relation::from(PEPRelation::try_from(j.inputs()[0].clone())?.protect_grouping_keys(epsilon, delta)?))
+                .right(Relation::from(PEPRelation::try_from(j.inputs()[1].clone())?.protect_grouping_keys(epsilon, delta)?))
+                .with(j.clone())
+                .build();
+                Ok(PEPRelation::try_from(rel)?)
+            },
             Relation::Set(_) => todo!(),
-            Relation::Values(_) => todo!(),
+            Relation::Values(_) => Ok(self),
         }
     }
+}
+
+impl Relation {
+    fn with_public_values(&self, public_columns: &Vec<String>) -> Result<Relation> {
+        let relation_with_private_values = self
+            .clone()
+            .filter_fields(|f| public_columns.contains(&f.to_string()));
+        Ok(relation_with_private_values.public_values()?)
+    }
+
+    // pub fn protect_grouping_keys(
+    //     self,
+    //     epsilon: f64,
+    //     delta: f64,
+    // ) -> Result<Relation> {
+    //     match self {
+    //         Relation::Table(_) => PEPRelation::try_from(self)?.released_values(epsilon, delta),
+    //         Relation::Map(m) => Ok(
+    //             Map::builder()
+    //             .input(m.inputs()[0].clone().protect_grouping_keys(epsilon, delta)?)
+    //             .with(m)
+    //             .build()
+    //         ),
+    //         Relation::Reduce(r) => r.protect_grouping_keys(epsilon, delta),
+    //         Relation::Join(j) => Ok(
+    //             Join::builder()
+    //             .left(j.inputs()[0].clone().protect_grouping_keys(epsilon, delta)?)
+    //             .right(j.inputs()[1].clone().protect_grouping_keys(epsilon, delta)?)
+    //             .with(j)
+    //             .build()
+    //         ),
+    //         Relation::Set(_) => todo!(),
+    //         Relation::Values(_) => Ok(self),
+    //     }
+    // }
 }
 
 #[cfg(test)]
@@ -236,68 +307,101 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((PE_ID, DataType::integer_range(1..=100)))
+                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
                     .build(),
             )
             .build();
-        table.display_dot();
+        let protected_table = PEPRelation(table);
 
-        let rel = table.clone().tau_thresholding_values(1., 0.003, 5.).unwrap();
-        rel.display_dot();
-        assert_eq!(rel.schema().fields().len(), 4);
-
-        let rel = table.tau_thresholding_values(1.0, 0.003, 1.).unwrap();
-        rel.display_dot();
-        assert_eq!(rel.schema().fields().len(), 4);
+        let rel = protected_table.clone().tau_thresholding_values(1., 0.003).unwrap();
+        //rel.display_dot();
+        assert_eq!(
+            rel.data_type(),
+            DataType::structured([
+                ("a", DataType::integer_range(1..=10)),
+                ("b", DataType::integer_values([1, 2, 5, 6, 7, 8])),
+                ("c", DataType::integer_range(5..=20))
+            ])
+        );
     }
 
     #[test]
     fn test_released_values() {
+        // Only possible values
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_values([1, 2, 4, 6])))
+                    .with(("b", DataType::float_values([1.2, 4.6, 7.8])))
+                    .with((PE_ID, DataType::integer_range(1..=100)))
+                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
+                    .build(),
+            )
+            .build();
+        let protected_table = PEPRelation(table);
+        let rel = protected_table.released_values(1., 0.003).unwrap();
+        matches!(rel, Relation::Join(_));
+        //rel.display_dot();
+        assert_eq!(
+            rel.data_type(),
+            DataType::structured([
+                ("a", DataType::integer_values([1, 2, 4, 6])),
+                ("b", DataType::float_values([1.2, 4.6, 7.8]))
+            ])
+        );
+
+        // Only tau-thresholding values
         let table: Relation = Relation::table()
             .name("table")
             .schema(
                 Schema::builder()
                     .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::float_range(5.4..=20.)))
+                    .with((PE_ID, DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+        let protected_table = PEPRelation(table);
+        let rel = protected_table.released_values(1., 0.003).unwrap();
+        matches!(rel, Relation::Map(_));
+        //rel.display_dot();
+        assert_eq!(
+            rel.data_type(),
+            DataType::structured([
+                ("a", DataType::integer_range(1..=10)),
+                ("b", DataType::float_range(5.4..=20.))
+            ])
+        );
+
+        // Both possible and tau-thresholding values
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=5)))
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((PE_ID, DataType::integer_range(1..=100)))
                     .build(),
             )
             .build();
-        let rel = table.released_values(1., 0.003, 5.).unwrap();
+        let protected_table = PEPRelation(table);
+        let rel = protected_table.released_values(1., 0.003).unwrap();
         matches!(rel, Relation::Join(_));
         rel.display_dot();
-
-        // let table: Relation = Relation::table()
-        //     .name("table")
-        //     .schema(
-        //         Schema::builder()
-        //             .with(("a", DataType::integer_range(1..=10)))
-        //             .with(("c", DataType::integer_range(5..=20)))
-        //             .with((PE_ID, DataType::integer_range(1..=100)))
-        //             .build(),
-        //     )
-        //     .build();
-        // let rel = table.released_values(1., 0.003, 5.).unwrap();
-        // matches!(rel, Relation::Map(_));
-        // rel.display_dot();
-
-        // let table: Relation = Relation::table()
-        //     .name("table")
-        //     .schema(
-        //         Schema::builder()
-        //             .with(("a", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-        //             .with(("c", DataType::float_values([1., 2.5])))
-        //             .with((PE_ID, DataType::integer_range(1..=100)))
-        //             .build(),
-        //     )
-        //     .build();
-        // let rel = table.released_values(1., 0.003, 5.).unwrap();
-        // matches!(rel, Relation::Join(_));
-        // rel.display_dot();
+        assert_eq!(
+            rel.data_type(),
+            DataType::structured([
+                ("b", DataType::integer_values([1, 2, 5, 6, 7, 8])),
+                ("a", DataType::integer_range(1..=5)),
+                ("c", DataType::integer_range(5..=20))
+            ])
+        );
     }
 
     #[test]
-    fn test_protect_grouping_keys_reduce() {
+    fn test_grouping_values() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -306,6 +410,7 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((PE_ID, DataType::integer_range(1..=100)))
+                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
                     .build(),
             )
             .build();
@@ -317,29 +422,121 @@ mod tests {
             vec![],
             Rc::new(table.clone()),
         );
-        Relation::from(red.clone()).display_dot();
-        let rel = red.protect_grouping_keys(1., 0.003, 5.).unwrap();
-        rel.display_dot();
+        assert!(red.grouping_values(1., 0.003).is_err());
+
+        // With GROUPBY. Only one column with possible values.
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
+            vec![Expr::col("b")],
+            Rc::new(table.clone()),
+        );
+        let rel = red.grouping_values(1.0, 0.003).unwrap();
         assert_eq!(
-            rel.schema().data_type(),
-            DataType::structured([("sum_a", DataType::integer_min(0))])
+            rel.data_type(),
+            DataType::structured([
+                ("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))
+            ])
         );
 
-        // With GROUPBY
-        // let red = Reduce::new(
-        //     "reduce_relation".to_string(),
-        //     vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
-        //     vec![Expr::col("b")],
-        //     Rc::new(table.clone()),
-        // );
-        // let rel = red.protect_grouping_keys(1.0, 0.003, 1.).unwrap();
-        // rel.display_dot();
-        // assert_eq!(rel.schema().fields().len(), 1);
-        // println!("{}", rel.schema().data_type());
-        // println!("{}", rel.inputs()[0].schema().data_type());
-
-        // With GROUPBY
+        // With GROUPBY. Only one column with tau-thresolding values.
         let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("c".to_string(), AggregateColumn::col("c")),
+            ],
+            vec![Expr::col("c")],
+            Rc::new(table.clone()),
+        );
+        let rel = red.grouping_values(1.0, 0.003).unwrap();
+        //rel.display_dot();
+        assert_eq!(
+            rel.data_type(),
+            DataType::structured([
+                ("c", DataType::integer_range(5..=20)),
+            ])
+        );
+
+        // With GROUPBY. Columns with both tau-thresolding and possible values.
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("c".to_string(), AggregateColumn::col("c")),
+                ("b".to_string(), AggregateColumn::col("b")),
+            ],
+            vec![Expr::col("b"), Expr::col("c")],
+            Rc::new(table.clone()),
+        );
+        let rel = red.grouping_values(1.0, 0.003).unwrap();
+        //rel.display_dot();
+        assert_eq!(
+            rel.data_type(),
+            DataType::structured([
+                ("c", DataType::integer_range(5..=20)),
+                ("b", DataType::integer_values([1, 2, 5, 6, 7, 8])),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_protect_grouping_keys_reduce() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("id", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))].into_iter().collect();
+
+        // Reduce without GROUPBY
+        let relation = Relation::from(Reduce::new(
+            "reduce_relation".to_string(),
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
+            vec![],
+            Rc::new(table.clone()),
+        ));
+        let pep_rel = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table", &[], "id")],
+        );
+        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        assert_eq!(
+            Relation::from(pep_rel),
+            Relation::from(protected_pep_rel)
+        );
+
+        // With GROUPBY. Only one column with possible values.
+        let relation = Relation::from(Reduce::new(
+            "reduce_relation".to_string(),
+            vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
+            vec![Expr::col("b")],
+            Rc::new(table.clone()),
+        ));
+        let pep_rel = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table", &[], "id")],
+        );
+        //pep_rel.display_dot();
+        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        //protected_pep_rel.display_dot();
+        assert_eq!(
+            protected_pep_rel.data_type(),
+            DataType::structured([
+                (PE_ID, DataType::text()),
+                (PE_WEIGHT, DataType::integer_min(0)),
+                ("sum_a", DataType::integer_min(0))
+            ])
+        );
+
+        // With GROUPBY. Only one column with possible values.
+        let relation = Relation::from(Reduce::new(
             "reduce_relation".to_string(),
             vec![
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
@@ -347,10 +544,125 @@ mod tests {
             ],
             vec![Expr::col("b")],
             Rc::new(table.clone()),
+        ));
+        let pep_rel = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table", &[], "id")],
         );
-        let rel = red.protect_grouping_keys(1.0, 0.003, 1.).unwrap();
-        rel.display_dot();
-        assert_eq!(rel.schema().fields().len(), 2);
-        println!("{}", rel.schema().data_type());
+        //pep_rel.display_dot();
+        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        //protected_pep_rel.display_dot();
+        assert_eq!(
+            protected_pep_rel.data_type(),
+            DataType::structured([
+                (PE_ID, DataType::text()),
+                (PE_WEIGHT, DataType::integer_min(0)),
+                ("sum_a", DataType::integer_min(0)),
+                ("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))
+            ])
+        );
+
+        // With GROUPBY. Only one column with tau-thresolding values.
+        let relation = Relation::from(Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("c".to_string(), AggregateColumn::col("c")),
+            ],
+            vec![Expr::col("c")],
+            Rc::new(table.clone()),
+        ));
+        let pep_rel = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table", &[], "id")],
+        );
+        //pep_rel.display_dot();
+        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        //protected_pep_rel.display_dot();
+        assert_eq!(
+            protected_pep_rel.data_type(),
+            DataType::structured([
+                (PE_ID, DataType::text()),
+                (PE_WEIGHT, DataType::integer_min(0)),
+                ("sum_a", DataType::integer_min(0)),
+                ("c", DataType::integer_range(5..=20))
+            ])
+        );
+
+        // With GROUPBY. Columns with both tau-thresolding and possible values.
+        let relation = Relation::from(Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("c".to_string(), AggregateColumn::col("c")),
+                ("b".to_string(), AggregateColumn::col("b")),
+            ],
+            vec![Expr::col("b"), Expr::col("c")],
+            Rc::new(table.clone()),
+        ));
+        let pep_rel = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table", &[], "id")],
+        );
+        //pep_rel.display_dot();
+        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        //protected_pep_rel.display_dot();
+        assert_eq!(
+            protected_pep_rel.data_type(),
+            DataType::structured([
+                (PE_ID, DataType::text()),
+                (PE_WEIGHT, DataType::integer_min(0)),
+                ("sum_a", DataType::integer_min(0)),
+                ("c", DataType::integer_range(5..=20)),
+                ("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))
+            ])
+        );
+    }
+
+    #[test]
+    fn test_protect_grouping_keys_map() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("id", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))].into_iter().collect();
+
+        // Reduce without GROUPBY
+        let relation = Relation::from(Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("c".to_string(), AggregateColumn::first("c")),
+                ("b".to_string(), AggregateColumn::first("b")),
+
+            ],
+            vec![Expr::col("b"), Expr::col("c")],
+            Rc::new(table.clone()),
+        ));
+        let relation: Relation = Map::builder()
+            .with(("twice_sum_a", expr!(2*sum_a)))
+            .with(("b", expr!(b)))
+            .with(("c", expr!(c)))
+            .input(relation)
+            .build();
+        let pep_rel = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table", &[], "id")],
+        );
+        pep_rel.display_dot();
+        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();// TODO : this does nothing !!! fix taht
+        protected_pep_rel.display_dot();
+        // assert_eq!(
+        //     Relation::from(pep_rel),
+        //     Relation::from(protected_pep_rel)
+        // );
+
     }
 }

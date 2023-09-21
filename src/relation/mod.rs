@@ -1584,7 +1584,7 @@ impl Ready<Relation> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::{schema::Schema, *};
-    use crate::{builder::With, data_type::DataType};
+    use crate::{builder::With, data_type::DataType, display::Dot};
 
     #[test]
     fn test_table() {

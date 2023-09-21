@@ -59,6 +59,11 @@ impl From<transforms::Error> for Error {
         Error::Other(err.to_string())
     }
 }
+impl From<protect_grouping_keys::Error> for Error {
+    fn from(err: protect_grouping_keys::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
 
 impl error::Error for Error {}
 pub type Result<T> = result::Result<T, Error>;
@@ -193,6 +198,12 @@ impl Reduce {
         //             .join(", "),
         //     ));
         // };
+        // Protect grouping keys
+
+        // Relation::from(self.clone()).display_dot();
+        // let protected_grouping_keys = self.protect_grouping_keys(epsilon, delta)?; // TODO: specific epsilon delta
+        // protected_grouping_keys.display_dot();
+        // panic!();
 
         // Clip the relation
         let clipped_relation = self.input().clone().l2_clipped_sums(
@@ -200,6 +211,7 @@ impl Reduce {
             input_groups.into_iter().collect(),
             input_values_bound.iter().cloned().collect(),
         );
+        clipped_relation.display_dot();
 
         // Bound
 
@@ -213,6 +225,8 @@ impl Reduce {
         );
         let renamed_dp_clipped_relation =
             dp_clipped_relation.rename_fields(|n, e| names.get(n).unwrap_or(&n).to_string());
+        renamed_dp_clipped_relation.display_dot();
+
         Ok(DPRelation(renamed_dp_clipped_relation))
     }
 
@@ -351,6 +365,37 @@ mod tests {
             ],
         );
         pep_relation.display_dot().unwrap();
+
+        let epsilon = 1.;
+        let delta = 1e-3;
+        let dp_relation = pep_relation.dp_compile(epsilon, delta).unwrap();
+        dp_relation.display_dot().unwrap();
+        let dp_query = ast::Query::from(dp_relation.deref());
+        for row in database.query(&dp_query.to_string()).unwrap() {
+            println!("{row}");
+        }
+    }
+
+    #[test]
+    fn test_dp_compile_simple() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let query = parse(
+            "SELECT order_id, sum(price) AS sum_price FROM item_table GROUP BY order_id",
+        )
+        .unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+
+        let pep_relation = relation.force_protect_from_field_paths(
+            &relations,
+            &[("item_table", &[], "order_id")],
+        );
+        pep_relation.display_dot().unwrap();
+        let protected_grouping_keys = pep_relation.protect_grouping_keys(1., 1.).unwrap();
+        protected_grouping_keys.display_dot().unwrap();
+        panic!();
 
         let epsilon = 1.;
         let delta = 1e-3;

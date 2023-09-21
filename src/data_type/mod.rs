@@ -1048,11 +1048,10 @@ impl Variant for Struct {
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.intersection(&other_fields);
-        fields
-            .into_iter()
+        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        self_fields.into_iter()
+            .chain(other_fields.into_iter())
             .map(|f| {
                 Ok((
                     f.clone(),
@@ -1063,11 +1062,11 @@ impl Variant for Struct {
     }
 
     fn super_intersection(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.union(&other_fields);
-        fields
-            .into_iter()
+        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        self_fields.into_iter()
+            .chain(other_fields.into_iter())
+            .unique()
             .map(|f| {
                 Ok((
                     f.clone(),
@@ -1337,11 +1336,10 @@ impl Variant for Union {
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.union(&other_fields);
-        fields
-            .into_iter()
+        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        self_fields.into_iter()
+            .chain(other_fields.into_iter())
             .map(|f| {
                 Ok((
                     f.clone(),
@@ -1352,11 +1350,10 @@ impl Variant for Union {
     }
 
     fn super_intersection(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.intersection(&other_fields);
-        fields
-            .into_iter()
+        let self_fields: Vec<String> = self.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        let other_fields: Vec<String> = other.fields.iter().map(|(f, _)| f.clone()).unique().collect();
+        self_fields.into_iter()
+            .chain(other_fields.into_iter())
             .map(|f| {
                 Ok((
                     f.clone(),
@@ -3507,10 +3504,10 @@ mod tests {
         let c = a.clone().and(b.clone());
         let true_c = Struct::default()
             .and(("0", DataType::float()))
+            .and(("a", DataType::float_values([1., 2., 3.])))
             .and(("1", DataType::float()))
             .and(("2", DataType::float()))
             .and(("3", DataType::float()))
-            .and(("a", DataType::float_values([1., 2., 3.])))
             .and(("b", DataType::integer()))
             .and(("c", DataType::float()))
             .and(("d", DataType::float()));
@@ -3540,10 +3537,10 @@ mod tests {
             e,
             Struct::default()
                 .and(("0", DataType::float()))
+                .and(("a", DataType::float_values([1., 2., 3.])))
                 .and(("1", DataType::float()))
                 .and(("2", DataType::float()))
                 .and(("3", DataType::float()))
-                .and(("a", DataType::float_values([1., 2., 3.])))
                 .and(("b", DataType::integer()))
                 .and(("c", DataType::float()))
                 .and(("d", DataType::float()))
@@ -3584,10 +3581,10 @@ mod tests {
                 "table1",
                 DataType::structured([
                     ("0", DataType::float()),
+                    ("a", DataType::float_values([1., 2., 3.])),
                     ("1", DataType::float()),
                     ("2", DataType::float()),
                     ("3", DataType::float()),
-                    ("a", DataType::float_values([1., 2., 3.])),
                     ("b", DataType::integer()),
                     ("c", DataType::float()),
                     ("d", DataType::float()),
@@ -3954,6 +3951,44 @@ mod tests {
         println!("union = {}", left.super_union(&right).unwrap());
         assert!(left.is_subset_of(&left.super_union(&right).unwrap()));
         assert!(right.is_subset_of(&left.super_union(&right).unwrap()));
+
+
+        // struct of struct
+        let dt = DataType::structured([
+            (
+                "B",
+                DataType::structured([
+                    ("c", DataType::integer_interval(1, 8)),
+                    ("b", DataType::integer_interval(-5, 20)),
+                ]),
+            ),
+            (
+                "A",
+                DataType::structured([
+                    ("c", DataType::integer_min(0)),
+                    ("d", DataType::integer_interval(-1, 5)),
+                    ("a", DataType::integer_interval(-2, 25)),
+                ])
+            )
+        ]);
+        println!(
+            "\nintersection = {}",
+            dt.super_intersection(&dt).unwrap()
+        );
+        println!(
+            "union = {}",
+            dt.super_union(&dt).unwrap()
+        );
+        // check that the order of the keys is conserved
+        let true_schema = crate::relation::Schema::from(dt.clone());
+        assert_eq!(
+            crate::relation::Schema::from(dt.super_intersection(&dt).unwrap()),
+            true_schema
+        );
+        assert_eq!(
+            crate::relation::Schema::from(dt.super_union(&dt).unwrap()),
+            true_schema
+        );
     }
 
     #[test]

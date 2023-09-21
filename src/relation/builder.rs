@@ -1148,7 +1148,7 @@ mod tests {
     #[test]
     fn test_join() {
         let table1: Relation = Relation::table()
-            .name("table")
+            .name("table1")
             .schema(
                 Schema::builder()
                     .with(("a", DataType::integer_range(1..=10)))
@@ -1158,24 +1158,35 @@ mod tests {
             .build();
 
         let table2: Relation = Relation::table()
-            .name("table")
+            .name("table2")
             .schema(
                 Schema::builder()
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with(("d", DataType::integer_range(1..=100)))
+                    .with(("a", DataType::integer_range(5..=20)))
+                    .with(("c", DataType::integer_range(1..=100)))
                     .build(),
             )
             .build();
 
         let join: Relation = Relation::join()
             .left(table1)
-            .right(table2)
-            .left_outer()
-            .on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c"))])
             .left_names(vec!["a1", "b1"])
-            //.on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c")), Expr::eq(Expr::col("b"), Expr::col("d"))])
+            .right(table2)
+            .right_names(vec!["a2", "c2"])
+            .right_outer()
+            .on_iter(
+                vec![Expr::eq(Expr::qcol("table1", "a"), Expr::qcol("table2", "a"))]
+            )
             .build();
         join.display_dot();
+        assert_eq!(
+            join.schema().data_type(),
+            DataType::structured([
+                ("a1", DataType::integer_range(5..=10)),
+                ("b1", DataType::integer_values([1, 2, 5, 6, 7, 8])),
+                ("a2", DataType::integer_range(5..=20)),
+                ("c2", DataType::integer_range(1..=100)),
+            ])
+        );
     }
 
     #[test]
