@@ -121,15 +121,15 @@ impl PEPRelation {
         let protected_entity_weight = self.protected_entity_weight().to_string();
         match Relation::from(self) {
             Relation::Map(map) => {
-                let dp_input:Relation = PEPRelation::try_from(map.input().clone())?
+                let dp_input: Relation = PEPRelation::try_from(map.input().clone())?
                     .dp_compile(epsilon, delta)?
                     .into();
-                dp_input.display_dot();
-                Relation::from(map.clone()).display_dot();
-                println!("OK");
                 Ok(DPRelation(
                     Map::builder()
-                        .with(map)
+                        .filter_fields_with(map, |f| {
+                            f != protected_entity_id.as_str()
+                                && f != protected_entity_weight.as_str()
+                        })
                         .input(dp_input)
                         .build(),
                 ))
@@ -236,6 +236,9 @@ impl Reduce {
                         aggregate.column_name()?,
                         AggregateColumn::col(aggregate.column_name()?),
                     ));
+                    if name != protected_entity_id {
+                        output = output.with((name, Expr::col(aggregate.column_name()?)));
+                    }
                 }
                 aggregate::Aggregate::Mean => {
                     let sum_col = &format!("_SUM_{}", aggregate.column_name()?);
@@ -369,37 +372,44 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let str_query = "SELECT sum(price) AS sum_price FROM item_table GROUP BY order_id";
+        // GROUPING col in the SELECT clause
+        let str_query = "SELECT item, sum(price) AS sum_price FROM item_table GROUP BY item";
         let query = parse(str_query).unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        //relation.display_dot();
 
-        let pep_relation = relation.force_protect_from_field_paths(
-            &relations,
-            &[
-                (
-                    "item_table",
-                    &[
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
-                    ],
-                    "name",
-                ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
-            ],
-        );
-        pep_relation.display_dot();
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, &[("item_table", &[], "order_id")]);
 
         let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();
 
-        //let protected_groups_relation = pep_relation.protect_grouping_keys(1., 0.003).unwrap();
-        //protected_groups_relation.display_dot();
+        assert_eq!(dp_relation.data_type()["item"], DataType::text());
+        assert!(matches!(
+            dp_relation.data_type()["sum_price"],
+            DataType::Float(_)
+        ));
 
         let dp_query = ast::Query::from(dp_relation.deref());
-        for row in database.query(&dp_query.to_string()).unwrap() {
-            println!("{row}");
-        }
+        database.query(&dp_query.to_string()).unwrap();
+
+        // GROUPING col NOT in the SELECT clause
+        let str_query = "SELECT sum(price) AS sum_price FROM item_table GROUP BY item";
+        let query = parse(str_query).unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, &[("item_table", &[], "order_id")]);
+
+        let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
+        dp_relation.display_dot().unwrap();
+
+        assert_eq!(dp_relation.schema().len(), 1);
+        assert!(matches!(
+            dp_relation.data_type()["sum_price"],
+            DataType::Float(_)
+        ));
+
+        let dp_query = ast::Query::from(dp_relation.deref());
+        database.query(&dp_query.to_string()).unwrap();
     }
 }
