@@ -14,7 +14,7 @@ use crate::{
     display::Dot,
     expr::{self, aggregate, AggregateColumn, Expr},
     hierarchy::Hierarchy,
-    protection::PEPRelation,
+    protection::{self, PEPRelation},
     relation::{field::Field, transforms, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
 };
@@ -56,6 +56,11 @@ impl From<expr::Error> for Error {
 }
 impl From<transforms::Error> for Error {
     fn from(err: transforms::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+impl From<protection::Error> for Error {
+    fn from(err: protection::Error) -> Self {
         Error::Other(err.to_string())
     }
 }
@@ -118,7 +123,8 @@ impl PEPRelation {
         let protected_entity_weight = self.protected_entity_weight().to_string();
         match Relation::from(self) {
             Relation::Map(map) => {
-                let dp_input = PEPRelation(map.input().clone()).dp_compile(epsilon, delta)?;
+                let dp_input =
+                    PEPRelation::try_from(map.input().clone())?.dp_compile(epsilon, delta)?;
                 Ok(DPRelation(
                     Map::builder()
                         .with(map)
