@@ -1,8 +1,7 @@
 use std::fmt;
 
 use crate::{
-    data_type::{DataType, DataTyped},
-    expr::{Column, Expr},
+    data_type::{DataType, DataTyped, Value},
     namer,
 };
 
@@ -68,6 +67,12 @@ impl Field {
     /// Create a new Field with contraint
     pub fn with_constraint(self, constraint: Constraint) -> Field {
         Field::new(self.name, self.data_type, Some(constraint))
+    }
+
+    // Returns true if the `DataType` of the current `Field` contains
+    /// only values
+    pub fn all_values(&self) -> bool {
+        TryInto::<Vec<Value>>::try_into(self.data_type()).is_ok()
     }
 }
 
