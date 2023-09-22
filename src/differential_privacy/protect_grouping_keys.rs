@@ -1,17 +1,8 @@
-use crate::display::Dot;
 use crate::{
-    builder::{Ready, With, WithIterator},
-    data_type::{
-        self,
-        intervals::{Bound, Intervals},
-        DataTyped,
-    },
-    expr::{aggregate, Aggregate, Expr, Value},
-    hierarchy::Hierarchy,
+    builder::{Ready, With},
+    expr::{aggregate, Expr},
     protection::{self, PEPRelation, PE_ID, PE_WEIGHT},
-    relation::{transforms, Field, Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
-    visitor::Acceptor,
-    DataType,
+    relation::{transforms, Join, Map, Reduce, Relation, Variant as _},
 };
 use std::{error, fmt, ops::Deref, result};
 
@@ -255,7 +246,14 @@ impl Relation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{display::Dot, expr::AggregateColumn, namer, relation::Schema};
+    use crate::{
+        display::Dot,
+        expr::AggregateColumn,
+        namer,
+        relation::Schema,
+        data_type::{DataType, DataTyped},
+        hierarchy::Hierarchy,
+    };
     use std::rc::Rc;
 
     #[test]
