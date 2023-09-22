@@ -186,12 +186,12 @@ impl Relation {
             let relation_with_public_values = self
                 .clone()
                 .filter_fields(|f| public_columns.contains(&f.to_string()));
-            Ok(relation_with_public_values.possible_values()?)
+            Ok(relation_with_public_values.public_values()?)
         } else {
             let relation_with_public_values = self
                 .clone()
                 .filter_fields(|f| public_columns.contains(&f.to_string()));
-            let public_relation = relation_with_public_values.possible_values()?;
+            let public_relation = relation_with_public_values.public_values()?;
 
             let relation_with_private_values = self
                 .clone()
