@@ -86,18 +86,15 @@ impl TryFrom<Relation> for PEPRelation {
     type Error = Error;
 
     fn try_from(value: Relation) -> Result<Self> {
-        if value.schema().field(PE_ID).is_err() {
-            Err(Error::NotProtectedEntityPreserving(format!(
-                "Field '{}' is missing",
-                PE_ID
-            )))
-        } else if value.schema().field(PE_WEIGHT).is_err() {
-            Err(Error::NotProtectedEntityPreserving(format!(
-                "Field '{}' is missing",
-                PE_WEIGHT
-            )))
-        } else {
+        if value.is_pep() {
             Ok(PEPRelation(value))
+        } else {
+            Err(Error::NotProtectedEntityPreserving(
+                format!(
+                    "Cannot convert to PEPRelation a relation that does not contains both {} and {} columns. \nGot: {}",
+                    PE_ID, PE_WEIGHT, value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
+                )
+            ))
         }
     }
 }
@@ -107,6 +104,16 @@ impl Deref for PEPRelation {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Relation {
+    pub fn is_pep(&self) -> bool {
+        if self.schema().field(PE_ID).is_err() || self.schema().field(PE_WEIGHT).is_err() {
+            false
+        } else {
+            true
+        }
     }
 }
 
@@ -133,18 +140,19 @@ pub fn protect_visitor_from_exprs<'a>(
     protected_entity: &'a [(&'a Table, Expr)],
     strategy: Strategy,
 ) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
-    ProtectVisitor::new(
-        move |table: &Table| match protected_entity
-            .iter()
-            .find_map(|(t, e)| (table == *t).then(|| e.clone()))
-        {
-            Some(expr) => Ok(PEPRelation(
-                Relation::from(table.clone()).identity_with_field(PE_ID, expr.clone()),
-            )),
-            None => Err(Error::unprotected_table(table)),
-        },
-        strategy,
-    )
+    let protect_tables = move |table: &Table| match protected_entity
+        .iter()
+        .find_map(|(t, e)| (table == *t).then(|| e.clone()))
+    {
+        Some(expr) => PEPRelation::try_from(
+            Relation::from(
+                table.clone())
+                .identity_with_field(PE_ID, expr.clone())
+                .insert_field(1, PE_WEIGHT, Expr::val(1))
+        ),
+        None => Err(Error::unprotected_table(table)),
+    };
+    ProtectVisitor::new(protect_tables, strategy)
 }
 
 /// Build a visitor from exprs
@@ -153,59 +161,60 @@ pub fn protect_visitor_from_field_paths<'a>(
     protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
     strategy: Strategy,
 ) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
-    ProtectVisitor::new(
-        move |table: &Table| match protected_entity
-            .iter()
-            .find(|(tab, _path, _field)| table.name() == relations[*tab].name())
-        {
-            Some((_tab, path, field)) => Ok(PEPRelation(
-                Relation::from(table.clone())
-                    .with_field_path(relations, path, field, PE_ID)
-                    .map_fields(|n, e| {
-                        if n == PE_ID {
-                            Expr::md5(Expr::cast_as_text(e))
-                        } else {
-                            e
-                        }
-                    }),
-            )),
-            None => Err(Error::unprotected_table(table)),
-        }, //TODO fix MD5 here
-        strategy,
-    )
+    let protect_tables = move |table: &Table| match protected_entity
+        .iter()
+        .find(|(tab, _path, _field)| table.name() == relations[*tab].name())
+    {
+        Some((_tab, path, field)) => PEPRelation::try_from(
+            Relation::from(table.clone())
+                .with_field_path(relations, path, field, PE_ID)
+                .map_fields(|n, e| {
+                    if n == PE_ID {
+                        Expr::md5(Expr::cast_as_text(e))
+                    } else {
+                        e
+                    }
+                })
+                .insert_field(1, PE_WEIGHT, Expr::val(1))
+        ),
+        None => Err(Error::unprotected_table(table)),
+    }; //TODO fix MD5 here
+    ProtectVisitor::new(protect_tables, strategy)
 }
 
 impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
     for ProtectVisitor<F>
 {
     fn table(&self, table: &'a Table) -> Result<PEPRelation> {
-        Ok(PEPRelation(
+        PEPRelation::try_from(
             Relation::from((self.protect_tables)(table)?)
                 .insert_field(1, PE_WEIGHT, Expr::val(1))
                 // We preserve the name
                 .with_name(format!("{}{}", PROTECTION_PREFIX, table.name())),
-        ))
+        )
     }
 
     fn map(&self, map: &'a Map, input: Result<PEPRelation>) -> Result<PEPRelation> {
-        let builder = Relation::map()
+        let relation: Relation = Relation::map()
             .with((PE_ID, Expr::col(PE_ID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
             .with(map.clone())
-            .input(Relation::from(input?));
-        Ok(PEPRelation(builder.build()))
+            .input(Relation::from(input?))
+            .build();
+        PEPRelation::try_from(relation)
     }
 
     fn reduce(&self, reduce: &'a Reduce, input: Result<PEPRelation>) -> Result<PEPRelation> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce)),
             Strategy::Hard => {
-                let builder = Relation::reduce()
+                let relation: Relation = Relation::reduce()
                     .with_group_by_column(PE_ID)
                     .with((PE_WEIGHT, AggregateColumn::sum(PE_WEIGHT)))
                     .with(reduce.clone())
-                    .input(Relation::from(input?));
-                Ok(PEPRelation(builder.build()))
+                    .input(Relation::from(input?))
+                    .build();
+                PEPRelation::try_from(relation)
             }
         }
     }
@@ -289,9 +298,9 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
                         b.with((n, Expr::col(n)))
                     }
                 });
-                let builder = builder.input(Rc::new(join.into()));
+                let relation: Relation = builder.input(Rc::new(join.into())).build();
 
-                Ok(PEPRelation(builder.build()))
+                PEPRelation::try_from(relation)
             }
         }
     }
@@ -302,17 +311,18 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
         left: Result<PEPRelation>,
         right: Result<PEPRelation>,
     ) -> Result<PEPRelation> {
-        let builder = Relation::set()
+        let relation: Relation = Relation::set()
             .name(set.name())
             .operator(set.operator().clone())
             .quantifier(set.quantifier().clone())
             .left(Relation::from(left?))
-            .right(Relation::from(right?));
-        Ok(PEPRelation(builder.build()))
+            .right(Relation::from(right?))
+            .build();
+        PEPRelation::try_from(relation)
     }
 
     fn values(&self, values: &'a Values) -> Result<PEPRelation> {
-        Ok(PEPRelation(Relation::Values(values.clone())))
+        PEPRelation::try_from(Relation::Values(values.clone()))
     }
 }
 
@@ -410,7 +420,8 @@ mod tests {
             .protect_from_exprs(&[(&database.tables()[0], expr!(md5(a)))])
             .unwrap();
         println!("Schema protected = {}", table.schema());
-        assert_eq!(table.schema()[0].name(), PE_ID)
+        assert_eq!(table.schema()[0].name(), PE_ID);
+        assert_eq!(table.schema()[1].name(), PE_WEIGHT);
     }
 
     #[test]
@@ -432,7 +443,8 @@ mod tests {
         table.display_dot().unwrap();
         println!("Schema protected = {}", table.schema());
         println!("Query protected = {}", ast::Query::from(&*table));
-        assert_eq!(table.schema()[0].name(), PE_ID)
+        assert_eq!(table.schema()[0].name(), PE_ID);
+        assert_eq!(table.schema()[1].name(), PE_WEIGHT);
     }
 
     #[test]

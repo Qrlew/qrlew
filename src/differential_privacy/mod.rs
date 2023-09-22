@@ -14,7 +14,7 @@ use crate::{
     display::Dot,
     expr::{self, aggregate, AggregateColumn, Expr},
     hierarchy::Hierarchy,
-    protection::PEPRelation,
+    protection::{self, PEPRelation},
     relation::{field::Field, transforms, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
 };
@@ -64,7 +64,11 @@ impl From<protect_grouping_keys::Error> for Error {
         Error::Other(err.to_string())
     }
 }
-
+impl From<protection::Error> for Error {
+    fn from(err: protection::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
 impl error::Error for Error {}
 pub type Result<T> = result::Result<T, Error>;
 
@@ -118,18 +122,24 @@ impl PEPRelation {
 
     /// Compile a protected Relation into DP
     pub fn dp_compile(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
-        // Return a DP relation
         let protected_entity_id = self.protected_entity_id().to_string();
         let protected_entity_weight = self.protected_entity_weight().to_string();
+        println!("\n\nself.name = {}", self.name());
+
+        // Return a DP relation
         match Relation::from(self) {
             Relation::Map(map) => {
-                let dp_input = PEPRelation(map.input().clone()).dp_compile(epsilon, delta)?;
-                Ok(DPRelation(
-                    Map::builder()
-                        .with(map)
-                        .input(Relation::from(dp_input))
-                        .build(),
-                ))
+                map.input().display_dot();
+                let dp_input = Relation::from(PEPRelation::try_from(map.input().clone())?.dp_compile(epsilon, delta)?);
+                dp_input.display_dot();
+                Relation::from(map.clone()).display_dot();
+                println!("DP into = {}", dp_input.clone());
+                let rel = Map::builder()
+                    .with(map)
+                    .input(dp_input)
+                    .build();
+                println!("rel  = {}", rel);
+                Ok(DPRelation(rel))
             }
             Relation::Reduce(reduce) => reduce.dp_compile(
                 &protected_entity_id,
@@ -210,7 +220,6 @@ impl Reduce {
             input_groups.into_iter().collect(),
             input_values_bound.iter().cloned().collect(),
         );
-        clipped_relation.display_dot();
 
         // Bound
 
@@ -224,7 +233,6 @@ impl Reduce {
         );
         let renamed_dp_clipped_relation =
             dp_clipped_relation.rename_fields(|n, e| names.get(n).unwrap_or(&n).to_string());
-        renamed_dp_clipped_relation.display_dot();
 
         Ok(DPRelation(renamed_dp_clipped_relation))
     }
@@ -300,6 +308,7 @@ mod tests {
         relation::Variant as _,
         sql::parse,
         Relation,
+        relation::Schema
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -385,19 +394,18 @@ mod tests {
             parse("SELECT order_id, sum(price) AS sum_price FROM item_table GROUP BY order_id")
                 .unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        relation.display_dot().unwrap();
+        //relation.display_dot();
 
         let pep_relation =
             relation.force_protect_from_field_paths(&relations, &[("item_table", &[], "order_id")]);
-        pep_relation.display_dot().unwrap();
-        let protected_grouping_keys = pep_relation.protect_grouping_keys(1., 1.).unwrap();
-        protected_grouping_keys.display_dot().unwrap();
-        panic!();
+        pep_relation.display_dot();
 
-        let epsilon = 1.;
-        let delta = 1e-3;
-        let dp_relation = pep_relation.dp_compile(epsilon, delta).unwrap();
+        let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();
+
+        //let protected_groups_relation = pep_relation.protect_grouping_keys(1., 0.003).unwrap();
+        //protected_groups_relation.display_dot();
+
         let dp_query = ast::Query::from(dp_relation.deref());
         for row in database.query(&dp_query.to_string()).unwrap() {
             println!("{row}");

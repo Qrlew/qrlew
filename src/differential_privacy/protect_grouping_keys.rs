@@ -192,7 +192,7 @@ impl PEPRelation {
     ) -> Result<Relation> {
         let relation_with_private_values =
             Relation::from(self).filter_fields(|f| !public_columns.contains(&f.to_string()));
-        PEPRelation(relation_with_private_values).tau_thresholding_values(epsilon, delta)
+        PEPRelation::try_from(relation_with_private_values)?.tau_thresholding_values(epsilon, delta)
     }
 
     pub fn released_values(self, epsilon: f64, delta: f64) -> Result<Relation> {
@@ -226,12 +226,11 @@ impl PEPRelation {
                 self.released_values(epsilon, delta)?,
             )?),
             Relation::Map(m) => {
+                let protected_input = PEPRelation::try_from(m.inputs()[0].clone())?
+                .protect_grouping_keys(epsilon, delta)?;
                 let rel: Relation = Map::builder()
-                    .input(Relation::from(
-                        PEPRelation::try_from(m.inputs()[0].clone())?
-                            .protect_grouping_keys(epsilon, delta)?,
-                    ))
                     .with(m.clone())
+                    .input(Relation::from(protected_input))
                     .build();
                 Ok(PEPRelation::try_from(rel)?)
             }
@@ -294,7 +293,7 @@ impl Relation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{display::Dot, expr::AggregateColumn, relation::Schema};
+    use crate::{display::Dot, expr::AggregateColumn, relation::Schema, namer};
     use std::rc::Rc;
 
     #[test]
@@ -589,7 +588,7 @@ mod tests {
         let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
         //pep_rel.display_dot();
         let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
-        //protected_pep_rel.display_dot();
+        protected_pep_rel.display_dot();
         assert_eq!(
             protected_pep_rel.data_type(),
             DataType::structured([
@@ -620,7 +619,7 @@ mod tests {
             .collect();
 
         // Reduce without GROUPBY
-        let relation = Relation::from(Reduce::new(
+        let reduce_relation = Relation::from(Reduce::new(
             "reduce_relation".to_string(),
             vec![
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
@@ -634,15 +633,34 @@ mod tests {
             .with(("twice_sum_a", expr!(2 * sum_a)))
             .with(("b", expr!(b)))
             .with(("c", expr!(c)))
-            .input(relation)
+            .input(reduce_relation.clone())
+            .name("my_map")
             .build();
+        relation.display_dot();
         let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
-        pep_rel.display_dot();
-        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap(); // TODO : this does nothing !!! fix taht
-        protected_pep_rel.display_dot();
-        // assert_eq!(
-        //     Relation::from(pep_rel),
-        //     Relation::from(protected_pep_rel)
-        // );
+        //pep_rel.display_dot();
+        namer::reset();
+        let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        namer::reset();
+        let correct_protected_rel : Relation = Map::builder()
+            .with((PE_ID, Expr::col(PE_ID)))
+            .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
+            .with(("twice_sum_a", expr!(2 * sum_a)))
+            .with(("b", expr!(b)))
+            .with(("c", expr!(c)))
+            .name("my_map")
+            .input(
+                reduce_relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")])
+                .protect_grouping_keys(1., 0.003)
+                .unwrap()
+                .0
+            )
+            .build();
+        protected_pep_rel.0.display_dot();
+        correct_protected_rel.display_dot();
+        assert_eq!(
+            protected_pep_rel.0,
+            correct_protected_rel
+        );
     }
 }
