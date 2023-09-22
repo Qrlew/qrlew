@@ -1,8 +1,17 @@
+use crate::display::Dot;
 use crate::{
-    builder::{Ready, With},
-    expr::{aggregate, Expr},
+    builder::{Ready, With, WithIterator},
+    data_type::{
+        self,
+        intervals::{Bound, Intervals},
+        DataTyped,
+    },
+    expr::{aggregate, Aggregate, Expr, Value},
+    hierarchy::Hierarchy,
     protection::{self, PEPRelation, PE_ID, PE_WEIGHT},
-    relation::{transforms, Join, Map, Reduce, Relation, Variant as _},
+    relation::{transforms, Field, Join, Map, Reduce, Relation, Set, Table, Variant as _, Visitor},
+    visitor::Acceptor,
+    DataType,
 };
 use std::{error, fmt, ops::Deref, result};
 
@@ -108,31 +117,6 @@ impl Reduce {
 
         Ok(join_rel.filter_fields(|f| right_names.contains(&f.to_string())))
     }
-
-    // TODO update docs
-    ///Convert the current `Reduce` to a `Relation` and join it to a Relation that output all the
-    /// grouping keys that can be released.
-    pub fn protect_grouping_keys(
-        self,
-        epsilon: f64,
-        delta: f64,
-        peid: &str,
-    ) -> Result<PEPRelation> {
-        Ok(PEPRelation::try_from(if self.group_by().is_empty() {
-            todo!() // error must be pep
-        } else if self.grouping_columns()? == vec![peid.to_string()] {
-            Relation::from(self)
-        } else {
-            let columns = self
-                .schema()
-                .iter()
-                .map(|f| f.name().to_string())
-                .collect::<Vec<_>>();
-            self.clone()
-                .join_with_grouping_values(self.grouping_values(epsilon, delta)?)?
-                .filter_fields(|f| columns.contains(&f.to_string()))
-        })?)
-    }
 }
 
 impl PEPRelation {
@@ -218,14 +202,27 @@ impl PEPRelation {
             )?),
             Relation::Map(m) => {
                 let protected_input = PEPRelation::try_from(m.inputs()[0].clone())?
-                .protect_grouping_keys(epsilon, delta)?;
+                    .protect_grouping_keys(epsilon, delta)?;
                 let rel: Relation = Map::builder()
                     .with(m.clone())
                     .input(Relation::from(protected_input))
                     .build();
                 Ok(PEPRelation::try_from(rel)?)
             }
-            Relation::Reduce(r) => r.clone().protect_grouping_keys(epsilon, delta, peid),
+            Relation::Reduce(r) => Ok(if r.grouping_columns()? == vec![peid.to_string()] {
+                self
+            } else {
+                let columns = r
+                    .schema()
+                    .iter()
+                    .map(|f| f.name().to_string())
+                    .collect::<Vec<_>>();
+                PEPRelation::try_from(
+                    r.clone()
+                        .join_with_grouping_values(r.grouping_values(epsilon, delta)?)?
+                        .filter_fields(|f| columns.contains(&f.to_string())),
+                )?
+            }),
             Relation::Join(j) => {
                 let rel: Relation = Join::builder()
                     .left(Relation::from(
@@ -253,45 +250,12 @@ impl Relation {
             .filter_fields(|f| public_columns.contains(&f.to_string()));
         Ok(relation_with_private_values.public_values()?)
     }
-
-    // pub fn protect_grouping_keys(
-    //     self,
-    //     epsilon: f64,
-    //     delta: f64,
-    // ) -> Result<Relation> {
-    //     match self {
-    //         Relation::Table(_) => PEPRelation::try_from(self)?.released_values(epsilon, delta),
-    //         Relation::Map(m) => Ok(
-    //             Map::builder()
-    //             .input(m.inputs()[0].clone().protect_grouping_keys(epsilon, delta)?)
-    //             .with(m)
-    //             .build()
-    //         ),
-    //         Relation::Reduce(r) => r.protect_grouping_keys(epsilon, delta),
-    //         Relation::Join(j) => Ok(
-    //             Join::builder()
-    //             .left(j.inputs()[0].clone().protect_grouping_keys(epsilon, delta)?)
-    //             .right(j.inputs()[1].clone().protect_grouping_keys(epsilon, delta)?)
-    //             .with(j)
-    //             .build()
-    //         ),
-    //         Relation::Set(_) => todo!(),
-    //         Relation::Values(_) => Ok(self),
-    //     }
-    // }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        display::Dot,
-        expr::AggregateColumn,
-        relation::Schema,
-        namer,
-        data_type::{DataType, DataTyped},
-        hierarchy::Hierarchy,
-    };
+    use crate::{display::Dot, expr::AggregateColumn, namer, relation::Schema};
     use std::rc::Rc;
 
     #[test]
@@ -359,6 +323,7 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::float_range(5.4..=20.)))
                     .with((PE_ID, DataType::integer_range(1..=100)))
+                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
                     .build(),
             )
             .build();
@@ -383,6 +348,7 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((PE_ID, DataType::integer_range(1..=100)))
+                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
                     .build(),
             )
             .build();
@@ -640,7 +606,7 @@ mod tests {
         namer::reset();
         let protected_pep_rel = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
         namer::reset();
-        let correct_protected_rel : Relation = Map::builder()
+        let correct_protected_rel: Relation = Map::builder()
             .with((PE_ID, Expr::col(PE_ID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
             .with(("twice_sum_a", expr!(2 * sum_a)))
@@ -648,17 +614,15 @@ mod tests {
             .with(("c", expr!(c)))
             .name("my_map")
             .input(
-                reduce_relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")])
-                .protect_grouping_keys(1., 0.003)
-                .unwrap()
-                .0
+                reduce_relation
+                    .force_protect_from_field_paths(&relations, &[("table", &[], "id")])
+                    .protect_grouping_keys(1., 0.003)
+                    .unwrap()
+                    .0,
             )
             .build();
         protected_pep_rel.0.display_dot();
         correct_protected_rel.display_dot();
-        assert_eq!(
-            protected_pep_rel.0,
-            correct_protected_rel
-        );
+        assert_eq!(protected_pep_rel.0, correct_protected_rel);
     }
 }

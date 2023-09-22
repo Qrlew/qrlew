@@ -223,14 +223,14 @@ impl Reduce {
         if self.group_by().is_empty() {
             self
         } else {
+            let grouping_columns = self.grouping_columns().unwrap();
             Reduce::builder()
-                .with_iter(self.grouping_columns().iter().map(|s| {
-                    (
-                        s.last().unwrap(),
-                        Expr::first(Expr::Column(s.clone().into())),
-                    )
-                }))
-                .with(self)
+                .with(self) // Must be first in order to conserve the order
+                .with_iter(
+                    grouping_columns
+                        .iter()
+                        .map(|s| (s, Expr::first(Expr::col(s)))),
+                )
                 .build()
         }
     }
@@ -1991,7 +1991,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push_grouping_columns() {
+    fn test_with_grouping_columns() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -2025,7 +2025,7 @@ mod tests {
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
-        let names_aggs = vec!["b", "sum_a"];
+        let names_aggs = vec!["sum_a", "b"];
         assert_eq!(
             red_with_grouping_columns
                 .named_aggregates()
@@ -2044,7 +2044,7 @@ mod tests {
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
-        let names_aggs = vec!["b", "sum_a"];
+        let names_aggs = vec!["sum_a", "b"];
         assert_eq!(
             red_with_grouping_columns
                 .named_aggregates()
@@ -2065,7 +2065,29 @@ mod tests {
             Rc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
-        let names_aggs = vec!["c", "b", "sum_a"];
+        let names_aggs = vec!["b", "sum_a", "c"];
+        assert_eq!(
+            red_with_grouping_columns
+                .named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
+            names_aggs
+        );
+
+        // not the same order
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("b".to_string(), AggregateColumn::first("b")),
+                ("c".to_string(), AggregateColumn::first("c")),
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+            ],
+            vec![Expr::col("b"), Expr::col("c")],
+            Rc::new(table.clone()),
+        );
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        let names_aggs = vec!["b", "c", "sum_a"];
         assert_eq!(
             red_with_grouping_columns
                 .named_aggregates()
