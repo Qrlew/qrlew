@@ -121,12 +121,16 @@ impl PEPRelation {
         let protected_entity_weight = self.protected_entity_weight().to_string();
         match Relation::from(self) {
             Relation::Map(map) => {
-                let dp_input =
-                    PEPRelation::try_from(map.input().clone())?.dp_compile(epsilon, delta)?;
+                let dp_input:Relation = PEPRelation::try_from(map.input().clone())?
+                    .dp_compile(epsilon, delta)?
+                    .into();
+                dp_input.display_dot();
+                Relation::from(map.clone()).display_dot();
+                println!("OK");
                 Ok(DPRelation(
                     Map::builder()
                         .with(map)
-                        .input(Relation::from(dp_input))
+                        .input(dp_input)
                         .build(),
                 ))
             }
@@ -176,25 +180,26 @@ impl Reduce {
             }
         }
         // Check that groups are public
-        if !input_groups
-            .iter()
-            .all(|e| match self.input().schema()[*e].data_type() {
-                // TODO improve this
-                DataType::Boolean(b) if b.all_values() => true,
-                DataType::Integer(i) if i.all_values() => true,
-                DataType::Enum(e) => true,
-                DataType::Float(f) if f.all_values() => true,
-                DataType::Text(t) if t.all_values() => true,
-                _ => false,
-            })
-        {
-            return Err(Error::unsafe_groups(
-                input_groups
-                    .iter()
-                    .map(|e| self.input().schema()[*e].data_type())
-                    .join(", "),
-            ));
-        };
+        // TODO
+        // if !input_groups
+        //     .iter()
+        //     .all(|e| match self.input().schema()[*e].data_type() {
+        //         // TODO improve this
+        //         DataType::Boolean(b) if b.all_values() => true,
+        //         DataType::Integer(i) if i.all_values() => true,
+        //         DataType::Enum(e) => true,
+        //         DataType::Float(f) if f.all_values() => true,
+        //         DataType::Text(t) if t.all_values() => true,
+        //         _ => false,
+        //     })
+        // {
+        //     return Err(Error::unsafe_groups(
+        //         input_groups
+        //             .iter()
+        //             .map(|e| self.input().schema()[*e].data_type())
+        //             .join(", "),
+        //     ));
+        // };
         // Clip the relation
         let clipped_relation = self.input().clone().l2_clipped_sums(
             input_entities.unwrap(),
@@ -353,6 +358,45 @@ mod tests {
         let delta = 1e-3;
         let dp_relation = pep_relation.dp_compile(epsilon, delta).unwrap();
         dp_relation.display_dot().unwrap();
+        let dp_query = ast::Query::from(dp_relation.deref());
+        for row in database.query(&dp_query.to_string()).unwrap() {
+            println!("{row}");
+        }
+    }
+
+    #[test]
+    fn test_dp_compile_simple() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let str_query = "SELECT sum(price) AS sum_price FROM item_table GROUP BY order_id";
+        let query = parse(str_query).unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        //relation.display_dot();
+
+        let pep_relation = relation.force_protect_from_field_paths(
+            &relations,
+            &[
+                (
+                    "item_table",
+                    &[
+                        ("order_id", "order_table", "id"),
+                        ("user_id", "user_table", "id"),
+                    ],
+                    "name",
+                ),
+                ("order_table", &[("user_id", "user_table", "id")], "name"),
+                ("user_table", &[], "name"),
+            ],
+        );
+        pep_relation.display_dot();
+
+        let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
+        dp_relation.display_dot().unwrap();
+
+        //let protected_groups_relation = pep_relation.protect_grouping_keys(1., 0.003).unwrap();
+        //protected_groups_relation.display_dot();
+
         let dp_query = ast::Query::from(dp_relation.deref());
         for row in database.query(&dp_query.to_string()).unwrap() {
             println!("{row}");
