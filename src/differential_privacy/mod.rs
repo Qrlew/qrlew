@@ -13,15 +13,13 @@ use crate::{
     data_type::DataTyped,
     display::Dot,
     expr::{self, aggregate, AggregateColumn, Expr},
-    hierarchy::Hierarchy,
     protection::{self, PEPRelation},
     relation::{field::Field, transforms, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
 };
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
-use std::process::Output;
-use std::{cmp, error, fmt, rc::Rc, result};
+use std::{cmp, error, fmt, result};
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
