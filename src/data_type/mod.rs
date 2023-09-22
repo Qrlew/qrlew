@@ -1048,10 +1048,21 @@ impl Variant for Struct {
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.intersection(&other_fields);
-        fields
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
+            .chain(other_fields.into_iter())
             .into_iter()
             .map(|f| {
                 Ok((
@@ -1063,10 +1074,21 @@ impl Variant for Struct {
     }
 
     fn super_intersection(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.union(&other_fields);
-        fields
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
+            .chain(other_fields.into_iter())
             .into_iter()
             .map(|f| {
                 Ok((
@@ -1337,10 +1359,21 @@ impl Variant for Union {
     }
 
     fn super_union(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.union(&other_fields);
-        fields
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
+            .chain(other_fields.into_iter())
             .into_iter()
             .map(|f| {
                 Ok((
@@ -1352,10 +1385,21 @@ impl Variant for Union {
     }
 
     fn super_intersection(&self, other: &Self) -> Result<Self> {
-        let self_fields: BTreeSet<String> = self.fields.iter().map(|(f, _)| f.clone()).collect();
-        let other_fields: BTreeSet<String> = other.fields.iter().map(|(f, _)| f.clone()).collect();
-        let fields = self_fields.intersection(&other_fields);
-        fields
+        let self_fields: Vec<String> = self
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        let other_fields: Vec<String> = other
+            .fields
+            .iter()
+            .map(|(f, _)| f.clone())
+            .unique()
+            .collect();
+        self_fields
+            .into_iter()
+            .chain(other_fields.into_iter())
             .into_iter()
             .map(|f| {
                 Ok((
