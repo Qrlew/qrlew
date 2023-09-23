@@ -223,14 +223,14 @@ impl Reduce {
         if self.group_by().is_empty() {
             self
         } else {
+            let grouping_columns = self.grouping_columns().unwrap();
             Reduce::builder()
-                .with_iter(self.grouping_columns().iter().map(|s| {
-                    (
-                        s.last().unwrap(),
-                        Expr::first(Expr::Column(s.clone().into())),
-                    )
-                }))
-                .with(self)
+                .with(self) // Must be first in order to conserve the order
+                .with_iter(
+                    grouping_columns
+                        .iter()
+                        .map(|s| (s, Expr::first(Expr::col(s)))),
+                )
                 .build()
         }
     }
@@ -875,17 +875,17 @@ impl Relation {
         red.ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    pub fn possible_values_column(&self, colname: &str) -> Result<Relation> {
+    pub fn public_values_column(&self, colname: &str) -> Result<Relation> {
         let data_type = self.schema().field(colname).unwrap().data_type();
         let values: Vec<Value> = data_type.try_into()?;
         Ok(Relation::values().name(colname).values(values).build())
     }
 
-    pub fn possible_values(&self) -> Result<Relation> {
+    pub fn public_values(&self) -> Result<Relation> {
         let vec_of_rel: Result<Vec<Relation>> = self
             .schema()
             .iter()
-            .map(|c| self.possible_values_column(c.name()))
+            .map(|c| self.public_values_column(c.name()))
             .collect();
 
         Ok(vec_of_rel?
@@ -1864,7 +1864,7 @@ mod tests {
     }
 
     #[test]
-    fn test_possible_values_column() {
+    fn test_public_values_column() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -1876,11 +1876,11 @@ mod tests {
             .build();
 
         // table
-        let rel = table.possible_values_column("b").unwrap();
+        let rel = table.public_values_column("b").unwrap();
         let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
         rel.display_dot();
         assert_eq!(rel, rel_values);
-        assert!(table.possible_values_column("a").is_err());
+        assert!(table.public_values_column("a").is_err());
 
         // map
         let map: Relation = Relation::map()
@@ -1889,13 +1889,13 @@ mod tests {
             .input(table.clone())
             .with(("exp_b", Expr::exp(Expr::col("b"))))
             .build();
-        let rel = map.possible_values_column("exp_b").unwrap();
+        let rel = map.public_values_column("exp_b").unwrap();
         rel.display_dot();
-        assert!(map.possible_values_column("exp_a").is_err());
+        assert!(map.public_values_column("exp_a").is_err());
     }
 
     #[test]
-    fn test_possible_values() {
+    fn test_public_values() {
         // table
         let table: Relation = Relation::table()
             .name("table")
@@ -1906,7 +1906,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let rel = table.possible_values().unwrap();
+        let rel = table.public_values().unwrap();
         rel.display_dot();
 
         let table: Relation = Relation::table()
@@ -1918,7 +1918,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let rel = table.possible_values();
+        let rel = table.public_values();
         assert!(rel.is_err());
 
         // map
@@ -1937,7 +1937,7 @@ mod tests {
             .with(("b", Expr::col("b")))
             .input(table)
             .build();
-        let rel = map.possible_values().unwrap();
+        let rel = map.public_values().unwrap();
         rel.display_dot();
 
         // map
@@ -1960,7 +1960,7 @@ mod tests {
             ))
             .input(table)
             .build();
-        let rel = map.possible_values().unwrap();
+        let rel = map.public_values().unwrap();
         rel.display_dot();
     }
 
@@ -1991,7 +1991,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push_grouping_columns() {
+    fn test_with_grouping_columns() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -2025,7 +2025,7 @@ mod tests {
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
-        let names_aggs = vec!["b", "sum_a"];
+        let names_aggs = vec!["sum_a", "b"];
         assert_eq!(
             red_with_grouping_columns
                 .named_aggregates()
@@ -2044,7 +2044,7 @@ mod tests {
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
-        let names_aggs = vec!["b", "sum_a"];
+        let names_aggs = vec!["sum_a", "b"];
         assert_eq!(
             red_with_grouping_columns
                 .named_aggregates()
@@ -2065,7 +2065,29 @@ mod tests {
             Rc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
-        let names_aggs = vec!["c", "b", "sum_a"];
+        let names_aggs = vec!["b", "sum_a", "c"];
+        assert_eq!(
+            red_with_grouping_columns
+                .named_aggregates()
+                .iter()
+                .map(|(s, _)| *s)
+                .collect::<Vec<_>>(),
+            names_aggs
+        );
+
+        // not the same order
+        let red = Reduce::new(
+            "reduce_relation".to_string(),
+            vec![
+                ("b".to_string(), AggregateColumn::first("b")),
+                ("c".to_string(), AggregateColumn::first("c")),
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+            ],
+            vec![Expr::col("b"), Expr::col("c")],
+            Rc::new(table.clone()),
+        );
+        let red_with_grouping_columns = red.clone().with_grouping_columns();
+        let names_aggs = vec!["b", "c", "sum_a"];
         assert_eq!(
             red_with_grouping_columns
                 .named_aggregates()
