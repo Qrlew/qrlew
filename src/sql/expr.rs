@@ -104,8 +104,12 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 pattern,
                 escape_char: _,
             } => Dependencies::from([expr.as_ref(), pattern.as_ref()]),
-            ast::Expr::AnyOp(expr) => Dependencies::from([expr.as_ref()]),
-            ast::Expr::AllOp(expr) => Dependencies::from([expr.as_ref()]),
+            ast::Expr::AnyOp {left, compare_op: _, right} => {
+                Dependencies::from([left.as_ref(), right.as_ref()])
+            },
+            ast::Expr::AllOp {left, compare_op: _, right} => {
+                Dependencies::from([left.as_ref(), right.as_ref()])
+            },
             ast::Expr::UnaryOp { op: _, expr } => Dependencies::from([expr.as_ref()]),
             ast::Expr::Cast { expr, data_type: _ } => Dependencies::from([expr.as_ref()]),
             ast::Expr::TryCast { expr, data_type: _ } => Dependencies::from([expr.as_ref()]),
@@ -323,8 +327,12 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 pattern,
                 escape_char,
             } => todo!(),
-            ast::Expr::AnyOp(_) => todo!(),
-            ast::Expr::AllOp(_) => todo!(),
+            ast::Expr::AnyOp {left, compare_op: _, right} => {
+                todo!()
+            },
+            ast::Expr::AllOp {left, compare_op: _, right} => {
+                todo!()
+            },
             ast::Expr::UnaryOp { op, expr } => self.unary_op(op, dependencies.get(expr).clone()),
             ast::Expr::Cast { expr, data_type } => todo!(),
             ast::Expr::TryCast { expr, data_type } => todo!(),

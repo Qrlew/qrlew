@@ -310,7 +310,7 @@ impl<'a> VisitedQueryRelations<'a> {
         names: &'a Hierarchy<String>,
         select_items: &'a [ast::SelectItem],
         selection: &'a Option<ast::Expr>,
-        group_by: &'a Vec<ast::Expr>,
+        group_by: &'a ast::GroupByExpr,
         from: Rc<Relation>,
     ) -> Result<Rc<Relation>> {
         // Collect all expressions with their aliases
@@ -349,10 +349,12 @@ impl<'a> VisitedQueryRelations<'a> {
             .map(|e| e.with(columns).try_into())
             .map_or(Ok(None), |r| r.map(Some))?;
         // Prepare the GROUP BY
-        let group_by: Result<Vec<Expr>> = group_by
-            .iter()
-            .map(|e| e.with(columns).try_into())
-            .collect();
+        let group_by: Result<Vec<Expr>> = match group_by {
+            ast::GroupByExpr::All => todo!(),
+            ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs.iter()
+                .map(|e| e.with(columns).try_into())
+                .collect(),
+        };
         // Build a Relation
         let relation = match split {
             Split::Map(map) => {
