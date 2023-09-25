@@ -23,6 +23,7 @@ fn build_ast() -> Result<(), &'static str> {
                         args: None,
                         with_hints: vec![],
                         version: None,
+                        partitions: vec![],
                     },
                     joins: vec![],
                 },
@@ -33,6 +34,7 @@ fn build_ast() -> Result<(), &'static str> {
                         args: None,
                         with_hints: vec![],
                         version: None,
+                        partitions: vec![],
                     },
                     joins: vec![Join {
                         relation: TableFactor::Table {
@@ -41,6 +43,7 @@ fn build_ast() -> Result<(), &'static str> {
                             args: None,
                             with_hints: vec![],
                             version: None,
+                            partitions: vec![],
                         },
                         join_operator: JoinOperator::LeftOuter(JoinConstraint::Using(vec![
                             "a".into(),
@@ -52,7 +55,7 @@ fn build_ast() -> Result<(), &'static str> {
             ],
             lateral_views: vec![],
             selection: None,
-            group_by: vec![],
+            group_by: GroupByExpr::Expressions(vec![]),
             cluster_by: vec![],
             distribute_by: vec![],
             sort_by: vec![],
