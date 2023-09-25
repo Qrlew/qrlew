@@ -377,10 +377,8 @@ mod tests {
         let query = parse(str_query).unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
-        let pep_relation = relation.force_protect_from_field_paths(
-            &relations,
-            &[("table_2", &[], "y")],
-        );
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
 
         let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();
@@ -402,10 +400,8 @@ mod tests {
         let query = parse(str_query).unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
-        let pep_relation = relation.force_protect_from_field_paths(
-            &relations,
-            &[("table_2", &[], "y")],
-        );
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
 
         let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();
