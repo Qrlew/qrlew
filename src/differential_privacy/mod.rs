@@ -11,7 +11,6 @@ use itertools::Itertools;
 use crate::{
     builder::With,
     data_type::DataTyped,
-    display::Dot,
     expr::{self, aggregate, AggregateColumn, Expr},
     protection::{self, PEPRelation},
     relation::{field::Field, transforms, Map, Reduce, Relation, Variant as _},
@@ -334,17 +333,17 @@ mod tests {
 
         let pep_relation = relation.force_protect_from_field_paths(
             &relations,
-            &[
+            vec![
                 (
                     "item_table",
-                    &[
+                    vec![
                         ("order_id", "order_table", "id"),
                         ("user_id", "user_table", "id"),
                     ],
                     "name",
                 ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
+                ("order_table", vec![("user_id", "user_table", "id")], "name"),
+                ("user_table", vec![], "name"),
             ],
         );
         pep_relation.display_dot().unwrap();
@@ -370,7 +369,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
         let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
+            relation.force_protect_from_field_paths(&relations, vec![("table_2", vec![], "y")]);
 
         let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();
@@ -393,7 +392,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
         let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
+            relation.force_protect_from_field_paths(&relations, vec![("table_2", vec![], "y")]);
 
         let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();

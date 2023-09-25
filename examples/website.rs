@@ -65,17 +65,17 @@ fn protect() {
     let relation: Relation = relation
         .force_protect_from_field_paths(
             &relations,
-            &[
+            vec![
                 (
                     "item_table",
-                    &[
+                    vec![
                         ("order_id", "order_table", "id"),
                         ("user_id", "user_table", "id"),
                     ],
                     "name",
                 ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
+                ("order_table", vec![("user_id", "user_table", "id")], "name"),
+                ("user_table", vec![], "name"),
             ],
         )
         .into();
@@ -103,17 +103,17 @@ fn compile() {
     println!("relation = {relation}");
     let pep_relation = relation.force_protect_from_field_paths(
         &relations,
-        &[
+        vec![
             (
                 "item_table",
-                &[
+                vec![
                     ("order_id", "order_table", "id"),
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
             ),
-            ("order_table", &[("user_id", "user_table", "id")], "name"),
-            ("user_table", &[], "name"),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
         ],
     );
     pep_relation.display_dot().unwrap();

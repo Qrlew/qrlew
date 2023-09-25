@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2023-09-25
 ### Added
 - conversion DataType -> Value for Expr::Function [MR122](https://github.com/Qrlew/qrlew/pull/122)
 - replace `BTreeSet` in methods `super_union` and `super_intersection` of `data_type::Struct` and `data_type::Union`
@@ -16,6 +17,7 @@ in order keep the inserting order (`BTreeSet` reorder keys by alphanumeric order
 - dp_compile [MR127](https://github.com/Qrlew/qrlew/pull/127)
 ### Changed
 - Use `PEPRelation` when protecting the grouping keys [MR126](https://github.com/Qrlew/qrlew/pull/126)
+- Protection paths are given with vecs and not slices anymore
 
 ## [0.3.1] - 2023-09-16
 ### Fixed
