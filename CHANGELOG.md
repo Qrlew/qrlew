@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 in order keep the inserting order (`BTreeSet` reorder keys by alphanumeric order) [MR125](https://github.com/Qrlew/qrlew/pull/125)
 ### Fixed
 - in protection use `PEPRelation::try_from(..)` instead of `PEPRelation(..)` [MR124](https://github.com/Qrlew/qrlew/pull/124)
+- dp_compile [MR127](https://github.com/Qrlew/qrlew/pull/127)
 ### Changed
 - Use `PEPRelation` when protecting the grouping keys [MR126](https://github.com/Qrlew/qrlew/pull/126)
 

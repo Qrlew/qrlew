@@ -247,12 +247,12 @@ impl Relation {
 mod tests {
     use super::*;
     use crate::{
+        data_type::{DataType, DataTyped},
         display::Dot,
         expr::AggregateColumn,
+        hierarchy::Hierarchy,
         namer,
         relation::Schema,
-        data_type::{DataType, DataTyped},
-        hierarchy::Hierarchy,
     };
     use std::rc::Rc;
 

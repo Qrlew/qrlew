@@ -13,15 +13,13 @@ use crate::{
     data_type::DataTyped,
     display::Dot,
     expr::{self, aggregate, AggregateColumn, Expr},
-    hierarchy::Hierarchy,
     protection::{self, PEPRelation},
     relation::{field::Field, transforms, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
 };
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
-use std::process::Output;
-use std::{cmp, error, fmt, rc::Rc, result};
+use std::{cmp, error, fmt, result};
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -123,12 +121,16 @@ impl PEPRelation {
         let protected_entity_weight = self.protected_entity_weight().to_string();
         match Relation::from(self) {
             Relation::Map(map) => {
-                let dp_input =
-                    PEPRelation::try_from(map.input().clone())?.dp_compile(epsilon, delta)?;
+                let dp_input: Relation = PEPRelation::try_from(map.input().clone())?
+                    .dp_compile(epsilon, delta)?
+                    .into();
                 Ok(DPRelation(
                     Map::builder()
-                        .with(map)
-                        .input(Relation::from(dp_input))
+                        .filter_fields_with(map, |f| {
+                            f != protected_entity_id.as_str()
+                                && f != protected_entity_weight.as_str()
+                        })
+                        .input(dp_input)
                         .build(),
                 ))
             }
@@ -180,15 +182,7 @@ impl Reduce {
         // Check that groups are public
         if !input_groups
             .iter()
-            .all(|e| match self.input().schema()[*e].data_type() {
-                // TODO improve this
-                DataType::Boolean(b) if b.all_values() => true,
-                DataType::Integer(i) if i.all_values() => true,
-                DataType::Enum(e) => true,
-                DataType::Float(f) if f.all_values() => true,
-                DataType::Text(t) if t.all_values() => true,
-                _ => false,
-            })
+            .all(|e| self.input().schema()[*e].all_values())
         {
             return Err(Error::unsafe_groups(
                 input_groups
@@ -197,6 +191,7 @@ impl Reduce {
                     .join(", "),
             ));
         };
+
         // Clip the relation
         let clipped_relation = self.input().clone().l2_clipped_sums(
             input_entities.unwrap(),
@@ -233,6 +228,9 @@ impl Reduce {
                         aggregate.column_name()?,
                         AggregateColumn::col(aggregate.column_name()?),
                     ));
+                    if name != protected_entity_id {
+                        output = output.with((name, Expr::col(aggregate.column_name()?)));
+                    }
                 }
                 aggregate::Aggregate::Mean => {
                     let sum_col = &format!("_SUM_{}", aggregate.column_name()?);
@@ -359,5 +357,53 @@ mod tests {
         for row in database.query(&dp_query.to_string()).unwrap() {
             println!("{row}");
         }
+    }
+
+    #[test]
+    fn test_dp_compile_simple() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        // GROUPING col in the SELECT clause
+        let str_query = "SELECT z, sum(x) AS sum_x FROM table_2 GROUP BY z";
+        let query = parse(str_query).unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
+
+        let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
+        dp_relation.display_dot().unwrap();
+
+        assert_eq!(
+            dp_relation.data_type()["z"],
+            DataType::text_values(["Foo".into(), "Bar".into()])
+        );
+        assert!(matches!(
+            dp_relation.data_type()["sum_x"],
+            DataType::Float(_)
+        ));
+        assert_eq!(dp_relation.schema().len(), 2);
+        let dp_query = ast::Query::from(dp_relation.deref());
+        database.query(&dp_query.to_string()).unwrap();
+
+        // GROUPING col NOT in the SELECT clause
+        let str_query = "SELECT sum(x) AS sum_x FROM table_2 GROUP BY z";
+        let query = parse(str_query).unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
+
+        let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
+        dp_relation.display_dot().unwrap();
+
+        assert_eq!(dp_relation.schema().len(), 1);
+        assert!(matches!(
+            dp_relation.data_type()["sum_x"],
+            DataType::Float(_)
+        ));
+        let dp_query = ast::Query::from(dp_relation.deref());
+        database.query(&dp_query.to_string()).unwrap();
     }
 }
