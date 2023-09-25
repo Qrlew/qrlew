@@ -180,26 +180,26 @@ impl Reduce {
             }
         }
         // Check that groups are public
-        // TODO
-        // if !input_groups
-        //     .iter()
-        //     .all(|e| match self.input().schema()[*e].data_type() {
-        //         // TODO improve this
-        //         DataType::Boolean(b) if b.all_values() => true,
-        //         DataType::Integer(i) if i.all_values() => true,
-        //         DataType::Enum(e) => true,
-        //         DataType::Float(f) if f.all_values() => true,
-        //         DataType::Text(t) if t.all_values() => true,
-        //         _ => false,
-        //     })
-        // {
-        //     return Err(Error::unsafe_groups(
-        //         input_groups
-        //             .iter()
-        //             .map(|e| self.input().schema()[*e].data_type())
-        //             .join(", "),
-        //     ));
-        // };
+        if !input_groups
+            .iter()
+            .all(|e| match self.input().schema()[*e].data_type() {
+                // TODO improve this
+                DataType::Boolean(b) if b.all_values() => true,
+                DataType::Integer(i) if i.all_values() => true,
+                DataType::Enum(e) => true,
+                DataType::Float(f) if f.all_values() => true,
+                DataType::Text(t) if t.all_values() => true,
+                _ => false,
+            })
+        {
+            return Err(Error::unsafe_groups(
+                input_groups
+                    .iter()
+                    .map(|e| self.input().schema()[*e].data_type())
+                    .join(", "),
+            ));
+        };
+
         // Clip the relation
         let clipped_relation = self.input().clone().l2_clipped_sums(
             input_entities.unwrap(),
@@ -373,42 +373,48 @@ mod tests {
         let relations = database.relations();
 
         // GROUPING col in the SELECT clause
-        let str_query = "SELECT item, sum(price) AS sum_price FROM item_table GROUP BY item";
+        let str_query = "SELECT z, sum(x) AS sum_x FROM table_2 GROUP BY z";
         let query = parse(str_query).unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
-        let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("item_table", &[], "order_id")]);
+        let pep_relation = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table_2", &[], "y")],
+        );
 
         let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();
 
-        assert_eq!(dp_relation.data_type()["item"], DataType::text());
+        assert_eq!(
+            dp_relation.data_type()["z"],
+            DataType::text_values(["Foo".into(), "Bar".into()])
+        );
         assert!(matches!(
-            dp_relation.data_type()["sum_price"],
+            dp_relation.data_type()["sum_x"],
             DataType::Float(_)
         ));
-
+        assert_eq!(dp_relation.schema().len(), 2);
         let dp_query = ast::Query::from(dp_relation.deref());
         database.query(&dp_query.to_string()).unwrap();
 
         // GROUPING col NOT in the SELECT clause
-        let str_query = "SELECT sum(price) AS sum_price FROM item_table GROUP BY item";
+        let str_query = "SELECT sum(x) AS sum_x FROM table_2 GROUP BY z";
         let query = parse(str_query).unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
-        let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("item_table", &[], "order_id")]);
+        let pep_relation = relation.force_protect_from_field_paths(
+            &relations,
+            &[("table_2", &[], "y")],
+        );
 
         let dp_relation = pep_relation.dp_compile(1., 1e-3).unwrap();
         dp_relation.display_dot().unwrap();
 
         assert_eq!(dp_relation.schema().len(), 1);
         assert!(matches!(
-            dp_relation.data_type()["sum_price"],
+            dp_relation.data_type()["sum_x"],
             DataType::Float(_)
         ));
-
         let dp_query = ast::Query::from(dp_relation.deref());
         database.query(&dp_query.to_string()).unwrap();
     }
