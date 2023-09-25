@@ -449,7 +449,7 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let relation = Relation::try_from(
-            parse("SELECT sum(price) FROM item_table GROUP BY order_id")
+            parse("SELECT sum(price) AS sum_price FROM item_table GROUP BY order_id")
                 .unwrap()
                 .with(&relations),
         )
