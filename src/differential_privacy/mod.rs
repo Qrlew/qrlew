@@ -182,15 +182,7 @@ impl Reduce {
         // Check that groups are public
         if !input_groups
             .iter()
-            .all(|e| match self.input().schema()[*e].data_type() {
-                // TODO improve this
-                DataType::Boolean(b) if b.all_values() => true,
-                DataType::Integer(i) if i.all_values() => true,
-                DataType::Enum(e) => true,
-                DataType::Float(f) if f.all_values() => true,
-                DataType::Text(t) if t.all_values() => true,
-                _ => false,
-            })
+            .all(|e| self.input().schema()[*e].all_values())
         {
             return Err(Error::unsafe_groups(
                 input_groups
