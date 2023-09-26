@@ -4,11 +4,10 @@
 //!
 
 use crate::{
-    builder::{self, Ready, With},
-    display::Dot,
-    expr::{aggregate::Aggregate, identifier::Identifier, AggregateColumn, Expr},
-    hierarchy::{Hierarchy, Path},
-    relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
+    builder::{Ready, With},
+    expr::{identifier::Identifier, AggregateColumn, Expr},
+    hierarchy::Hierarchy,
+    relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
 use std::{error, fmt, ops::Deref, rc::Rc, result};
@@ -137,7 +136,7 @@ impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
 
 /// Build a visitor from exprs
 pub fn protect_visitor_from_exprs<'a>(
-    protected_entity: &'a [(&'a Table, Expr)],
+    protected_entity: Vec<(&'a Table, Expr)>,
     strategy: Strategy,
 ) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
     let protect_tables = move |table: &Table| match protected_entity
@@ -157,7 +156,7 @@ pub fn protect_visitor_from_exprs<'a>(
 /// Build a visitor from exprs
 pub fn protect_visitor_from_field_paths<'a>(
     relations: &'a Hierarchy<Rc<Relation>>,
-    protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
+    protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     strategy: Strategy,
 ) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
     let protect_tables = move |table: &Table| match protected_entity
@@ -345,7 +344,7 @@ impl Relation {
     /// Add protection
     pub fn protect_from_exprs<'a>(
         self,
-        protected_entity: &'a [(&'a Table, Expr)],
+        protected_entity: Vec<(&'a Table, Expr)>,
     ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft))
     }
@@ -354,7 +353,7 @@ impl Relation {
     pub fn protect_from_field_paths<'a>(
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
-        protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
+        protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_field_paths(
             relations,
@@ -375,7 +374,7 @@ impl Relation {
     /// Force protection
     pub fn force_protect_from_exprs<'a>(
         self,
-        protected_entity: &'a [(&'a Table, Expr)],
+        protected_entity: Vec<(&'a Table, Expr)>,
     ) -> PEPRelation {
         self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Hard))
             .unwrap()
@@ -385,7 +384,7 @@ impl Relation {
     pub fn force_protect_from_field_paths<'a>(
         self,
         relations: &'a Hierarchy<Rc<Relation>>,
-        protected_entity: &'a [(&'a str, &'a [(&'a str, &'a str, &'a str)], &'a str)],
+        protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     ) -> PEPRelation {
         self.accept(protect_visitor_from_field_paths(
             relations,
@@ -416,7 +415,7 @@ mod tests {
         let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
         // Table
         let table = table
-            .protect_from_exprs(&[(&database.tables()[0], expr!(md5(a)))])
+            .protect_from_exprs(vec![(&database.tables()[0], expr!(md5(a)))])
             .unwrap();
         println!("Schema protected = {}", table.schema());
         assert_eq!(table.schema()[0].name(), PE_ID)
@@ -435,7 +434,7 @@ mod tests {
         let table = table
             .protect_from_field_paths(
                 &relations,
-                &[("item_table", &[("order_id", "order_table", "id")], "date")],
+                vec![("item_table", vec![("order_id", "order_table", "id")], "date")],
             )
             .unwrap();
         table.display_dot().unwrap();
@@ -458,17 +457,17 @@ mod tests {
         // Table
         let relation = relation.force_protect_from_field_paths(
             &relations,
-            &[
+            vec![
                 (
                     "item_table",
-                    &[
+                    vec![
                         ("order_id", "order_table", "id"),
                         ("user_id", "user_table", "id"),
                     ],
                     "name",
                 ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
+                ("order_table", vec![("user_id", "user_table", "id")], "name"),
+                ("user_table", vec![], "name"),
             ],
         );
         relation.display_dot().unwrap();
@@ -497,14 +496,14 @@ mod tests {
                 .unwrap();
         let relation = relation.force_protect_from_field_paths(
             &relations,
-            &[
+            vec![
                 (
                     "items",
-                    &[("order_id", "orders", "id"), ("user_id", "users", "id")],
+                    vec![("order_id", "orders", "id"), ("user_id", "users", "id")],
                     "name",
                 ),
-                ("order_table", &[("user_id", "users", "id")], "name"),
-                ("user_table", &[], "name"),
+                ("order_table", vec![("user_id", "users", "id")], "name"),
+                ("user_table", vec![], "name"),
             ],
         );
         //display(&relation);
@@ -543,17 +542,17 @@ mod tests {
         // Table
         let relation = relation.force_protect_from_field_paths(
             &relations,
-            &[
+            vec![
                 (
                     "item_table",
-                    &[
+                    vec![
                         ("order_id", "order_table", "id"),
                         ("user_id", "user_table", "id"),
                     ],
                     "name",
                 ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
+                ("order_table", vec![("user_id", "user_table", "id")], "name"),
+                ("user_table", vec![], "name"),
             ],
         );
         relation.display_dot().unwrap();

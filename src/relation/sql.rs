@@ -99,7 +99,7 @@ fn query(
     projection: Vec<ast::SelectItem>,
     from: ast::TableWithJoins,
     selection: Option<ast::Expr>,
-    group_by: Vec<ast::Expr>,
+    group_by: ast::GroupByExpr,
     order_by: Vec<ast::OrderByExpr>,
     limit: Option<ast::Expr>,
 ) -> ast::Query {
@@ -158,6 +158,7 @@ fn table_factor(relation: &Relation) -> ast::TableFactor {
             args: None,
             with_hints: vec![],
             version: None,
+            partitions: vec![],
         },
         relation => ast::TableFactor::Table {
             name: Identifier::from(relation.name()).into(),
@@ -165,6 +166,7 @@ fn table_factor(relation: &Relation) -> ast::TableFactor {
             args: None,
             with_hints: vec![],
             version: None,
+            partitions: vec![],
         },
     }
 }
@@ -237,7 +239,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             )],
             table_with_joins(&table.clone().into(), vec![]),
             None,
-            vec![],
+            ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
         )
@@ -266,7 +268,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     .collect(),
                 table_with_joins(map.input.as_ref().into(), vec![]),
                 map.filter.as_ref().map(ast::Expr::from),
-                vec![],
+                ast::GroupByExpr::Expressions(vec![]),
                 map.order_by
                     .iter()
                     .map(|OrderBy { expr, asc }| ast::OrderByExpr {
@@ -284,7 +286,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             all(),
             table_with_joins(&map.clone().into(), vec![]),
             None,
-            vec![],
+            ast::GroupByExpr::Expressions(vec![]),
             vec![],
             map.limit
                 .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
@@ -316,7 +318,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     .collect(),
                 table_with_joins(reduce.input.as_ref().into(), vec![]),
                 None,
-                reduce.group_by.iter().map(ast::Expr::from).collect(),
+                ast::GroupByExpr::Expressions(reduce.group_by.iter().map(ast::Expr::from).collect()),
                 vec![],
                 None,
             ),
@@ -326,7 +328,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             all(),
             table_with_joins(&reduce.clone().into(), vec![]),
             None,
-            vec![],
+            ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
         )
@@ -364,7 +366,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     }],
                 ),
                 None,
-                vec![],
+                ast::GroupByExpr::Expressions(vec![]),
                 vec![],
                 None,
             ),
@@ -374,7 +376,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             all(),
             table_with_joins(&join.clone().into(), vec![]),
             None,
-            vec![],
+            ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
         )
@@ -414,7 +416,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             all(),
             table_with_joins(&set.clone().into(), vec![]),
             None,
-            vec![],
+            ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
         )
