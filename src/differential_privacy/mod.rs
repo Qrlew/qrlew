@@ -131,6 +131,8 @@ impl PEPRelation {
     //     }
     // }
 
+    /// Protects the results of the aggregations of the outest Reduce by adding gaussian noise scaled by
+    /// their sensitivity and the privacy parameters `epsilon`and `delta`
     pub fn dp_compile_aggregates(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         let protected_entity_id = self.protected_entity_id().to_string();
         let protected_entity_weight = self.protected_entity_weight().to_string();
@@ -182,7 +184,7 @@ impl PEPRelation {
         Ok(DPRelation::new(dp_relation, private_query))
     }
 
-    /// Compile a protected Relation into DP
+    /// Compile a protected Relation into DP: protected the grouping keys and the results of the aggregations
     pub fn dp_compile(
         self,
         epsilon: f64,
