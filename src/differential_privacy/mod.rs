@@ -4,20 +4,19 @@
 //!
 
 pub mod mechanisms;
+pub mod private_query;
 pub mod protect_grouping_keys;
-
-use itertools::Itertools;
 
 use crate::{
     builder::With,
     data_type::DataTyped,
+    differential_privacy::private_query::PrivateQuery,
     expr::{self, aggregate, AggregateColumn, Expr},
     protection::{self, PEPRelation},
     relation::{field::Field, transforms, Join, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
 };
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 use std::{cmp, error, fmt, result};
 
 #[derive(Debug, PartialEq)]
@@ -67,57 +66,6 @@ impl From<protection::Error> for Error {
 impl error::Error for Error {}
 pub type Result<T> = result::Result<T, Error>;
 
-/// A Private Query
-#[derive(Clone, Debug, PartialEq)]
-pub enum PrivateQuery {
-    Gaussian(f64),
-    Laplace(f64),
-    EpsilonDelta(f64, f64),
-    Composed(Vec<PrivateQuery>),
-}
-
-impl PrivateQuery {
-    pub fn compose(self, other: Self) -> Self {
-        if other.is_null() {
-            self
-        } else if self.is_null() {
-            other
-        } else {
-            let (v1, v2) = match (self, other) {
-                (PrivateQuery::Composed(v1), PrivateQuery::Composed(v2)) => (v1, v2),
-                (PrivateQuery::Composed(v), other) => (v, vec![other]),
-                (current, PrivateQuery::Composed(v)) => (vec![current], v),
-                (current, other) => (vec![current], vec![other]),
-            };
-            PrivateQuery::Composed(v1.into_iter().chain(v2.into_iter()).collect())
-        }
-    }
-
-    pub fn null() -> Self {
-        Self::EpsilonDelta(0., 0.)
-    }
-
-    pub fn is_null(&self) -> bool {
-        match self {
-            PrivateQuery::Gaussian(n) | PrivateQuery::Laplace(n) => n == &0.0,
-            PrivateQuery::EpsilonDelta(e, d) => e == &0. && d == &0.,
-            PrivateQuery::Composed(v) => v.iter().all(|q| q.is_null()),
-        }
-    }
-}
-
-impl From<Vec<PrivateQuery>> for PrivateQuery {
-    fn from(v: Vec<PrivateQuery>) -> Self {
-        v.into_iter().reduce(|c, q| c.compose(q)).unwrap()
-    }
-}
-
-impl From<DPRelation> for (Relation, PrivateQuery) {
-    fn from(value: DPRelation) -> Self {
-        (value.relation, value.private_query)
-    }
-}
-
 /// A DP Relation
 #[derive(Clone, Debug)]
 pub struct DPRelation {
@@ -145,6 +93,12 @@ impl DPRelation {
 
     pub fn private_query(&self) -> &PrivateQuery {
         &self.private_query
+    }
+}
+
+impl From<DPRelation> for (Relation, PrivateQuery) {
+    fn from(value: DPRelation) -> Self {
+        (value.relation, value.private_query)
     }
 }
 
