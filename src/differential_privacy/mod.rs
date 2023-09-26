@@ -320,10 +320,9 @@ impl Reduce {
 
 impl Relation {
     fn gaussian_mechanism(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
-        let noise_multiplier = private_query::gaussian_noise(epsilon, delta, 1.0); // TODO set this properly
         let noise_multipliers = bounds
             .into_iter()
-            .map(|(name, bound)| (name, noise_multiplier * bound))
+            .map(|(name, bound)| (name, private_query::gaussian_noise(epsilon, delta, bound)))
             .collect::<Vec<_>>();
         let private_query = noise_multipliers
             .iter()

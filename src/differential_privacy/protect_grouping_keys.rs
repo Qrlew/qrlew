@@ -1,14 +1,11 @@
 use crate::{
     builder::{Ready, With},
-    differential_privacy::{private_query, DPRelation, Error, PrivateQuery},
+    differential_privacy::{private_query, DPRelation, Error, PrivateQuery, Result},
     expr::{aggregate, Expr},
     namer,
     protection::PEPRelation,
     relation::{Join, Map, Reduce, Relation, Variant as _},
 };
-use std::result;
-
-pub type Result<T> = result::Result<T, Error>;
 
 pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
 
