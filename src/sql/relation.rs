@@ -516,6 +516,14 @@ impl<'a> QueryWithRelations<'a> {
     pub fn new(query: &'a ast::Query, relations: &'a Hierarchy<Rc<Relation>>) -> Self {
         QueryWithRelations(query, relations)
     }
+
+    pub fn query(&self) -> &ast::Query{
+        self.0
+    }
+
+    pub fn relations(&self) -> &Hierarchy<Rc<Relation>>{
+        self.1
+    }
 }
 
 impl<'a> With<&'a Hierarchy<Rc<Relation>>, QueryWithRelations<'a>> for &'a ast::Query {

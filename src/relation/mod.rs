@@ -830,6 +830,7 @@ impl Join {
         right: &Relation,
         operator: &JoinOperator,
     ) -> Schema {
+        println!("operator = {:?}", operator);
         let (left_schema, right_schema) = operator.filtered_schemas(left, right);
         let left_fields = left_names
             .into_iter()
