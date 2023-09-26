@@ -1,3 +1,8 @@
+use statrs::{
+    distribution::{ContinuousCDF, Normal},
+    prec::F64_PREC,
+};
+
 /// A Private Query
 #[derive(Clone, Debug, PartialEq)]
 pub enum PrivateQuery {
@@ -35,10 +40,25 @@ impl PrivateQuery {
             PrivateQuery::Composed(v) => v.iter().all(|q| q.is_null()),
         }
     }
+
+    pub fn gaussian_privacy_pars(epsilon: f64, delta: f64, sensitivity: f64) -> Self {
+        PrivateQuery::Gaussian(gaussian_noise(epsilon, delta, sensitivity))
+    }
 }
 
 impl From<Vec<PrivateQuery>> for PrivateQuery {
     fn from(v: Vec<PrivateQuery>) -> Self {
         v.into_iter().reduce(|c, q| c.compose(q)).unwrap()
     }
+}
+
+pub fn gaussian_noise(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
+    (2. * (1.25_f64.ln() / delta)).sqrt() * sensitivity / epsilon
+}
+
+pub fn gaussian_tau(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
+    let dist = Normal::new(0.0, 1.0).unwrap();
+    let scale = gaussian_noise(epsilon, delta, sensitivity);
+    // TODO: we want to overestimate tau
+    1. + scale * dist.inverse_cdf((1. - delta / 2.).powf(1. / sensitivity)) + F64_PREC
 }

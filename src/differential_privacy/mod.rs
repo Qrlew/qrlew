@@ -3,7 +3,6 @@
 //! This is experimental and little tested yet.
 //!
 
-pub mod mechanisms;
 pub mod private_query;
 pub mod protect_grouping_keys;
 
@@ -321,7 +320,7 @@ impl Reduce {
 
 impl Relation {
     fn gaussian_mechanism(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
-        let noise_multiplier = mechanisms::gaussian_noise(epsilon, delta, 1.0); // TODO set this properly
+        let noise_multiplier = private_query::gaussian_noise(epsilon, delta, 1.0); // TODO set this properly
         let noise_multipliers = bounds
             .into_iter()
             .map(|(name, bound)| (name, noise_multiplier * bound))
@@ -425,8 +424,8 @@ mod tests {
         assert_eq!(
             private_query,
             vec![
-                PrivateQuery::Gaussian(mechanisms::gaussian_noise(epsilon, delta, 50.0)),
-                PrivateQuery::Gaussian(mechanisms::gaussian_noise(epsilon, delta, 1.0)),
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.0),
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.0),
             ]
             .into()
         );
@@ -463,10 +462,7 @@ mod tests {
         ));
         assert_eq!(
             private_query,
-            vec![PrivateQuery::Gaussian(mechanisms::gaussian_noise(
-                1., 1e-3, 100.0
-            )),]
-            .into()
+            PrivateQuery::gaussian_privacy_pars(1., 1e-3, 100.0)
         );
         assert_eq!(dp_relation.schema().len(), 2);
         let dp_query = ast::Query::from(&dp_relation);
@@ -485,10 +481,7 @@ mod tests {
         //dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
-            vec![PrivateQuery::Gaussian(mechanisms::gaussian_noise(
-                1., 1e-3, 100.0
-            )),]
-            .into()
+            PrivateQuery::gaussian_privacy_pars(1., 1e-3, 100.0)
         );
         assert_eq!(dp_relation.schema().len(), 1);
         assert!(matches!(
@@ -513,7 +506,7 @@ mod tests {
             private_query,
             vec![
                 PrivateQuery::EpsilonDelta(1., 1e-3),
-                PrivateQuery::Gaussian(mechanisms::gaussian_noise(1., 1e-3, 100.0)),
+                PrivateQuery::gaussian_privacy_pars(1., 1e-3, 100.0)
             ]
             .into()
         );

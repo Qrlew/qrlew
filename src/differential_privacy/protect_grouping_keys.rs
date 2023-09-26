@@ -1,6 +1,6 @@
 use crate::{
     builder::{Ready, With},
-    differential_privacy::{DPRelation, Error, PrivateQuery},
+    differential_privacy::{private_query, DPRelation, Error, PrivateQuery},
     expr::{aggregate, Expr},
     namer,
     protection::PEPRelation,
@@ -147,12 +147,12 @@ impl PEPRelation {
         // Apply noise
         let name_sigmas = vec![(
             COUNT_DISTINCT_PE_ID,
-            super::mechanisms::gaussian_noise(epsilon, delta, 1.),
+            private_query::gaussian_noise(epsilon, delta, 1.),
         )];
         let rel = rel.add_gaussian_noise(name_sigmas);
 
         // Returns a `Relation::Map` with the right field names and with `COUNT(DISTINCT PE_ID) > tau`
-        let tau = super::mechanisms::gaussian_tau(epsilon, delta, 1.0);
+        let tau = private_query::gaussian_tau(epsilon, delta, 1.0);
         let filter_column = [(COUNT_DISTINCT_PE_ID, (Some(tau.into()), None, vec![]))]
             .into_iter()
             .collect();
