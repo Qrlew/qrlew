@@ -239,7 +239,6 @@ impl PEPRelation {
     ) -> Result<DPRelation> {
         let (relation_with_protected_keys, private_query_grouping_keys) =
             self.protect_grouping_keys(epsilon_tau_thresholding, delta_tau_thresholding)?;
-        relation_with_protected_keys.display_dot().unwrap();
 
         let (relation_with_dp_aggs, private_query_dp_aggs) = relation_with_protected_keys
             .dp_compile_aggregates(epsilon, delta)?
@@ -551,7 +550,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
         let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "z")]);
+            relation.force_protect_from_field_paths(&relations, vec![("table_2", vec![], "z")]);
 
         let (dp_relation, private_query) =
             pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();

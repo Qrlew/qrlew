@@ -518,7 +518,7 @@ mod tests {
             vec![],
             Rc::new(table.clone()),
         ));
-        let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
+        let pep_rel = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
         assert_eq!(Relation::from(pep_rel), Relation::from(protected_pep_rel));
         assert_eq!(pq, PrivateQuery::null());
@@ -530,7 +530,7 @@ mod tests {
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         ));
-        let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
+        let pep_rel = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
         let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
         //protected_pep_rel.display_dot();
@@ -554,7 +554,7 @@ mod tests {
             vec![Expr::col("b")],
             Rc::new(table.clone()),
         ));
-        let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
+        let pep_rel = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
         let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
         //protected_pep_rel.display_dot();
@@ -579,7 +579,7 @@ mod tests {
             vec![Expr::col("c")],
             Rc::new(table.clone()),
         ));
-        let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
+        let pep_rel = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
         let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
         //protected_pep_rel.display_dot();
@@ -605,7 +605,7 @@ mod tests {
             vec![Expr::col("b"), Expr::col("c")],
             Rc::new(table.clone()),
         ));
-        let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
+        let pep_rel = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
         let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
         protected_pep_rel.display_dot();
@@ -658,7 +658,7 @@ mod tests {
             .name("my_map")
             .build();
         relation.display_dot();
-        let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
+        let pep_rel = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
         protected_pep_rel.0.display_dot();
         assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
@@ -679,17 +679,17 @@ mod tests {
 
         let pep_relation = relation.force_protect_from_field_paths(
             &relations,
-            &[
+            vec![
                 (
                     "item_table",
-                    &[
+                    vec![
                         ("order_id", "order_table", "id"),
                         ("user_id", "user_table", "id"),
                     ],
                     "name",
                 ),
-                ("order_table", &[("user_id", "user_table", "id")], "name"),
-                ("user_table", &[], "name"),
+                ("order_table", vec![("user_id", "user_table", "id")], "name"),
+                ("user_table", vec![], "name"),
             ],
         );
         pep_relation.display_dot().unwrap();
@@ -721,7 +721,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
         let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
+            relation.force_protect_from_field_paths(&relations, vec![("table_2", vec![], "y")]);
 
         let (protected_relation, private_query) = pep_relation
             .clone()
@@ -748,7 +748,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
         let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
+            relation.force_protect_from_field_paths(&relations, vec![("table_2", vec![], "y")]);
 
         let (protected_relation, private_query) = pep_relation
             .clone()
@@ -772,7 +772,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
 
         let pep_relation =
-            relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "z")]);
+            relation.force_protect_from_field_paths(&relations, vec![("table_2", vec![], "z")]);
         pep_relation.display_dot().unwrap();
 
         let (protected_relation, private_query) = pep_relation

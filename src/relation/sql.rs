@@ -318,9 +318,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     .collect(),
                 table_with_joins(reduce.input.as_ref().into(), vec![]),
                 None,
-                ast::GroupByExpr::Expressions(
-                    reduce.group_by.iter().map(ast::Expr::from).collect(),
-                ),
+                ast::GroupByExpr::Expressions(reduce.group_by.iter().map(ast::Expr::from).collect()),
                 vec![],
                 None,
             ),
@@ -453,7 +451,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             },
             joins: vec![],
         };
-        let cte_query = query(vec![], all(), from, None, vec![], vec![], None);
+        let cte_query = query(vec![], all(), from, None, ast::GroupByExpr::Expressions(vec![]), vec![], None);
         let input_ctes = vec![cte(
             values.name().into(),
             vec![values.name().into()],
@@ -464,7 +462,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             all(),
             table_with_joins(&values.clone().into(), vec![]),
             None,
-            vec![],
+            ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
         )
