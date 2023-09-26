@@ -6,66 +6,57 @@ use crate::{
     protection::PEPRelation,
     relation::{Join, Map, Reduce, Relation, Variant as _},
 };
+use std::ops::Deref;
 
 pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
 
 impl Reduce {
-    /// Returns the names of the grouping columns
-    pub fn grouping_columns(&self) -> Result<Vec<String>> {
-        self.group_by()
-            .iter()
-            .cloned()
-            .map(|x| {
-                if let Expr::Column(name) = x {
-                    Ok(name.to_string())
-                } else {
-                    Err(Error::GroupingKeysError(
-                        "We support only `Expr::Column` in the group_by".into(),
-                    ))
-                }
-            })
-            .collect()
-    }
-
-    // Returns a `Relation` outputing all grouping keys that can be safely released
-    pub fn grouping_values(
+    /// Returns a `DPRelation` whose:
+    ///     - `relation` outputs all the DP values of the `self` grouping keys
+    ///     - `private_query` stores the invoked DP mechanisms
+    fn with_dp_grouping_keys(
         &self,
         protected_entity_id: &str,
         protected_entity_weight: &str,
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-        let grouping_cols = self.grouping_columns()?;
+        let grouping_cols = self.group_by_names();
         if !grouping_cols.is_empty() {
-            PEPRelation::try_from(self.inputs()[0].clone().filter_fields(|f| {
-                grouping_cols.contains(&f.to_string())
-                    || f == protected_entity_id
-                    || f == protected_entity_weight
-            }))?
-            .released_values(epsilon, delta)
+            PEPRelation::try_from(
+                self.inputs()[0].clone()
+                .filter_fields(|f| {
+                    grouping_cols.contains(&f)
+                        || f == protected_entity_id
+                        || f == protected_entity_weight
+                })
+            )?
+            .with_dp_values(epsilon, delta)
         } else {
             Err(Error::GroupingKeysError("No grouping keys.".to_string()))
         }
     }
 
-    /// Returns a PEPRelation is which the grouping
-    /// keys have been protected and the used mechanisms
-    fn protect_grouping_keys(
-        self,
+    /// Returns the `(pep_relation, private_query)` tuple with:
+    ///     - `pep_relation` is a `PEPRelation` whose fields are the
+    /// (epsilon, delta)-DP values of the `self` grouping keys
+    ///     - `private_query` stores the invoked DP mechanisms
+    fn dp_compile_grouping_keys(
+        &self,
         protected_entity_id: &str,
         protected_entity_weight: &str,
         epsilon: f64,
         delta: f64,
     ) -> Result<(PEPRelation, PrivateQuery)> {
         Ok(
-            if self.grouping_columns()? == vec![protected_entity_id.to_string()] {
+            if self.group_by_names() == vec![protected_entity_id] {
                 (
                     PEPRelation::try_from(Relation::from(self.clone()))?,
                     PrivateQuery::null(),
                 )
             } else {
                 let (grouping_values, private_query) = self
-                    .grouping_values(protected_entity_id, protected_entity_weight, epsilon, delta)?
+                    .with_dp_grouping_keys(protected_entity_id, protected_entity_weight, epsilon, delta)?
                     .into();
                 let input_relation_with_protected_grouping_keys = self
                     .input()
@@ -82,15 +73,17 @@ impl Reduce {
 }
 
 impl Map {
-    /// Find the first Reduce and returns a PEPRelation is which the grouping
-    /// keys have been protected and the used mechanisms
-    fn protect_grouping_keys(
-        self,
+    /// Finds the first `Reduce` and returns the `(pep_relation, private_query)` tuple with:
+    ///     - `pep_relation` is a `PEPRelation` whose fields are the
+    /// (epsilon, delta)-DP values of this `Reduce` grouping keys
+    ///     - `private_query` stores the invoked DP mechanisms
+    fn dp_compile_grouping_keys(
+        &self,
         epsilon: f64,
         delta: f64,
     ) -> Result<(PEPRelation, PrivateQuery)> {
         let (protected_input, private_query) = PEPRelation::try_from(self.inputs()[0].clone())?
-            .protect_grouping_keys(epsilon, delta)?;
+            .dp_compile_grouping_keys(epsilon, delta)?;
         let relation: Relation = Map::builder()
             .with(self.clone())
             .input(Relation::from(protected_input))
@@ -100,19 +93,21 @@ impl Map {
 }
 
 impl Join {
-    /// Find the first Reduce and returns a PEPRelation is which the grouping
-    /// keys have been protected and the used mechanisms
-    fn protect_grouping_keys(
-        self,
+    /// Finds the first `Reduce` and returns the `(pep_relation, private_query)` tuple with:
+    ///     - `pep_relation` is a `PEPRelation` whose fields are the
+    /// (epsilon, delta)-DP values of this `Reduce` grouping keys
+    ///     - `private_query` stores the invoked DP mechanisms
+    fn dp_compile_grouping_keys(
+        &self,
         epsilon: f64,
         delta: f64,
     ) -> Result<(PEPRelation, PrivateQuery)> {
         let (left_dp_relation, left_private_query) =
             PEPRelation::try_from(self.inputs()[0].clone())?
-                .protect_grouping_keys(epsilon, delta)?;
+                .dp_compile_grouping_keys(epsilon, delta)?;
         let (right_dp_relation, right_private_query) =
             PEPRelation::try_from(self.inputs()[1].clone())?
-                .protect_grouping_keys(epsilon, delta)?;
+                .dp_compile_grouping_keys(epsilon, delta)?;
         let relation: Relation = Join::builder()
             .left(Relation::from(left_dp_relation))
             .right(Relation::from(right_dp_relation))
@@ -126,9 +121,11 @@ impl Join {
 }
 
 impl PEPRelation {
-    /// Returns a DPRelation outputing the (epsilon, delta)-DP values (found by tau-thresholding)
-    /// of the grouping keys of the current PEPRelation
-    fn tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    /// Returns a `DPRelation` whose:
+    ///     - `relation` outputs the (epsilon, delta)-DP values
+    /// (found by tau-thresholding) of the fields of the current `Relation`
+    ///     - `private_query` stores the invoked DP mechanisms
+    fn with_tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         // compute COUNT (DISTINCT PE_ID) GROUP BY columns
         let columns: Vec<String> = self
             .schema()
@@ -171,20 +168,6 @@ impl PEPRelation {
         ))
     }
 
-    /// Returns a DPRelation outputing the (epsilon, delta)-DP values of the `self` columns
-    /// which are in `public_columns`
-    fn with_tau_thresholding_values(
-        self,
-        public_columns: &Vec<String>,
-        epsilon: f64,
-        delta: f64,
-    ) -> Result<DPRelation> {
-        let relation: Relation = Relation::from(self).with_name(namer::new_name("FILTER"));
-        let relation_with_private_values =
-            Relation::from(relation).filter_fields(|f| !public_columns.contains(&f.to_string()));
-        PEPRelation::try_from(relation_with_private_values)?.tau_thresholding_values(epsilon, delta)
-    }
-
     /// Returns a DPRelation whose:
     ///     - first field is a Relation whose outputs are
     /// (epsilon, delta)-DP values of grouping keys of the current PEPRelation,
@@ -192,7 +175,7 @@ impl PEPRelation {
     /// The (epsilon, delta)-DP values are found by:
     ///     - Using the propagated values of thes grouping columns if they exist
     ///     - Applying tau-thresholding mechanism with the (epsilon, delta) privacy parameters
-    fn released_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    fn with_dp_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         let public_columns: Vec<String> = self
             .schema()
             .iter()
@@ -206,16 +189,19 @@ impl PEPRelation {
         let all_columns_are_public = public_columns.len() == self.schema().len() - 2;
 
         if public_columns.is_empty() {
-            self.with_tau_thresholding_values(&public_columns, epsilon, delta)
+            let name = namer::name_from_content("FILTER_", &self.name());
+            self.with_name(name)?
+                .with_tau_thresholding_values(epsilon, delta)
         } else if all_columns_are_public {
             Ok(DPRelation::new(
                 self.with_public_values(&public_columns)?,
                 PrivateQuery::null(),
             ))
         } else {
-            let (relation, private_query) = self
-                .clone()
-                .with_tau_thresholding_values(&public_columns, epsilon, delta)?
+            let (relation, private_query) = self.clone()
+                .with_name(namer::name_from_content("FILTER_", &self.name()))?
+                .filter_fields(|f| !public_columns.contains(&f.to_string()))?
+                .with_tau_thresholding_values(epsilon, delta)?
                 .into();
             let relation = self
                 .with_public_values(&public_columns)?
@@ -227,31 +213,31 @@ impl PEPRelation {
     /// Returns a tuple whose:
     ///     - first item is a clone of the current PEPRelation for which the grouping keys have been protected
     ///     - second item  is a PrivateQuery corresponding the used mechanisms
-    pub fn protect_grouping_keys(
-        self,
+    pub fn dp_compile_grouping_keys(
+        &self,
         epsilon: f64,
         delta: f64,
     ) -> Result<(PEPRelation, PrivateQuery)> {
         let protected_entity_id = self.protected_entity_id().to_string();
         let protected_entity_veight = self.protected_entity_weight().to_string();
 
-        match Relation::from(self) {
-            Relation::Table(t) => {
-                let (relation, private_query) = PEPRelation(Relation::from(t))
-                    .released_values(epsilon, delta)?
+        match self.deref() {
+            Relation::Table(_) => {
+                let (relation, private_query) = self.clone()
+                    .with_dp_values(epsilon, delta)?
                     .into();
                 Ok((PEPRelation(relation), private_query))
             }
-            Relation::Map(m) => m.protect_grouping_keys(epsilon, delta),
-            Relation::Reduce(r) => r.protect_grouping_keys(
+            Relation::Map(m) => m.dp_compile_grouping_keys(epsilon, delta),
+            Relation::Reduce(r) => r.dp_compile_grouping_keys(
                 protected_entity_id.as_str(),
                 protected_entity_veight.as_str(),
                 epsilon,
                 delta,
             ),
-            Relation::Join(j) => j.protect_grouping_keys(epsilon, delta),
+            Relation::Join(j) => j.dp_compile_grouping_keys(epsilon, delta),
             Relation::Set(_) => todo!(),
-            Relation::Values(v) => Ok((PEPRelation(Relation::from(v)), PrivateQuery::null())),
+            Relation::Values(_) => Ok((self.clone(), PrivateQuery::null())),
         }
     }
 }
@@ -328,7 +314,7 @@ mod tests {
 
         let (rel, pq) = protected_table
             .clone()
-            .tau_thresholding_values(1., 0.003)
+            .with_tau_thresholding_values(1., 0.003)
             .unwrap()
             .into();
         //rel.display_dot();
@@ -358,7 +344,7 @@ mod tests {
             )
             .build();
         let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.released_values(1., 0.003).unwrap().into();
+        let (rel, pq) = protected_table.with_dp_values(1., 0.003).unwrap().into();
         matches!(rel, Relation::Join(_));
         //rel.display_dot();
         assert_eq!(
@@ -383,7 +369,7 @@ mod tests {
             )
             .build();
         let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.released_values(1., 0.003).unwrap().into();
+        let (rel, pq) = protected_table.with_dp_values(1., 0.003).unwrap().into();
         matches!(rel, Relation::Map(_));
         //rel.display_dot();
         assert_eq!(
@@ -409,7 +395,7 @@ mod tests {
             )
             .build();
         let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.released_values(1., 0.003).unwrap().into();
+        let (rel, pq) = protected_table.with_dp_values(1., 0.003).unwrap().into();
         matches!(rel, Relation::Join(_));
         rel.display_dot();
         assert_eq!(
@@ -445,7 +431,7 @@ mod tests {
             vec![],
             Rc::new(table.clone()),
         );
-        assert!(red.grouping_values(PE_ID, PE_WEIGHT, 1., 0.003).is_err());
+        assert!(red.with_dp_grouping_keys(PE_ID, PE_WEIGHT, 1., 0.003).is_err());
 
         // With GROUPBY. Only one column with possible values.
         let red = Reduce::new(
@@ -455,7 +441,7 @@ mod tests {
             Rc::new(table.clone()),
         );
         let (rel, pq) = red
-            .grouping_values(PE_ID, PE_WEIGHT, 1.0, 0.003)
+            .with_dp_grouping_keys(PE_ID, PE_WEIGHT, 1.0, 0.003)
             .unwrap()
             .into();
         rel.display_dot().unwrap();
@@ -476,7 +462,7 @@ mod tests {
             Rc::new(table.clone()),
         );
         let (rel, pq) = red
-            .grouping_values(PE_ID, PE_WEIGHT, 1.0, 0.003)
+            .with_dp_grouping_keys(PE_ID, PE_WEIGHT, 1.0, 0.003)
             .unwrap()
             .into();
         //rel.display_dot();
@@ -498,7 +484,7 @@ mod tests {
             Rc::new(table.clone()),
         );
         let (rel, pq) = red
-            .grouping_values(PE_ID, PE_WEIGHT, 1.0, 0.003)
+            .with_dp_grouping_keys(PE_ID, PE_WEIGHT, 1.0, 0.003)
             .unwrap()
             .into();
         //rel.display_dot();
@@ -538,7 +524,7 @@ mod tests {
         ));
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
-        let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        let (protected_pep_rel, pq) = pep_rel.clone().dp_compile_grouping_keys(1., 0.003).unwrap();
         assert_eq!(Relation::from(pep_rel), Relation::from(protected_pep_rel));
         assert_eq!(pq, PrivateQuery::null());
 
@@ -552,7 +538,7 @@ mod tests {
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
-        let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        let (protected_pep_rel, pq) = pep_rel.clone().dp_compile_grouping_keys(1., 0.003).unwrap();
         //protected_pep_rel.display_dot();
         assert_eq!(
             protected_pep_rel.data_type(),
@@ -577,7 +563,7 @@ mod tests {
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
-        let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        let (protected_pep_rel, pq) = pep_rel.clone().dp_compile_grouping_keys(1., 0.003).unwrap();
         //protected_pep_rel.display_dot();
         assert_eq!(
             protected_pep_rel.data_type(),
@@ -603,7 +589,7 @@ mod tests {
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
-        let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        let (protected_pep_rel, pq) = pep_rel.clone().dp_compile_grouping_keys(1., 0.003).unwrap();
         //protected_pep_rel.display_dot();
         assert_eq!(
             protected_pep_rel.data_type(),
@@ -630,7 +616,7 @@ mod tests {
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         //pep_rel.display_dot();
-        let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        let (protected_pep_rel, pq) = pep_rel.clone().dp_compile_grouping_keys(1., 0.003).unwrap();
         protected_pep_rel.display_dot();
         assert_eq!(
             protected_pep_rel.data_type(),
@@ -683,7 +669,7 @@ mod tests {
         relation.display_dot();
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
-        let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
+        let (protected_pep_rel, pq) = pep_rel.clone().dp_compile_grouping_keys(1., 0.003).unwrap();
         protected_pep_rel.0.display_dot();
         assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
     }
@@ -718,7 +704,7 @@ mod tests {
         );
         pep_relation.display_dot().unwrap();
 
-        let (protected_relation, pq) = pep_relation.protect_grouping_keys(1., 1e-3).unwrap();
+        let (protected_relation, pq) = pep_relation.dp_compile_grouping_keys(1., 1e-3).unwrap();
         protected_relation.display_dot().unwrap();
         // assert_eq!( // TODO: fix size for joins with distinct values
         //     protected_relation.data_type(),
@@ -749,7 +735,7 @@ mod tests {
 
         let (protected_relation, private_query) = pep_relation
             .clone()
-            .protect_grouping_keys(1., 1e-3)
+            .dp_compile_grouping_keys(1., 1e-3)
             .unwrap();
         protected_relation.display_dot().unwrap();
         // assert_eq!( // TODO: fix size for joins with distinct values
@@ -776,7 +762,7 @@ mod tests {
 
         let (protected_relation, private_query) = pep_relation
             .clone()
-            .protect_grouping_keys(1., 1e-3)
+            .dp_compile_grouping_keys(1., 1e-3)
             .unwrap()
             .into();
         //dp_relation.display_dot().unwrap();
@@ -801,7 +787,7 @@ mod tests {
 
         let (protected_relation, private_query) = pep_relation
             .clone()
-            .protect_grouping_keys(1., 1e-3)
+            .dp_compile_grouping_keys(1., 1e-3)
             .unwrap()
             .into();
         protected_relation.display_dot().unwrap();

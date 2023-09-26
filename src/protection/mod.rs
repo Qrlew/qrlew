@@ -73,6 +73,20 @@ impl PEPRelation {
     pub fn protected_entity_weight(&self) -> &str {
         PE_WEIGHT
     }
+
+    pub fn with_name(self, name: String) -> Result<Self> {
+        PEPRelation::try_from(
+            Relation::from(self)
+                .with_name(name)
+        )
+    }
+
+    pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Result<Self> {
+        PEPRelation::try_from(
+            Relation::from(self)
+                .filter_fields(|f| predicate(f))
+        )
+    }
 }
 
 impl From<PEPRelation> for Relation {

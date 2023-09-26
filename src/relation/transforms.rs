@@ -223,12 +223,11 @@ impl Reduce {
         if self.group_by().is_empty() {
             self
         } else {
-            let grouping_columns = self.grouping_columns().unwrap();
             Reduce::builder()
-                .with(self) // Must be first in order to conserve the order
+                .with(self.clone()) // Must be first in order to conserve the order
                 .with_iter(
-                    grouping_columns
-                        .iter()
+                    self.group_by_names()
+                        .into_iter()
                         .map(|s| (s, Expr::first(Expr::col(s)))),
                 )
                 .build()

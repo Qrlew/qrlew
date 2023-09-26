@@ -193,7 +193,7 @@ impl PEPRelation {
         delta_tau_thresholding: f64,
     ) -> Result<DPRelation> {
         let (relation_with_protected_keys, private_query_grouping_keys) =
-            self.protect_grouping_keys(epsilon_tau_thresholding, delta_tau_thresholding)?;
+            self.dp_compile_grouping_keys(epsilon_tau_thresholding, delta_tau_thresholding)?;
 
         let (relation_with_dp_aggs, private_query_dp_aggs) = relation_with_protected_keys
             .dp_compile_aggregates(epsilon, delta)?
