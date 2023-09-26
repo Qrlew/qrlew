@@ -75,17 +75,11 @@ impl PEPRelation {
     }
 
     pub fn with_name(self, name: String) -> Result<Self> {
-        PEPRelation::try_from(
-            Relation::from(self)
-                .with_name(name)
-        )
+        PEPRelation::try_from(Relation::from(self).with_name(name))
     }
 
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Result<Self> {
-        PEPRelation::try_from(
-            Relation::from(self)
-                .filter_fields(|f| predicate(f))
-        )
+        PEPRelation::try_from(Relation::from(self).filter_fields(|f| predicate(f)))
     }
 }
 
