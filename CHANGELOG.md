@@ -6,11 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
 ### Added
 - conversion DataType -> Value for Expr::Function [MR122](https://github.com/Qrlew/qrlew/pull/122)
 - replace `BTreeSet` in methods `super_union` and `super_intersection` of `data_type::Struct` and `data_type::Union`
 in order keep the inserting order (`BTreeSet` reorder keys by alphanumeric order) [MR125](https://github.com/Qrlew/qrlew/pull/125)
+- protection in `dp_compile` [MR129](https://github.com/Qrlew/qrlew/pull/129)
 ### Fixed
 - in protection use `PEPRelation::try_from(..)` instead of `PEPRelation(..)` [MR124](https://github.com/Qrlew/qrlew/pull/124)
 - dp_compile [MR127](https://github.com/Qrlew/qrlew/pull/127)

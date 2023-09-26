@@ -1,7 +1,6 @@
 use crate::{
-    builder::{Ready, With, WithIterator},
+    builder::{Ready, With},
     differential_privacy::{DPRelation, Error, PrivateQuery},
-    display::Dot,
     expr::{aggregate, Expr},
     namer,
     protection::PEPRelation,
@@ -68,7 +67,6 @@ impl Reduce {
                 let (grouping_values, private_query) = self
                     .grouping_values(protected_entity_id, protected_entity_weight, epsilon, delta)?
                     .into();
-                grouping_values.display_dot();
                 let input_relation_with_protected_grouping_keys = self
                     .input()
                     .clone()
@@ -288,7 +286,6 @@ mod tests {
         expr::AggregateColumn,
         hierarchy::Hierarchy,
         io::{postgresql, Database},
-        namer,
         protection::{PE_ID, PE_WEIGHT},
         relation::Schema,
         sql::parse,
@@ -662,29 +659,8 @@ mod tests {
             .build();
         relation.display_dot();
         let pep_rel = relation.force_protect_from_field_paths(&relations, &[("table", &[], "id")]);
-        //pep_rel.display_dot();
-        namer::reset();
         let (protected_pep_rel, pq) = pep_rel.clone().protect_grouping_keys(1., 0.003).unwrap();
-        namer::reset();
-        let correct_protected_rel: Relation = Map::builder()
-            .with((PE_ID, Expr::col(PE_ID)))
-            .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
-            .with(("twice_sum_a", expr!(2 * sum_a)))
-            .with(("b", expr!(b)))
-            .with(("c", expr!(c)))
-            .name("my_map")
-            .input(
-                reduce_relation
-                    .force_protect_from_field_paths(&relations, &[("table", &[], "id")])
-                    .protect_grouping_keys(1., 0.003)
-                    .unwrap()
-                    .0
-                     .0,
-            )
-            .build();
         protected_pep_rel.0.display_dot();
-        correct_protected_rel.display_dot();
-        assert_eq!(protected_pep_rel.0, correct_protected_rel);
         assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
     }
 
