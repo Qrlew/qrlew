@@ -4,21 +4,21 @@
 //!
 
 pub mod private_query;
-pub mod protect_grouping_keys;
+pub mod group_by;
+pub mod aggregates;
 
 use crate::{
     builder::With,
-    data_type::DataTyped,
     differential_privacy::private_query::PrivateQuery,
-    expr::{self, aggregate, AggregateColumn, Expr},
-    protection::{self, PEPRelation},
-    relation::{field::Field, transforms, Join, Map, Reduce, Relation, Variant as _},
-    DataType, Ready,
+    expr,
+    protection::{self, PEPRelation, PEPReduce},
+    relation::{Visitor, transforms, Join, Map, Reduce, Relation, Table, Variant},
+    Ready,
+    visitor::Acceptor
 };
-use std::collections::{HashMap, HashSet};
-use std::{cmp, error, fmt, result};
+use std::{error, fmt, result};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     InvalidRelation(String),
     UnsafeGroups(String),
@@ -101,88 +101,120 @@ impl From<DPRelation> for (Relation, PrivateQuery) {
     }
 }
 
-impl Field {
-    pub fn clipping_value(self, multiplicity: i64) -> f64 {
-        match self.data_type() {
-            DataType::Float(f) => {
-                let min = f.min().unwrap().abs();
-                let max = f.max().unwrap().abs();
-                (min + max + (min - max).abs()) / 2. * multiplicity as f64
-            }
-            DataType::Integer(i) => {
-                let min = i.min().unwrap().abs();
-                let max = i.max().unwrap().abs();
-                (cmp::max(min, max) * multiplicity) as f64
-            }
-            _ => todo!(),
-        }
+impl PEPReduce {
+    /// Compiles a protected Relation into DP:
+    ///     - Replace the grouping keys by their DP values
+    /// protected the grouping keys and the results of the aggregations
+    pub fn dp_compile(
+        self,
+        epsilon: f64,
+        delta: f64,
+        epsilon_tau_thresholding: f64,
+        delta_tau_thresholding: f64,
+    ) -> Result<DPRelation> {
+        let (reduce_with_dp_keys, private_query_group_by) = if self.has_non_protected_entity_id_group_by() {
+            (self, PrivateQuery::null())
+        } else {
+            let (group_by_values, group_by_private_query) = self.dp_compile_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?.into();
+            let input_relation_with_protected_group_by = self
+                .input()
+                .clone()
+                .join_with_grouping_values(group_by_values)?;
+            let reduce: Reduce = Reduce::builder()
+                .with(Reduce::from(self))
+                .input(input_relation_with_protected_group_by)
+                .build();
+            (PEPReduce::try_from(reduce)?, group_by_private_query)
+        };
+        let (dp_relation, private_query_agg) = reduce_with_dp_keys.dp_compile_aggregates(epsilon, delta)?.into();
+        Ok(DPRelation::new(dp_relation, private_query_group_by.compose(private_query_agg)))
     }
 }
 
+
+// struct DPCompilator{
+//     protected_entity_id: String,
+//     protected_entity_weight: String,
+//     epsilon: f64,
+//     delta: f64,
+//     epsilon_tau_thresholding: f64,
+//     delta_tau_thresholding: f64,
+// }
+
+// impl<'a> Visitor<'a, Result<DPRelation>> for DPCompilator {
+//     fn table(&self, table: &'a Table) -> Result<DPRelation> {
+//         PEPRelation::try_from(Relation::from(table.clone()))?
+//             .dp_values(self.epsilon_tau_thresholding, self.delta_tau_thresholding)
+//     }
+
+//     fn map(&self, map: &'a Map, input: Result<DPRelation>) -> Result<DPRelation> {
+//         let (dp_input, private_query) = input?.into();
+//         let relation = Map::builder()
+//             .filter_fields_with(map.clone(), |f| {
+//                 f != self.protected_entity_id.as_str() && f != self.protected_entity_weight.as_str()
+//             })
+//             .input(dp_input)
+//             .build();
+//         Ok(DPRelation::new(relation, private_query))
+//     }
+
+//     fn reduce(&self, reduce: &'a Reduce, _input: Result<DPRelation>) -> Result<DPRelation> {
+//         PEPReduce::try_from(reduce.clone())?.dp_compile(
+//             self.epsilon,
+//             self.delta,
+//             self.epsilon_tau_thresholding,
+//             self.delta_tau_thresholding
+//         )
+//     }
+
+//     fn join(&self, join: &'a Join, left: Result<DPRelation>, right: Result<DPRelation>) -> Result<DPRelation> {
+//         let (left_dp_relation, left_private_query) = left?.into();
+//         let (right_dp_relation, right_private_query) = right?.into();
+//         let relation: Relation = Join::builder()
+//             .left(left_dp_relation)
+//             .right(right_dp_relation)
+//             .with(join.clone())
+//             .build();
+//         Ok(DPRelation::new(
+//             relation,
+//             vec![left_private_query, right_private_query].into(),
+//         ))
+//     }
+
+//     fn set(&self, set: &'a crate::relation::Set, left: Result<DPRelation>, right: Result<DPRelation>) -> Result<DPRelation> {
+//         todo!()
+//     }
+
+//     fn values(&self, values: &'a crate::relation::Values) -> Result<DPRelation> {
+//         Ok(DPRelation::new(
+//             Relation::from(values.clone()),
+//             PrivateQuery::null(),
+//         ))
+//     }
+// }
+
 impl PEPRelation {
-    // /// Compile a protected Relation into DP
-    // pub fn dp_compile_sums(self, epsilon: f64, delta: f64) -> Result<DPRelation> {// Return a DP relation
+    /// Compile a protected Relation into DP: protected the grouping keys and the results of the aggregations
+    // pub fn dp_compile(
+    //     self,
+    //     epsilon: f64,
+    //     delta: f64,
+    //     epsilon_tau_thresholding: f64,
+    //     delta_tau_thresholding: f64,
+    // ) -> Result<DPRelation> {
     //     let protected_entity_id = self.protected_entity_id().to_string();
     //     let protected_entity_weight = self.protected_entity_weight().to_string();
-    //     if let PEPRelation(Relation::Reduce(reduce)) = self {
-    //         reduce.dp_compile_sums(&protected_entity_id, &protected_entity_weight, epsilon, delta)
-    //     } else {
-    //         Err(Error::invalid_relation(self.0))
-    //     }
+    //     Relation::from(self).accept(
+    //         DPCompilator{
+    //             protected_entity_id,
+    //             protected_entity_weight,
+    //             epsilon,
+    //             delta,
+    //             epsilon_tau_thresholding,
+    //             delta_tau_thresholding
+    //         }
+    //     )
     // }
-
-    /// Protects the results of the aggregations of the outest Reduce by adding gaussian noise scaled by
-    /// their sensitivity and the privacy parameters `epsilon`and `delta`
-    pub fn dp_compile_aggregates(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
-        let protected_entity_id = self.protected_entity_id().to_string();
-        let protected_entity_weight = self.protected_entity_weight().to_string();
-
-        // Return a DP relation
-        let (dp_relation, private_query) = match Relation::from(self) {
-            Relation::Map(map) => {
-                let dp_input = PEPRelation::try_from(map.input().clone())?
-                    .dp_compile_aggregates(epsilon, delta)?;
-                let relation = Map::builder()
-                    .filter_fields_with(map, |f| {
-                        f != protected_entity_id.as_str() && f != protected_entity_weight.as_str()
-                    })
-                    .input(dp_input.relation().clone())
-                    .build();
-                Ok(DPRelation::new(relation, dp_input.private_query().clone()))
-            }
-            Relation::Reduce(reduce) => reduce.dp_compile_aggregates(
-                &protected_entity_id,
-                &protected_entity_weight,
-                epsilon,
-                delta,
-            ),
-            Relation::Table(_) => todo!(),
-            Relation::Join(j) => {
-                let (left_dp_relation, left_private_query) =
-                    PEPRelation::try_from(j.inputs()[0].clone())?
-                        .dp_compile_aggregates(epsilon, delta)?
-                        .into();
-                let (right_dp_relation, right_private_query) =
-                    PEPRelation::try_from(j.inputs()[1].clone())?
-                        .dp_compile_aggregates(epsilon, delta)?
-                        .into();
-                let relation: Relation = Join::builder()
-                    .left(left_dp_relation)
-                    .right(right_dp_relation)
-                    .with(j.clone())
-                    .build();
-                Ok(DPRelation::new(
-                    relation,
-                    vec![left_private_query, right_private_query].into(),
-                ))
-            }
-            Relation::Set(_) => todo!(),
-            Relation::Values(_) => todo!(),
-        }?
-        .into();
-
-        Ok(DPRelation::new(dp_relation, private_query))
-    }
 
     /// Compile a protected Relation into DP: protected the grouping keys and the results of the aggregations
     pub fn dp_compile(
@@ -192,148 +224,41 @@ impl PEPRelation {
         epsilon_tau_thresholding: f64,
         delta_tau_thresholding: f64,
     ) -> Result<DPRelation> {
-        let (relation_with_protected_keys, private_query_grouping_keys) =
-            self.dp_compile_grouping_keys(epsilon_tau_thresholding, delta_tau_thresholding)?;
-
-        let (relation_with_dp_aggs, private_query_dp_aggs) = relation_with_protected_keys
-            .dp_compile_aggregates(epsilon, delta)?
-            .into();
-
-        Ok(DPRelation::new(
-            relation_with_dp_aggs,
-            vec![private_query_grouping_keys, private_query_dp_aggs].into(),
-        ))
-    }
-}
-
-/* Reduce
- */
-impl Reduce {
-    /// DP compile the sums
-    fn dp_compile_sums(
-        self,
-        protected_entity_id: &str,
-        protected_entity_weight: &str,
-        epsilon: f64,
-        delta: f64,
-    ) -> Result<DPRelation> {
-        // Collect groups
-        let mut input_entities: Option<&str> = None;
-        let mut input_groups: HashSet<&str> = self.group_by_names().into_iter().collect();
-        let mut input_values_bound: Vec<(&str, f64)> = vec![];
-        let mut names: HashMap<&str, &str> = HashMap::new();
-        // Collect names, sums and bounds
-        for (name, aggregate) in self.named_aggregates() {
-            // Get value name
-            let input_name = aggregate.column_name()?;
-            names.insert(input_name, name);
-            if name == protected_entity_id {
-                // remove pe group
-                input_groups.remove(&input_name);
-                input_entities = Some(input_name);
-            } else if aggregate.aggregate() == &aggregate::Aggregate::Sum
-                && name != protected_entity_weight
-            {
-                // add aggregate
-                let input_data_type = self.input().schema()[input_name].data_type();
-                let absolute_bound = input_data_type.absolute_upper_bound().unwrap_or(1.0);
-                input_values_bound.push((input_name, absolute_bound));
-            }
+        match Relation::from(self) {
+            Relation::Table(_) => todo!(),
+            Relation::Map(m) => {
+                let (dp_relation, private_query) = PEPRelation::try_from(m.inputs()[0].clone())?
+                    .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?.into();
+                let dp_relation: Relation = Map::builder()
+                    .with(m)
+                    .input(dp_relation)
+                    .build();
+                Ok(DPRelation::new(dp_relation, private_query))
+            },
+            Relation::Reduce(r) => PEPReduce::try_from(r)?.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding),
+            Relation::Join(j) => {
+                let (left_dp_relation, left_private_query) =
+                    PEPRelation::try_from(j.inputs()[0].clone())?
+                        .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?.into();
+                let (right_dp_relation, right_private_query) =
+                    PEPRelation::try_from(j.inputs()[1].clone())?
+                        .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?.into();
+                let relation: Relation = Join::builder()
+                    .left(Relation::from(left_dp_relation))
+                    .right(Relation::from(right_dp_relation))
+                    .with(j)
+                    .build();
+                Ok(DPRelation::new(
+                    relation,
+                    vec![left_private_query, right_private_query].into(),
+                ))
+            },
+            Relation::Set(_) => todo!(),
+            Relation::Values(v) => Ok(DPRelation::new(Relation::from(v), PrivateQuery::null())),
         }
-
-        // Clip the relation
-        let clipped_relation = self.input().clone().l2_clipped_sums(
-            input_entities.unwrap(),
-            input_groups.into_iter().collect(),
-            input_values_bound.iter().cloned().collect(),
-        );
-
-        let (dp_clipped_relation, private_query) = clipped_relation
-            .gaussian_mechanism(epsilon, delta, input_values_bound)
-            .into();
-        let renamed_dp_clipped_relation =
-            dp_clipped_relation.rename_fields(|n, _| names.get(n).unwrap_or(&n).to_string());
-        Ok(DPRelation::new(renamed_dp_clipped_relation, private_query))
-    }
-
-    /// Rewrite aggregations as sums and compile sums
-    pub fn dp_compile_aggregates(
-        self,
-        protected_entity_id: &str,
-        protected_entity_weight: &str,
-        epsilon: f64,
-        delta: f64,
-    ) -> Result<DPRelation> {
-        let mut output = Map::builder();
-        let mut sums = Reduce::builder();
-        // Add aggregate colums
-        for (name, aggregate) in self.named_aggregates().into_iter() {
-            match aggregate.aggregate() {
-                aggregate::Aggregate::First => {
-                    sums = sums.with((
-                        aggregate.column_name()?,
-                        AggregateColumn::col(aggregate.column_name()?),
-                    ));
-                    if name != protected_entity_id {
-                        output = output.with((name, Expr::col(aggregate.column_name()?)));
-                    }
-                }
-                aggregate::Aggregate::Mean => {
-                    let sum_col = &format!("_SUM_{}", aggregate.column_name()?);
-                    let count_col = &format!("_COUNT_{}", aggregate.column_name()?);
-                    sums = sums
-                        .with((count_col, Expr::sum(Expr::val(1.))))
-                        .with((sum_col, Expr::sum(Expr::col(aggregate.column_name()?))));
-                    output = output.with((
-                        name,
-                        Expr::divide(
-                            Expr::col(sum_col),
-                            Expr::greatest(Expr::val(1.), Expr::col(count_col)),
-                        ),
-                    ))
-                }
-                aggregate::Aggregate::Count => {
-                    let count_col = &format!("_COUNT_{}", aggregate.column_name()?);
-                    sums = sums.with((count_col, Expr::sum(Expr::val(1.))));
-                    output = output.with((name, Expr::col(count_col)));
-                }
-                aggregate::Aggregate::Sum
-                    if aggregate.column_name()? != protected_entity_weight =>
-                {
-                    let sum_col = &format!("_SUM_{}", aggregate.column_name()?);
-                    sums = sums.with((sum_col, Expr::sum(Expr::col(aggregate.column_name()?))));
-                    output = output.with((name, Expr::col(sum_col)));
-                }
-                aggregate::Aggregate::Std => todo!(),
-                aggregate::Aggregate::Var => todo!(),
-                _ => (),
-            }
-        }
-        sums = sums.group_by_iter(self.group_by().iter().cloned());
-        let sums: Reduce = sums.input(self.input().clone()).build();
-        let dp_sums =
-            sums.dp_compile_sums(protected_entity_id, protected_entity_weight, epsilon, delta)?;
-        Ok(DPRelation::new(
-            output.input(dp_sums.relation().clone()).build(),
-            dp_sums.private_query().clone(),
-        ))
     }
 }
 
-impl Relation {
-    fn gaussian_mechanism(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
-        let noise_multipliers = bounds
-            .into_iter()
-            .map(|(name, bound)| (name, private_query::gaussian_noise(epsilon, delta, bound)))
-            .collect::<Vec<_>>();
-        let private_query = noise_multipliers
-            .iter()
-            .map(|(_, n)| PrivateQuery::Gaussian(*n))
-            .collect::<Vec<_>>()
-            .into();
-        DPRelation::new(self.add_gaussian_noise(noise_multipliers), private_query)
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -344,29 +269,9 @@ mod tests {
         io::{postgresql, Database},
         sql::parse,
         Relation,
+        data_type::{DataType, DataTyped},
+        relation::Variant,
     };
-
-    #[test]
-    fn test_table_with_noise() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-        // CReate a relation to add noise to
-        let relation = Relation::try_from(
-            parse("SELECT sum(price) FROM item_table GROUP BY order_id")
-                .unwrap()
-                .with(&relations),
-        )
-        .unwrap();
-        println!("Schema = {}", relation.schema());
-        relation.display_dot().unwrap();
-        // Add noise directly
-        for row in database
-            .query("SELECT random(), sum(price) FROM item_table GROUP BY order_id")
-            .unwrap()
-        {
-            println!("Row = {row}");
-        }
-    }
 
     #[test]
     fn test_dp_compile() {
@@ -440,6 +345,29 @@ mod tests {
     fn test_dp_compile_simple() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
+
+        // No GROUPING cols
+        let str_query = "SELECT sum(x) AS sum_x FROM table_2";
+        let query = parse(str_query).unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+
+        let pep_relation =
+            relation.force_protect_from_field_paths(&relations, vec![("table_2", vec![], "y")]);
+
+        let (dp_relation, private_query) =
+            pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();
+        dp_relation.display_dot().unwrap();
+        assert!(matches!(
+            dp_relation.data_type()["sum_x"],
+            DataType::Float(_)
+        ));
+        assert_eq!(
+            private_query,
+            PrivateQuery::gaussian_privacy_pars(1., 1e-3, 100.0)
+        );
+        assert_eq!(dp_relation.schema().len(), 1);
+        let dp_query = ast::Query::from(&dp_relation);
+        database.query(&dp_query.to_string()).unwrap();
 
         // GROUPING col in the SELECT clause
         let str_query = "SELECT z, sum(x) AS sum_x FROM table_2 GROUP BY z";
