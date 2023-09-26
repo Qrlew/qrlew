@@ -14,7 +14,7 @@ use crate::{
     display::Dot,
     expr::{self, aggregate, AggregateColumn, Expr},
     protection::{self, PEPRelation},
-    relation::{field::Field, transforms, Map, Reduce, Join, Relation, Variant as _},
+    relation::{field::Field, transforms, Join, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
 };
 use std::collections::{HashMap, HashSet};
@@ -68,25 +68,30 @@ impl From<protection::Error> for Error {
 impl error::Error for Error {}
 pub type Result<T> = result::Result<T, Error>;
 
-
 /// A Private Query
 #[derive(Clone, Debug, PartialEq)]
 pub enum PrivateQuery {
     Gaussian(f64),
     Laplace(f64),
     EpsilonDelta(f64, f64),
-    Composed(Vec<PrivateQuery>)
+    Composed(Vec<PrivateQuery>),
 }
 
 impl PrivateQuery {
     pub fn compose(self, other: Self) -> Self {
-        let (v1, v2) = match (self, other) {
-            (PrivateQuery::Composed(v1), PrivateQuery::Composed(v2)) => (v1, v2),
-            (PrivateQuery::Composed(v), other) => (v, vec![other]),
-            (current, PrivateQuery::Composed(v)) => (vec![current], v),
-            (current, other) => (vec![current], vec![other]),
-        };
-        PrivateQuery::Composed(v1.into_iter().chain(v2.into_iter()).collect())
+        if other.is_null() {
+            self
+        } else if self.is_null() {
+            other
+        } else {
+            let (v1, v2) = match (self, other) {
+                (PrivateQuery::Composed(v1), PrivateQuery::Composed(v2)) => (v1, v2),
+                (PrivateQuery::Composed(v), other) => (v, vec![other]),
+                (current, PrivateQuery::Composed(v)) => (vec![current], v),
+                (current, other) => (vec![current], vec![other]),
+            };
+            PrivateQuery::Composed(v1.into_iter().chain(v2.into_iter()).collect())
+        }
     }
 
     pub fn null() -> Self {
@@ -104,16 +109,7 @@ impl PrivateQuery {
 
 impl From<Vec<PrivateQuery>> for PrivateQuery {
     fn from(v: Vec<PrivateQuery>) -> Self {
-        let mut v = v.into_iter()
-            .filter_map(|q| (!q.is_null()).then_some(q))
-            .collect::<Vec<_>>();
-        if v.is_empty() {
-            PrivateQuery::null()
-        } else if v.len() == 1 {
-            v.pop().unwrap()
-        } else {
-            PrivateQuery::Composed(v)
-        }
+        v.into_iter().reduce(|c, q| c.compose(q)).unwrap()
     }
 }
 
@@ -138,7 +134,10 @@ impl From<DPRelation> for Relation {
 
 impl DPRelation {
     pub fn new(relation: Relation, private_query: PrivateQuery) -> Self {
-        DPRelation {relation, private_query}
+        DPRelation {
+            relation,
+            private_query,
+        }
     }
 
     pub fn relation(&self) -> &Relation {
@@ -180,45 +179,39 @@ impl PEPRelation {
     //     }
     // }
 
-    /// Compile a protected Relation into DP
-    pub fn dp_compile(self, epsilon: f64, delta: f64, epsilon_tau_thresholding: f64, delta_tau_thresholding: f64) -> Result<DPRelation> {
+    pub fn dp_compile_aggregates(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         let protected_entity_id = self.protected_entity_id().to_string();
         let protected_entity_weight = self.protected_entity_weight().to_string();
 
-        // protect grouping keys
-        let (
-            relation_with_protected_keys,
-            private_query_grouping_keys
-        ) = self.protect_grouping_keys(epsilon_tau_thresholding, delta_tau_thresholding)?;
-
         // Return a DP relation
-        let (dp_relation, private_query_aggregates) = match Relation::from(relation_with_protected_keys) {
+        let (dp_relation, private_query) = match Relation::from(self) {
             Relation::Map(map) => {
                 let dp_input = PEPRelation::try_from(map.input().clone())?
-                    .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?;
+                    .dp_compile_aggregates(epsilon, delta)?;
                 let relation = Map::builder()
                     .filter_fields_with(map, |f| {
-                        f != protected_entity_id.as_str()
-                            && f != protected_entity_weight.as_str()
+                        f != protected_entity_id.as_str() && f != protected_entity_weight.as_str()
                     })
                     .input(dp_input.relation().clone())
                     .build();
                 Ok(DPRelation::new(relation, dp_input.private_query().clone()))
             }
-            Relation::Reduce(reduce) => reduce.dp_compile(
+            Relation::Reduce(reduce) => reduce.dp_compile_aggregates(
                 &protected_entity_id,
                 &protected_entity_weight,
                 epsilon,
-                delta
+                delta,
             ),
             Relation::Table(_) => todo!(),
             Relation::Join(j) => {
-                let (left_dp_relation, left_private_query) = PEPRelation::try_from(j.inputs()[0].clone())?
-                    .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?
-                    .into();
-                let (right_dp_relation, right_private_query) = PEPRelation::try_from(j.inputs()[1].clone())?
-                    .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?
-                    .into();
+                let (left_dp_relation, left_private_query) =
+                    PEPRelation::try_from(j.inputs()[0].clone())?
+                        .dp_compile_aggregates(epsilon, delta)?
+                        .into();
+                let (right_dp_relation, right_private_query) =
+                    PEPRelation::try_from(j.inputs()[1].clone())?
+                        .dp_compile_aggregates(epsilon, delta)?
+                        .into();
                 let relation: Relation = Join::builder()
                     .left(left_dp_relation)
                     .right(right_dp_relation)
@@ -226,16 +219,36 @@ impl PEPRelation {
                     .build();
                 Ok(DPRelation::new(
                     relation,
-                    vec![left_private_query, right_private_query].into()
+                    vec![left_private_query, right_private_query].into(),
                 ))
-            },
+            }
             Relation::Set(_) => todo!(),
             Relation::Values(_) => todo!(),
-        }?.into();
+        }?
+        .into();
+
+        Ok(DPRelation::new(dp_relation, private_query))
+    }
+
+    /// Compile a protected Relation into DP
+    pub fn dp_compile(
+        self,
+        epsilon: f64,
+        delta: f64,
+        epsilon_tau_thresholding: f64,
+        delta_tau_thresholding: f64,
+    ) -> Result<DPRelation> {
+        let (relation_with_protected_keys, private_query_grouping_keys) =
+            self.protect_grouping_keys(epsilon_tau_thresholding, delta_tau_thresholding)?;
+        relation_with_protected_keys.display_dot().unwrap();
+
+        let (relation_with_dp_aggs, private_query_dp_aggs) = relation_with_protected_keys
+            .dp_compile_aggregates(epsilon, delta)?
+            .into();
 
         Ok(DPRelation::new(
-            dp_relation,
-            vec![private_query_grouping_keys, private_query_aggregates].into()
+            relation_with_dp_aggs,
+            vec![private_query_grouping_keys, private_query_dp_aggs].into(),
         ))
     }
 }
@@ -282,22 +295,22 @@ impl Reduce {
             input_values_bound.iter().cloned().collect(),
         );
 
-
-        let (dp_clipped_relation, private_query) = clipped_relation.gaussian_mechanism(epsilon, delta, input_values_bound).into();
+        let (dp_clipped_relation, private_query) = clipped_relation
+            .gaussian_mechanism(epsilon, delta, input_values_bound)
+            .into();
         let renamed_dp_clipped_relation =
             dp_clipped_relation.rename_fields(|n, _| names.get(n).unwrap_or(&n).to_string());
         Ok(DPRelation::new(renamed_dp_clipped_relation, private_query))
     }
 
     /// Rewrite aggregations as sums and compile sums
-    pub fn dp_compile(
+    pub fn dp_compile_aggregates(
         self,
         protected_entity_id: &str,
         protected_entity_weight: &str,
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-
         let mut output = Map::builder();
         let mut sums = Reduce::builder();
         // Add aggregate colums
@@ -345,31 +358,28 @@ impl Reduce {
         }
         sums = sums.group_by_iter(self.group_by().iter().cloned());
         let sums: Reduce = sums.input(self.input().clone()).build();
-        let dp_sums = sums.dp_compile_sums(protected_entity_id, protected_entity_weight, epsilon, delta)?;
+        let dp_sums =
+            sums.dp_compile_sums(protected_entity_id, protected_entity_weight, epsilon, delta)?;
         Ok(DPRelation::new(
             output.input(dp_sums.relation().clone()).build(),
-            dp_sums.private_query().clone()
+            dp_sums.private_query().clone(),
         ))
     }
 }
 
-
 impl Relation {
     fn gaussian_mechanism(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
         let noise_multiplier = mechanisms::gaussian_noise(epsilon, delta, 1.0); // TODO set this properly
-        println!("BOUNDs = {:?}", bounds);
         let noise_multipliers = bounds
             .into_iter()
             .map(|(name, bound)| (name, noise_multiplier * bound))
             .collect::<Vec<_>>();
-        let private_query = noise_multipliers.iter()
+        let private_query = noise_multipliers
+            .iter()
             .map(|(_, n)| PrivateQuery::Gaussian(*n))
             .collect::<Vec<_>>()
             .into();
-        DPRelation::new(
-            self.add_gaussian_noise(noise_multipliers),
-            private_query
-        )
+        DPRelation::new(self.add_gaussian_noise(noise_multipliers), private_query)
     }
 }
 #[cfg(test)]
@@ -377,15 +387,12 @@ mod tests {
     use super::*;
     use crate::{
         ast,
-        builder::{Ready, With},
+        builder::With,
         display::Dot,
         io::{postgresql, Database},
-        relation::Table,
         sql::parse,
-        Relation, data_type::function::Aggregate,
+        Relation,
     };
-    use colored::Colorize;
-    use itertools::Itertools;
 
     #[test]
     fn test_table_with_noise() {
@@ -453,7 +460,13 @@ mod tests {
         let delta = 1e-3;
         let epsilon_tau_thresholding = 1.;
         let delta_tau_thresholding = 1e-3;
-        let (dp_relation, private_query) = pep_relation.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)
+        let (dp_relation, private_query) = pep_relation
+            .dp_compile(
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding,
+            )
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
@@ -462,7 +475,8 @@ mod tests {
             vec![
                 PrivateQuery::Gaussian(mechanisms::gaussian_noise(epsilon, delta, 50.0)),
                 PrivateQuery::Gaussian(mechanisms::gaussian_noise(epsilon, delta, 1.0)),
-            ].into()
+            ]
+            .into()
         );
         let dp_query = ast::Query::from(&dp_relation);
         for row in database.query(&dp_query.to_string()).unwrap() {
@@ -483,7 +497,8 @@ mod tests {
         let pep_relation =
             relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
 
-        let (dp_relation, private_query) = pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();
+        let (dp_relation, private_query) =
+            pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();
         dp_relation.display_dot().unwrap();
 
         assert_eq!(
@@ -496,9 +511,10 @@ mod tests {
         ));
         assert_eq!(
             private_query,
-            vec![
-                PrivateQuery::Gaussian(mechanisms::gaussian_noise(1., 1e-3, 100.0)),
-            ].into()
+            vec![PrivateQuery::Gaussian(mechanisms::gaussian_noise(
+                1., 1e-3, 100.0
+            )),]
+            .into()
         );
         assert_eq!(dp_relation.schema().len(), 2);
         let dp_query = ast::Query::from(&dp_relation);
@@ -512,14 +528,16 @@ mod tests {
         let pep_relation =
             relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "y")]);
 
-        let (dp_relation, private_query) = pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();
+        let (dp_relation, private_query) =
+            pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();
         //dp_relation.display_dot().unwrap();
         assert_eq!(
-        private_query,
-        vec![
-            PrivateQuery::Gaussian(mechanisms::gaussian_noise(1., 1e-3, 100.0)),
-        ].into()
-    );
+            private_query,
+            vec![PrivateQuery::Gaussian(mechanisms::gaussian_noise(
+                1., 1e-3, 100.0
+            )),]
+            .into()
+        );
         assert_eq!(dp_relation.schema().len(), 1);
         assert!(matches!(
             dp_relation.data_type()["sum_x"],
@@ -536,26 +554,27 @@ mod tests {
         let pep_relation =
             relation.force_protect_from_field_paths(&relations, &[("table_2", &[], "z")]);
 
-        let (dp_relation, private_query) = pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();
-       //dp_relation.display_dot().unwrap();
-       assert_eq!(
-        private_query,
-        vec![
-            PrivateQuery::EpsilonDelta(1., 1e-3),
-            PrivateQuery::Gaussian(mechanisms::gaussian_noise(1., 1e-3, 100.0)),
-        ].into()
-    );
+        let (dp_relation, private_query) =
+            pep_relation.dp_compile(1., 1e-3, 1., 1e-3).unwrap().into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            vec![
+                PrivateQuery::EpsilonDelta(1., 1e-3),
+                PrivateQuery::Gaussian(mechanisms::gaussian_noise(1., 1e-3, 100.0)),
+            ]
+            .into()
+        );
         assert_eq!(dp_relation.schema().len(), 2);
         assert!(matches!(
             dp_relation.data_type()["sum_x"],
             DataType::Float(_)
         ));
-        assert!(matches!(
+        assert_eq!(
             dp_relation.data_type()["y"],
-            DataType::Float(_)
-        ));
+            DataType::optional(DataType::text())
+        );
         let dp_query = ast::Query::from(&dp_relation);
         database.query(&dp_query.to_string()).unwrap();
     }
-
 }

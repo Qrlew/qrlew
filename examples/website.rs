@@ -120,8 +120,17 @@ fn compile() {
 
     let epsilon = 1.;
     let delta = 1e-3;
-    let dp_relation = pep_relation.dp_compile(epsilon, delta).unwrap();
-    let relation = dp_relation.0;
+    let epsilon_tau_thresholding = 1.;
+    let delta_tau_thresholding = 1e-3;
+    let (relation, _) = pep_relation
+        .dp_compile(
+            epsilon,
+            delta,
+            epsilon_tau_thresholding,
+            delta_tau_thresholding,
+        )
+        .unwrap()
+        .into();
     relation.display_dot().unwrap();
     println!("relation = {relation}");
     let query = Query::from(&relation);
