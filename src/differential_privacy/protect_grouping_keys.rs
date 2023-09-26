@@ -10,6 +10,7 @@ use crate::{
 pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
 
 impl Reduce {
+    /// Returns the names of the grouping columns
     pub fn grouping_columns(&self) -> Result<Vec<String>> {
         self.group_by()
             .iter()
@@ -47,7 +48,9 @@ impl Reduce {
         }
     }
 
-    pub fn protect_grouping_keys(
+    /// Returns a PEPRelation is which the grouping
+    /// keys have been protected and the used mechanisms
+    fn protect_grouping_keys(
         self,
         protected_entity_id: &str,
         protected_entity_weight: &str,
@@ -79,7 +82,9 @@ impl Reduce {
 }
 
 impl Map {
-    pub fn protect_grouping_keys(
+    /// Find the first Reduce and returns a PEPRelation is which the grouping
+    /// keys have been protected and the used mechanisms
+    fn protect_grouping_keys(
         self,
         epsilon: f64,
         delta: f64,
@@ -95,7 +100,9 @@ impl Map {
 }
 
 impl Join {
-    pub fn protect_grouping_keys(
+    /// Find the first Reduce and returns a PEPRelation is which the grouping
+    /// keys have been protected and the used mechanisms
+    fn protect_grouping_keys(
         self,
         epsilon: f64,
         delta: f64,
@@ -119,7 +126,9 @@ impl Join {
 }
 
 impl PEPRelation {
-    pub fn tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    /// Returns a DPRelation outputing the (epsilon, delta)-DP values (found by tau-thresholding)
+    /// of the grouping keys of the current PEPRelation
+    fn tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         // compute COUNT (DISTINCT PE_ID) GROUP BY columns
         let columns: Vec<String> = self
             .schema()
@@ -162,6 +171,8 @@ impl PEPRelation {
         ))
     }
 
+    /// Returns a DPRelation outputing the (epsilon, delta)-DP values of the `self` columns
+    /// which are in `public_columns`
     fn with_tau_thresholding_values(
         self,
         public_columns: &Vec<String>,
@@ -174,7 +185,14 @@ impl PEPRelation {
         PEPRelation::try_from(relation_with_private_values)?.tau_thresholding_values(epsilon, delta)
     }
 
-    pub fn released_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    /// Returns a DPRelation whose:
+    ///     - first field is a Relation whose outputs are
+    /// (epsilon, delta)-DP values of grouping keys of the current PEPRelation,
+    ///     - second field is a PrivateQuery corresponding the used mechanisms
+    /// The (epsilon, delta)-DP values are found by:
+    ///     - Using the propagated values of thes grouping columns if they exist
+    ///     - Applying tau-thresholding mechanism with the (epsilon, delta) privacy parameters
+    fn released_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         let public_columns: Vec<String> = self
             .schema()
             .iter()
@@ -206,6 +224,9 @@ impl PEPRelation {
         }
     }
 
+    /// Returns a tuple whose:
+    ///     - first item is a clone of the current PEPRelation for which the grouping keys have been protected
+    ///     - second item  is a PrivateQuery corresponding the used mechanisms
     pub fn protect_grouping_keys(
         self,
         epsilon: f64,
