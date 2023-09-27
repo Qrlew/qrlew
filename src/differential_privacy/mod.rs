@@ -240,14 +240,45 @@ impl PEPRelation {
         epsilon_tau_thresholding: f64,
         delta_tau_thresholding: f64,
     ) -> Result<DPRelation> {
+        let protected_entity_id = self.protected_entity_id().to_string();
+        let protected_entity_weight = self.protected_entity_weight().to_string();
+
         match Relation::from(self) {
             Relation::Table(_) => todo!(),
-            Relation::Map(m) => todo!(),
+            Relation::Map(m) => m.dp_compile(
+                protected_entity_id.as_str(),
+                protected_entity_weight.as_str(),
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding
+            ),
             Relation::Reduce(r) => PEPReduce::try_from(r)?.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding),
             Relation::Join(j) => todo!(),
             Relation::Set(_) => todo!(),
             Relation::Values(v) => Ok(DPRelation::new(Relation::from(v), PrivateQuery::null())),
         }
+    }
+}
+
+impl Map {
+    pub fn dp_compile(
+        self,
+        protected_entity_id: &str,
+        protected_entity_weight: &str,
+        epsilon: f64,
+        delta: f64,
+        epsilon_tau_thresholding: f64,
+        delta_tau_thresholding: f64,
+    ) -> Result<DPRelation> {
+        let dp_input = PEPRelation::try_from(self.input().clone())?.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?;
+        let relation = Map::builder()
+            .filter_fields_with(self, |f| {
+                f != protected_entity_id && f != protected_entity_weight
+            })
+            .input(dp_input.relation().clone())
+            .build();
+        Ok(DPRelation::new(relation, dp_input.private_query().clone()))
     }
 }
 
@@ -287,7 +318,7 @@ mod tests {
         let (epsilon, delta) = (1., 1e-3);
         let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
 
-        // Without GROUPBY: Error
+        // Without GROUPBY
         let relation: Relation = Relation::reduce()
             .name("reduce_relation")
             .with(("sum_a".to_string(), AggregateColumn::sum("a")))
@@ -383,65 +414,56 @@ mod tests {
         }
     }
 
-
     #[test]
-    fn test_dp_compile() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        let query = parse(
-            "SELECT order_id, sum(price) AS sum_price,
-        count(price) AS count_price,
-        avg(price) AS mean_price
-        FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
-        )
-        .unwrap();
-        let relation = Relation::try_from(query.with(&relations)).unwrap();
-        relation.display_dot().unwrap();
-
-        let pep_relation = relation.force_protect_from_field_paths(
-            &relations,
-            vec![
-                (
-                    "item_table",
-                    vec![
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
-                    ],
-                    "name",
-                ),
-                ("order_table", vec![("user_id", "user_table", "id")], "name"),
-                ("user_table", vec![], "name"),
-            ],
-        );
-        pep_relation.display_dot().unwrap();
-
-        let epsilon = 1.;
-        let delta = 1e-3;
-        let epsilon_tau_thresholding = 1.;
-        let delta_tau_thresholding = 1e-3;
-        let (dp_relation, private_query) = pep_relation
-            .dp_compile(
-                epsilon,
-                delta,
-                epsilon_tau_thresholding,
-                delta_tau_thresholding,
+    fn test_dp_compile_map() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("id", DataType::integer_range(1..=100)))
+                    .build(),
             )
-            .unwrap()
-            .into();
+            .build();
+        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))]
+            .into_iter()
+            .collect();
+        let (epsilon, delta) = (1., 1e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+
+        let reduce: Relation = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .group_by(expr!(b))
+            .group_by(expr!(c))
+            .with(("group_b".to_string(), AggregateColumn::first("b")))
+            .with(("c".to_string(), AggregateColumn::first("c")))
+            .input(table)
+            .build();
+        let relation: Relation = Relation::map()
+            .name("map_relation")
+            .with(("my_sum_a", expr!(0*sum_a)))
+            .with(("my_group_b".to_string(), expr!(group_b)))
+            .with(("c".to_string(), expr!(4*c)))
+            .filter(Expr::gt(Expr::col("group_b"), Expr::val(6)))
+            .input(reduce)
+            .build();
+
+        let pep_relation = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
+        let (dp_relation, private_query) = pep_relation.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding).unwrap().into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
             vec![
-                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.0),
-                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.0),
-            ]
-            .into()
+                PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+            ].into()
         );
-        let dp_query = ast::Query::from(&dp_relation);
-        for row in database.query(&dp_query.to_string()).unwrap() {
-            println!("{row}");
-        }
+        assert_eq!(dp_relation.data_type()["my_sum_a"], DataType::float_value(0.));
+        assert_eq!(dp_relation.data_type()["my_group_b"], DataType::integer_values([6, 7, 8]));
+        assert_eq!(dp_relation.data_type()["c"], DataType::integer_range(20..=80));
     }
 
     #[test]
@@ -554,4 +576,65 @@ mod tests {
         let dp_query = ast::Query::from(&dp_relation);
         database.query(&dp_query.to_string()).unwrap();
     }
+
+    #[test]
+    fn test_dp_compile() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let query = parse(
+            "SELECT order_id, sum(price) AS sum_price,
+        count(price) AS count_price,
+        avg(price) AS mean_price
+        FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
+        )
+        .unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+
+        let pep_relation = relation.force_protect_from_field_paths(
+            &relations,
+            vec![
+                (
+                    "item_table",
+                    vec![
+                        ("order_id", "order_table", "id"),
+                        ("user_id", "user_table", "id"),
+                    ],
+                    "name",
+                ),
+                ("order_table", vec![("user_id", "user_table", "id")], "name"),
+                ("user_table", vec![], "name"),
+            ],
+        );
+        pep_relation.display_dot().unwrap();
+
+        let epsilon = 1.;
+        let delta = 1e-3;
+        let epsilon_tau_thresholding = 1.;
+        let delta_tau_thresholding = 1e-3;
+        let (dp_relation, private_query) = pep_relation
+            .dp_compile(
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding,
+            )
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            vec![
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.0),
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.0),
+            ]
+            .into()
+        );
+        let dp_query = ast::Query::from(&dp_relation);
+        for row in database.query(&dp_query.to_string()).unwrap() {
+            println!("{row}");
+        }
+    }
+
 }
