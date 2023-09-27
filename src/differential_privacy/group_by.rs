@@ -1,12 +1,11 @@
 use crate::{
-    builder::{Ready, With},
+    builder::Ready,
     differential_privacy::{private_query, DPRelation, Error, PrivateQuery, Result},
     expr::{aggregate, Expr},
     namer,
     protection::{PEPRelation, PEPReduce},
-    relation::{Join, Map, Reduce, Relation, Variant as _},
+    relation::{Relation, Variant as _},
 };
-use std::ops::Deref;
 
 pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
 
@@ -297,9 +296,8 @@ mod tests {
         io::{postgresql, Database},
         protection::{PE_ID, PE_WEIGHT},
         relation::Schema,
-        sql::parse, WithIterator,
     };
-    use std::{ops::Deref, rc::Rc};
+    use std::rc::Rc;
 
     #[test]
     fn test_tau_thresholding_values() {
