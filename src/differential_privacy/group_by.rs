@@ -565,6 +565,40 @@ mod tests {
         } else {
             panic!()
         }
+
+        // WHERE IN LIST
+        let input: Relation = Relation::map()
+            .name("map_relation")
+            .with(("a", expr!(a)))
+            .with(("twice_b", expr!(2*b)))
+            .with(("c", expr!(3*c)))
+            .filter(Expr::in_list(Expr::col("c"), Expr::list(vec![1., 1.5])))
+            .input(table.clone())
+            .build();
+        let relation: Relation = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .group_by(expr!(c))
+            .group_by(expr!(twice_b))
+            .input(input)
+            .build();
+        let pep_relation = Relation::from(relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]));
+        pep_relation.display_dot().unwrap();
+        if let Relation::Reduce(reduce) = pep_relation {
+            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+            let (dp_relation, private_query) = pep_reduce.dp_compile_group_by(epsilon, delta).unwrap().into();
+            dp_relation.display_dot().unwrap();
+            assert_eq!(private_query, PrivateQuery::null());
+            assert_eq!(
+                dp_relation.data_type(),
+                DataType::structured([
+                    ("twice_b", DataType::integer_values([2, 4, 10, 12, 14, 16])),
+                    ("c", DataType::float_values([3., 4.5])),
+                ])
+            );
+        } else {
+            panic!()
+        }
     }
 
     #[test]
