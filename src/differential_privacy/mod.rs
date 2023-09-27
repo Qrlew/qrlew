@@ -254,7 +254,14 @@ impl PEPRelation {
                 delta_tau_thresholding
             ),
             Relation::Reduce(r) => PEPReduce::try_from(r)?.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding),
-            Relation::Join(j) => todo!(),
+            Relation::Join(j) => j.dp_compile(
+                protected_entity_id.as_str(),
+                protected_entity_weight.as_str(),
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding
+            ),
             Relation::Set(_) => todo!(),
             Relation::Values(v) => Ok(DPRelation::new(Relation::from(v), PrivateQuery::null())),
         }
@@ -279,6 +286,36 @@ impl Map {
             .input(dp_input.relation().clone())
             .build();
         Ok(DPRelation::new(relation, dp_input.private_query().clone()))
+    }
+}
+
+impl Join {
+    pub fn dp_compile(
+        self,
+        protected_entity_id: &str,
+        protected_entity_weight: &str,
+        epsilon: f64,
+        delta: f64,
+        epsilon_tau_thresholding: f64,
+        delta_tau_thresholding: f64,
+    ) -> Result<DPRelation> {
+        let (left_dp_relation, left_private_query) =
+            PEPRelation::try_from(self.inputs()[0].clone())?
+                .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?
+                .into();
+        let (right_dp_relation, right_private_query) =
+            PEPRelation::try_from(self.inputs()[1].clone())?
+                .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?
+                .into();
+        let relation: Relation = Join::builder()
+            .with(self)
+            .left(Relation::from(left_dp_relation))
+            .right(Relation::from(right_dp_relation))
+            .build();
+        Ok((
+            relation,
+            vec![left_private_query, right_private_query].into(),
+        ).into())
     }
 }
 
@@ -464,6 +501,66 @@ mod tests {
         assert_eq!(dp_relation.data_type()["my_sum_a"], DataType::float_value(0.));
         assert_eq!(dp_relation.data_type()["my_group_b"], DataType::integer_values([6, 7, 8]));
         assert_eq!(dp_relation.data_type()["c"], DataType::integer_range(20..=80));
+    }
+
+    #[test]
+    fn test_dp_compile_join() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with(("id", DataType::integer_range(1..=100)))
+                    .build(),
+            )
+            .build();
+        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))]
+            .into_iter()
+            .collect();
+        let (epsilon, delta) = (1., 1e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+
+        let reduce: Relation = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .group_by(expr!(b))
+            .with(("my_b".to_string(), AggregateColumn::first("b")))
+            .input(table.clone())
+            .build();
+        let right: Relation = Relation::map()
+            .with(("c".to_string(), expr!(my_b-1)))
+            .with(("sum_a".to_string(), expr!(2 * sum_a)))
+            .input(reduce.clone())
+            .build();
+        let relation: Relation = Relation::join()
+            .left(reduce)
+            .right(right)
+            .left_names(vec!["left_sum", "b"])
+            .right_names(vec!["c", "right_sum"])
+            .inner()
+            .on(Expr::eq(Expr::col("my_b"), Expr::col("c")))
+            .build();
+        relation.display_dot().unwrap();
+
+        let pep_relation = relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
+        pep_relation.display_dot().unwrap();
+        let (dp_relation, private_query) = pep_relation.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding).unwrap().into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            vec![
+                PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+            ].into()
+        );
+        matches!(dp_relation.data_type()["left_sum"], DataType::Float(_));
+        assert_eq!(dp_relation.data_type()["b"], DataType::integer_values([6, 7, 8]));
+        assert_eq!(dp_relation.data_type()["c"], DataType::integer_range(20..=80));
+        matches!(dp_relation.data_type()["left_sum"], DataType::Float(_));
+
+        // AutoJoin
     }
 
     #[test]
