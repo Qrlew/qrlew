@@ -288,6 +288,7 @@ impl Relation {
 mod tests {
     use super::*;
     use crate::{
+        builder::With,
         ast,
         data_type::{DataType, DataTyped},
         display::Dot,
@@ -582,12 +583,20 @@ mod tests {
             .right_names(vec!["x", "y", "z"])
             .build();
 
+        let map: Relation = Relation::map()
+            .name("map_relation")
+            .with(("b", expr!(b)))
+            .with(("d", expr!(2*d)))
+            .with(("my_z", expr!(z)))
+            .input(join)
+            .build();
+
         let relation: Relation = Relation::reduce()
             .name("reduce_relation")
             .with(("sum_b".to_string(), AggregateColumn::sum("b")))
             .group_by(expr!(d))
-            .group_by(expr!(z))
-            .input(join)
+            .group_by(expr!(my_z))
+            .input(map)
             .build();
 
         let pep_relation = Relation::from(relation.force_protect_from_field_paths(
@@ -603,13 +612,12 @@ mod tests {
             matches!(dp_relation, Relation::Join(_));
             matches!(dp_relation.inputs()[0], Relation::Values(_));
             matches!(dp_relation.inputs()[1], Relation::Map(_));
-            assert_eq!(dp_relation.inputs()[0].data_type()["z"], DataType::text_values(["Foo".into(), "Bar".into()]));
-            assert_eq!(dp_relation.inputs()[1].data_type()["d"], DataType::integer_interval(0, 10));
+            assert_eq!(dp_relation.inputs()[0].data_type()["my_z"], DataType::text_values(["Foo".into(), "Bar".into()]));
+            assert_eq!(dp_relation.inputs()[1].data_type()["d"], DataType::integer_interval(0, 20));
             let dp_query = ast::Query::from(&dp_relation);
             database.query(&dp_query.to_string()).unwrap();
         } else {
             panic!()
         }
-
     }
 }

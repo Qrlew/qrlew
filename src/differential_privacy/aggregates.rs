@@ -223,6 +223,7 @@ impl PEPReduce {
 mod tests {
     use super::*;
     use crate::{
+        ast,
         builder::With,
         display::Dot,
         io::{postgresql, Database},
@@ -230,6 +231,7 @@ mod tests {
         Relation,
         hierarchy::Hierarchy,
         relation::Schema,
+        data_type::Variant
     };
     use std::rc::Rc;
 
@@ -427,7 +429,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_dp_compile_aggregates_map_input() {
         let table: Relation = Relation::table()
@@ -484,7 +485,71 @@ mod tests {
     }
 
     #[test]
-    fn test_dp_compile_aggregates_valid_queries() {
-        todo!()
+    fn test_dp_compile_complex() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let (epsilon, delta) = (1., 1e-3);
+
+        let join: Relation = Relation::join()
+            .name("join_relation")
+            .left(relations["table_1"].clone())
+            .right(relations["table_2"].clone())
+            .inner()
+            .on(Expr::eq(Expr::col("a"), Expr::col("x")))
+            .left_names(vec!["a", "b", "c", "d"])
+            .right_names(vec!["x", "y", "z"])
+            .build();
+
+        let map: Relation = Relation::map()
+            .name("map_relation")
+            .with(("d", expr!(d)))
+            .with(("twice_a", expr!(2*a)))
+            .with(("z", expr!(z)))
+            .input(join)
+            .build();
+
+        let relation: Relation = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("twice_a")))
+            .with(("my_d", AggregateColumn::first("d")))
+            .with(("avg_a".to_string(), AggregateColumn::mean("twice_a")))
+            .with(("count_a".to_string(), AggregateColumn::count("twice_a")))
+            .group_by(expr!(d))
+            .group_by(expr!(z))
+            .input(map)
+            .build();
+
+        let pep_relation = Relation::from(relation.force_protect_from_field_paths(
+            &relations,
+            vec![("table_1", vec![], "c"), ("table_2", vec![("x", "table_1", "a")], "c")]
+        ));
+        pep_relation.display_dot().unwrap();
+        if let Relation::Reduce(reduce) = pep_relation {
+            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+            let (dp_relation, private_query) = pep_reduce.dp_compile_aggregates(epsilon, delta).unwrap().into();
+            dp_relation.display_dot().unwrap();
+            assert_eq!(
+                private_query,
+                vec![
+                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 20.),
+                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
+                ].into()
+            );
+            assert!(
+                dp_relation.data_type().is_subset_of(
+                    &DataType::structured([
+                        ("sum_a", DataType::float()),
+                        ("my_d", DataType::integer_interval(0, 10)),
+                        ("avg_a", DataType::float()),
+                        ("count_a", DataType::float())
+                    ])
+                )
+            );
+            let dp_query = ast::Query::from(&dp_relation);
+            database.query(&dp_query.to_string()).unwrap();
+        } else {
+            panic!()
+        }
+
     }
 }
