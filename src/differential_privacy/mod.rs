@@ -101,6 +101,12 @@ impl From<DPRelation> for (Relation, PrivateQuery) {
     }
 }
 
+impl From<(Relation, PrivateQuery)> for DPRelation {
+    fn from(value: (Relation, PrivateQuery)) -> Self {
+        DPRelation::new(value.0, value.1)
+    }
+}
+
 impl PEPReduce {
     /// Compiles a protected Relation into DP:
     ///     - Replace the grouping keys by their DP values
@@ -113,7 +119,8 @@ impl PEPReduce {
         delta_tau_thresholding: f64,
     ) -> Result<DPRelation> {
         let (reduce_with_dp_keys, private_query_group_by) = if self.has_non_protected_entity_id_group_by() {
-            (self, PrivateQuery::null())
+            //(self.input().clone(), PrivateQuery::null())
+            todo!()
         } else {
             let (group_by_values, group_by_private_query) = self.dp_compile_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?.into();
             let input_relation_with_protected_group_by = self
@@ -226,33 +233,9 @@ impl PEPRelation {
     ) -> Result<DPRelation> {
         match Relation::from(self) {
             Relation::Table(_) => todo!(),
-            Relation::Map(m) => {
-                let (dp_relation, private_query) = PEPRelation::try_from(m.inputs()[0].clone())?
-                    .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?.into();
-                let dp_relation: Relation = Map::builder()
-                    .with(m)
-                    .input(dp_relation)
-                    .build();
-                Ok(DPRelation::new(dp_relation, private_query))
-            },
+            Relation::Map(m) => todo!(),
             Relation::Reduce(r) => PEPReduce::try_from(r)?.dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding),
-            Relation::Join(j) => {
-                let (left_dp_relation, left_private_query) =
-                    PEPRelation::try_from(j.inputs()[0].clone())?
-                        .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?.into();
-                let (right_dp_relation, right_private_query) =
-                    PEPRelation::try_from(j.inputs()[1].clone())?
-                        .dp_compile(epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)?.into();
-                let relation: Relation = Join::builder()
-                    .left(Relation::from(left_dp_relation))
-                    .right(Relation::from(right_dp_relation))
-                    .with(j)
-                    .build();
-                Ok(DPRelation::new(
-                    relation,
-                    vec![left_private_query, right_private_query].into(),
-                ))
-            },
+            Relation::Join(j) => todo!(),
             Relation::Set(_) => todo!(),
             Relation::Values(v) => Ok(DPRelation::new(Relation::from(v), PrivateQuery::null())),
         }
