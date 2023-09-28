@@ -6,8 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-## [0.3.5] - 2023-09-26
-- protection in `dp_compile` [MR129](https://github.com/Qrlew/qrlew/pull/129)
+## [0.3.5] - 2023-09-28
+### Changed
+- Implemented a Visitor for doing the DP compilation (`differential_privacy::dp_compile``). Its handles both aggregates and group by columns. [MR129](https://github.com/Qrlew/qrlew/pull/129)
 
 ## [0.3.4] - 2023-09-25
 - Fixed examples
