@@ -73,6 +73,14 @@ impl PEPRelation {
     pub fn protected_entity_weight(&self) -> &str {
         PE_WEIGHT
     }
+
+    pub fn with_name(self, name: String) -> Result<Self> {
+        PEPRelation::try_from(Relation::from(self).with_name(name))
+    }
+
+    pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Result<Self> {
+        PEPRelation::try_from(Relation::from(self).filter_fields(|f| predicate(f)))
+    }
 }
 
 impl From<PEPRelation> for Relation {
@@ -98,6 +106,12 @@ impl TryFrom<Relation> for PEPRelation {
     }
 }
 
+impl From<PEPReduce> for PEPRelation {
+    fn from(value: PEPReduce) -> Self {
+        PEPRelation::try_from(Relation::from(value.0)).unwrap()
+    }
+}
+
 impl Deref for PEPRelation {
     type Target = Relation;
 
@@ -107,6 +121,64 @@ impl Deref for PEPRelation {
 }
 
 impl Relation {
+    pub fn is_pep(&self) -> bool {
+        if self.schema().field(PE_ID).is_err() || self.schema().field(PE_WEIGHT).is_err() {
+            false
+        } else {
+            true
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PEPReduce(pub Reduce);
+
+impl PEPReduce {
+    pub fn protected_entity_id(&self) -> &str {
+        PE_ID
+    }
+
+    pub fn protected_entity_weight(&self) -> &str {
+        PE_WEIGHT
+    }
+
+    pub fn has_non_protected_entity_id_group_by(&self) -> bool {
+        self.0.group_by().len() > 1
+    }
+}
+
+impl From<PEPReduce> for Reduce {
+    fn from(value: PEPReduce) -> Self {
+        value.0
+    }
+}
+
+impl TryFrom<Reduce> for PEPReduce {
+    type Error = Error;
+
+    fn try_from(value: Reduce) -> Result<Self> {
+        if value.is_pep() {
+            Ok(PEPReduce(value))
+        } else {
+            Err(Error::NotProtectedEntityPreserving(
+                format!(
+                    "Cannot convert to PEPReduce a reduce that does not contains both {} and {} columns. \nGot: {}",
+                    PE_ID, PE_WEIGHT, value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
+                )
+            ))
+        }
+    }
+}
+
+impl Deref for PEPReduce {
+    type Target = Reduce;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Reduce {
     pub fn is_pep(&self) -> bool {
         if self.schema().field(PE_ID).is_err() || self.schema().field(PE_WEIGHT).is_err() {
             false
@@ -452,7 +524,7 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let relation = Relation::try_from(
-            parse("SELECT sum(price) FROM item_table GROUP BY order_id")
+            parse("SELECT sum(price) AS sum_price FROM item_table GROUP BY order_id")
                 .unwrap()
                 .with(&relations),
         )

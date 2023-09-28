@@ -6,14 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+<<<<<<< HEAD
+## [0.3.5] - 2023-09-28
+### Changed
+- Implemented a Visitor for doing the DP compilation (`differential_privacy::dp_compile``). Its handles both aggregates and group by columns. [MR129](https://github.com/Qrlew/qrlew/pull/129)
+=======
 ### Fixed
 - Order of relations in the Dot representation of `Relation::Join`[MR131](https://github.com/Qrlew/qrlew/pull/131)
+>>>>>>> e9f2d47b5ef25bdd7143fe86050cdb9c7459b0de
 
 ## [0.3.4] - 2023-09-25
 - Fixed examples
+
 ## [0.3.3] - 2023-09-25
 ### Changed
 - Updated `sqlparser`
+
 ## [0.3.2] - 2023-09-25
 ### Added
 - conversion DataType -> Value for Expr::Function [MR122](https://github.com/Qrlew/qrlew/pull/122)
