@@ -517,11 +517,11 @@ impl<'a> QueryWithRelations<'a> {
         QueryWithRelations(query, relations)
     }
 
-    pub fn query(&self) -> &ast::Query{
+    pub fn query(&self) -> &ast::Query {
         self.0
     }
 
-    pub fn relations(&self) -> &Hierarchy<Rc<Relation>>{
+    pub fn relations(&self) -> &Hierarchy<Rc<Relation>> {
         self.1
     }
 }

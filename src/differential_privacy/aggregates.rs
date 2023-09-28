@@ -2,15 +2,16 @@ use crate::{
     builder::With,
     data_type::DataTyped,
     differential_privacy::private_query::PrivateQuery,
+    differential_privacy::{private_query, DPRelation, Result},
     expr::{aggregate, AggregateColumn, Expr},
     protection::PEPReduce,
     relation::{field::Field, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
-    differential_privacy::{private_query, DPRelation, Result},
-
 };
-use std::{cmp, collections::{HashMap, HashSet}};
-
+use std::{
+    cmp,
+    collections::{HashMap, HashSet},
+};
 
 impl Field {
     pub fn clipping_value(self, multiplicity: i64) -> f64 {
@@ -96,11 +97,7 @@ impl Reduce {
 
 impl PEPReduce {
     /// Rewrite aggregations as sums and compile sums
-    pub fn dp_compile_aggregates(
-        self,
-        epsilon: f64,
-        delta: f64,
-    ) -> Result<DPRelation> {
+    pub fn dp_compile_aggregates(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         let protected_entity_id = self.protected_entity_id();
         let protected_entity_weight = self.protected_entity_weight();
 
@@ -160,78 +157,19 @@ impl PEPReduce {
     }
 }
 
-
-
-// impl PEPRelation {
-
-//     /// Protects the results of the aggregations of the outest Reduce by adding gaussian noise scaled by
-//     /// their sensitivity and the privacy parameters `epsilon`and `delta`
-//     pub fn dp_compile_aggregates(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
-//         let protected_entity_id = self.protected_entity_id().to_string();
-//         let protected_entity_weight = self.protected_entity_weight().to_string();
-
-//         // Return a DP relation
-//         let (dp_relation, private_query) = match Relation::from(self) {
-//             Relation::Map(map) => {
-//                 let dp_input = PEPRelation::try_from(map.input().clone())?
-//                     .dp_compile_aggregates(epsilon, delta)?;
-//                 let relation = Map::builder()
-//                     .filter_fields_with(map, |f| {
-//                         f != protected_entity_id.as_str() && f != protected_entity_weight.as_str()
-//                     })
-//                     .input(dp_input.relation().clone())
-//                     .build();
-//                 Ok(DPRelation::new(relation, dp_input.private_query().clone()))
-//             }
-//             Relation::Reduce(reduce) => reduce.dp_compile_aggregates(
-//                 &protected_entity_id,
-//                 &protected_entity_weight,
-//                 epsilon,
-//                 delta,
-//             ),
-//             Relation::Table(_) => todo!(),
-//             Relation::Join(j) => {
-//                 let (left_dp_relation, left_private_query) =
-//                     PEPRelation::try_from(j.inputs()[0].clone())?
-//                         .dp_compile_aggregates(epsilon, delta)?
-//                         .into();
-//                 let (right_dp_relation, right_private_query) =
-//                     PEPRelation::try_from(j.inputs()[1].clone())?
-//                         .dp_compile_aggregates(epsilon, delta)?
-//                         .into();
-//                 let relation: Relation = Join::builder()
-//                     .left(left_dp_relation)
-//                     .right(right_dp_relation)
-//                     .with(j.clone())
-//                     .build();
-//                 Ok(DPRelation::new(
-//                     relation,
-//                     vec![left_private_query, right_private_query].into(),
-//                 ))
-//             }
-//             Relation::Set(_) => todo!(),
-//             Relation::Values(_) => todo!(),
-//         }?
-//         .into();
-
-//         Ok(DPRelation::new(dp_relation, private_query))
-//     }
-
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         ast,
         builder::With,
+        data_type::Variant,
         display::Dot,
+        hierarchy::Hierarchy,
         io::{postgresql, Database},
+        relation::Schema,
         sql::parse,
         Relation,
-        hierarchy::Hierarchy,
-        relation::Schema,
-        data_type::Variant
     };
     use std::rc::Rc;
 
@@ -283,16 +221,27 @@ mod tests {
             .input(table.clone())
             .build();
         //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]));
+        let pep_relation = Relation::from(
+            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+        );
         //pep_relation.display_dot().unwrap();
         if let Relation::Reduce(reduce) = pep_relation {
             let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce.dp_compile_aggregates(epsilon, delta).unwrap().into();
+            let (dp_relation, private_query) = pep_reduce
+                .dp_compile_aggregates(epsilon, delta)
+                .unwrap()
+                .into();
             dp_relation.display_dot().unwrap();
             assert_eq!(dp_relation.schema().len(), 2);
             matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
-            assert_eq!(dp_relation.data_type()["b"], DataType::integer_values([1, 2, 5, 6, 7, 8]));
-            assert_eq!(private_query, PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.));
+            assert_eq!(
+                dp_relation.data_type()["b"],
+                DataType::integer_values([1, 2, 5, 6, 7, 8])
+            );
+            assert_eq!(
+                private_query,
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+            );
         } else {
             panic!()
         }
@@ -323,15 +272,23 @@ mod tests {
             .input(table.clone())
             .build();
         //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]));
+        let pep_relation = Relation::from(
+            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+        );
         //pep_relation.display_dot().unwrap();
         if let Relation::Reduce(reduce) = pep_relation {
             let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce.dp_compile_aggregates(epsilon, delta).unwrap().into();
+            let (dp_relation, private_query) = pep_reduce
+                .dp_compile_aggregates(epsilon, delta)
+                .unwrap()
+                .into();
             dp_relation.display_dot().unwrap();
             assert_eq!(dp_relation.schema().len(), 1);
             matches!(dp_relation.data_type()["count_a"], DataType::Float(_));
-            assert_eq!(private_query, PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.));
+            assert_eq!(
+                private_query,
+                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.)
+            );
         } else {
             panic!()
         }
@@ -361,17 +318,26 @@ mod tests {
             .input(table.clone())
             .build();
         //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]));
+        let pep_relation = Relation::from(
+            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+        );
         //pep_relation.display_dot().unwrap();
         if let Relation::Reduce(reduce) = pep_relation {
             let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce.dp_compile_aggregates(epsilon, delta).unwrap().into();
+            let (dp_relation, private_query) = pep_reduce
+                .dp_compile_aggregates(epsilon, delta)
+                .unwrap()
+                .into();
             dp_relation.display_dot().unwrap();
             assert_eq!(dp_relation.schema().len(), 1);
             matches!(dp_relation.data_type()["avg_a"], DataType::Float(_));
             assert_eq!(
                 private_query,
-                vec![PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.), PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)].into()
+                vec![
+                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
+                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+                ]
+                .into()
             );
         } else {
             panic!()
@@ -405,11 +371,16 @@ mod tests {
             .input(table.clone())
             .build();
         //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]));
+        let pep_relation = Relation::from(
+            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+        );
         //pep_relation.display_dot().unwrap();
         if let Relation::Reduce(reduce) = pep_relation {
             let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce.dp_compile_aggregates(epsilon, delta).unwrap().into();
+            let (dp_relation, private_query) = pep_reduce
+                .dp_compile_aggregates(epsilon, delta)
+                .unwrap()
+                .into();
             dp_relation.display_dot().unwrap();
             assert_eq!(dp_relation.schema().len(), 4);
             matches!(dp_relation.data_type()["avg_a"], DataType::Float(_));
@@ -422,7 +393,8 @@ mod tests {
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.),
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 8.),
-                ].into()
+                ]
+                .into()
             );
         } else {
             panic!()
@@ -450,8 +422,8 @@ mod tests {
         let input: Relation = Relation::map()
             .name("map_relation")
             .with(("a", expr!(a)))
-            .with(("twice_b", expr!(2*b)))
-            .with(("c", expr!(3*c)))
+            .with(("twice_b", expr!(2 * b)))
+            .with(("c", expr!(3 * c)))
             .input(table.clone())
             .build();
         let relation: Relation = Relation::reduce()
@@ -461,11 +433,16 @@ mod tests {
             .with(("sum_c".to_string(), AggregateColumn::sum("c")))
             .input(input)
             .build();
-        let pep_relation = Relation::from(relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]));
+        let pep_relation = Relation::from(
+            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+        );
         pep_relation.display_dot().unwrap();
         if let Relation::Reduce(reduce) = pep_relation {
             let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce.dp_compile_aggregates(epsilon, delta).unwrap().into();
+            let (dp_relation, private_query) = pep_reduce
+                .dp_compile_aggregates(epsilon, delta)
+                .unwrap()
+                .into();
             dp_relation.display_dot().unwrap();
             assert_eq!(dp_relation.schema().len(), 3);
             matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
@@ -477,7 +454,8 @@ mod tests {
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.),
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 16.),
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 30.),
-                ].into()
+                ]
+                .into()
             );
         } else {
             panic!()
@@ -503,7 +481,7 @@ mod tests {
         let map: Relation = Relation::map()
             .name("map_relation")
             .with(("d", expr!(d)))
-            .with(("twice_a", expr!(2*a)))
+            .with(("twice_a", expr!(2 * a)))
             .with(("z", expr!(z)))
             .input(join)
             .build();
@@ -521,35 +499,37 @@ mod tests {
 
         let pep_relation = Relation::from(relation.force_protect_from_field_paths(
             &relations,
-            vec![("table_1", vec![], "c"), ("table_2", vec![("x", "table_1", "a")], "c")]
+            vec![
+                ("table_1", vec![], "c"),
+                ("table_2", vec![("x", "table_1", "a")], "c"),
+            ],
         ));
         pep_relation.display_dot().unwrap();
         if let Relation::Reduce(reduce) = pep_relation {
             let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce.dp_compile_aggregates(epsilon, delta).unwrap().into();
+            let (dp_relation, private_query) = pep_reduce
+                .dp_compile_aggregates(epsilon, delta)
+                .unwrap()
+                .into();
             dp_relation.display_dot().unwrap();
             assert_eq!(
                 private_query,
                 vec![
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 20.),
                     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
-                ].into()
+                ]
+                .into()
             );
-            assert!(
-                dp_relation.data_type().is_subset_of(
-                    &DataType::structured([
-                        ("sum_a", DataType::float()),
-                        ("my_d", DataType::integer_interval(0, 10)),
-                        ("avg_a", DataType::float()),
-                        ("count_a", DataType::float())
-                    ])
-                )
-            );
+            assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
+                ("sum_a", DataType::float()),
+                ("my_d", DataType::integer_interval(0, 10)),
+                ("avg_a", DataType::float()),
+                ("count_a", DataType::float())
+            ])));
             let dp_query = ast::Query::from(&dp_relation);
             database.query(&dp_query.to_string()).unwrap();
         } else {
             panic!()
         }
-
     }
 }
