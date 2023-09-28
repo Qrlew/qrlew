@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.6] - 2023-09-28
-
+## [0.3.7] - 2023-09-28
 ### Changed
-- Qrlew objects should be thread safe now as all `Rc`s have been changed into `Arc`s
+- Objects in `Arc`s are `Sync + Send` for thread safety and matable objects are behind `Mutex`es
+## [0.3.6] - 2023-09-28
+### Changed
+- All `Rc`s have been changed into `Arc`s for thread safety
 ## [0.3.5] - 2023-09-28
 ### Changed
 - Implemented a Visitor for doing the DP compilation (`differential_privacy::dp_compile``). Its handles both aggregates and group by columns. [MR129](https://github.com/Qrlew/qrlew/pull/129)

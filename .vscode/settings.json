@@ -6,4 +6,5 @@
         "graphviz_display",
         "sqlite",
     ],
+    "editor.codeActionsOnSave": {},
 }

@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct Reader {
-    sql_dialect: Arc<dyn Dialect>,
+    sql_dialect: Arc<dyn Dialect + Sync>,
 }
 
 impl Reader {

@@ -6,7 +6,7 @@ use std::{
     error, fmt,
     hash::Hasher,
     ops::Deref,
-    sync::Arc,
+    sync::{Arc, Mutex},
     result,
 };
 
@@ -100,7 +100,7 @@ impl From<product::Error> for Error {
 type Result<T> = result::Result<T, Error>;
 
 /// A function computing a value and the image of some DataType
-pub trait Function: fmt::Debug + fmt::Display {
+pub trait Function: fmt::Debug + fmt::Display + Sync + Send {
     /// The domain, given as a Cartesian product
     fn domain(&self) -> DataType;
     /// The co-domain
@@ -129,7 +129,7 @@ impl<Inj: injection::Injection> fmt::Display for Injection<Inj> {
     }
 }
 
-impl<Inj: injection::Injection> Function for Injection<Inj>
+impl<Inj: injection::Injection + Sync + Send> Function for Injection<Inj>
 where
     Error: From<<Inj::Domain as TryFrom<DataType>>::Error>,
     Error: From<<<Inj::Domain as Variant>::Element as TryFrom<Value>>::Error>,
@@ -156,7 +156,7 @@ where
 pub struct Stateful {
     domain: DataType,
     co_domain: DataType,
-    value: Arc<RefCell<dyn FnMut(Value) -> Value>>,
+    value: Arc<Mutex<RefCell<dyn FnMut(Value) -> Value + Send>>>,
 }
 
 impl Stateful {
@@ -164,7 +164,7 @@ impl Stateful {
     pub fn new(
         domain: DataType,
         co_domain: DataType,
-        value: Arc<RefCell<dyn FnMut(Value) -> Value>>,
+        value: Arc<Mutex<RefCell<dyn FnMut(Value) -> Value + Send>>>,
     ) -> Self {
         Stateful {
             domain,
@@ -196,7 +196,9 @@ impl Function for Stateful {
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
-        Ok(((*self.value).borrow_mut())(arg.clone()))
+        let locked_value = self.value.lock().unwrap();
+        let mut borrowed_value = (*locked_value).borrow_mut();
+        Ok((*borrowed_value)(arg.clone()))
     }
 }
 
@@ -206,12 +208,12 @@ impl Function for Stateful {
 pub struct Pointwise {
     domain: DataType,
     co_domain: DataType,
-    value: Arc<dyn Fn(Value) -> Value>,
+    value: Arc<dyn Fn(Value) -> Value + Sync + Send>,
 }
 
 impl Pointwise {
     /// Constructor for Generic
-    pub fn new(domain: DataType, co_domain: DataType, value: Arc<dyn Fn(Value) -> Value>) -> Self {
+    pub fn new(domain: DataType, co_domain: DataType, value: Arc<dyn Fn(Value) -> Value + Sync + Send>) -> Self {
         Pointwise {
             domain,
             co_domain,
@@ -223,7 +225,7 @@ impl Pointwise {
         domain: A,
         co_domain: B,
         value: impl Fn(<A::Element as value::Variant>::Wrapped) -> <B::Element as value::Variant>::Wrapped
-            + 'static,
+        + Sync + Send + 'static,
     ) -> Self
     where
         <<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
@@ -245,7 +247,7 @@ impl Pointwise {
                 <A::Element as value::Variant>::Wrapped,
                 <B::Element as value::Variant>::Wrapped,
             ) -> <C::Element as value::Variant>::Wrapped
-            + 'static,
+            + Sync + Send + 'static,
     ) -> Self
     where
         <A::Element as value::Variant>::Wrapped: TryFrom<Value>,
@@ -275,7 +277,7 @@ impl Pointwise {
         value: impl Fn(
                 Vec<<D::Element as value::Variant>::Wrapped>,
             ) -> <C::Element as value::Variant>::Wrapped
-            + 'static,
+            + Sync + Send + 'static,
     ) -> Self
     where
         <D::Element as value::Variant>::Wrapped: TryFrom<Value>,
@@ -376,8 +378,8 @@ where
     T: From<<Prod::IntervalProduct as IntervalProduct>::BoundProduct>,
 {
     domain: Prod,
-    partition: Arc<dyn Fn(P) -> Vec<P>>,
-    value: Arc<dyn Fn(T) -> U>,
+    partition: Arc<dyn Fn(P) -> Vec<P> + Sync + Send>,
+    value: Arc<dyn Fn(T) -> U + Sync + Send>,
 }
 
 impl<P, T, Prod: IntervalsProduct, U: Bound> PartitionnedMonotonic<P, T, Prod, U>
@@ -388,8 +390,8 @@ where
     /// Constructor for Base Maps
     pub fn new(
         domain: Prod,
-        partition: Arc<dyn Fn(P) -> Vec<P>>,
-        value: Arc<dyn Fn(T) -> U>,
+        partition: Arc<dyn Fn(P) -> Vec<P> + Sync + Send>,
+        value: Arc<dyn Fn(T) -> U + Sync + Send>,
     ) -> Self {
         PartitionnedMonotonic {
             domain,
@@ -398,9 +400,9 @@ where
         }
     }
 
-    pub fn from_intervals(domain: P, value: impl Fn(T) -> U + 'static) -> Self
+    pub fn from_intervals(domain: P, value: impl Fn(T) -> U + Sync + Send + 'static) -> Self
     where
-        P: Clone + 'static,
+        P: Clone + Sync + Send + 'static,
     {
         Self::new(
             domain.clone().into(),
@@ -410,8 +412,8 @@ where
     }
 
     pub fn from_partitions(
-        partitions: impl AsRef<[P]> + 'static,
-        value: impl Fn(T) -> U + 'static,
+        partitions: impl AsRef<[P]> + Sync + Send + 'static,
+        value: impl Fn(T) -> U + Sync + Send + 'static,
     ) -> Self
     where
         P: Clone,
@@ -438,10 +440,10 @@ where
     }
 }
 
-impl<A: Bound + 'static, B: Bound>
+impl<A: Bound + Sync + Send + 'static, B: Bound + Sync + Send>
     PartitionnedMonotonic<Intervals<A>, (A,), Term<Intervals<A>, Unit>, B>
 {
-    pub fn univariate(domain: Intervals<A>, value: impl Fn(A) -> B + 'static) -> Self {
+    pub fn univariate(domain: Intervals<A>, value: impl Fn(A) -> B + Sync + Send + 'static) -> Self {
         Self::new(
             domain.clone().into(),
             Arc::new(move |set: Intervals<A>| vec![set.intersection(domain.clone())]),
@@ -451,7 +453,7 @@ impl<A: Bound + 'static, B: Bound>
 
     pub fn piecewise_univariate<const N: usize>(
         partitions: [Intervals<A>; N],
-        value: impl Fn(A) -> B + 'static,
+        value: impl Fn(A) -> B + Sync + Send + 'static,
     ) -> Self {
         Self::from_partitions(partitions, move |(a,)| value(a))
     }
@@ -460,7 +462,7 @@ impl<A: Bound + 'static, B: Bound>
 impl PartitionnedMonotonic<Intervals<f64>, (f64,), Term<Intervals<f64>, Unit>, f64> {
     pub fn periodic_univariate<const N: usize>(
         partitions: [Intervals<f64>; N],
-        value: impl Fn(f64) -> f64 + 'static,
+        value: impl Fn(f64) -> f64 + Sync + Send + 'static,
     ) -> Self {
         let domain: Intervals<f64> = partitions
             .iter()
@@ -491,7 +493,7 @@ impl PartitionnedMonotonic<Intervals<f64>, (f64,), Term<Intervals<f64>, Unit>, f
     }
 }
 
-impl<A: Bound + 'static, B: Bound + 'static, C: Bound>
+impl<A: Bound + Sync + Send + 'static, B: Bound + Sync + Send + 'static, C: Bound>
     PartitionnedMonotonic<
         (Intervals<A>, Intervals<B>),
         (A, B),
@@ -501,14 +503,14 @@ impl<A: Bound + 'static, B: Bound + 'static, C: Bound>
 {
     pub fn bivariate(
         domain: (Intervals<A>, Intervals<B>),
-        value: impl Fn(A, B) -> C + 'static,
+        value: impl Fn(A, B) -> C + Sync + Send + 'static,
     ) -> Self {
         Self::from_intervals(domain, move |(a, b)| value(a, b))
     }
 
     pub fn piecewise_bivariate<const N: usize>(
         partitions: [(Intervals<A>, Intervals<B>); N],
-        value: impl Fn(A, B) -> C + 'static,
+        value: impl Fn(A, B) -> C + Sync + Send + 'static,
     ) -> Self {
         Self::from_partitions(partitions, move |(a, b)| value(a, b))
     }
@@ -575,7 +577,7 @@ where
     }
 }
 
-impl<P, T, Prod: IntervalsProduct, U: Bound> Function for PartitionnedMonotonic<P, T, Prod, U>
+impl<P, T, Prod: IntervalsProduct + Sync + Send, U: Bound> Function for PartitionnedMonotonic<P, T, Prod, U>
 where
     P: From<Prod> + Into<Prod> + Into<DataType> + TryFrom<DataType, Error = data_type::Error>,
     T: From<<Prod::IntervalProduct as IntervalProduct>::BoundProduct>
@@ -727,7 +729,7 @@ impl<F: Function> Function for Extended<F> {
 
 /// A function defined pointwise without any other particular properties
 #[derive(Clone)]
-pub struct Aggregate<A: Variant, B: Variant>
+pub struct Aggregate<A: Variant + Sync + Send, B: Variant + Sync + Send>
 where
     A::Element: TryFrom<Value>,
     Error: From<<A::Element as TryFrom<Value>>::Error>,
@@ -737,11 +739,11 @@ where
     B: Into<DataType>,
 {
     aggregation_domain: A,
-    value: Arc<dyn Fn(Vec<A::Element>) -> B::Element>,
-    super_image: Arc<dyn Fn((A, Integer)) -> Result<B>>,
+    value: Arc<dyn Fn(Vec<A::Element>) -> B::Element + Sync + Send>,
+    super_image: Arc<dyn Fn((A, Integer)) -> Result<B> + Sync + Send>,
 }
 
-impl<A: Variant, B: Variant> Aggregate<A, B>
+impl<A: Variant + Sync + Send, B: Variant + Sync + Send> Aggregate<A, B>
 where
     A::Element: TryFrom<Value>,
     Error: From<<A::Element as TryFrom<Value>>::Error>,
@@ -753,8 +755,8 @@ where
     /// Constructor for Generic
     pub fn new(
         aggregation_domain: A,
-        value: Arc<dyn Fn(Vec<A::Element>) -> B::Element>,
-        super_image: Arc<dyn Fn((A, Integer)) -> Result<B>>,
+        value: Arc<dyn Fn(Vec<A::Element>) -> B::Element + Sync + Send>,
+        super_image: Arc<dyn Fn((A, Integer)) -> Result<B> + Sync + Send>,
     ) -> Self {
         Aggregate {
             aggregation_domain,
@@ -766,14 +768,14 @@ where
     /// Constructor for Generic
     pub fn from(
         aggregation_domain: A,
-        value: impl Fn(Vec<A::Element>) -> B::Element + 'static,
-        super_image: impl Fn((A, Integer)) -> Result<B> + 'static,
+        value: impl Fn(Vec<A::Element>) -> B::Element + Sync + Send + 'static,
+        super_image: impl Fn((A, Integer)) -> Result<B> + Sync + Send + 'static,
     ) -> Self {
         Aggregate::new(aggregation_domain, Arc::new(value), Arc::new(super_image))
     }
 }
 
-impl<A: Variant, B: Variant> fmt::Debug for Aggregate<A, B>
+impl<A: Variant + Sync + Send, B: Variant + Sync + Send> fmt::Debug for Aggregate<A, B>
 where
     A::Element: TryFrom<Value>,
     Error: From<<A::Element as TryFrom<Value>>::Error>,
@@ -787,7 +789,7 @@ where
     }
 }
 
-impl<A: Variant, B: Variant> fmt::Display for Aggregate<A, B>
+impl<A: Variant + Sync + Send, B: Variant + Sync + Send> fmt::Display for Aggregate<A, B>
 where
     A::Element: TryFrom<Value>,
     Error: From<<A::Element as TryFrom<Value>>::Error>,
@@ -801,7 +803,7 @@ where
     }
 }
 
-impl<A: Variant, B: Variant> Function for Aggregate<A, B>
+impl<A: Variant + Sync + Send, B: Variant + Sync + Send> Function for Aggregate<A, B>
 where
     A::Element: TryFrom<Value>,
     Error: From<<A::Element as TryFrom<Value>>::Error>,
@@ -839,22 +841,22 @@ where
 //     value: ValueFunction,
 // }
 #[derive(Debug, Default)]
-pub struct Polymorphic(Vec<Arc<dyn Function>>);
+pub struct Polymorphic(Vec<Arc<dyn Function + Sync + Send>>);
 
 impl Polymorphic {
     /// Constructor for Polymorphic
-    pub fn new(implementations: Vec<Arc<dyn Function>>) -> Self {
+    pub fn new(implementations: Vec<Arc<dyn Function + Sync + Send>>) -> Self {
         Polymorphic(implementations)
     }
 }
 
-impl<F: Function + 'static, G: Function + 'static> From<(F, G)> for Polymorphic {
+impl<F: Function + Sync + 'static, G: Function + Sync + 'static> From<(F, G)> for Polymorphic {
     fn from((f, g): (F, G)) -> Self {
         Polymorphic(vec![Arc::new(f), Arc::new(g)])
     }
 }
 
-impl<F: Function + 'static, G: Function + 'static, H: Function + 'static> From<(F, G, H)>
+impl<F: Function + Sync + 'static, G: Function + Sync + 'static, H: Function + Sync + 'static> From<(F, G, H)>
     for Polymorphic
 {
     fn from((f, g, h): (F, G, H)) -> Self {
@@ -869,8 +871,8 @@ impl<F: Function + 'static> With<F> for Polymorphic {
     }
 }
 
-impl<const N: usize> From<[Arc<dyn Function>; N]> for Polymorphic {
-    fn from(fs: [Arc<dyn Function>; N]) -> Self {
+impl<const N: usize> From<[Arc<dyn Function + Sync + Send>; N]> for Polymorphic {
+    fn from(fs: [Arc<dyn Function + Sync + Send>; N]) -> Self {
         Polymorphic(fs.into_iter().map(|f| f).collect())
     }
 }
@@ -1231,19 +1233,19 @@ pub fn md5() -> impl Function {
     Stateful::new(
         DataType::text(),
         DataType::text(),
-        Arc::new(RefCell::new(|v| {
+        Arc::new(Mutex::new(RefCell::new(|v| {
             let mut s = collections::hash_map::DefaultHasher::new();
             Bound::hash((value::Text::try_from(v).unwrap()).deref(), &mut s);
             Encoder::new(BASE_64, 10).encode(s.finish()).into()
-        })),
+        }))),
     )
 }
 
-pub fn random<R: rand::Rng + 'static>(mut rng: R) -> impl Function {
+pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function {
     Stateful::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
-        Arc::new(RefCell::new(move |v| rng.gen::<f64>().into())),
+        Arc::new(Mutex::new(RefCell::new(move |v| rng.lock().unwrap().borrow_mut().gen::<f64>().into()))),
     )
 }
 

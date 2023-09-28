@@ -4,8 +4,8 @@ use crate::data_type::{
     DataType,
 };
 use paste::paste;
-use rand::thread_rng;
-use std::sync::Arc;
+use rand::rngs::OsRng;
+use std::sync::{Mutex, Arc};
 
 macro_rules! function_implementations {
     ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], $function:ident, $default:block) => {
@@ -82,7 +82,7 @@ function_implementations!(
             Function::CastAsFloat => Arc::new(function::cast(DataType::float())),
             Function::CastAsDateTime => Arc::new(function::cast(DataType::date_time())),
             Function::Concat(n) => Arc::new(function::concat(n)),
-            Function::Random(n) => Arc::new(function::random(thread_rng())), //TODO change this initialization
+            Function::Random(n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
             _ => unreachable!(),
         }
     }
