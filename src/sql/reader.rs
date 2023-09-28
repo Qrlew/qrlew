@@ -5,17 +5,17 @@ use sqlparser::{
     parser::Parser,
     tokenizer::Tokenizer,
 };
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct Reader {
-    sql_dialect: Rc<dyn Dialect>,
+    sql_dialect: Arc<dyn Dialect>,
 }
 
 impl Reader {
     pub fn new() -> Self {
         Reader {
-            sql_dialect: Rc::new(GenericDialect::default()),
+            sql_dialect: Arc::new(GenericDialect::default()),
         }
     }
 
@@ -27,7 +27,7 @@ impl Reader {
 impl Default for Reader {
     fn default() -> Self {
         Reader {
-            sql_dialect: Rc::new(GenericDialect::default()),
+            sql_dialect: Arc::new(GenericDialect::default()),
         }
     }
 }

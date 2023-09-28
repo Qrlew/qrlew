@@ -7,7 +7,7 @@ use std::{
     error,
     fmt::{self, Debug, Display},
     ops::BitAnd,
-    rc::Rc,
+    sync::Arc,
     result,
 };
 
@@ -127,17 +127,17 @@ impl Product for Unit {}
 #[derive(Clone, Debug)]
 pub struct Term<A, Next: Product> {
     value: A,
-    next: Rc<Next>,
+    next: Arc<Next>,
 }
 
 impl<A, Next: Product> Product for Term<A, Next> {}
 
 impl<A, Next: Product> Term<A, Next> {
-    pub fn new(value: A, next: Rc<Next>) -> Term<A, Next> {
+    pub fn new(value: A, next: Arc<Next>) -> Term<A, Next> {
         Term { value, next }
     }
 
-    pub fn from_value_next<N: Into<Rc<Next>>>(value: A, next: N) -> Term<A, Next> {
+    pub fn from_value_next<N: Into<Arc<Next>>>(value: A, next: N) -> Term<A, Next> {
         Term::new(value, next.into())
     }
 

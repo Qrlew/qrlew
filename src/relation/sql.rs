@@ -577,9 +577,9 @@ mod tests {
         namer,
         relation::schema::Schema,
     };
-    use std::rc::Rc;
+    use std::sync::Arc;
 
-    fn build_complex_relation() -> Rc<Relation> {
+    fn build_complex_relation() -> Arc<Relation> {
         namer::reset();
         let schema: Schema = vec![
             ("a", DataType::float()),
@@ -589,14 +589,14 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let table: Rc<Relation> = Rc::new(
+        let table: Arc<Relation> = Arc::new(
             Relation::table()
                 .name("table")
                 .schema(schema.clone())
                 .size(100)
                 .build(),
         );
-        let map: Rc<Relation> = Rc::new(
+        let map: Arc<Relation> = Arc::new(
             Relation::map()
                 .name("map_1")
                 .with(Expr::exp(Expr::col("a")))
@@ -604,7 +604,7 @@ mod tests {
                 .with(Expr::col("b") + Expr::col("d"))
                 .build(),
         );
-        let join: Rc<Relation> = Rc::new(
+        let join: Arc<Relation> = Arc::new(
             Relation::join()
                 .name("join")
                 .cross()
@@ -612,7 +612,7 @@ mod tests {
                 .right(map.clone())
                 .build(),
         );
-        let map_2: Rc<Relation> = Rc::new(
+        let map_2: Arc<Relation> = Arc::new(
             Relation::map()
                 .name("map_2")
                 .with(Expr::exp(Expr::col(join[4].name())))
@@ -621,7 +621,7 @@ mod tests {
                 .limit(100)
                 .build(),
         );
-        let join_2: Rc<Relation> = Rc::new(
+        let join_2: Arc<Relation> = Arc::new(
             Relation::join()
                 .name("join_2")
                 .cross()

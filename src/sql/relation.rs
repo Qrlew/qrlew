@@ -26,7 +26,7 @@ use itertools::Itertools;
 use std::{
     convert::TryFrom,
     iter::{once, Iterator},
-    rc::Rc,
+    sync::Arc,
     result,
     str::FromStr,
 };
@@ -40,10 +40,10 @@ This is done in the query_names module.
 /// The Hierarchy of Relations is the context in which the query is converted, typically the list of tables with their Path
 /// The QueryNames is the map of sub-query referrenced by their names, so that links can be unfolded
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-struct TryIntoRelationVisitor<'a>(&'a Hierarchy<Rc<Relation>>, QueryNames<'a>);
+struct TryIntoRelationVisitor<'a>(&'a Hierarchy<Arc<Relation>>, QueryNames<'a>);
 
 impl<'a> TryIntoRelationVisitor<'a> {
-    fn new(relations: &'a Hierarchy<Rc<Relation>>, query_names: QueryNames<'a>) -> Self {
+    fn new(relations: &'a Hierarchy<Arc<Relation>>, query_names: QueryNames<'a>) -> Self {
         TryIntoRelationVisitor(relations, query_names)
     }
 }
@@ -77,28 +77,28 @@ impl From<ast::SetQuantifier> for SetQuantifier {
 // This is RelationWithColumns from_xxx method
 
 /// A struct to hold Relations with column mapping in the FROM
-struct RelationWithColumns(Rc<Relation>, Hierarchy<Identifier>);
+struct RelationWithColumns(Arc<Relation>, Hierarchy<Identifier>);
 
 impl RelationWithColumns {
-    fn new(relation: Rc<Relation>, columns: Hierarchy<Identifier>) -> Self {
+    fn new(relation: Arc<Relation>, columns: Hierarchy<Identifier>) -> Self {
         RelationWithColumns(relation, columns)
     }
 }
 
 /// A struct to hold the query being visited and its Relations
 struct VisitedQueryRelations<'a>(
-    Hierarchy<Rc<Relation>>,
-    Visited<'a, ast::Query, Result<Rc<Relation>>>,
+    Hierarchy<Arc<Relation>>,
+    Visited<'a, ast::Query, Result<Arc<Relation>>>,
 );
 
 impl<'a> VisitedQueryRelations<'a> {
     fn new(
         try_into_relation_visitor: &TryIntoRelationVisitor<'a>,
         query: &'a ast::Query,
-        visited: Visited<'a, ast::Query, Result<Rc<Relation>>>,
+        visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
     ) -> Self {
         let TryIntoRelationVisitor(relations, query_names) = try_into_relation_visitor;
-        let mut relations: Hierarchy<Rc<Relation>> = (*relations).clone();
+        let mut relations: Hierarchy<Arc<Relation>> = (*relations).clone();
         relations.extend(
             query_names
                 .name_referred(query)
@@ -285,7 +285,7 @@ impl<'a> VisitedQueryRelations<'a> {
                 let new_columns: Hierarchy<Identifier> =
                     join.field_inputs().map(|(f, i)| (i, f.into())).collect();
                 let composed_columns = all_columns.and_then(new_columns);
-                let relation = Rc::new(Relation::from(join));
+                let relation = Arc::new(Relation::from(join));
                 // We should compose hierarchies
                 Ok(RelationWithColumns::new(relation, composed_columns))
             },
@@ -311,8 +311,8 @@ impl<'a> VisitedQueryRelations<'a> {
         select_items: &'a [ast::SelectItem],
         selection: &'a Option<ast::Expr>,
         group_by: &'a ast::GroupByExpr,
-        from: Rc<Relation>,
-    ) -> Result<Rc<Relation>> {
+        from: Arc<Relation>,
+    ) -> Result<Arc<Relation>> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
@@ -371,7 +371,7 @@ impl<'a> VisitedQueryRelations<'a> {
                 builder.input(from).build()
             }
         };
-        Ok(Rc::new(relation))
+        Ok(Arc::new(relation))
     }
 
     /// Convert a Select into a Relation
@@ -403,7 +403,7 @@ impl<'a> VisitedQueryRelations<'a> {
     }
 
     /// Convert a Query into a Relation
-    fn try_from_query(&self, query: &'a ast::Query) -> Result<Rc<Relation>> {
+    fn try_from_query(&self, query: &'a ast::Query) -> Result<Arc<Relation>> {
         let ast::Query {
             body,
             order_by,
@@ -443,7 +443,7 @@ impl<'a> VisitedQueryRelations<'a> {
                             Ok(builder?.limit(self.try_from_limit(limit)?))
                         });
                     // Build a relation with ORDER BY and LIMIT
-                    Ok(Rc::new(relation_bulider?.try_build()?))
+                    Ok(Arc::new(relation_bulider?.try_build()?))
                 }
             }
             ast::SetExpr::SetOperation {
@@ -463,7 +463,7 @@ impl<'a> VisitedQueryRelations<'a> {
                         .left(left_relation)
                         .right(right_relation);
                     // Build a Relation from set operation
-                    Ok(Rc::new(relation_bulider.try_build()?))
+                    Ok(Arc::new(relation_bulider.try_build()?))
                 }
                 _ => panic!("We only support set operations over SELECTs"),
             },
@@ -472,7 +472,7 @@ impl<'a> VisitedQueryRelations<'a> {
     }
 }
 
-impl<'a> Visitor<'a, Result<Rc<Relation>>> for TryIntoRelationVisitor<'a> {
+impl<'a> Visitor<'a, Result<Arc<Relation>>> for TryIntoRelationVisitor<'a> {
     fn dependencies(&self, acceptor: &'a ast::Query) -> Dependencies<'a, ast::Query> {
         let TryIntoRelationVisitor(_relations, query_names) = self;
         let mut dependencies = acceptor.dependencies();
@@ -493,8 +493,8 @@ impl<'a> Visitor<'a, Result<Rc<Relation>>> for TryIntoRelationVisitor<'a> {
     fn query(
         &self,
         query: &'a ast::Query,
-        visited: Visited<'a, ast::Query, Result<Rc<Relation>>>,
-    ) -> Result<Rc<Relation>> {
+        visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
+    ) -> Result<Arc<Relation>> {
         // Pull relations accessible from this query
         let visited_query_relations = VisitedQueryRelations::new(self, query, visited);
         // Retrieve a relation before ORDER BY and LIMIT
@@ -510,10 +510,10 @@ To convert a Query into a Relation, one need to pack it with a few named Relatio
 /// A struct holding a query and a context for conversion to Relation
 /// This is the main entrypoint of this module
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct QueryWithRelations<'a>(&'a ast::Query, &'a Hierarchy<Rc<Relation>>);
+pub struct QueryWithRelations<'a>(&'a ast::Query, &'a Hierarchy<Arc<Relation>>);
 
 impl<'a> QueryWithRelations<'a> {
-    pub fn new(query: &'a ast::Query, relations: &'a Hierarchy<Rc<Relation>>) -> Self {
+    pub fn new(query: &'a ast::Query, relations: &'a Hierarchy<Arc<Relation>>) -> Self {
         QueryWithRelations(query, relations)
     }
 
@@ -521,13 +521,13 @@ impl<'a> QueryWithRelations<'a> {
         self.0
     }
 
-    pub fn relations(&self) -> &Hierarchy<Rc<Relation>> {
+    pub fn relations(&self) -> &Hierarchy<Arc<Relation>> {
         self.1
     }
 }
 
-impl<'a> With<&'a Hierarchy<Rc<Relation>>, QueryWithRelations<'a>> for &'a ast::Query {
-    fn with(self, input: &'a Hierarchy<Rc<Relation>>) -> QueryWithRelations<'a> {
+impl<'a> With<&'a Hierarchy<Arc<Relation>>, QueryWithRelations<'a>> for &'a ast::Query {
+    fn with(self, input: &'a Hierarchy<Arc<Relation>>) -> QueryWithRelations<'a> {
         QueryWithRelations::new(self, input)
     }
 }
@@ -563,7 +563,7 @@ pub fn parse(query: &str) -> Result<ast::Query> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     use colored::Colorize;
 
@@ -588,7 +588,7 @@ mod tests {
             .build();
         let map = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table"], Rc::new(table))]),
+            &Hierarchy::from([(["schema", "table"], Arc::new(table))]),
         ))
         .unwrap();
         print!("{}", map)
@@ -610,7 +610,7 @@ mod tests {
             .build();
         let map = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table"], Rc::new(table))]),
+            &Hierarchy::from([(["schema", "table"], Arc::new(table))]),
         ))
         .unwrap();
         let query2 = &ast::Query::from(&map);
@@ -711,8 +711,8 @@ mod tests {
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
             &Hierarchy::from([
-                (["schema", "table_1"], Rc::new(table_1)),
-                (["schema", "table_2"], Rc::new(table_2)),
+                (["schema", "table_1"], Arc::new(table_1)),
+                (["schema", "table_2"], Arc::new(table_2)),
             ]),
         ))
         .unwrap();
@@ -760,8 +760,8 @@ mod tests {
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
             &Hierarchy::from([
-                (["schema", "table_1"], Rc::new(table_1)),
-                (["schema", "table_2"], Rc::new(table_2)),
+                (["schema", "table_1"], Arc::new(table_1)),
+                (["schema", "table_2"], Arc::new(table_2)),
             ]),
         ))
         .unwrap();
@@ -794,7 +794,7 @@ mod tests {
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
         println!("relation = {relation}");
@@ -829,7 +829,7 @@ mod tests {
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
         println!("relation = {relation:#?}");
@@ -861,7 +861,7 @@ mod tests {
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
         println!("relation = {relation:#?}");
@@ -884,7 +884,7 @@ mod tests {
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
         println!("relation = {relation}");
@@ -910,7 +910,7 @@ mod tests {
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ));
         // .unwrap();
         // println!("relation = {relation}");
@@ -932,7 +932,7 @@ mod tests {
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
         println!("relation = {relation}");
@@ -963,7 +963,7 @@ mod tests {
         .unwrap();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
         println!("relation = {relation}");
@@ -987,7 +987,7 @@ mod tests {
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Rc::new(table_1))]),
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
         println!("relation = {relation}");

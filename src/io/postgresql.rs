@@ -18,7 +18,7 @@ use postgres::{
 };
 use rand::{rngs::StdRng, SeedableRng};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
-use std::{env, fmt, process::Command, rc::Rc, str::FromStr, sync::Mutex, thread, time};
+use std::{env, fmt, process::Command, sync::Arc, str::FromStr, sync::Mutex, thread, time};
 
 const DB: &str = "qrlew-test";
 const PORT: usize = 5432;
@@ -287,7 +287,7 @@ impl TryFrom<SqlValue> for Value {
             SqlValue::Text(t) => Ok(Value::Text(t)),
             SqlValue::Optional(o) => o
                 .map(|v| Value::try_from(*v))
-                .map_or(Ok(None), |r| r.map(|v| Some(Rc::new(v))))
+                .map_or(Ok(None), |r| r.map(|v| Some(Arc::new(v))))
                 .map(|o| Value::from(o)),
             SqlValue::Date(d) => Ok(Value::Date(d)),
             SqlValue::Time(t) => Ok(Value::Time(t)),

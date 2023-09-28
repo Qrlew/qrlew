@@ -201,7 +201,7 @@ mod tests {
         display::Dot,
         relation::{schema::Schema, Relation},
     };
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_dot() {
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_dot_dsl() {
-        let rel: Rc<Relation> = Rc::new(
+        let rel: Arc<Relation> = Arc::new(
             Relation::table()
                 .schema(
                     Schema::builder()
@@ -240,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_dot_dsl_squared() {
-        let rel: Rc<Relation> = Rc::new(
+        let rel: Arc<Relation> = Arc::new(
             Relation::table()
                 .schema(
                     Schema::builder()
@@ -402,7 +402,7 @@ mod tests {
     #[ignore]
     #[test]
     fn test_dot_struct_dsl() {
-        let rel: Rc<Relation> = Rc::new(
+        let rel: Arc<Relation> = Arc::new(
             Relation::table()
                 .schema(
                     Schema::builder()
@@ -420,10 +420,10 @@ mod tests {
         );
         // Create an expr
         Expr::structured([
-            ("a", Rc::new(expr!(exp(a * b)))),
+            ("a", Arc::new(expr!(exp(a * b)))),
             (
                 "b",
-                Rc::new(expr!(
+                Arc::new(expr!(
                     cos(1. * z) * x - 0.2 * (y + 3.) + b + t * sin(c + 4. * (d + 5. + x))
                 )),
             ),

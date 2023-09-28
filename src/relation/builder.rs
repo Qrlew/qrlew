@@ -1,4 +1,4 @@
-use std::{hash::Hash, rc::Rc};
+use std::{hash::Hash, sync::Arc};
 
 use itertools::Itertools;
 
@@ -94,7 +94,7 @@ Map Builder
 #[derive(Debug, Default, Hash)]
 pub struct WithoutInput;
 #[derive(Debug, Hash)]
-pub struct WithInput(Rc<Relation>);
+pub struct WithInput(Arc<Relation>);
 
 /// A Builder for Map relations
 #[derive(Clone, Debug, Default, Hash)]
@@ -305,7 +305,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         builder
     }
 
-    pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> MapBuilder<WithInput> {
+    pub fn input<R: Into<Arc<Relation>>>(self, input: R) -> MapBuilder<WithInput> {
         MapBuilder {
             name: self.name,
             split: self.split,
@@ -380,7 +380,7 @@ impl Ready<Map> for MapBuilder<WithInput> {
         if let Split::Map(map) = self.split {
             // Build the input
             let input = match map.reduce {
-                Some(reduce) => Rc::new(
+                Some(reduce) => Arc::new(
                     ReduceBuilder::new()
                         .split(*reduce)
                         .input(self.input.0)
@@ -457,7 +457,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         self
     }
 
-    pub fn input<R: Into<Rc<Relation>>>(self, input: R) -> ReduceBuilder<WithInput> {
+    pub fn input<R: Into<Arc<Relation>>>(self, input: R) -> ReduceBuilder<WithInput> {
         ReduceBuilder {
             name: self.name,
             split: self.split,
@@ -602,7 +602,7 @@ impl Ready<Reduce> for ReduceBuilder<WithInput> {
         if let Split::Reduce(reduce) = self.split {
             // Build the input
             let input = match reduce.map {
-                Some(map) => Rc::new(
+                Some(map) => Arc::new(
                     MapBuilder::new()
                         .split(*map)
                         .input(self.input.0)
@@ -771,7 +771,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         self
     }
 
-    pub fn left<R: Into<Rc<Relation>>>(
+    pub fn left<R: Into<Arc<Relation>>>(
         self,
         input: R,
     ) -> JoinBuilder<WithInput, RequireRightInput> {
@@ -785,7 +785,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         }
     }
 
-    pub fn right<R: Into<Rc<Relation>>>(
+    pub fn right<R: Into<Arc<Relation>>>(
         self,
         input: R,
     ) -> JoinBuilder<RequireLeftInput, WithInput> {
@@ -922,7 +922,7 @@ impl<RequireLeftInput, RequireRightInput> SetBuilder<RequireLeftInput, RequireRi
         self
     }
 
-    pub fn left<R: Into<Rc<Relation>>>(self, input: R) -> SetBuilder<WithInput, RequireRightInput> {
+    pub fn left<R: Into<Arc<Relation>>>(self, input: R) -> SetBuilder<WithInput, RequireRightInput> {
         SetBuilder {
             name: self.name,
             operator: self.operator,
@@ -932,7 +932,7 @@ impl<RequireLeftInput, RequireRightInput> SetBuilder<RequireLeftInput, RequireRi
         }
     }
 
-    pub fn right<R: Into<Rc<Relation>>>(self, input: R) -> SetBuilder<RequireLeftInput, WithInput> {
+    pub fn right<R: Into<Arc<Relation>>>(self, input: R) -> SetBuilder<RequireLeftInput, WithInput> {
         SetBuilder {
             name: self.name,
             operator: self.operator,

@@ -881,7 +881,7 @@ impl Injection for Base<Struct, Struct> {
         &self,
         arg: &<Self::Domain as Variant>::Element,
     ) -> Result<<Self::CoDomain as Variant>::Element> {
-        let result: Result<Vec<(String, Rc<value::Value>)>> = arg
+        let result: Result<Vec<(String, Arc<value::Value>)>> = arg
             .iter()
             .map(|(field, value)| {
                 if self
@@ -892,7 +892,7 @@ impl Injection for Base<Struct, Struct> {
                 {
                     Ok((
                         field.clone(),
-                        Rc::new(
+                        Arc::new(
                             From(self.domain.data_type(field).as_ref().clone())
                                 .into(self.co_domain.data_type(field).as_ref().clone())?
                                 .value(value)?,
@@ -973,7 +973,7 @@ impl Injection for Base<Optional, Optional> {
                         .into(self.co_domain.data_type().clone())?
                         .value(a)
                 })
-                .map(|v| Rc::new(v.unwrap()))
+                .map(|v| Arc::new(v.unwrap()))
                 .clone(),
         ))
     }

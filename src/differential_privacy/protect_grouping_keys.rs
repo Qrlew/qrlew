@@ -254,7 +254,7 @@ mod tests {
         namer,
         relation::Schema,
     };
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_tau_thresholded_values() {
@@ -384,7 +384,7 @@ mod tests {
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         assert!(red.grouping_values(1., 0.003).is_err());
 
@@ -393,7 +393,7 @@ mod tests {
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![Expr::col("b")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let rel = red.grouping_values(1.0, 0.003).unwrap();
         assert_eq!(
@@ -409,7 +409,7 @@ mod tests {
                 ("c".to_string(), AggregateColumn::col("c")),
             ],
             vec![Expr::col("c")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let rel = red.grouping_values(1.0, 0.003).unwrap();
         //rel.display_dot();
@@ -427,7 +427,7 @@ mod tests {
                 ("b".to_string(), AggregateColumn::col("b")),
             ],
             vec![Expr::col("b"), Expr::col("c")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let rel = red.grouping_values(1.0, 0.003).unwrap();
         //rel.display_dot();
@@ -453,7 +453,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))]
+        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
             .into_iter()
             .collect();
 
@@ -462,7 +462,7 @@ mod tests {
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         ));
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
@@ -474,7 +474,7 @@ mod tests {
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![Expr::col("b")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         ));
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
@@ -498,7 +498,7 @@ mod tests {
                 ("b".to_string(), AggregateColumn::col("b")),
             ],
             vec![Expr::col("b")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         ));
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
@@ -523,7 +523,7 @@ mod tests {
                 ("c".to_string(), AggregateColumn::col("c")),
             ],
             vec![Expr::col("c")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         ));
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
@@ -549,7 +549,7 @@ mod tests {
                 ("b".to_string(), AggregateColumn::col("b")),
             ],
             vec![Expr::col("b"), Expr::col("c")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         ));
         let pep_rel =
             relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
@@ -581,7 +581,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))]
+        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
             .into_iter()
             .collect();
 
@@ -594,7 +594,7 @@ mod tests {
                 ("b".to_string(), AggregateColumn::first("b")),
             ],
             vec![Expr::col("b"), Expr::col("c")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         ));
         let relation: Relation = Map::builder()
             .with(("twice_sum_a", expr!(2 * sum_a)))

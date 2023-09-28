@@ -15,7 +15,7 @@ use std::{
     fs::File,
     io::{Result, Write},
     process::Command,
-    rc::Rc,
+    sync::Arc,
 };
 
 pub trait Dot {
@@ -204,7 +204,7 @@ mod tests {
     #[ignore]
     #[test]
     fn test_expr() {
-        let rel: Rc<Relation> = Rc::new(
+        let rel: Arc<Relation> = Arc::new(
             Relation::table()
                 .schema(
                     Schema::builder()

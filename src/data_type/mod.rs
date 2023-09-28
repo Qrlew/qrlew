@@ -56,7 +56,7 @@ use std::{
     error, fmt, hash,
     marker::Copy,
     ops::{self, Deref, Index},
-    rc::Rc,
+    sync::Arc,
     result,
 };
 
@@ -522,11 +522,11 @@ impl From<Enum> for Integer {
 /// Enum variant
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Enum {
-    values: Rc<[(String, i64)]>,
+    values: Arc<[(String, i64)]>,
 }
 
 impl Enum {
-    pub fn new(values: Rc<[(String, i64)]>) -> Enum {
+    pub fn new(values: Arc<[(String, i64)]>) -> Enum {
         assert!(!values.is_empty()); // An Enum should not be empty
         let codes: BTreeSet<i64> = values.iter().map(|(_, i)| *i).collect();
         assert!(values.len() == codes.len()); // Codes must be distinct
@@ -638,7 +638,7 @@ impl Variant for Enum {
     }
 
     fn minimal_subset(&self) -> Result<Self> {
-        Ok(Self::new(Rc::new([])))
+        Ok(Self::new(Arc::new([])))
     }
 }
 
@@ -803,12 +803,12 @@ impl From<value::Bytes> for Bytes {
 /// Struct variant
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Struct {
-    fields: Vec<(String, Rc<DataType>)>,
+    fields: Vec<(String, Arc<DataType>)>,
 }
 
 impl Struct {
     /// Create a Struct from a rc slice of fields
-    pub fn new(fields: Vec<(String, Rc<DataType>)>) -> Struct {
+    pub fn new(fields: Vec<(String, Arc<DataType>)>) -> Struct {
         let mut uniques = HashSet::new();
         assert!(fields.iter().all(move |(f, _)| uniques.insert(f.clone())));
         Struct { fields }
@@ -818,7 +818,7 @@ impl Struct {
         Struct::new(vec![])
     }
     /// Create from one field
-    pub fn from_field<S: Into<String>, T: Into<Rc<DataType>>>(s: S, t: T) -> Struct {
+    pub fn from_field<S: Into<String>, T: Into<Arc<DataType>>>(s: S, t: T) -> Struct {
         Struct::new(vec![(s.into(), t.into())])
     }
     /// Create from one datatype
@@ -833,22 +833,22 @@ impl Struct {
             .fold(Struct::default(), |s, t| s.and(t.clone().into()))
     }
     /// Get all the fields
-    pub fn fields(&self) -> &[(String, Rc<DataType>)] {
+    pub fn fields(&self) -> &[(String, Arc<DataType>)] {
         self.fields.as_ref()
     }
     /// Get the field
-    pub fn field(&self, name: &str) -> Result<&(String, Rc<DataType>)> {
+    pub fn field(&self, name: &str) -> Result<&(String, Arc<DataType>)> {
         self.fields
             .iter()
             .find(|(f, _)| f == name)
             .map_or(Err(Error::invalid_field(name).into()), |f| Ok(f))
     }
     /// Get the DataType associated with the field
-    pub fn data_type(&self, name: &str) -> Rc<DataType> {
+    pub fn data_type(&self, name: &str) -> Arc<DataType> {
         self.fields
             .iter()
             .find(|(f, _)| f == name)
-            .map_or(Rc::new(DataType::Any), |(_, t)| t.clone())
+            .map_or(Arc::new(DataType::Any), |(_, t)| t.clone())
     }
     /// Find the index of the field with the given name
     pub fn index_from_name(&self, name: &str) -> Result<usize> {
@@ -858,7 +858,7 @@ impl Struct {
             .map_or(Err(Error::InvalidField(name.to_string()).into()), |i| Ok(i))
     }
     /// Access a field by index
-    pub fn field_from_index(&self, index: usize) -> &(String, Rc<DataType>) {
+    pub fn field_from_index(&self, index: usize) -> &(String, Arc<DataType>) {
         &self.fields[index]
     }
     /// Build the type of a DataFrame (column based data)
@@ -866,7 +866,7 @@ impl Struct {
         schema
             .fields
             .into_iter()
-            .map(|(s, t)| (s, Rc::new(List::new(t, size.clone()).into())))
+            .map(|(s, t)| (s, Arc::new(List::new(t, size.clone()).into())))
             .collect()
     }
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
@@ -900,7 +900,7 @@ impl hash::Hash for Struct {
 
 /// To ease iteration
 impl Deref for Struct {
-    type Target = [(String, Rc<DataType>)];
+    type Target = [(String, Arc<DataType>)];
 
     fn deref(&self) -> &Self::Target {
         &self.fields
@@ -908,11 +908,11 @@ impl Deref for Struct {
 }
 
 /// This is the core operation to build a Struct
-impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
+impl<S: Into<String>, T: Into<Arc<DataType>>> And<(S, T)> for Struct {
     type Product = Struct;
     fn and(self, other: (S, T)) -> Self::Product {
         let field: String = other.0.into();
-        let data_type: Rc<DataType> = other.1.into();
+        let data_type: Arc<DataType> = other.1.into();
         // Remove existing elements with the same name
         let (mut fields, push_other): (Vec<_>, _) =
             self.fields.iter().fold((vec![], true), |(v, b), (f, t)| {
@@ -924,7 +924,7 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
                     b = false;
                     v.push((
                         f.clone(),
-                        Rc::new(
+                        Arc::new(
                             t.as_ref()
                                 .clone()
                                 .super_intersection(data_type.as_ref())
@@ -941,11 +941,11 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for Struct {
     }
 }
 
-impl<T: Into<Rc<DataType>>> And<(T,)> for Struct {
+impl<T: Into<Arc<DataType>>> And<(T,)> for Struct {
     type Product = Struct;
     fn and(self, other: (T,)) -> Self::Product {
         let field = namer::new_name_outside("", self.fields.iter().map(|(f, _t)| f));
-        let data_type: Rc<DataType> = other.0.into();
+        let data_type: Arc<DataType> = other.0.into();
         self.and((field, data_type))
     }
 }
@@ -968,13 +968,13 @@ impl And<DataType> for Struct {
     }
 }
 
-impl<S: Into<String>, T: Into<Rc<DataType>>> From<(S, T)> for Struct {
+impl<S: Into<String>, T: Into<Arc<DataType>>> From<(S, T)> for Struct {
     fn from(field: (S, T)) -> Self {
         Struct::from_field(field.0, field.1)
     }
 }
 
-impl<S: Clone + Into<String>, T: Clone + Into<Rc<DataType>>> From<&[(S, T)]> for Struct {
+impl<S: Clone + Into<String>, T: Clone + Into<Arc<DataType>>> From<&[(S, T)]> for Struct {
     fn from(values: &[(S, T)]) -> Self {
         Struct::new(
             values
@@ -1000,7 +1000,7 @@ impl From<value::Struct> for Struct {
     }
 }
 
-impl<S: Into<String>, T: Into<Rc<DataType>>> FromIterator<(S, T)> for Struct {
+impl<S: Into<String>, T: Into<Arc<DataType>>> FromIterator<(S, T)> for Struct {
     fn from_iter<I: IntoIterator<Item = (S, T)>>(iter: I) -> Self {
         iter.into_iter().fold(Struct::unit(), |s, f| s.and(f))
     }
@@ -1122,7 +1122,7 @@ impl<P: Path> Index<P> for Struct {
 }
 
 impl Index<usize> for Struct {
-    type Output = Rc<DataType>;
+    type Output = Arc<DataType>;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.field_from_index(index).1
@@ -1132,11 +1132,11 @@ impl Index<usize> for Struct {
 /// Union variant
 #[derive(Debug, Clone, PartialEq)]
 pub struct Union {
-    fields: Vec<(String, Rc<DataType>)>,
+    fields: Vec<(String, Arc<DataType>)>,
 }
 
 impl Union {
-    pub fn new(fields: Vec<(String, Rc<DataType>)>) -> Union {
+    pub fn new(fields: Vec<(String, Arc<DataType>)>) -> Union {
         let mut uniques = HashSet::new();
         assert!(fields.iter().all(move |(f, _)| uniques.insert(f.clone())));
         Union { fields }
@@ -1146,7 +1146,7 @@ impl Union {
         Union::new(vec![])
     }
     /// Create from one field
-    pub fn from_field<S: Into<String>, T: Into<Rc<DataType>>>(s: S, t: T) -> Union {
+    pub fn from_field<S: Into<String>, T: Into<Arc<DataType>>>(s: S, t: T) -> Union {
         Union::new(vec![(s.into(), t.into())])
     }
     /// Create from one datatype
@@ -1160,22 +1160,22 @@ impl Union {
             .fold(Union::default(), |s, t| s.or(t.clone()))
     }
     /// Get all the fields
-    pub fn fields(&self) -> &[(String, Rc<DataType>)] {
+    pub fn fields(&self) -> &[(String, Arc<DataType>)] {
         self.fields.as_ref()
     }
     /// Get the field
-    pub fn field(&self, name: &str) -> Result<&(String, Rc<DataType>)> {
+    pub fn field(&self, name: &str) -> Result<&(String, Arc<DataType>)> {
         self.fields
             .iter()
             .find(|(f, _)| f == name)
             .map_or(Err(Error::InvalidField(name.to_string()).into()), |f| Ok(f))
     }
     /// Get the DataType associated with the field
-    pub fn data_type(&self, name: &str) -> Rc<DataType> {
+    pub fn data_type(&self, name: &str) -> Arc<DataType> {
         self.fields
             .iter()
             .find(|(f, _)| f == name)
-            .map_or(Rc::new(DataType::Null), |(_, t)| t.clone())
+            .map_or(Arc::new(DataType::Null), |(_, t)| t.clone())
     }
     /// Find the index of the field with the given name
     pub fn index_from_name(&self, name: &str) -> Result<usize> {
@@ -1185,7 +1185,7 @@ impl Union {
             .map_or(Err(Error::InvalidField(name.to_string()).into()), |i| Ok(i))
     }
     /// Access a field by index
-    pub fn field_from_index(&self, index: usize) -> &(String, Rc<DataType>) {
+    pub fn field_from_index(&self, index: usize) -> &(String, Arc<DataType>) {
         &self.fields[index]
     }
     // TODO This could be implemented with a visitor (it would not fail on cyclic cases)
@@ -1219,7 +1219,7 @@ impl hash::Hash for Union {
 
 /// To ease iteration
 impl Deref for Union {
-    type Target = [(String, Rc<DataType>)];
+    type Target = [(String, Arc<DataType>)];
 
     fn deref(&self) -> &Self::Target {
         &self.fields
@@ -1227,13 +1227,13 @@ impl Deref for Union {
 }
 
 /// This is the core operation to build a Union
-impl<S: Into<String>, T: Into<Rc<DataType>>> Or<(S, T)> for Union {
+impl<S: Into<String>, T: Into<Arc<DataType>>> Or<(S, T)> for Union {
     type Sum = Union;
     fn or(self, other: (S, T)) -> Self::Sum {
         let field: String = other.0.into();
-        let data_type: Rc<DataType> = other.1.into();
+        let data_type: Arc<DataType> = other.1.into();
         // Remove existing elements with the same name
-        let mut fields: Vec<(String, Rc<DataType>)> = self
+        let mut fields: Vec<(String, Arc<DataType>)> = self
             .fields
             .iter()
             .filter_map(|(f, t)| (&field != f).then_some((f.clone(), t.clone())))
@@ -1243,11 +1243,11 @@ impl<S: Into<String>, T: Into<Rc<DataType>>> Or<(S, T)> for Union {
     }
 }
 
-impl<T: Into<Rc<DataType>>> Or<(T,)> for Union {
+impl<T: Into<Arc<DataType>>> Or<(T,)> for Union {
     type Sum = Union;
     fn or(self, other: (T,)) -> Self::Sum {
         let field = namer::new_name_outside("", self.fields.iter().map(|(f, _t)| f));
-        let data_type: Rc<DataType> = other.0.into();
+        let data_type: Arc<DataType> = other.0.into();
         self.or((field, data_type))
     }
 }
@@ -1289,13 +1289,13 @@ impl Or<DataType> for Union {
     }
 }
 
-impl<S: Into<String>, T: Into<Rc<DataType>>> From<(S, T)> for Union {
+impl<S: Into<String>, T: Into<Arc<DataType>>> From<(S, T)> for Union {
     fn from(field: (S, T)) -> Self {
         Union::from_field(field.0, field.1)
     }
 }
 
-impl<S: Clone + Into<String>, T: Clone + Into<Rc<DataType>>> From<&[(S, T)]> for Union {
+impl<S: Clone + Into<String>, T: Clone + Into<Arc<DataType>>> From<&[(S, T)]> for Union {
     fn from(values: &[(S, T)]) -> Self {
         Union::new(
             values
@@ -1312,7 +1312,7 @@ impl From<value::Union> for Union {
     }
 }
 
-impl<S: Into<String>, T: Into<Rc<DataType>>> FromIterator<(S, T)> for Union {
+impl<S: Into<String>, T: Into<Arc<DataType>>> FromIterator<(S, T)> for Union {
     fn from_iter<I: IntoIterator<Item = (S, T)>>(iter: I) -> Self {
         iter.into_iter().fold(Union::null(), |s, f| s.or(f))
     }
@@ -1433,7 +1433,7 @@ impl<P: Path> Index<P> for Union {
 }
 
 impl Index<usize> for Union {
-    type Output = Rc<DataType>;
+    type Output = Arc<DataType>;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.field_from_index(index).1
@@ -1443,11 +1443,11 @@ impl Index<usize> for Union {
 /// Optional variant
 #[derive(Debug, Clone, PartialEq)]
 pub struct Optional {
-    data_type: Rc<DataType>,
+    data_type: Arc<DataType>,
 }
 
 impl Optional {
-    pub fn new(data_type: Rc<DataType>) -> Optional {
+    pub fn new(data_type: Arc<DataType>) -> Optional {
         Optional { data_type }
     }
 
@@ -1459,13 +1459,13 @@ impl Optional {
         let data_type = data_type.into();
         match data_type {
             DataType::Optional(o) => o,
-            _ => Optional::new(Rc::new(data_type)),
+            _ => Optional::new(Arc::new(data_type)),
         }
     }
 }
 
-impl From<Rc<DataType>> for Optional {
-    fn from(data_type: Rc<DataType>) -> Self {
+impl From<Arc<DataType>> for Optional {
+    fn from(data_type: Arc<DataType>) -> Self {
         Optional::new(data_type)
     }
 }
@@ -1566,12 +1566,12 @@ impl From<value::Optional> for Optional {
 /// Contrary to Structs List DataType is covariant in both data_type and max_size
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct List {
-    data_type: Rc<DataType>,
+    data_type: Arc<DataType>,
     size: Integer,
 }
 
 impl List {
-    pub fn new(data_type: Rc<DataType>, size: Integer) -> List {
+    pub fn new(data_type: Arc<DataType>, size: Integer) -> List {
         List {
             data_type,
             size: size.intersection(Integer::from_min(0)),
@@ -1579,7 +1579,7 @@ impl List {
     }
 
     pub fn from_data_type_size(data_type: DataType, size: Integer) -> List {
-        List::new(Rc::new(data_type), size)
+        List::new(Arc::new(data_type), size)
     }
 
     pub fn from_data_type(data_type: DataType) -> List {
@@ -1595,15 +1595,15 @@ impl List {
     }
 }
 
-impl From<(Rc<DataType>, Integer)> for List {
-    fn from(data_type_size: (Rc<DataType>, Integer)) -> Self {
+impl From<(Arc<DataType>, Integer)> for List {
+    fn from(data_type_size: (Arc<DataType>, Integer)) -> Self {
         List::new(data_type_size.0, data_type_size.1)
     }
 }
 
 impl From<(DataType, Integer)> for List {
     fn from(data_type_size: (DataType, Integer)) -> Self {
-        List::new(Rc::new(data_type_size.0), data_type_size.1)
+        List::new(Arc::new(data_type_size.0), data_type_size.1)
     }
 }
 
@@ -1679,12 +1679,12 @@ impl From<value::List> for List {
 /// Contrary to Structs Set DataType is covariant in both data_type and max_size
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Set {
-    data_type: Rc<DataType>,
+    data_type: Arc<DataType>,
     size: Integer,
 }
 
 impl Set {
-    pub fn new(data_type: Rc<DataType>, size: Integer) -> Set {
+    pub fn new(data_type: Arc<DataType>, size: Integer) -> Set {
         Set {
             data_type,
             size: size.intersection(Integer::from_min(0)),
@@ -1692,7 +1692,7 @@ impl Set {
     }
 
     pub fn from_data_type_size(data_type: DataType, size: Integer) -> Set {
-        Set::new(Rc::new(data_type), size)
+        Set::new(Arc::new(data_type), size)
     }
 
     pub fn from_data_type(data_type: DataType) -> Set {
@@ -1708,15 +1708,15 @@ impl Set {
     }
 }
 
-impl From<(Rc<DataType>, Integer)> for Set {
-    fn from(data_type_size: (Rc<DataType>, Integer)) -> Self {
+impl From<(Arc<DataType>, Integer)> for Set {
+    fn from(data_type_size: (Arc<DataType>, Integer)) -> Self {
         Set::new(data_type_size.0, data_type_size.1)
     }
 }
 
 impl From<(DataType, Integer)> for Set {
     fn from(data_type_size: (DataType, Integer)) -> Self {
-        Set::new(Rc::new(data_type_size.0), data_type_size.1)
+        Set::new(Arc::new(data_type_size.0), data_type_size.1)
     }
 }
 
@@ -1791,18 +1791,18 @@ impl From<value::Set> for Set {
 /// Array variant
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Array {
-    data_type: Rc<DataType>,
-    shape: Rc<[usize]>,
+    data_type: Arc<DataType>,
+    shape: Arc<[usize]>,
 }
 
 impl Array {
     // TODO do as lists and sets
-    pub fn new(data_type: Rc<DataType>, shape: Rc<[usize]>) -> Array {
+    pub fn new(data_type: Arc<DataType>, shape: Arc<[usize]>) -> Array {
         Array { data_type, shape }
     }
 
     pub fn from_data_type_shape<S: AsRef<[usize]>>(data_type: DataType, shape: S) -> Array {
-        Array::new(Rc::new(data_type), Rc::from(shape.as_ref()))
+        Array::new(Arc::new(data_type), Arc::from(shape.as_ref()))
     }
 
     pub fn data_type(&self) -> &DataType {
@@ -1814,15 +1814,15 @@ impl Array {
     }
 }
 
-impl From<(Rc<DataType>, &[usize])> for Array {
-    fn from(data_type_shape: (Rc<DataType>, &[usize])) -> Self {
-        Array::new(data_type_shape.0, Rc::from(data_type_shape.1))
+impl From<(Arc<DataType>, &[usize])> for Array {
+    fn from(data_type_shape: (Arc<DataType>, &[usize])) -> Self {
+        Array::new(data_type_shape.0, Arc::from(data_type_shape.1))
     }
 }
 
 impl From<(DataType, &[usize])> for Array {
     fn from(data_type_shape: (DataType, &[usize])) -> Self {
-        Array::new(Rc::new(data_type_shape.0), Rc::from(data_type_shape.1))
+        Array::new(Arc::new(data_type_shape.0), Arc::from(data_type_shape.1))
     }
 }
 
@@ -2074,13 +2074,13 @@ impl From<value::Duration> for Duration {
 #[derive(Default, Debug, Clone, Hash, PartialEq)]
 pub struct Id {
     /// This should be None if Id is an identifier or the type referred to
-    reference: Option<Rc<Id>>,
+    reference: Option<Arc<Id>>,
     /// If entries are unique
     unique: bool,
 }
 
 impl Id {
-    pub fn new(reference: Option<Rc<Id>>, unique: bool) -> Id {
+    pub fn new(reference: Option<Arc<Id>>, unique: bool) -> Id {
         Id { reference, unique }
     }
 
@@ -2093,8 +2093,8 @@ impl Id {
     }
 }
 
-impl From<(Option<Rc<Id>>, bool)> for Id {
-    fn from(ref_unique: (Option<Rc<Id>>, bool)) -> Self {
+impl From<(Option<Arc<Id>>, bool)> for Id {
+    fn from(ref_unique: (Option<Arc<Id>>, bool)) -> Self {
         let (reference, unique) = ref_unique;
         Id::new(reference, unique)
     }
@@ -2103,7 +2103,7 @@ impl From<(Option<Rc<Id>>, bool)> for Id {
 impl From<(Option<Id>, bool)> for Id {
     fn from(ref_unique: (Option<Id>, bool)) -> Self {
         let (reference, unique) = ref_unique;
-        Id::new(reference.map(Rc::new), unique)
+        Id::new(reference.map(Arc::new), unique)
     }
 }
 
@@ -2173,12 +2173,12 @@ impl InjectInto<DataType> for Id {
 /// Function variant
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Function {
-    pub domain: Rc<DataType>,
-    pub co_domain: Rc<DataType>,
+    pub domain: Arc<DataType>,
+    pub co_domain: Arc<DataType>,
 }
 
 impl Function {
-    pub fn new(from: Rc<DataType>, to: Rc<DataType>) -> Function {
+    pub fn new(from: Arc<DataType>, to: Arc<DataType>) -> Function {
         Function {
             domain: from,
             co_domain: to,
@@ -2186,7 +2186,7 @@ impl Function {
     }
 
     pub fn from_data_types(from: DataType, to: DataType) -> Function {
-        Function::new(Rc::new(from), Rc::new(to))
+        Function::new(Arc::new(from), Arc::new(to))
     }
 
     pub fn domain(&self) -> &DataType {
@@ -2198,8 +2198,8 @@ impl Function {
     }
 }
 
-impl From<(Rc<DataType>, Rc<DataType>)> for Function {
-    fn from(dom_co_dom: (Rc<DataType>, Rc<DataType>)) -> Self {
+impl From<(Arc<DataType>, Arc<DataType>)> for Function {
+    fn from(dom_co_dom: (Arc<DataType>, Arc<DataType>)) -> Self {
         let (dom, co_dom) = dom_co_dom;
         Function::new(dom, co_dom)
     }
@@ -2393,7 +2393,7 @@ impl DataType {
         )
     }
 
-    pub fn fields(&self) -> &[(String, Rc<DataType>)] {
+    pub fn fields(&self) -> &[(String, Arc<DataType>)] {
         match self {
             DataType::Struct(s) => s.fields(),
             DataType::Union(u) => u.fields(),
@@ -2755,7 +2755,7 @@ impl DataType {
 
     pub fn structured<
         S: Clone + Into<String>,
-        T: Clone + Into<Rc<DataType>>,
+        T: Clone + Into<Arc<DataType>>,
         F: AsRef<[(S, T)]>,
     >(
         fields: F,
@@ -2913,7 +2913,7 @@ impl And<DataType> for DataType {
     }
 }
 
-impl<S: Into<String>, T: Into<Rc<DataType>>> And<(S, T)> for DataType {
+impl<S: Into<String>, T: Into<Arc<DataType>>> And<(S, T)> for DataType {
     type Product = DataType;
     fn and(self, other: (S, T)) -> Self::Product {
         self.and(DataType::from(Struct::from(other)))
@@ -2944,7 +2944,7 @@ impl Or<DataType> for DataType {
     }
 }
 
-impl<S: Into<String>, T: Into<Rc<DataType>>> Or<(S, T)> for DataType {
+impl<S: Into<String>, T: Into<Arc<DataType>>> Or<(S, T)> for DataType {
     type Sum = DataType;
     fn or(self, other: (S, T)) -> Self::Sum {
         self.or(DataType::from(Union::from(other)))
@@ -3079,14 +3079,14 @@ impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
     fn list(&self, data_type: (bool, DataType), size: &'a Integer) -> (bool, DataType) {
         (
             data_type.0,
-            List::new(Rc::new(data_type.1), size.clone()).into(),
+            List::new(Arc::new(data_type.1), size.clone()).into(),
         )
     }
 
     fn set(&self, data_type: (bool, DataType), size: &'a Integer) -> (bool, DataType) {
         (
             data_type.0,
-            Set::new(Rc::new(data_type.1), size.clone()).into(),
+            Set::new(Arc::new(data_type.1), size.clone()).into(),
         )
     }
 

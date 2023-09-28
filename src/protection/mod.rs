@@ -10,7 +10,7 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
-use std::{error, fmt, ops::Deref, rc::Rc, result};
+use std::{error, fmt, ops::Deref, sync::Arc, result};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -227,7 +227,7 @@ pub fn protect_visitor_from_exprs<'a>(
 
 /// Build a visitor from exprs
 pub fn protect_visitor_from_field_paths<'a>(
-    relations: &'a Hierarchy<Rc<Relation>>,
+    relations: &'a Hierarchy<Arc<Relation>>,
     protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     strategy: Strategy,
 ) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
@@ -368,7 +368,7 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
                         b.with((n, Expr::col(n)))
                     }
                 });
-                let relation: Relation = builder.input(Rc::new(join.into())).build();
+                let relation: Relation = builder.input(Arc::new(join.into())).build();
 
                 PEPRelation::try_from(relation)
             }
@@ -424,7 +424,7 @@ impl Relation {
     /// Add protection
     pub fn protect_from_field_paths<'a>(
         self,
-        relations: &'a Hierarchy<Rc<Relation>>,
+        relations: &'a Hierarchy<Arc<Relation>>,
         protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_field_paths(
@@ -455,7 +455,7 @@ impl Relation {
     /// Force protection
     pub fn force_protect_from_field_paths<'a>(
         self,
-        relations: &'a Hierarchy<Rc<Relation>>,
+        relations: &'a Hierarchy<Arc<Relation>>,
         protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     ) -> PEPRelation {
         self.accept(protect_visitor_from_field_paths(

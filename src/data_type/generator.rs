@@ -5,7 +5,7 @@ use rand::{
     seq::IteratorRandom,
     Rng,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, sync::Arc};
 
 use super::{
     intervals,
@@ -138,12 +138,12 @@ impl<'a, R: Rng> visitor::Visitor<'a, DataType, Value> for Visitor<R> {
                     .map(|(s, t)| (s, dependencies.get(&**t)))
                     .choose(&mut *self.0.borrow_mut())
                     .unwrap();
-                (s.clone(), Rc::new(v.clone())).into()
+                (s.clone(), Arc::new(v.clone())).into()
             }
             DataType::Optional(o) => {
                 let is_some: bool = Standard.sample(&mut *self.0.borrow_mut());
                 is_some
-                    .then(|| Rc::new(dependencies.get(o.data_type()).clone()))
+                    .then(|| Arc::new(dependencies.get(o.data_type()).clone()))
                     .into()
             }
             DataType::Date(d) => d.generate(&mut *self.0.borrow_mut()).into(),

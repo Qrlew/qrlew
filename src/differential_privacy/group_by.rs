@@ -179,7 +179,7 @@ mod tests {
         protection::{PE_ID, PE_WEIGHT},
         relation::Schema,
     };
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_tau_thresholding_values() {
@@ -307,7 +307,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))]
+        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
             .into_iter()
             .collect();
         let (epsilon, delta) = (1., 1e-3);
@@ -426,7 +426,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let relations: Hierarchy<Rc<Relation>> = vec![("table", Rc::new(table.clone()))]
+        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
             .into_iter()
             .collect();
         let (epsilon, delta) = (1., 1e-3);

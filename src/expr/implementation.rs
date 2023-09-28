@@ -5,7 +5,7 @@ use crate::data_type::{
 };
 use paste::paste;
 use rand::thread_rng;
-use std::rc::Rc;
+use std::sync::Arc;
 
 macro_rules! function_implementations {
     ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], $function:ident, $default:block) => {
@@ -13,21 +13,21 @@ macro_rules! function_implementations {
             // A (thread local) global map
             thread_local! {
                 static FUNCTION_IMPLEMENTATIONS: FunctionImplementations = FunctionImplementations {
-                    $([< $unary:snake >]: Rc::new(Optional::new(function::[< $unary:snake >]())),)*
-                    $([< $binary:snake >]: Rc::new(Optional::new(function::[< $binary:snake >]())),)*
-                    $([< $ternary:snake >]: Rc::new(Optional::new(function::[< $ternary:snake >]())),)*
+                    $([< $unary:snake >]: Arc::new(Optional::new(function::[< $unary:snake >]())),)*
+                    $([< $binary:snake >]: Arc::new(Optional::new(function::[< $binary:snake >]())),)*
+                    $([< $ternary:snake >]: Arc::new(Optional::new(function::[< $ternary:snake >]())),)*
                 };
             }
 
             /// A struct containing all implementations
             struct FunctionImplementations {
-                $(pub [< $unary:snake >]: Rc<dyn function::Function>,)*
-                $(pub [< $binary:snake >]: Rc<dyn function::Function>,)*
-                $(pub [< $ternary:snake >]: Rc<dyn function::Function>,)*
+                $(pub [< $unary:snake >]: Arc<dyn function::Function>,)*
+                $(pub [< $binary:snake >]: Arc<dyn function::Function>,)*
+                $(pub [< $ternary:snake >]: Arc<dyn function::Function>,)*
             }
 
             /// The object to access implementations
-            pub fn function(function: Function) -> Rc<dyn function::Function> {
+            pub fn function(function: Function) -> Arc<dyn function::Function> {
                 match function {
                     $(Function::$unary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $unary:snake >].clone()),)*
                     $(Function::$binary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $binary:snake >].clone()),)*
@@ -77,12 +77,12 @@ function_implementations!(
     x,
     {
         match x {
-            Function::CastAsText => Rc::new(function::cast(DataType::text())),
-            Function::CastAsInteger => Rc::new(function::cast(DataType::integer())),
-            Function::CastAsFloat => Rc::new(function::cast(DataType::float())),
-            Function::CastAsDateTime => Rc::new(function::cast(DataType::date_time())),
-            Function::Concat(n) => Rc::new(function::concat(n)),
-            Function::Random(n) => Rc::new(function::random(thread_rng())), //TODO change this initialization
+            Function::CastAsText => Arc::new(function::cast(DataType::text())),
+            Function::CastAsInteger => Arc::new(function::cast(DataType::integer())),
+            Function::CastAsFloat => Arc::new(function::cast(DataType::float())),
+            Function::CastAsDateTime => Arc::new(function::cast(DataType::date_time())),
+            Function::Concat(n) => Arc::new(function::concat(n)),
+            Function::Random(n) => Arc::new(function::random(thread_rng())), //TODO change this initialization
             _ => unreachable!(),
         }
     }
@@ -94,17 +94,17 @@ macro_rules! aggregate_implementations {
             // A (thread local) global map
             thread_local! {
                 static AGGREGATE_IMPLEMENTATIONS: AggregateImplementations = AggregateImplementations {
-                    $([< $implementation:snake >]: Rc::new(Optional::new(function::[< $implementation:snake >]())),)*
+                    $([< $implementation:snake >]: Arc::new(Optional::new(function::[< $implementation:snake >]())),)*
                 };
             }
 
             /// A struct containing all implementations
             struct AggregateImplementations {
-                $(pub [< $implementation:snake >]: Rc<dyn function::Function>,)*
+                $(pub [< $implementation:snake >]: Arc<dyn function::Function>,)*
             }
 
             /// The object to access implementations
-            pub fn aggregate(aggregate: Aggregate) -> Rc<dyn function::Function> {
+            pub fn aggregate(aggregate: Aggregate) -> Arc<dyn function::Function> {
                 match aggregate {
                     $(Aggregate::$implementation => AGGREGATE_IMPLEMENTATIONS.with(|impls| impls.[< $implementation:snake >].clone()),)*
                     $aggregate => $default
@@ -119,8 +119,8 @@ aggregate_implementations!(
     x,
     {
         match x {
-            Aggregate::Quantile(p) => Rc::new(function::quantile(p)),
-            Aggregate::Quantiles(p) => Rc::new(function::quantiles(p.iter().cloned().collect())),
+            Aggregate::Quantile(p) => Arc::new(function::quantile(p)),
+            Aggregate::Quantiles(p) => Arc::new(function::quantiles(p.iter().cloned().collect())),
             _ => unreachable!(),
         }
     }

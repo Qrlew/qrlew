@@ -253,10 +253,10 @@ impl<'a, O: Clone, V: Visitor<'a, A, O>, A: Acceptor<'a>> iter::Iterator for Ite
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{fmt, rc::Rc};
+    use std::{fmt, sync::Arc};
 
     #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    struct Node(&'static str, Vec<Rc<Node>>);
+    struct Node(&'static str, Vec<Arc<Node>>);
 
     impl fmt::Display for Node {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -279,17 +279,17 @@ mod tests {
     }
 
     fn build_diamond() -> Node {
-        let a = Rc::new(Node("A", vec![]));
-        let b = Rc::new(Node("B", vec![a.clone()]));
-        let c = Rc::new(Node("C", vec![a]));
+        let a = Arc::new(Node("A", vec![]));
+        let b = Arc::new(Node("B", vec![a.clone()]));
+        let c = Arc::new(Node("C", vec![a]));
         Node("D", vec![b, c])
     }
 
     fn build_open_diamond() -> Node {
         let a = Node("A", vec![]);
-        let b = Node("B", vec![Rc::new(a.clone())]);
-        let c = Node("C", vec![Rc::new(a)]);
-        Node("D", vec![Rc::new(b), Rc::new(c)])
+        let b = Node("B", vec![Arc::new(a.clone())]);
+        let c = Node("C", vec![Arc::new(a)]);
+        Node("D", vec![Arc::new(b), Arc::new(c)])
     }
 
     #[test]
@@ -309,9 +309,9 @@ mod tests {
     }
 
     fn build_semi_diamond() -> Node {
-        let a = Rc::new(Node("A", vec![]));
-        let b = Rc::new(Node("B", vec![a.clone()]));
-        let c = Rc::new(Node("C", vec![a.clone(), b.clone()]));
+        let a = Arc::new(Node("A", vec![]));
+        let b = Arc::new(Node("B", vec![a.clone()]));
+        let c = Arc::new(Node("C", vec![a.clone(), b.clone()]));
         (*c).clone()
     }
 

@@ -6,7 +6,7 @@ use std::{
     error, fmt,
     hash::Hasher,
     ops::Deref,
-    rc::Rc,
+    sync::Arc,
     result,
 };
 
@@ -156,7 +156,7 @@ where
 pub struct Stateful {
     domain: DataType,
     co_domain: DataType,
-    value: Rc<RefCell<dyn FnMut(Value) -> Value>>,
+    value: Arc<RefCell<dyn FnMut(Value) -> Value>>,
 }
 
 impl Stateful {
@@ -164,7 +164,7 @@ impl Stateful {
     pub fn new(
         domain: DataType,
         co_domain: DataType,
-        value: Rc<RefCell<dyn FnMut(Value) -> Value>>,
+        value: Arc<RefCell<dyn FnMut(Value) -> Value>>,
     ) -> Self {
         Stateful {
             domain,
@@ -206,12 +206,12 @@ impl Function for Stateful {
 pub struct Pointwise {
     domain: DataType,
     co_domain: DataType,
-    value: Rc<dyn Fn(Value) -> Value>,
+    value: Arc<dyn Fn(Value) -> Value>,
 }
 
 impl Pointwise {
     /// Constructor for Generic
-    pub fn new(domain: DataType, co_domain: DataType, value: Rc<dyn Fn(Value) -> Value>) -> Self {
+    pub fn new(domain: DataType, co_domain: DataType, value: Arc<dyn Fn(Value) -> Value>) -> Self {
         Pointwise {
             domain,
             co_domain,
@@ -231,7 +231,7 @@ impl Pointwise {
         Self::new(
             domain.into(),
             co_domain.into(),
-            Rc::new(move |a| {
+            Arc::new(move |a| {
                 let a = <A::Element as value::Variant>::Wrapped::try_from(a).unwrap();
                 value(a).into()
             }),
@@ -258,7 +258,7 @@ impl Pointwise {
         Self::new(
             domain.into(),
             co_domain.into(),
-            Rc::new(move |ab| {
+            Arc::new(move |ab| {
                 let ab = value::Struct::try_from(ab).unwrap();
                 let a = <A::Element as value::Variant>::Wrapped::try_from(ab[0].as_ref().clone())
                     .unwrap();
@@ -286,7 +286,7 @@ impl Pointwise {
         Self::new(
             domain.into(),
             co_domain.into(),
-            Rc::new(move |v| {
+            Arc::new(move |v| {
                 let v = value::Struct::try_from(v).unwrap();
                 let v: Vec<<D::Element as value::Variant>::Wrapped> = v
                     .into_iter()
@@ -376,8 +376,8 @@ where
     T: From<<Prod::IntervalProduct as IntervalProduct>::BoundProduct>,
 {
     domain: Prod,
-    partition: Rc<dyn Fn(P) -> Vec<P>>,
-    value: Rc<dyn Fn(T) -> U>,
+    partition: Arc<dyn Fn(P) -> Vec<P>>,
+    value: Arc<dyn Fn(T) -> U>,
 }
 
 impl<P, T, Prod: IntervalsProduct, U: Bound> PartitionnedMonotonic<P, T, Prod, U>
@@ -388,8 +388,8 @@ where
     /// Constructor for Base Maps
     pub fn new(
         domain: Prod,
-        partition: Rc<dyn Fn(P) -> Vec<P>>,
-        value: Rc<dyn Fn(T) -> U>,
+        partition: Arc<dyn Fn(P) -> Vec<P>>,
+        value: Arc<dyn Fn(T) -> U>,
     ) -> Self {
         PartitionnedMonotonic {
             domain,
@@ -404,8 +404,8 @@ where
     {
         Self::new(
             domain.clone().into(),
-            Rc::new(move |set: P| vec![set.into().intersection(&domain.clone().into()).into()]),
-            Rc::new(value),
+            Arc::new(move |set: P| vec![set.into().intersection(&domain.clone().into()).into()]),
+            Arc::new(value),
         )
     }
 
@@ -434,7 +434,7 @@ where
                 })
                 .collect()
         };
-        Self::new(domain, Rc::new(partition), Rc::new(value))
+        Self::new(domain, Arc::new(partition), Arc::new(value))
     }
 }
 
@@ -444,8 +444,8 @@ impl<A: Bound + 'static, B: Bound>
     pub fn univariate(domain: Intervals<A>, value: impl Fn(A) -> B + 'static) -> Self {
         Self::new(
             domain.clone().into(),
-            Rc::new(move |set: Intervals<A>| vec![set.intersection(domain.clone())]),
-            Rc::new(move |arg: (A,)| value(arg.0)),
+            Arc::new(move |set: Intervals<A>| vec![set.intersection(domain.clone())]),
+            Arc::new(move |arg: (A,)| value(arg.0)),
         )
     }
 
@@ -485,8 +485,8 @@ impl PartitionnedMonotonic<Intervals<f64>, (f64,), Term<Intervals<f64>, Unit>, f
         };
         Self::new(
             Term::from_value_next(Intervals::default(), Unit),
-            Rc::new(partition),
-            Rc::new(move |(a,)| value(a)),
+            Arc::new(partition),
+            Arc::new(move |(a,)| value(a)),
         )
     }
 }
@@ -737,8 +737,8 @@ where
     B: Into<DataType>,
 {
     aggregation_domain: A,
-    value: Rc<dyn Fn(Vec<A::Element>) -> B::Element>,
-    super_image: Rc<dyn Fn((A, Integer)) -> Result<B>>,
+    value: Arc<dyn Fn(Vec<A::Element>) -> B::Element>,
+    super_image: Arc<dyn Fn((A, Integer)) -> Result<B>>,
 }
 
 impl<A: Variant, B: Variant> Aggregate<A, B>
@@ -753,8 +753,8 @@ where
     /// Constructor for Generic
     pub fn new(
         aggregation_domain: A,
-        value: Rc<dyn Fn(Vec<A::Element>) -> B::Element>,
-        super_image: Rc<dyn Fn((A, Integer)) -> Result<B>>,
+        value: Arc<dyn Fn(Vec<A::Element>) -> B::Element>,
+        super_image: Arc<dyn Fn((A, Integer)) -> Result<B>>,
     ) -> Self {
         Aggregate {
             aggregation_domain,
@@ -769,7 +769,7 @@ where
         value: impl Fn(Vec<A::Element>) -> B::Element + 'static,
         super_image: impl Fn((A, Integer)) -> Result<B> + 'static,
     ) -> Self {
-        Aggregate::new(aggregation_domain, Rc::new(value), Rc::new(super_image))
+        Aggregate::new(aggregation_domain, Arc::new(value), Arc::new(super_image))
     }
 }
 
@@ -839,18 +839,18 @@ where
 //     value: ValueFunction,
 // }
 #[derive(Debug, Default)]
-pub struct Polymorphic(Vec<Rc<dyn Function>>);
+pub struct Polymorphic(Vec<Arc<dyn Function>>);
 
 impl Polymorphic {
     /// Constructor for Polymorphic
-    pub fn new(implementations: Vec<Rc<dyn Function>>) -> Self {
+    pub fn new(implementations: Vec<Arc<dyn Function>>) -> Self {
         Polymorphic(implementations)
     }
 }
 
 impl<F: Function + 'static, G: Function + 'static> From<(F, G)> for Polymorphic {
     fn from((f, g): (F, G)) -> Self {
-        Polymorphic(vec![Rc::new(f), Rc::new(g)])
+        Polymorphic(vec![Arc::new(f), Arc::new(g)])
     }
 }
 
@@ -858,19 +858,19 @@ impl<F: Function + 'static, G: Function + 'static, H: Function + 'static> From<(
     for Polymorphic
 {
     fn from((f, g, h): (F, G, H)) -> Self {
-        Polymorphic(vec![Rc::new(f), Rc::new(g), Rc::new(h)])
+        Polymorphic(vec![Arc::new(f), Arc::new(g), Arc::new(h)])
     }
 }
 
 impl<F: Function + 'static> With<F> for Polymorphic {
     fn with(mut self, input: F) -> Self {
-        self.0.push(Rc::new(input));
+        self.0.push(Arc::new(input));
         self
     }
 }
 
-impl<const N: usize> From<[Rc<dyn Function>; N]> for Polymorphic {
-    fn from(fs: [Rc<dyn Function>; N]) -> Self {
+impl<const N: usize> From<[Arc<dyn Function>; N]> for Polymorphic {
+    fn from(fs: [Arc<dyn Function>; N]) -> Self {
         Polymorphic(fs.into_iter().map(|f| f).collect())
     }
 }
@@ -965,7 +965,7 @@ impl Function for Case {
 
     fn value(&self, arg: &Value) -> Result<Value> {
         if let Value::Struct(struct_values) = arg {
-            if struct_values.field_from_index(0).1 == Rc::new(Value::boolean(true)) {
+            if struct_values.field_from_index(0).1 == Arc::new(Value::boolean(true)) {
                 Ok(struct_values.field_from_index(1).1.as_ref().clone())
             } else {
                 Ok(struct_values.field_from_index(2).1.as_ref().clone())
@@ -1231,7 +1231,7 @@ pub fn md5() -> impl Function {
     Stateful::new(
         DataType::text(),
         DataType::text(),
-        Rc::new(RefCell::new(|v| {
+        Arc::new(RefCell::new(|v| {
             let mut s = collections::hash_map::DefaultHasher::new();
             Bound::hash((value::Text::try_from(v).unwrap()).deref(), &mut s);
             Encoder::new(BASE_64, 10).encode(s.finish()).into()
@@ -1243,7 +1243,7 @@ pub fn random<R: rand::Rng + 'static>(mut rng: R) -> impl Function {
     Stateful::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
-        Rc::new(RefCell::new(move |v| rng.gen::<f64>().into())),
+        Arc::new(RefCell::new(move |v| rng.gen::<f64>().into())),
     )
 }
 
@@ -1600,7 +1600,7 @@ pub fn position() -> impl Function {
         |a, b| {
             Value::Optional(value::Optional::new(
                 a.find(&b)
-                    .map(|v| Rc::new(Value::integer(v.try_into().unwrap()))),
+                    .map(|v| Arc::new(Value::integer(v.try_into().unwrap()))),
             ))
         },
     )

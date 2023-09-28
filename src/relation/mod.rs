@@ -14,7 +14,7 @@ pub mod transforms;
 use std::{
     cmp, error, fmt, hash,
     ops::{Deref, Index},
-    rc::Rc,
+    sync::Arc,
     result,
 };
 
@@ -263,7 +263,7 @@ pub struct Map {
     /// The size of the Map
     size: Integer,
     /// The incoming logical plan
-    input: Rc<Relation>,
+    input: Arc<Relation>,
 }
 
 impl Map {
@@ -277,7 +277,7 @@ impl Map {
         filter: Option<Expr>,
         order_by: Vec<OrderBy>,
         limit: Option<usize>,
-        input: Rc<Relation>,
+        input: Arc<Relation>,
     ) -> Self {
         assert!(Split::from_iter(named_exprs.clone()).len() == 1);
         let (schema, exprs) = Map::schema_exprs(named_exprs, &filter, &input);
@@ -456,7 +456,7 @@ pub struct Reduce {
     /// The size of the Reduce
     size: Integer,
     /// The incoming relation
-    input: Rc<Relation>,
+    input: Arc<Relation>,
 }
 
 impl Reduce {
@@ -468,7 +468,7 @@ impl Reduce {
         name: String,
         named_aggregate: Vec<(String, AggregateColumn)>,
         group_by: Vec<Expr>,
-        input: Rc<Relation>,
+        input: Arc<Relation>,
     ) -> Self {
         // assert!(Split::from_iter(named_exprs.clone()).len()==1);
         let (schema, aggregate) = Reduce::schema_aggregate(named_aggregate, &input);
@@ -795,9 +795,9 @@ pub struct Join {
     /// The size of the Join
     size: Integer,
     /// Left input
-    left: Rc<Relation>,
+    left: Arc<Relation>,
     /// Right input
-    right: Rc<Relation>,
+    right: Arc<Relation>,
 }
 
 impl Join {
@@ -806,8 +806,8 @@ impl Join {
         left_names: Vec<String>,
         right_names: Vec<String>,
         operator: JoinOperator,
-        left: Rc<Relation>,
-        right: Rc<Relation>,
+        left: Arc<Relation>,
+        right: Arc<Relation>,
     ) -> Self {
         let schema = Join::schema(left_names, right_names, &left, &right, &operator);
         // The size of the join can go from 0 to
@@ -1052,9 +1052,9 @@ pub struct Set {
     /// The size of the Set
     size: Integer,
     /// Left input
-    left: Rc<Relation>,
+    left: Arc<Relation>,
     /// Right input
-    right: Rc<Relation>,
+    right: Arc<Relation>,
 }
 
 impl Set {
@@ -1063,8 +1063,8 @@ impl Set {
         names: Vec<String>,
         operator: SetOperator,
         quantifier: SetQuantifier,
-        left: Rc<Relation>,
-        right: Rc<Relation>,
+        left: Arc<Relation>,
+        right: Arc<Relation>,
     ) -> Self {
         let schema = Set::schema(names, &operator, &quantifier, &left, &right);
         // The size of the join can go from 0 to
@@ -1772,7 +1772,7 @@ mod tests {
         println!("join = {}", join);
     }
 
-    fn build_complex_relation() -> Rc<Relation> {
+    fn build_complex_relation() -> Arc<Relation> {
         namer::reset();
         let schema: Schema = vec![
             ("a", DataType::float()),
@@ -1782,14 +1782,14 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let table: Rc<Relation> = Rc::new(
+        let table: Arc<Relation> = Arc::new(
             Relation::table()
                 .name("table")
                 .schema(schema.clone())
                 .size(1000)
                 .build(),
         );
-        let map: Rc<Relation> = Rc::new(
+        let map: Arc<Relation> = Arc::new(
             Relation::map()
                 .name("map_1")
                 .with(Expr::exp(Expr::col("a")))
@@ -1797,7 +1797,7 @@ mod tests {
                 .with(Expr::col("b") + Expr::col("d"))
                 .build(),
         );
-        let join: Rc<Relation> = Rc::new(
+        let join: Arc<Relation> = Arc::new(
             Relation::join()
                 .name("join")
                 .cross()
@@ -1805,7 +1805,7 @@ mod tests {
                 .right(map.clone())
                 .build(),
         );
-        let map_2: Rc<Relation> = Rc::new(
+        let map_2: Arc<Relation> = Arc::new(
             Relation::map()
                 .name("map_2")
                 .with(Expr::exp(Expr::col(join[4].name())))
@@ -1813,7 +1813,7 @@ mod tests {
                 .with(Expr::col(join[0].name()) + Expr::col(join[1].name()))
                 .build(),
         );
-        let join_2: Rc<Relation> = Rc::new(
+        let join_2: Arc<Relation> = Arc::new(
             Relation::join()
                 .name("join_2")
                 .cross()
@@ -1856,14 +1856,14 @@ mod tests {
         .into_iter()
         .collect();
         println!("Schema: {}", schema);
-        let table: Rc<Relation> = Rc::new(
+        let table: Arc<Relation> = Arc::new(
             Relation::table()
                 .name("table")
                 .schema(schema.clone())
                 .build(),
         );
         println!("Table: {}", table);
-        let map: Rc<Relation> = Rc::new(
+        let map: Arc<Relation> = Arc::new(
             Relation::map()
                 .name("map_1")
                 .with(Expr::exp(Expr::col("a")))
@@ -1886,7 +1886,7 @@ mod tests {
         .into_iter()
         .collect();
         println!("Schema: {}", schema);
-        let table: Rc<Relation> = Rc::new(
+        let table: Arc<Relation> = Arc::new(
             Relation::table()
                 .name("table")
                 .schema(schema.clone())
@@ -1894,7 +1894,7 @@ mod tests {
                 .build(),
         );
         println!("Table: {}", table);
-        let map: Rc<Relation> = Rc::new(
+        let map: Arc<Relation> = Arc::new(
             Relation::map()
                 .name("map_1")
                 .with(("a", expr!(cos(count(d) + 1))))

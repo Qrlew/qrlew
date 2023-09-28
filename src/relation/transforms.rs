@@ -17,7 +17,7 @@ use std::{
     error, fmt,
     num::ParseFloatError,
     ops::{self, Deref},
-    rc::Rc,
+    sync::Arc,
     result,
 };
 
@@ -438,7 +438,7 @@ impl Relation {
     pub fn with_referred_field<'a>(
         self,
         referring_id: &'a str,
-        referred_relation: Rc<Relation>,
+        referred_relation: Arc<Relation>,
         referred_id: &'a str,
         referred_field: &'a str,
         referred_field_name: &'a str,
@@ -486,7 +486,7 @@ impl Relation {
     /// Add a field designated with a "field path"
     pub fn with_field_path<'a>(
         self,
-        relations: &'a Hierarchy<Rc<Relation>>,
+        relations: &'a Hierarchy<Arc<Relation>>,
         path: &'a [(&'a str, &'a str, &'a str)],
         referred_field: &'a str,
         referred_field_name: &'a str,
@@ -868,7 +868,7 @@ impl Relation {
         aggregates.into_iter().for_each(|(c, agg)| {
             aggregates_exprs.push((
                 c,
-                Expr::Aggregate(Aggregate::new(agg, Rc::new(Expr::col(column)))),
+                Expr::Aggregate(Aggregate::new(agg, Arc::new(Expr::col(column)))),
             ))
         });
         red.ordered_reduce(grouping_exprs, aggregates_exprs)
@@ -985,7 +985,7 @@ mod tests {
                 .unwrap();
         let user = relations.get(&["user_table".to_string()]).unwrap().as_ref();
         let relation =
-            orders.with_referred_field("user_id", Rc::new(user.clone()), "id", "id", "peid");
+            orders.with_referred_field("user_id", Arc::new(user.clone()), "id", "id", "peid");
         assert!(relation.schema()[0].name() == "peid");
         let relation = relation.filter_fields(|n| n != "peid");
         assert!(relation.schema()[0].name() != "peid");
@@ -2007,7 +2007,7 @@ mod tests {
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         assert_eq!(red, red_with_grouping_columns);
@@ -2020,7 +2020,7 @@ mod tests {
                 ("b".to_string(), AggregateColumn::first("b")),
             ],
             vec![Expr::col("b")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
@@ -2039,7 +2039,7 @@ mod tests {
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
             vec![Expr::col("b")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         assert_eq!(red_with_grouping_columns.aggregate().len(), 2);
@@ -2061,7 +2061,7 @@ mod tests {
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
             ],
             vec![Expr::col("b"), Expr::col("c")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         let names_aggs = vec!["b", "sum_a", "c"];
@@ -2083,7 +2083,7 @@ mod tests {
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
             ],
             vec![Expr::col("b"), Expr::col("c")],
-            Rc::new(table.clone()),
+            Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
         let names_aggs = vec!["b", "c", "sum_a"];

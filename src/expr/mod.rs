@@ -23,7 +23,7 @@ use std::{
     convert::identity,
     error, fmt, hash,
     ops::{Add, BitAnd, BitOr, BitXor, Deref, Div, Mul, Neg, Not, Rem, Sub},
-    rc::Rc,
+    sync::Arc,
     result,
 };
 
@@ -121,12 +121,12 @@ pub struct Function {
     /// Operator
     function: function::Function,
     /// Argumants
-    arguments: Vec<Rc<Expr>>,
+    arguments: Vec<Arc<Expr>>,
 }
 
 impl Function {
     /// Basic constructor
-    pub fn new(function: function::Function, arguments: Vec<Rc<Expr>>) -> Function {
+    pub fn new(function: function::Function, arguments: Vec<Arc<Expr>>) -> Function {
         Function {
             function,
             arguments,
@@ -247,7 +247,7 @@ macro_rules! impl_unary_function_constructors {
         impl Function {
             paste! {
                 $(pub fn [<$Function:snake>]<E: Into<Expr>>(expr: E) -> Function {
-                    Function::new(function::Function::$Function, vec![Rc::new(expr.into())])
+                    Function::new(function::Function::$Function, vec![Arc::new(expr.into())])
                 }
                 )*
             }
@@ -291,7 +291,7 @@ macro_rules! impl_binary_function_constructors {
             paste! {
                 $(
                     pub fn [<$Function:snake>]<L: Into<Expr>, R: Into<Expr>>(left: L, right: R) -> Function {
-                        Function::new(function::Function::$Function, vec![Rc::new(left.into()), Rc::new(right.into())])
+                        Function::new(function::Function::$Function, vec![Arc::new(left.into()), Arc::new(right.into())])
                     }
                 )*
             }
@@ -342,7 +342,7 @@ macro_rules! impl_ternary_function_constructors {
             paste! {
                 $(
                     pub fn [<$Function:snake>]<F: Into<Expr>, S: Into<Expr>, T: Into<Expr>>(first: F, second: S, third: T) -> Function {
-                        Function::new(function::Function::$Function, vec![Rc::new(first.into()), Rc::new(second.into()), Rc::new(third.into())])
+                        Function::new(function::Function::$Function, vec![Arc::new(first.into()), Arc::new(second.into()), Arc::new(third.into())])
                     }
                 )*
             }
@@ -369,7 +369,7 @@ macro_rules! impl_nary_function_constructors {
             paste! {
                 $(
                     pub fn [<$Function:snake>]<E: Into<Expr>>(args: Vec<E>) -> Function {
-                        Function::new(function::Function::$Function(args.len()), args.into_iter().map(|e| Rc::new(e.into())).collect())
+                        Function::new(function::Function::$Function(args.len()), args.into_iter().map(|e| Arc::new(e.into())).collect())
                     }
                 )*
             }
@@ -395,12 +395,12 @@ pub struct Aggregate {
     /// Operator
     aggregate: aggregate::Aggregate,
     /// Argument
-    argument: Rc<Expr>,
+    argument: Arc<Expr>,
 }
 
 impl Aggregate {
     /// Basic constructor
-    pub fn new(aggregate: aggregate::Aggregate, argument: Rc<Expr>) -> Aggregate {
+    pub fn new(aggregate: aggregate::Aggregate, argument: Arc<Expr>) -> Aggregate {
         Aggregate {
             aggregate,
             argument,
@@ -441,7 +441,7 @@ macro_rules! impl_aggregation_constructors {
         impl Aggregate {
             paste! {
                 $(pub fn [<$Aggregate:snake>]<E: Into<Expr>>(expr: E) -> Aggregate {
-                    Aggregate::new(aggregate::Aggregate::$Aggregate, Rc::new(expr.into()))
+                    Aggregate::new(aggregate::Aggregate::$Aggregate, Arc::new(expr.into()))
                 }
                 )*
             }
@@ -473,12 +473,12 @@ impl_aggregation_constructors!(First, Last, Min, Max, Count, Mean, Sum, Var, Std
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Struct {
     /// Fields
-    fields: Vec<(Identifier, Rc<Expr>)>,
+    fields: Vec<(Identifier, Arc<Expr>)>,
 }
 
 impl Struct {
     /// Basic constructor
-    pub fn new(fields: Vec<(Identifier, Rc<Expr>)>) -> Struct {
+    pub fn new(fields: Vec<(Identifier, Arc<Expr>)>) -> Struct {
         Struct { fields }
     }
 }
@@ -496,7 +496,7 @@ impl fmt::Display for Struct {
     }
 }
 
-impl<S: Into<Identifier>, E: Into<Rc<Expr>>> FromIterator<(S, E)> for Struct {
+impl<S: Into<Identifier>, E: Into<Arc<Expr>>> FromIterator<(S, E)> for Struct {
     fn from_iter<I: IntoIterator<Item = (S, E)>>(iter: I) -> Self {
         Struct::new(
             iter.into_iter()
@@ -543,7 +543,7 @@ impl Expr {
         ))
     }
 
-    pub fn structured<S: Clone + Into<String>, E: Clone + Into<Rc<Expr>>, F: AsRef<[(S, E)]>>(
+    pub fn structured<S: Clone + Into<String>, E: Clone + Into<Arc<Expr>>, F: AsRef<[(S, E)]>>(
         fields: F,
     ) -> Expr {
         Expr::Struct(
@@ -751,7 +751,7 @@ impl AggregateColumn {
         AggregateColumn {
             aggregate,
             column: column.clone(),
-            expr: Expr::Aggregate(Aggregate::new(aggregate, Rc::new(Expr::Column(column)))),
+            expr: Expr::Aggregate(Aggregate::new(aggregate, Arc::new(Expr::Column(column)))),
         }
     }
     /// Access aggregate
@@ -1118,17 +1118,17 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
     }
 
     fn function(&self, function: &'a function::Function, arguments: Vec<Expr>) -> Expr {
-        let arguments: Vec<Rc<Expr>> = arguments.into_iter().map(|a| Rc::new(a)).collect();
+        let arguments: Vec<Arc<Expr>> = arguments.into_iter().map(|a| Arc::new(a)).collect();
         Expr::Function(Function::new(function.clone(), arguments))
     }
 
     fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: Expr) -> Expr {
-        Expr::Aggregate(Aggregate::new(aggregate.clone(), Rc::new(argument)))
+        Expr::Aggregate(Aggregate::new(aggregate.clone(), Arc::new(argument)))
     }
 
     fn structured(&self, fields: Vec<(Identifier, Expr)>) -> Expr {
-        let fields: Vec<(Identifier, Rc<Expr>)> =
-            fields.into_iter().map(|(i, e)| (i, Rc::new(e))).collect();
+        let fields: Vec<(Identifier, Arc<Expr>)> =
+            fields.into_iter().map(|(i, e)| (i, Arc::new(e))).collect();
         Expr::Struct(Struct::from_iter(fields))
     }
 }
@@ -1159,12 +1159,12 @@ impl<'a> visitor::Visitor<'a, Expr, (Expr, Vec<(Expr, Expr)>)> for ReplaceVisito
                 || {
                     match acceptor {
                         Expr::Function(f) => {
-                            let (arguments, matched): (Vec<Rc<Expr>>, Vec<&Vec<(Expr, Expr)>>) = f
+                            let (arguments, matched): (Vec<Arc<Expr>>, Vec<&Vec<(Expr, Expr)>>) = f
                                 .arguments
                                 .iter()
                                 .map(|a| {
                                     let (argument, matched) = dependencies.get(&**a);
-                                    (Rc::new(argument.clone()), matched)
+                                    (Arc::new(argument.clone()), matched)
                                 })
                                 .unzip();
                             (
@@ -1180,21 +1180,21 @@ impl<'a> visitor::Visitor<'a, Expr, (Expr, Vec<(Expr, Expr)>)> for ReplaceVisito
                             (
                                 Expr::Aggregate(Aggregate::new(
                                     a.aggregate.clone(),
-                                    Rc::new(argument.clone()),
+                                    Arc::new(argument.clone()),
                                 )),
                                 matched.clone(),
                             )
                         }
                         Expr::Struct(s) => {
                             let (fields, matched): (
-                                Vec<(Identifier, Rc<Expr>)>,
+                                Vec<(Identifier, Arc<Expr>)>,
                                 Vec<&Vec<(Expr, Expr)>>,
                             ) = s
                                 .fields
                                 .iter()
                                 .map(|(i, e)| {
                                     let (argument, matched) = dependencies.get(&**e);
-                                    ((i.clone(), Rc::new(argument.clone())), matched)
+                                    ((i.clone(), Arc::new(argument.clone())), matched)
                                 })
                                 .unzip();
                             (
@@ -1590,7 +1590,7 @@ mod tests {
 
     #[test]
     fn test_dsl() {
-        let _rel: Rc<Relation> = Rc::new(
+        let _rel: Arc<Relation> = Arc::new(
             Relation::table()
                 .schema(
                     Schema::builder()

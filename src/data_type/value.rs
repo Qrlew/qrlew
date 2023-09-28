@@ -13,7 +13,7 @@ use std::{
     convert::Infallible,
     error, fmt, hash,
     ops::{self, Deref, Index},
-    rc::Rc,
+    sync::Arc,
     result,
 };
 
@@ -290,7 +290,7 @@ impl_variant_conversions!(Integer);
 
 /// Enum value
 #[derive(Clone, Hash, PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
-pub struct Enum((i64, Rc<[(String, i64)]>));
+pub struct Enum((i64, Arc<[(String, i64)]>));
 
 impl Enum {
     pub fn decode(&self) -> Result<String> {
@@ -305,7 +305,7 @@ impl DataTyped for Enum {
 }
 
 impl Deref for Enum {
-    type Target = (i64, Rc<[(String, i64)]>);
+    type Target = (i64, Arc<[(String, i64)]>);
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -324,7 +324,7 @@ impl fmt::Display for Enum {
 }
 
 impl Variant for Enum {
-    type Wrapped = (i64, Rc<[(String, i64)]>);
+    type Wrapped = (i64, Arc<[(String, i64)]>);
 }
 
 impl_variant_conversions!(Enum);
@@ -432,11 +432,11 @@ impl_variant_conversions!(Bytes);
 
 /// Struct value
 #[derive(Clone, Hash, PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
-pub struct Struct(Vec<(String, Rc<Value>)>);
+pub struct Struct(Vec<(String, Arc<Value>)>);
 
 impl Struct {
     /// Create a Struct from a rc slice of fields
-    pub fn new(fields: Vec<(String, Rc<Value>)>) -> Struct {
+    pub fn new(fields: Vec<(String, Arc<Value>)>) -> Struct {
         let mut uniques = HashSet::new();
         assert!(fields.iter().all(move |(f, _)| uniques.insert(f.clone())));
         Struct(fields)
@@ -446,7 +446,7 @@ impl Struct {
         Struct::new(vec![])
     }
     /// Create from one field
-    pub fn from_field<S: Into<String>, V: Into<Rc<Value>>>(s: S, v: V) -> Struct {
+    pub fn from_field<S: Into<String>, V: Into<Arc<Value>>>(s: S, v: V) -> Struct {
         Struct::new(vec![(s.into(), v.into())])
     }
     /// Create from one datatype
@@ -460,18 +460,18 @@ impl Struct {
             .fold(Struct::default(), |s, v| s.and(v.clone()))
     }
     /// Get all the fields
-    pub fn fields(&self) -> &[(String, Rc<Value>)] {
+    pub fn fields(&self) -> &[(String, Arc<Value>)] {
         self.0.as_ref()
     }
     /// Get the field
-    pub fn field(&self, name: &str) -> Result<&(String, Rc<Value>)> {
+    pub fn field(&self, name: &str) -> Result<&(String, Arc<Value>)> {
         self.0
             .iter()
             .find(|(f, _)| f == name)
             .ok_or_else(|| Error::value("Invalid field"))
     }
     /// Get the Value associated with the field
-    pub fn value(&self, name: &str) -> Result<&Rc<Value>> {
+    pub fn value(&self, name: &str) -> Result<&Arc<Value>> {
         self.0
             .iter()
             .find(|(f, _)| f == name)
@@ -485,7 +485,7 @@ impl Struct {
             .ok_or_else(|| Error::value("Invalid field"))
     }
     /// Access a field by index
-    pub fn field_from_index(&self, index: usize) -> &(String, Rc<Value>) {
+    pub fn field_from_index(&self, index: usize) -> &(String, Arc<Value>) {
         &self.0[index]
     }
     pub fn hierarchy(&self) -> Hierarchy<&Value> {
@@ -513,7 +513,7 @@ impl DataTyped for Struct {
 }
 
 impl Deref for Struct {
-    type Target = [(String, Rc<Value>)];
+    type Target = [(String, Arc<Value>)];
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -521,13 +521,13 @@ impl Deref for Struct {
 }
 
 /// This is the core operation to build a Struct
-impl<S: Into<String>, V: Into<Rc<Value>>> And<(S, V)> for Struct {
+impl<S: Into<String>, V: Into<Arc<Value>>> And<(S, V)> for Struct {
     type Product = Struct;
     fn and(self, other: (S, V)) -> Self::Product {
         let field: String = other.0.into();
-        let value: Rc<Value> = other.1.into();
+        let value: Arc<Value> = other.1.into();
         // Remove existing elements with the same name
-        let mut fields: Vec<(String, Rc<Value>)> = self
+        let mut fields: Vec<(String, Arc<Value>)> = self
             .0
             .iter()
             .filter_map(|(f, v)| (&field != f).then_some((f.clone(), v.clone())))
@@ -569,13 +569,13 @@ impl And<Value> for Struct {
     }
 }
 
-impl<S: Into<String>, V: Into<Rc<Value>>> From<(S, V)> for Struct {
+impl<S: Into<String>, V: Into<Arc<Value>>> From<(S, V)> for Struct {
     fn from(field: (S, V)) -> Self {
         Struct::from_field(field.0, field.1)
     }
 }
 
-impl<S: Clone + Into<String>, V: Clone + Into<Rc<Value>>> From<&[(S, V)]> for Struct {
+impl<S: Clone + Into<String>, V: Clone + Into<Arc<Value>>> From<&[(S, V)]> for Struct {
     fn from(values: &[(S, V)]) -> Self {
         Struct::new(
             values
@@ -592,7 +592,7 @@ impl From<Unit> for Struct {
     }
 }
 
-impl<S: Into<String>, V: Into<Rc<Value>>> FromIterator<(S, V)> for Struct {
+impl<S: Into<String>, V: Into<Arc<Value>>> FromIterator<(S, V)> for Struct {
     fn from_iter<I: IntoIterator<Item = (S, V)>>(iter: I) -> Self {
         iter.into_iter().fold(Struct::unit(), |s, f| s.and(f))
     }
@@ -612,7 +612,7 @@ impl fmt::Display for Struct {
 }
 
 impl Variant for Struct {
-    type Wrapped = Vec<(String, Rc<Value>)>;
+    type Wrapped = Vec<(String, Arc<Value>)>;
 
     /// Build a value of a given type from a bunch of values
     fn from_values<V: AsRef<[Value]>>(values: V) -> Result<Self> {
@@ -621,7 +621,7 @@ impl Variant for Struct {
             slice
                 .iter()
                 .enumerate()
-                .map(|(index, value)| (format!("{index}"), Rc::new(value.clone())))
+                .map(|(index, value)| (format!("{index}"), Arc::new(value.clone())))
                 .collect(),
         ))
     }
@@ -634,13 +634,13 @@ impl Variant for Struct {
         let slice = values.as_ref();
         match data_type {
             DataType::Struct(structured) if slice.len() == structured.fields().len() => {
-                let result: Result<Vec<(String, Rc<Value>)>> = structured
+                let result: Result<Vec<(String, Arc<Value>)>> = structured
                     .fields()
                     .iter()
                     .zip(slice)
                     .map(|((field, data_type), value)| {
                         if value.data_type().is_subset_of(data_type) {
-                            Ok((field.clone(), Rc::new(value.as_data_type(data_type)?)))
+                            Ok((field.clone(), Arc::new(value.as_data_type(data_type)?)))
                         } else {
                             Err(Error::value(format!(
                                 "{}, of type {} is not of type {data_type}",
@@ -672,7 +672,7 @@ impl<P: Path> Index<P> for Struct {
 }
 
 impl Index<usize> for Struct {
-    type Output = Rc<Value>;
+    type Output = Arc<Value>;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.field_from_index(index).1
@@ -681,20 +681,20 @@ impl Index<usize> for Struct {
 
 /// Union value
 #[derive(Clone, Hash, PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
-pub struct Union((String, Rc<Value>));
+pub struct Union((String, Arc<Value>));
 
 impl Union {
     /// Create a Struct from a rc slice of fields
-    pub fn new(field: String, value: Rc<Value>) -> Union {
+    pub fn new(field: String, value: Arc<Value>) -> Union {
         Union((field, value))
     }
     /// Create from one field
     pub fn from_field<S: Into<String>, V: Into<Value>>(s: S, v: V) -> Union {
-        Union::new(s.into(), Rc::new(v.into()))
+        Union::new(s.into(), Arc::new(v.into()))
     }
     /// Create from one datatype
     pub fn from_value(value: Value) -> Union {
-        Union::new(namer::new_name(""), Rc::new(value))
+        Union::new(namer::new_name(""), Arc::new(value))
     }
     pub fn hierarchy(&self) -> Hierarchy<&Value> {
         let h: Hierarchy<&Value> = [(self.0 .0.to_string(), self.0 .1.as_ref())]
@@ -718,7 +718,7 @@ impl DataTyped for Union {
 }
 
 impl Deref for Union {
-    type Target = (String, Rc<Value>);
+    type Target = (String, Arc<Value>);
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -738,18 +738,18 @@ impl fmt::Display for Union {
 }
 
 impl Variant for Union {
-    type Wrapped = (String, Rc<Value>);
+    type Wrapped = (String, Arc<Value>);
 }
 
 impl_variant_conversions!(Union);
 
 /// Optional value
 #[derive(Clone, Hash, PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
-pub struct Optional(Option<Rc<Value>>);
+pub struct Optional(Option<Arc<Value>>);
 
 impl Optional {
     /// Create a Struct from a rc slice of fields
-    pub fn new(value: Option<Rc<Value>>) -> Optional {
+    pub fn new(value: Option<Arc<Value>>) -> Optional {
         Optional(value)
     }
     /// Create a none value
@@ -758,7 +758,7 @@ impl Optional {
     }
     /// Create from a value
     pub fn some(value: Value) -> Optional {
-        Optional::new(Some(Rc::new(value)))
+        Optional::new(Some(Arc::new(value)))
     }
 }
 
@@ -769,7 +769,7 @@ impl DataTyped for Optional {
 }
 
 impl Deref for Optional {
-    type Target = Option<Rc<Value>>;
+    type Target = Option<Arc<Value>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -789,7 +789,7 @@ impl fmt::Display for Optional {
 }
 
 impl Variant for Optional {
-    type Wrapped = Option<Rc<Value>>;
+    type Wrapped = Option<Arc<Value>>;
 }
 
 impl_variant_conversions!(Optional);
@@ -1098,7 +1098,7 @@ impl_wrapped_conversions!(Id);
 
 /// Function value
 #[derive(Clone)]
-pub struct Function(Rc<dyn function::Function>);
+pub struct Function(Arc<dyn function::Function>);
 
 impl DataTyped for Function {
     fn data_type(&self) -> DataType {
@@ -1107,7 +1107,7 @@ impl DataTyped for Function {
 }
 
 impl Deref for Function {
-    type Target = Rc<dyn function::Function>;
+    type Target = Arc<dyn function::Function>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1116,7 +1116,7 @@ impl Deref for Function {
 
 impl cmp::PartialEq for Function {
     fn eq(&self, other: &Self) -> bool {
-        // Rc::ptr_eq(&self.0, &other.0)
+        // Arc::ptr_eq(&self.0, &other.0)
         let s = &self.0 as *const _ as *const u8;
         let o = &other.0 as *const _ as *const u8;
         s == o
@@ -1131,7 +1131,7 @@ impl cmp::PartialOrd for Function {
 
 impl hash::Hash for Function {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        Rc::as_ptr(&self.0).hash(state)
+        Arc::as_ptr(&self.0).hash(state)
     }
 }
 
@@ -1148,7 +1148,7 @@ impl fmt::Display for Function {
 }
 
 impl Variant for Function {
-    type Wrapped = Rc<dyn function::Function>;
+    type Wrapped = Arc<dyn function::Function>;
 }
 
 // A dummy implementation of deserialization
@@ -1158,7 +1158,7 @@ impl<'de> Deserialize<'de> for Function {
         D: serde::Deserializer<'de>,
     {
         // Defaults to id function
-        Ok(Function(Rc::new(function::null())))
+        Ok(Function(Arc::new(function::null())))
     }
 }
 
@@ -1214,7 +1214,7 @@ impl Value {
         Value::from(i)
     }
 
-    pub fn enumeration<E: Into<Rc<[(String, i64)]>>>(i: i64, e: E) -> Value {
+    pub fn enumeration<E: Into<Arc<[(String, i64)]>>>(i: i64, e: E) -> Value {
         Value::from((i, e.into()))
     }
 
@@ -1230,7 +1230,7 @@ impl Value {
         Value::from(b.into())
     }
 
-    pub fn structured<S: Clone + Into<String>, V: Clone + Into<Rc<Value>>, F: AsRef<[(S, V)]>>(
+    pub fn structured<S: Clone + Into<String>, V: Clone + Into<Arc<Value>>, F: AsRef<[(S, V)]>>(
         f: F,
     ) -> Value {
         Value::Struct(Struct::new(
@@ -1245,11 +1245,11 @@ impl Value {
         Value::Struct(Struct::from_values(values.as_ref()))
     }
 
-    pub fn union<V: Into<Rc<Value>>>(f: String, v: V) -> Value {
+    pub fn union<V: Into<Arc<Value>>>(f: String, v: V) -> Value {
         Value::from((f, v.into()))
     }
 
-    pub fn some<V: Into<Rc<Value>>>(v: V) -> Value {
+    pub fn some<V: Into<Arc<Value>>>(v: V) -> Value {
         Value::from(Some(v.into()))
     }
 
@@ -1289,7 +1289,7 @@ impl Value {
         Value::from(s.into())
     }
 
-    pub fn function<F: function::Function + 'static, T: Into<Rc<F>>>(f: T) -> Value {
+    pub fn function<F: function::Function + 'static, T: Into<Arc<F>>>(f: T) -> Value {
         Value::Function(Function(f.into()))
     }
 
@@ -1527,7 +1527,7 @@ impl And<Value> for Value {
     }
 }
 
-impl<S: Into<String>, V: Into<Rc<Value>>> And<(S, V)> for Value {
+impl<S: Into<String>, V: Into<Arc<Value>>> And<(S, V)> for Value {
     type Product = Value;
     fn and(self, other: (S, V)) -> Self::Product {
         self.and(Value::from(Struct::from(other)))
@@ -1687,7 +1687,7 @@ mod tests {
             chrono::NaiveDateTime::parse_from_str("2015-09-05 23:56:04", "%Y-%m-%d %H:%M:%S")
                 .unwrap()
                 .into(),
-            Some(Rc::new(chrono::Duration::seconds(100).into())).into(),
+            Some(Arc::new(chrono::Duration::seconds(100).into())).into(),
         ])
         .into();
         println!("value = {value}");
@@ -1707,7 +1707,7 @@ mod tests {
             chrono::NaiveDateTime::parse_from_str("2015-09-05 23:56:04", "%Y-%m-%d %H:%M:%S")
                 .unwrap()
                 .into(),
-            Some(Rc::new(chrono::Duration::seconds(100).into())).into(),
+            Some(Arc::new(chrono::Duration::seconds(100).into())).into(),
         ])
         .into();
         println!("value = {value}");

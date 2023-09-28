@@ -11,7 +11,7 @@ use crate::{
     visitor::Acceptor,
     WithIterator,
 };
-use std::{error, fmt, rc::Rc, result, vec};
+use std::{error, fmt, sync::Arc, result, vec};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -317,7 +317,7 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
                 b.with((n, Expr::col(n)))
             }
         });
-        let builder = builder.input(Rc::new(join.into()));
+        let builder = builder.input(Arc::new(join.into()));
 
         let final_map: Relation = builder.build();
 
@@ -437,7 +437,7 @@ fn uniform_adjustment_table_visitor(
 
 /// Creates a WeightRelationVisitor that applies the different weights to tables according to the input
 fn differenciated_adjustment_table_visitor<'a>(
-    relations: &'a Hierarchy<Rc<Relation>>,
+    relations: &'a Hierarchy<Arc<Relation>>,
     tables_and_weights: Vec<(Vec<String>, f64)>,
 ) -> WeightRelationVisitor<impl Fn(&Table) -> RelationWithWeight + 'a> {
     WeightRelationVisitor::new(move |table: &Table| {
@@ -461,7 +461,7 @@ fn poisson_sampling_table_visitor(proba: f64) -> TableSamplerVisitor<impl Fn(&Ta
 
 /// Creates a TableSamplerVisitor that applies poisson sampling with different probability to tables as specified in the input
 fn differenciated_poisson_sampling_table_visitor<'a>(
-    relations: &'a Hierarchy<Rc<Relation>>,
+    relations: &'a Hierarchy<Arc<Relation>>,
     tables_and_sampling_probabilities: Vec<(Vec<String>, f64)>,
 ) -> TableSamplerVisitor<impl Fn(&Table) -> Relation + 'a> {
     TableSamplerVisitor::new(move |table: &Table| {
@@ -493,7 +493,7 @@ impl Relation {
 
     pub fn differenciated_adjustment<'a>(
         &'a self,
-        relations: &'a Hierarchy<Rc<Relation>>,
+        relations: &'a Hierarchy<Arc<Relation>>,
         tables_and_weights: Vec<(Vec<String>, f64)>,
     ) -> RelationWithWeight {
         self.accept(differenciated_adjustment_table_visitor(
@@ -508,7 +508,7 @@ impl Relation {
 
     pub fn differenciated_poisson_sampling<'a>(
         &'a self,
-        relations: &'a Hierarchy<Rc<Relation>>,
+        relations: &'a Hierarchy<Arc<Relation>>,
         tables_and_sampling_probabilities: Vec<(Vec<String>, f64)>,
     ) -> Relation {
         self.accept(differenciated_poisson_sampling_table_visitor(
@@ -1040,7 +1040,7 @@ mod tests {
     #[test]
     fn test_adjustment_simple_reduce() {
         let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+        let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let query = "SELECT COUNT(order_id), SUM(price), AVG(price) FROM item_table";
 
@@ -1055,7 +1055,7 @@ mod tests {
     #[test]
     fn test_adjustment_join_reduce() {
         let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+        let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let query = "SELECT COUNT(id), SUM(price), AVG(price) FROM order_table JOIN item_table ON id=order_id";
 
@@ -1070,7 +1070,7 @@ mod tests {
     #[test]
     fn test_adjustment_reduce_reduce() {
         let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+        let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let query = "
         WITH tmp1 AS (
@@ -1102,7 +1102,7 @@ mod tests {
     #[test]
     fn test_adjustment_reduce_join_reduce() {
         let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+        let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         // bug with USING (col)
         let query = "
@@ -1123,7 +1123,7 @@ mod tests {
     #[test]
     fn test_adjustment_join_reduce_reduce() {
         let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+        let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         // 2 reduce after the join
         let query = "
@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn test_adjustment_reduce_reduce_reduce() {
         let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+        let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let weight: f64 = 2.0;
         let fraction: f64 = 1.0 / weight;
@@ -1190,7 +1190,7 @@ mod tests {
     #[test]
     fn test_adjustment_reduce_reduce_join_reduce() {
         let mut database = postgresql::test_database();
-        let relations: Hierarchy<Rc<Relation>> = database.relations();
+        let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let weight: f64 = 2.0;
         let fraction: f64 = 1.0 / weight;

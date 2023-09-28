@@ -10,7 +10,7 @@ use crate::{
 };
 use colored::Colorize;
 use itertools::Itertools;
-use std::{fmt, rc::Rc};
+use std::{fmt, sync::Arc};
 
 /* Basic rules
 Insertion of a split along another should happen at the bottom of an existing split if it has columns and at the top else.
@@ -729,7 +729,7 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
                     function.clone(),
                     named_exprs
                         .into_iter()
-                        .filter_map(|(n, e)| (n == self.0).then(|| Rc::new(e)))
+                        .filter_map(|(n, e)| (n == self.0).then(|| Arc::new(e)))
                         .collect(),
                 )),
             )],
@@ -761,7 +761,7 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
                         .zip(
                             named_exprs
                                 .into_iter()
-                                .filter_map(|(n, e)| (n == self.0).then(|| Rc::new(e))),
+                                .filter_map(|(n, e)| (n == self.0).then(|| Arc::new(e))),
                         )
                         .collect(),
                 ),
