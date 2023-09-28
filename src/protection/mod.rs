@@ -434,7 +434,11 @@ mod tests {
         let table = table
             .protect_from_field_paths(
                 &relations,
-                vec![("item_table", vec![("order_id", "order_table", "id")], "date")],
+                vec![(
+                    "item_table",
+                    vec![("order_id", "order_table", "id")],
+                    "date",
+                )],
             )
             .unwrap();
         table.display_dot().unwrap();
