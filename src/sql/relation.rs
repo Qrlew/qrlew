@@ -351,7 +351,8 @@ impl<'a> VisitedQueryRelations<'a> {
         // Prepare the GROUP BY
         let group_by: Result<Vec<Expr>> = match group_by {
             ast::GroupByExpr::All => todo!(),
-            ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs.iter()
+            ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
+                .iter()
                 .map(|e| e.with(columns).try_into())
                 .collect(),
         };

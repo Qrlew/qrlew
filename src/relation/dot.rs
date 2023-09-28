@@ -287,10 +287,13 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
     dot::GraphWalk<'a, Node<'a, T>, Edge<'a, T>> for VisitedRelation<'a, V>
 {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a, T>> {
-        self.0
+        let mut nodes = self
+            .0
             .iter_with(self.1.clone())
             .map(|(relation, t)| Node(relation, t))
-            .collect()
+            .collect::<Vec<_>>();
+        nodes.reverse();
+        nodes.into()
     }
 
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a, T>> {
@@ -370,8 +373,8 @@ mod tests {
         let join: Relation = Relation::join()
             .name("join")
             .cross()
-            .left(table.clone())
-            .right(map.clone())
+            .left(table.clone().with_name("left_relation".to_string()))
+            .right(map.clone().with_name("right_relation".to_string()))
             .build();
         println!("join = {}", join);
         let map_2: Relation = Relation::map()
