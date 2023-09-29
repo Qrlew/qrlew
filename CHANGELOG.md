@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8] - 2023-09-29
+### Changed
+- `DPRelation` deref to `Relation`
+
 ## [0.3.7] - 2023-09-28
 ### Changed
 - Objects in `Arc`s are `Sync + Send` for thread safety and matable objects are behind `Mutex`es

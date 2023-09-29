@@ -92,6 +92,14 @@ impl DPRelation {
     }
 }
 
+impl Deref for DPRelation {
+    type Target = Relation;
+
+    fn deref(&self) -> &Self::Target {
+        &self.relation
+    }
+}
+
 impl From<DPRelation> for (Relation, PrivateQuery) {
     fn from(value: DPRelation) -> Self {
         (value.relation, value.private_query)
