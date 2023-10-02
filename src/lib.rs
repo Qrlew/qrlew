@@ -20,6 +20,7 @@ pub mod setup;
 #[macro_use]
 pub mod expr;
 pub mod builder;
+pub mod compilation;
 pub mod debug;
 pub mod differential_privacy;
 pub mod display;
