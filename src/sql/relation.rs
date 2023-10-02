@@ -381,8 +381,48 @@ impl<'a> VisitedQueryRelations<'a> {
             from,
             selection,
             group_by,
-            ..
+            distinct,
+            top,
+            into,
+            lateral_views,
+            cluster_by,
+            distribute_by,
+            sort_by,
+            having,
+            named_window,
+            qualify
         } = select;
+        if distinct.is_some() {
+            return Err(Error::other("DISTINCT is not supported"))
+        }
+        if top.is_some() {
+            return Err(Error::other("TOP is not supported"))
+        }
+        if into.is_some() {
+            return Err(Error::other("INTO is not supported"))
+        }
+        if !lateral_views.is_empty() {
+            return Err(Error::other("LATERAL VIEWS are not supported"))
+        }
+        if !cluster_by.is_empty() {
+            return Err(Error::other("CLUTER BY is not supported"))
+        }
+        if !distribute_by.is_empty() {
+            return Err(Error::other("DISTRIBUTE BY is not supported"))
+        }
+        if !sort_by.is_empty() {
+            return Err(Error::other("SORT BY is not supported"))
+        }
+        if having.is_some() {
+            return Err(Error::other("HAVING is not supported"))
+        }
+        if !named_window.is_empty() {
+            return Err(Error::other("NAMED WINDOW is not supported"))
+        }
+        if qualify.is_some() {
+            return Err(Error::other("QUALIFY is not supported"))
+        }
+
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
         let relation = self.try_from_select_items_selection_and_group_by(
             &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
@@ -813,6 +853,34 @@ mod tests {
             --SELECT a, count(b) FROM table_1 GROUP BY a WHERE a IN (1, 2, 13);
         ",
         )
+        .unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::float_interval(-1., 3.)),
+            ("b", DataType::float_interval(-2., 2.)),
+            ("c", DataType::float()),
+            ("d", DataType::float_interval(0., 1.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation:#?}");
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_having() {
+        let query = parse("SELECT a, SUM(b) FROM table_1 HAVING a IN (1, -0.5, 2, 13) AND COUNT(b) > 10 GROUP BY a;")
         .unwrap();
         let schema_1: Schema = vec![
             ("a", DataType::float_interval(-1., 3.)),
