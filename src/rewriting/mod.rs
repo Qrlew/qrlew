@@ -1,13 +1,4 @@
-
-
-
-
-// Create attributes and rules
-// Conditions, rewritting rule
-
-
-
-
+pub mod relation_with;
 
 #[cfg(test)]
 mod tests {
