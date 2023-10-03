@@ -20,7 +20,6 @@ pub mod setup;
 #[macro_use]
 pub mod expr;
 pub mod builder;
-pub mod compilation;
 pub mod debug;
 pub mod differential_privacy;
 pub mod display;
@@ -30,6 +29,7 @@ pub mod io;
 pub mod namer;
 pub mod protection;
 pub mod relation;
+pub mod rewriting;
 pub mod sampling_adjustment;
 pub mod sql;
 pub mod types;
