@@ -1101,6 +1101,38 @@ impl Expr {
     }
 }
 
+/// A visitor to test the presence of an aggregate
+#[derive(Clone, Debug)]
+pub struct HasAggregateVisitor;
+
+impl<'a> Visitor<'a, bool> for HasAggregateVisitor {
+    fn column(&self, _column: &'a Column) -> bool {
+        false
+    }
+
+    fn value(&self, _value: &'a Value) -> bool {
+        false
+    }
+
+    fn function(&self, _function: &'a function::Function, arguments: Vec<bool>) -> bool {
+        arguments.into_iter().any(identity)
+    }
+
+    fn aggregate(&self, _aggregate: &'a aggregate::Aggregate, argument: bool) -> bool {
+        true
+    }
+
+    fn structured(&self, fields: Vec<(Identifier, bool)>) -> bool {
+        fields.into_iter().any(|(_, value)| value)
+    }
+}
+
+impl Expr {
+    pub fn has_aggregate(&self) -> bool {
+        self.accept(HasAggregateVisitor)
+    }
+}
+
 /// Rename the columns with the namer
 #[derive(Clone, Debug)]
 pub struct RenameVisitor<'a>(&'a Hierarchy<Identifier>);

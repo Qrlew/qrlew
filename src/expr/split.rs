@@ -925,4 +925,11 @@ mod tests {
         ]);
         println!("split = {split}");
     }
+
+    #[test]
+    fn test_split_filter() {
+        let filter = expr!(gt(x, 5));
+        println!("filtered_split = {:?}", Split::filter(filter));
+    }
+
 }

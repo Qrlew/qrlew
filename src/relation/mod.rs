@@ -492,6 +492,9 @@ impl Reduce {
         let input_data_type: Struct = input.data_type().try_into().unwrap();
         let input_columns_data_type: DataType =
             Struct::from_schema_size(input_data_type, input.size()).into();
+        println!("named_aggregate_columns = {:?}", named_aggregate_columns);
+        println!("input_columns_data_type = {:?}", input_columns_data_type);
+        println!("input = {:?}", input);
         let (fields, aggregates) = named_aggregate_columns
             .into_iter()
             .map(|(name, aggregate_column)| {

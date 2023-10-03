@@ -126,13 +126,41 @@ impl<RequireInput> MapBuilder<RequireInput> {
     pub fn filter(mut self, filter: Expr) -> Self {
         self.split = self.split.map_last(|split| match split {
             Split::Map(map) => Split::from(map).and(Split::filter(filter).into()),
-            Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
+            Split::Reduce(reduce) => {
+                let my_map = reduce.map.as_deref().map(|m| Split::from(m.clone()).and(Split::filter(filter).into()).into_map());
+                println!("Mymap = {:?}", my_map);
+;                Split::Reduce(expr::Reduce::new(
                 reduce.named_aggregates,
                 reduce.group_by,
-                Some(Split::filter(filter.into())),
-            )),
+                my_map
+            ))
+        }
         });
         self
+    }
+
+    pub fn having(mut self, expr: Expr) -> MapBuilder<RequireInput> {
+        // let map = self.split.clone().into_map();
+
+        // self.input(Arc::new(self.with((name.clone(), expr)).into()))
+        // .filter(Expr::col(name))
+        let expr::split::Map {
+            named_exprs,
+            filter,
+            order_by,
+            reduce,
+        } = self.split.clone().into_map();
+
+        let having_name = namer::name_from_content(FIELD, &expr);
+        let expr = expr.replace(
+            named_exprs.iter()
+            .map(|(n, x)| (Expr::col(n), x.clone())).collect()
+        ).0;
+        println!("Expr = {expr}");
+        let filter = filter.map_or_else(|| expr.clone(), |f| Expr::and(expr.clone(), f));
+        println!("filter = {filter}");
+        self//.with((having_name.clone(), expr))
+        .filter(filter)
     }
 
     pub fn filter_iter(mut self, iter: Vec<Expr>) -> Self {
@@ -451,10 +479,14 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
             Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
                 reduce.named_aggregates,
                 reduce.group_by,
-                Some(Split::filter(filter.into())),
-            )),
+                reduce.map.as_deref().map(|m| Split::from(m.clone()).and(Split::filter(filter).into()).into_map())
+            ))
         });
         self
+    }
+
+    pub fn having(mut self, filter: Expr) -> Self {
+        todo!()
     }
 
     pub fn input<R: Into<Arc<Relation>>>(self, input: R) -> ReduceBuilder<WithInput> {
@@ -1190,6 +1222,7 @@ mod tests {
                     .build(),
             )
             .build();
+
         let map: Relation = Relation::map()
             .with(("A", Expr::col("a")))
             .with(("B", Expr::col("b")))
@@ -1219,6 +1252,90 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_map_having() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .build(),
+            )
+            .build();
+        let map: Relation = Relation::map()
+            .with(("A", Expr::col("a")))
+            .with(("B", Expr::col("b")))
+            .filter(Expr::eq(Expr::col("b"), Expr::val(0.5)))
+            .having(Expr::gt(Expr::col("A"), Expr::val(0.5)))
+            .input(table.clone())
+            .build();
+        map.display_dot().unwrap();
+        if let Relation::Map(m) = map {
+            assert_eq!(m.filter.unwrap(), expr!(and(gt(a, 0.5), eq(b, 0.5))))
+        }
+    }
+
+    #[test]
+    fn test_reduce_filter() {
+        let table: Relation = Relation::table()
+            .path(["db", "schema", "table"])
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .build(),
+            )
+            .build();
+
+        // Reduce inputing a Map
+        let relation: Relation = Relation::reduce()
+            .with(("S", expr!(sum( 3 * a ))))
+            .group_by(Expr::col("b"))
+            .input(table.clone())
+            .filter(expr!(gt(b, 0.5)))
+            .build();
+        //relation.display_dot().unwrap();
+        assert_eq!(relation.inputs()[0].schema()[1].data_type(), DataType::float_values([1.0, 5.0]));
+
+        // Simple Reduce
+        let relation: Relation = Relation::reduce()
+            .with(("S", expr!(sum(a))))
+            .with_group_by_column("b")
+            .filter(expr!(gt(b, 0.5)))
+            .input(table.clone())
+            .build();
+        relation.display_dot().unwrap();
+        assert_eq!(relation.inputs()[0].schema()[1].data_type(), DataType::float_values([1.0, 5.0]));
+        assert_eq!(relation.data_type()["b"], DataType::float_values([1.0, 5.0]));
+    }
+
+    #[test]
+    fn test_reduce_having() {
+        let table: Relation = Relation::table()
+            .path(["db", "schema", "table"])
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .build(),
+            )
+            .build();
+        println!("Table = {table}");
+        let reduce: Relation = Relation::reduce()
+            .with(("S", AggregateColumn::sum("a")))
+            // .with_group_by_column("b")
+            .group_by(Expr::col("b"))
+            .filter(expr!(gt(a, 0.5)))
+            .input(table)
+            .build();
+        println!("Reduce = {reduce}");
+        reduce.display_dot().unwrap();
     }
 
     #[test]

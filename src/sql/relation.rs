@@ -312,9 +312,11 @@ impl<'a> VisitedQueryRelations<'a> {
         selection: &'a Option<ast::Expr>,
         group_by: &'a ast::GroupByExpr,
         from: Arc<Relation>,
+        having: &'a Option<ast::Expr>,
     ) -> Result<Arc<Relation>> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = vec![];
+
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
         for select_item in select_items {
@@ -341,13 +343,26 @@ impl<'a> VisitedQueryRelations<'a> {
                 }
             }
         }
+
+
+        // Add the having in named_exprs
+        let having = if let Some(expr) = having {
+            let having_name = namer::name_from_content(FIELD, &expr);
+            let expr = Expr::try_from(expr.with(columns))?;
+            named_exprs.push((having_name.clone(),  expr));
+            Some(Expr::col(having_name))
+        } else {
+            None
+        };
         // Build the Map or Reduce based on the type of split
         let split = Split::from_iter(named_exprs);
+
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
             .map(|e| e.with(columns).try_into())
             .map_or(Ok(None), |r| r.map(Some))?;
+
         // Prepare the GROUP BY
         let group_by: Result<Vec<Expr>> = match group_by {
             ast::GroupByExpr::All => todo!(),
@@ -361,12 +376,14 @@ impl<'a> VisitedQueryRelations<'a> {
             Split::Map(map) => {
                 let builder = Relation::map().split(map);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
+                let builder = having.into_iter().fold(builder, |b, e| b.having(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
+                let builder = having.into_iter().fold(builder, |b, e| b.having(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
@@ -405,7 +422,7 @@ impl<'a> VisitedQueryRelations<'a> {
             return Err(Error::other("LATERAL VIEWS are not supported"))
         }
         if !cluster_by.is_empty() {
-            return Err(Error::other("CLUTER BY is not supported"))
+            return Err(Error::other("CLUSTER BY is not supported"))
         }
         if !distribute_by.is_empty() {
             return Err(Error::other("DISTRIBUTE BY is not supported"))
@@ -413,9 +430,9 @@ impl<'a> VisitedQueryRelations<'a> {
         if !sort_by.is_empty() {
             return Err(Error::other("SORT BY is not supported"))
         }
-        if having.is_some() {
-            return Err(Error::other("HAVING is not supported"))
-        }
+        // if having.is_some() {
+        //     // rewrite the having as a were
+        // }
         if !named_window.is_empty() {
             return Err(Error::other("NAMED WINDOW is not supported"))
         }
@@ -430,6 +447,7 @@ impl<'a> VisitedQueryRelations<'a> {
             selection,
             group_by,
             from,
+            having,
         )?;
         Ok(RelationWithColumns::new(relation, columns))
     }
