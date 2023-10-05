@@ -1,7 +1,7 @@
-use std::{ops::Deref, sync::Arc, hash::Hash, fmt::Debug};
+use std::{ops::Deref, sync::Arc, hash::Hash, fmt::Debug, cell::RefCell};
 use crate::{
-    relation::{Relation, Table, Map, Reduce, Join, Set},
-    visitor::{self, Visited, Acceptor, Dependencies},
+    relation::{Relation, Table, Map, Reduce, Join, Set, Values},
+    visitor::{self, Acceptor, Dependencies, Visited},
     builder::With,
 };
 
@@ -76,36 +76,37 @@ impl<'a, Attributes> IntoIterator for &'a RelationWith<'a, Attributes> {
 
 // Visitors
 
-// /// A Visitor for the type Expr
-// pub trait Visitor<'a, T: Clone> {
-//     fn table(&self, table: &'a Table) -> T;
-//     fn map(&self, map: &'a Map, input: T) -> T;
-//     fn reduce(&self, reduce: &'a Reduce, input: T) -> T;
-//     fn join(&self, join: &'a Join, left: T, right: T) -> T;
-//     fn set(&self, set: &'a Set, left: T, right: T) -> T;
-//     fn values(&self, values: &'a Values) -> T;
-// }
+/// A Visitor for the type Expr
+pub trait Visitor<'a, A: Clone+Debug+Hash+Eq, T: Clone> {
+    fn table(&self, table: &'a Table, attribute: A) -> T;
+    fn map(&self, map: &'a Map, input: T, attribute: A) -> T;
+    fn reduce(&self, reduce: &'a Reduce, input: T, attribute: A) -> T;
+    fn join(&self, join: &'a Join, left: T, right: T, attribute: A) -> T;
+    fn set(&self, set: &'a Set, left: T, right: T, attribute: A) -> T;
+    fn values(&self, values: &'a Values, attribute: A) -> T;
+}
 
 // /// Implement a specific visitor to dispatch the dependencies more easily
-// impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Relation, T> for V {
-//     fn visit(&self, acceptor: &'a Relation, dependencies: Visited<'a, Relation, T>) -> T {
-//         match acceptor {
-//             Relation::Table(table) => self.table(table),
-//             Relation::Map(map) => self.map(map, dependencies.get(&map.input).clone()),
-//             Relation::Reduce(reduce) => {
-//                 self.reduce(reduce, dependencies.get(&reduce.input).clone())
-//             }
-//             Relation::Join(join) => self.join(
-//                 join,
-//                 dependencies.get(&join.left).clone(),
-//                 dependencies.get(&join.right).clone(),
-//             ),
-//             Relation::Set(set) => self.set(
-//                 set,
-//                 dependencies.get(&set.left).clone(),
-//                 dependencies.get(&set.right).clone(),
-//             ),
-//             Relation::Values(values) => self.values(values),
-//         }
+// impl<'a, A: Clone+Debug+Hash+Eq, V: Visitor<'a, A, &'a RelationWith<'a, A>>> visitor::Visitor<'a, RelationWith<'a, A>, &'a RelationWith<'a, A>> for V {
+//     fn visit(&self, acceptor: &'a RelationWith<'a, A>, dependencies: Visited<'a, RelationWith<'a, A>, &'a RelationWith<'a, A>>) -> &'a RelationWith<'a, A> {
+//         // match acceptor {
+//         //     Relation::Table(table) => self.table(table),
+//         //     Relation::Map(map) => self.map(map, dependencies.get(&map.input).clone()),
+//         //     Relation::Reduce(reduce) => {
+//         //         self.reduce(reduce, dependencies.get(&reduce.input).clone())
+//         //     }
+//         //     Relation::Join(join) => self.join(
+//         //         join,
+//         //         dependencies.get(&join.left).clone(),
+//         //         dependencies.get(&join.right).clone(),
+//         //     ),
+//         //     Relation::Set(set) => self.set(
+//         //         set,
+//         //         dependencies.get(&set.left).clone(),
+//         //         dependencies.get(&set.right).clone(),
+//         //     ),
+//         //     Relation::Values(values) => self.values(values),
+//         // }
+//         todo!()
 //     }
 // }
