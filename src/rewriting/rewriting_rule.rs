@@ -27,8 +27,9 @@ pub struct RewritingRule {
 
 pub type RelationWithRewritingRules<'a> = super::relation_with::RelationWith<'a, Vec<RewritingRule>>;
 
-// TODO Write a map method
-// TODO Write a 
+// TODO Write a map method RelationWithRules -> RelationWithRules
+// TODO Write a rewrite method RelationWithRules -> Relation
+// TODO Write a dot method RelationWithRules -> Dot
 
 // Visitors
 
