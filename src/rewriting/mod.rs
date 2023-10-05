@@ -36,5 +36,9 @@ mod tests {
         .unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
+
+        // Add rewritting rules
+        let relation_with_rules: rewriting_rule::RelationWithRewritingRules = (&relation).with(vec![]);
+        println!("{:#?}", relation_with_rules);
     }
 }
