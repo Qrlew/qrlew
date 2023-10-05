@@ -1,4 +1,5 @@
 pub mod relation_with;
+pub mod rewriting_rule;
 
 // pub enum Rewritting
 

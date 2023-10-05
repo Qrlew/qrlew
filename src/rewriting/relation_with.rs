@@ -1,6 +1,6 @@
-use std::{ops::Deref, sync::Arc, hash::Hash, fmt::Debug, cell::RefCell};
+use std::{ops::Deref, sync::Arc, hash::Hash, fmt::Debug};
 use crate::{
-    relation::{Relation, Table, Map, Reduce, Join, Set, Values},
+    relation::Relation,
     visitor::{self, Acceptor, Dependencies, Visited},
     builder::With,
 };
@@ -21,13 +21,21 @@ impl<'a, Attributes> RelationWith<'a, Attributes> {
             inputs,
         }
     }
-    /// Access attribbutes read-only
+    /// Access relation read-only
+    pub fn relation(&self) -> &Relation {
+        &self.relation
+    }
+    /// Access attributes read-only
     pub fn with(&self) -> &Attributes {
         &self.with
     }
-    /// Access attribbutes
+    /// Access attributes
     pub fn with_mut(&mut self) -> &mut Attributes {
         &mut self.with
+    }
+    /// Access attributes
+    pub fn inputs(&self) -> &[Arc<RelationWith<'a, Attributes>>] {
+        &self.inputs
     }
 }
 
@@ -73,40 +81,3 @@ impl<'a, Attributes> IntoIterator for &'a RelationWith<'a, Attributes> {
         self.iter()
     }
 }
-
-// Visitors
-
-/// A Visitor for the type Expr
-pub trait Visitor<'a, A: Clone+Debug+Hash+Eq, T: Clone> {
-    fn table(&self, table: &'a Table, attribute: A) -> T;
-    fn map(&self, map: &'a Map, input: T, attribute: A) -> T;
-    fn reduce(&self, reduce: &'a Reduce, input: T, attribute: A) -> T;
-    fn join(&self, join: &'a Join, left: T, right: T, attribute: A) -> T;
-    fn set(&self, set: &'a Set, left: T, right: T, attribute: A) -> T;
-    fn values(&self, values: &'a Values, attribute: A) -> T;
-}
-
-// /// Implement a specific visitor to dispatch the dependencies more easily
-// impl<'a, A: Clone+Debug+Hash+Eq, V: Visitor<'a, A, &'a RelationWith<'a, A>>> visitor::Visitor<'a, RelationWith<'a, A>, &'a RelationWith<'a, A>> for V {
-//     fn visit(&self, acceptor: &'a RelationWith<'a, A>, dependencies: Visited<'a, RelationWith<'a, A>, &'a RelationWith<'a, A>>) -> &'a RelationWith<'a, A> {
-//         // match acceptor {
-//         //     Relation::Table(table) => self.table(table),
-//         //     Relation::Map(map) => self.map(map, dependencies.get(&map.input).clone()),
-//         //     Relation::Reduce(reduce) => {
-//         //         self.reduce(reduce, dependencies.get(&reduce.input).clone())
-//         //     }
-//         //     Relation::Join(join) => self.join(
-//         //         join,
-//         //         dependencies.get(&join.left).clone(),
-//         //         dependencies.get(&join.right).clone(),
-//         //     ),
-//         //     Relation::Set(set) => self.set(
-//         //         set,
-//         //         dependencies.get(&set.left).clone(),
-//         //         dependencies.get(&set.right).clone(),
-//         //     ),
-//         //     Relation::Values(values) => self.values(values),
-//         // }
-//         todo!()
-//     }
-// }
