@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     namer::{self, FIELD},
-    And, Factor,
+    And, Factor, hierarchy::Hierarchy,
 };
 use colored::Colorize;
 use itertools::Itertools;
@@ -79,6 +79,24 @@ impl Split {
             Split::Map(m) => m.map_last_reduce(f).into(),
             Split::Reduce(r) => r.map_last_reduce(f).into(),
         }
+    }
+
+    pub fn having(self, expr: Expr) -> Self {
+        let name = namer::name_from_content(FIELD, &expr);
+        let mut exprs = vec![(name.clone(), expr)];
+        if let Split::Reduce(reduce) = &self {
+            exprs.extend(
+                reduce.group_by()
+                .iter()
+                .map(|x| (x.to_string(), x.clone()))
+                .collect::<Vec<_>>()
+            );
+        }
+        let having_split = Split::from_iter(exprs);
+        let mut map = having_split.and(self.into()).into_map();
+        map.filter = Some(map.named_exprs()[0].1.clone());
+        map.named_exprs = map.named_exprs[1..].to_vec();
+        map.into()
     }
 }
 
@@ -789,7 +807,8 @@ impl<S: Into<String>> FromIterator<(S, Expr)> for Split {
 
 #[cfg(test)]
 mod tests {
-    use crate::expr::implementation::aggregate;
+    //use crate::expr::implementation::aggregate;
+    use crate::{hierarchy::Hierarchy, namer::name_from_content};
 
     use super::*;
 
@@ -884,17 +903,67 @@ mod tests {
         println!("expr = {}", e);
         if let Split::Map(m) = s {
             let (m, e) = m.and(e);
-            println!("replaced split = {}", m);
-            println!("replaced expr = {}", e);
+            println!("\nreplaced split = {}", m);
+            println!("\nreplaced expr = {}", e);
         }
     }
 
     #[test]
     fn test_reduce_and_expr() {
+        // without group by
         let reduce = Reduce::default();
-        println!("reduce = {}", reduce);
+        println!("1. reduce = {}", reduce);
         let (reduce, expr) = reduce.and(expr!(sum(1 + a)));
-        println!("reduce = {}, expr = {}", reduce, expr);
+        println!("reduce = {} expr = {}", reduce, expr);
+
+        // with group by
+        let reduce = Reduce::new(
+            vec![
+                ("a".into(), expr!(count(x)).try_into().unwrap()),
+                ("b".into(), expr!(sum(y)).try_into().unwrap()),
+            ],
+            vec![expr!(c)],
+            None,
+        );
+        println!("\n2. reduce = {}", reduce);
+        let (reduce, expr) = reduce.and(expr!(sum(1 + a)));
+        println!("reduce = {} expr = {}", reduce, expr);
+    }
+
+    #[test]
+    fn test_reduce_and_reduce() {
+        // with group by
+        let reduce1 = Reduce::new(
+            vec![
+                ("a".into(), expr!(count(x)).try_into().unwrap()),
+            ],
+            vec![expr!(c)],
+            None,
+        );
+        let reduce2 = Reduce::new(
+            vec![
+                ("b".into(), expr!(sum(y)).try_into().unwrap()),
+            ],
+            vec![expr!(c)],
+            None,
+        );
+        let reduce = reduce1.and(reduce2);
+        println!("reduce = {reduce}");
+    }
+
+    #[test]
+    fn test_reduce_and_reduce_map() {
+        // with group by
+        let split1 = Split::from_iter(vec![
+            ("a".to_string(), expr!(count(1 + x)).try_into().unwrap()),
+            ("c".to_string(), expr!(c).try_into().unwrap())
+        ]);
+        let split2 = Split::from_iter(vec![
+            ("b".to_string(), expr!(gt(sum(y), 1)).try_into().unwrap()),
+            ("c".to_string(), expr!(c).try_into().unwrap())
+        ]);
+        let split = split1.and(split2);
+        println!("reduce = {split}");
     }
 
     #[test]
@@ -914,6 +983,68 @@ mod tests {
         let split: Split = reduce.into();
         let split = split.and(filter);
         println!("split = {}", split);
+    }
+
+    #[test]
+    fn test_having() {
+        // Reduce with group by
+        let having_expr = Expr::and(
+            expr!(gt(count(x), 10)),
+            expr!(lt(sum(y), 1))
+        );
+        let split = Split::from_iter([
+            ("a", expr!(sum(x))),
+            ("b", expr!(count(1 + y))),
+            ("c", expr!(c)),
+        ]);
+        println!("\n\nsplit = {split}");
+        let having = split.having(having_expr);
+        println!("\nhaving = {having}");
+        let map = having.into_map();
+        assert_eq!(
+            map.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
+            vec!["a", "b", "c"]
+        );
+        assert!(map.filter().is_some());
+
+        // Reduce without group by
+        let having_expr = Expr::and(
+            expr!(gt(count(x), 10)),
+            expr!(lt(sum(y), 1))
+        );
+        let split = Split::from_iter([
+            ("a", expr!(sum(x))),
+            ("b", expr!(count(1 + y))),
+        ]);
+        println!("\n\nsplit = {split}");
+        let having = split.having(having_expr);
+        println!("\nhaving = {having}");
+        let map = having.into_map();
+        assert_eq!(
+            map.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
+            vec!["a", "b"]
+        );
+        assert!(map.filter().is_some());
+
+        // Map(Reduce)
+        let having_expr = Expr::and(
+            expr!(gt(count(x), 10)),
+            expr!(lt(sum(y), 1))
+        );
+        let split = Split::from_iter([
+            ("a", expr!(3 * sum(x))),
+            ("b", expr!(4 * count(1 + y))),
+            ("c", expr!(c)),
+        ]);
+        println!("\n\nsplit = {split}");
+        let having = split.having(having_expr);
+        println!("\nhaving = {having}");
+        let map = having.into_map();
+        assert_eq!(
+            map.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
+            vec!["a", "b", "c"]
+        );
+        assert!(map.filter().is_some());
     }
 
     #[test]

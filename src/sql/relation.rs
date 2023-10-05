@@ -383,7 +383,7 @@ impl<'a> VisitedQueryRelations<'a> {
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = having.into_iter().fold(builder, |b, e| b.having(e));
+                //let builder = having.into_iter().fold(builder, |b, e| b.having(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
