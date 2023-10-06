@@ -18,7 +18,7 @@ use super::{
     intervals::{Bound, Intervals},
     product::{self, IntervalProduct, IntervalsProduct, Term, Unit},
     value::{self, Value, Variant as _},
-    DataType, DataTyped, Integer, List, Variant,
+    DataType, DataTyped, Integer, List, Variant, And
 };
 
 use crate::{
@@ -357,6 +357,26 @@ impl Function for Pointwise {
                 DataType::Duration(d) if d.all_values() => {
                     d.iter().map(|[v, _]| (*self.value)((*v).into())).collect()
                 }
+                DataType::Struct(s) if ! s.is_empty() => {
+                    let values = s.iter()
+                        .filter_map(|(s, d)| {
+                            if let Ok(v) = TryInto::<Vec<Value>>::try_into(d.deref().clone()) {
+                                Some((s.to_string(), v))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    if values.len() != s.len() {
+                        self.co_domain.clone()
+                    } else {
+                        println!("Values = {:?}", values);
+                        all_combinations(values)
+                            .into_iter()
+                            .map(|v| (*self.value)(v.into()))
+                            .collect()
+                    }
+                }
                 _ => self.co_domain.clone(),
             })
         }
@@ -365,6 +385,37 @@ impl Function for Pointwise {
     fn value(&self, arg: &Value) -> Result<Value> {
         Ok((*self.value)(arg.clone()))
     }
+}
+
+
+fn combine_vec_of_struct(
+    a: Vec<value::Struct>,
+    b: Vec<value::Struct>,
+) -> Vec<value::Struct> {
+    a.into_iter()
+		.flat_map(|k| b.clone().into_iter().map(move |v| k.clone().and(v)))
+		.collect()
+}
+
+fn all_combinations(vec: Vec<(String, Vec<Value>)>) -> Vec<value::Struct> {
+    if vec.is_empty() {
+        return vec![]
+    }
+    let vec_of_vec = vec.into_iter()
+        .map(|(s, vec)| vec
+            .into_iter()
+            .map(|v| value::Struct::new(vec![(s.to_string(), Arc::new(v))]))
+            .collect::<Vec<_>>()
+        )
+        .collect::<Vec<_>>();
+
+    let first = vec_of_vec[0].clone();
+    vec_of_vec.into_iter()
+        .skip(1)
+        .fold(
+            first,
+            |res, s| combine_vec_of_struct(res, s)
+        )
 }
 
 /// Partitionned monotonic function (plus some complex periodic cases).
@@ -1060,7 +1111,7 @@ pub fn cast(into: DataType) -> impl Function {
     match into {
         DataType::Text(t) if t == data_type::Text::full() => {
             Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into())
-        }
+        },
         _ => todo!(),
     }
 }
@@ -1250,40 +1301,50 @@ pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function
 }
 
 pub fn gt() -> impl Function {
-    Polymorphic::default()
-        .with(Pointwise::bivariate(
+    // Polymorphic::default()
+    //     .with(Pointwise::bivariate(
+    //         (data_type::Integer::default(), data_type::Integer::default()),
+    //         data_type::Boolean::default(),
+    //         |a, b| (a > b).into(),
+    //     ))
+    //     .with(Pointwise::bivariate(
+    //         (data_type::Float::default(), data_type::Float::default()),
+    //         data_type::Boolean::default(),
+    //         |a, b| (a > b).into(),
+    //     ))
+    //     .with(Pointwise::bivariate(
+    //         (data_type::Date::default(), data_type::Date::default()),
+    //         data_type::Boolean::default(),
+    //         |a, b| (a > b).into(),
+    //     ))
+    //     .with(Pointwise::bivariate(
+    //         (data_type::Time::default(), data_type::Time::default()),
+    //         data_type::Boolean::default(),
+    //         |a, b| (a > b).into(),
+    //     ))
+    //     .with(Pointwise::bivariate(
+    //         (
+    //             data_type::DateTime::default(),
+    //             data_type::DateTime::default(),
+    //         ),
+    //         data_type::Boolean::default(),
+    //         |a, b| (a > b).into(),
+    //     ))
+    //     .with(Pointwise::bivariate(
+    //         (data_type::Text::default(), data_type::Text::default()),
+    //         data_type::Boolean::default(),
+    //         |a, b| (a > b).into(),
+    //     ))
+    Polymorphic::from((
+        PartitionnedMonotonic::bivariate(
             (data_type::Integer::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
-        ))
-        .with(Pointwise::bivariate(
+            |x, y| x > y,
+        ),
+        PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Date::default(), data_type::Date::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Time::default(), data_type::Time::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (
-                data_type::DateTime::default(),
-                data_type::DateTime::default(),
-            ),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Text::default(), data_type::Text::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
-        ))
+            |x, y| x > y,
+        ),
+    ))
 }
 
 pub fn lt() -> impl Function {
@@ -1899,10 +1960,35 @@ mod tests {
         let set = DataType::float_values([1., 2.]) & DataType::float_values([1., 2.]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
-        assert!(matches!(im, DataType::Boolean(_)));
+        assert_eq!(im, DataType::boolean_values([false, true]));
         let arg = Value::float(1.) & Value::float(1.);
         let val = fun.value(&arg).unwrap();
         println!("val({}) = {}", arg, val);
+
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_values([1.0, 2.0]),
+            DataType::float_value(1.0),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_values([false, true]));
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_value(1.0),
+            DataType::float_value(1.),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_value(true));
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_values([1.0, 2.0]),
+            DataType::float_value(0.),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_value(false));
     }
 
     #[test]
@@ -2895,5 +2981,39 @@ mod tests {
                 .super_union(&DataType::integer_interval(10, 100))
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn test_gt() {
+        println!("Test gt");
+        let fun = gt();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_values([1.0, 2.0]),
+            DataType::float_value(1.5),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_values([false, true]));
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_values([1.0, 2.0]),
+            DataType::float_value(5.),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_value(false));
+
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::float_values([1.0, 2.0]),
+            DataType::float_value(0.),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_value(true));
     }
 }

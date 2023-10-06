@@ -2344,6 +2344,33 @@ impl DataType {
         }
     }
 
+    /// Return the empty datatype of the same variant
+    pub fn empty(&self) -> DataType {
+        match self {
+            DataType::Boolean(_) => DataType::from(Boolean::empty()),
+            DataType::Integer(_) => DataType::from(Integer::empty()),
+            DataType::Float(_) => DataType::from(Float::empty()),
+            DataType::Text(_) => DataType::from(Text::empty()),
+            DataType::Date(_) => DataType::from(Date::empty()),
+            DataType::Time(_) => DataType::from(Time::empty()),
+            DataType::DateTime(_) => DataType::from(DateTime::empty()),
+            DataType::Duration(_) => DataType::from(Duration::empty()),
+            DataType::Struct(s) => DataType::structured(
+                s.fields()
+                .into_iter()
+                .map(|(s, d)| (s, d.deref().empty()))
+                .collect::<Vec<_>>()
+            ),
+            DataType::Union(u) => DataType::structured(
+                u.fields()
+                .into_iter()
+                .map(|(s, d)| (s, d.deref().empty()))
+                .collect::<Vec<_>>()
+            ),
+            _ => self.default(),
+        }
+    }
+
     /// Return a super data_type where both types can map into
     pub fn into_common_super_variant(
         left: &DataType,

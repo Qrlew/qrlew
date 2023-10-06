@@ -81,6 +81,7 @@ impl Split {
         }
     }
 
+    /// Filter by expressions made of aggregations
     pub fn having(self, expr: Expr) -> Self {
         let name = namer::name_from_content(FIELD, &expr);
         let mut exprs = vec![(name.clone(), expr)];
@@ -998,14 +999,13 @@ mod tests {
             ("c", expr!(c)),
         ]);
         println!("\n\nsplit = {split}");
-        let having = split.having(having_expr);
+        let having = split.having(having_expr).into_map();
         println!("\nhaving = {having}");
-        let map = having.into_map();
         assert_eq!(
-            map.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
+            having.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
             vec!["a", "b", "c"]
         );
-        assert!(map.filter().is_some());
+        assert!(having.filter().is_some());
 
         // Reduce without group by
         let having_expr = Expr::and(
@@ -1017,14 +1017,13 @@ mod tests {
             ("b", expr!(count(1 + y))),
         ]);
         println!("\n\nsplit = {split}");
-        let having = split.having(having_expr);
+        let having = split.having(having_expr).into_map();
         println!("\nhaving = {having}");
-        let map = having.into_map();
         assert_eq!(
-            map.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
+            having.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
             vec!["a", "b"]
         );
-        assert!(map.filter().is_some());
+        assert!(having.filter().is_some());
 
         // Map(Reduce)
         let having_expr = Expr::and(
@@ -1037,14 +1036,13 @@ mod tests {
             ("c", expr!(c)),
         ]);
         println!("\n\nsplit = {split}");
-        let having = split.having(having_expr);
+        let having = split.having(having_expr).into_map();
         println!("\nhaving = {having}");
-        let map = having.into_map();
         assert_eq!(
-            map.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
+            having.named_exprs().iter().map(|(s, _)| s).collect::<Vec<_>>(),
             vec!["a", "b", "c"]
         );
-        assert!(map.filter().is_some());
+        assert!(having.filter().is_some());
     }
 
     #[test]
@@ -1061,6 +1059,21 @@ mod tests {
     fn test_split_filter() {
         let filter = expr!(gt(x, 5));
         println!("filtered_split = {:?}", Split::filter(filter));
+    }
+
+    #[test]
+    fn test_split_reduce_and() {
+        let a = Split::group_by(expr!(a));
+        let b = Split::reduce("sum_b", AggregateColumn::sum("b"));
+        let c = Split::reduce("c", AggregateColumn::first("a"));
+        let reduce_1 = a.clone().and(b).and(c.clone());
+        println!("reduce_1 = {}", reduce_1);
+
+        let d = a.and(Split::reduce("count_b", AggregateColumn::count("b"))).and(c);
+        println!("\n\nsplit = {}", reduce_1.and(d));
+
+        let a = Split::from_iter([("A", expr!(gt(sum(a), 10))), ("b", expr!(first(b)))]);
+        println!("{a}");
     }
 
 }

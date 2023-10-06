@@ -20,7 +20,7 @@ use crate::{
         Variant as _, WithInput,
     },
     tokenizer::Tokenizer,
-    visitor::{Acceptor, Dependencies, Visited},
+    visitor::{Acceptor, Dependencies, Visited}, WithIterator,
 };
 use itertools::Itertools;
 use std::{
@@ -344,13 +344,31 @@ impl<'a> VisitedQueryRelations<'a> {
             }
         }
 
+        // Prepare the GROUP BY
+        let group_by: Result<Vec<Expr>> = match group_by {
+            ast::GroupByExpr::All => todo!(),
+            ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
+                .iter()
+                .map(|e| e.with(columns).try_into())
+                .collect(),
+        };
 
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
-            let expr = Expr::try_from(expr.with(columns))?;
+            let mut expr = Expr::try_from(expr.with(columns))?;
+            let columns = named_exprs.iter()
+                .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
+                .collect();
+            expr = expr.replace(columns).0;
+            if let Ok(g) = &group_by {
+                let columns = g.iter()
+                    .filter_map(|x| matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone()))))
+                    .collect();
+                expr = expr.replace(columns).0;
+            }
             named_exprs.push((having_name.clone(),  expr));
-            Some(Expr::col(having_name))
+            Some(having_name)
         } else {
             None
         };
@@ -363,31 +381,34 @@ impl<'a> VisitedQueryRelations<'a> {
             .map(|e| e.with(columns).try_into())
             .map_or(Ok(None), |r| r.map(Some))?;
 
-        // Prepare the GROUP BY
-        let group_by: Result<Vec<Expr>> = match group_by {
-            ast::GroupByExpr::All => todo!(),
-            ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
-                .iter()
-                .map(|e| e.with(columns).try_into())
-                .collect(),
-        };
         // Build a Relation
-        let relation = match split {
+        let mut relation: Relation = match split {
             Split::Map(map) => {
                 let builder = Relation::map().split(map);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = having.into_iter().fold(builder, |b, e| b.having(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                //let builder = having.into_iter().fold(builder, |b, e| b.having(e));
                 let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
         };
+
+        if let Some(h) = having {
+            relation = Relation::map()
+                .with_iter(
+                    relation.fields()
+                        .iter()
+                        .filter_map(|f| (f.name() != h).then_some((f.name(), Expr::col(f.name()))))
+                        .collect::<Vec<_>>()
+                )
+                .filter(Expr::col(h))
+                .input(relation)
+                .build();
+        }
         Ok(Arc::new(relation))
     }
 
@@ -626,7 +647,7 @@ mod tests {
     use colored::Colorize;
 
     use super::*;
-    use crate::{builder::Ready, data_type::DataType, display::Dot, relation::schema::Schema};
+    use crate::{builder::Ready, data_type::{DataType, DataTyped, self}, display::Dot, relation::schema::Schema};
 
     #[test]
     fn test_map_from_query() {
@@ -898,7 +919,7 @@ mod tests {
 
     #[test]
     fn test_having() {
-        let query = parse("SELECT a, SUM(b) FROM table_1 HAVING a IN (1, -0.5, 2, 13) AND COUNT(b) > 10 GROUP BY a;")
+        let query = parse("SELECT a, SUM(b) FROM table_1 GROUP BY a HAVING a IN (1, -0.5, 2, 13) AND COUNT(b) > 10;")
         .unwrap();
         let schema_1: Schema = vec![
             ("a", DataType::float_interval(-1., 3.)),
@@ -1058,6 +1079,37 @@ mod tests {
 
     #[test]
     #[ignore]
+    fn test_map_with_bool_column() {
+        let schema_1: Schema = vec![
+                ("a", DataType::integer_interval(0, 10)),
+                ("b", DataType::integer_interval(0, 10)),
+                ("c", DataType::integer_interval(0, 10)),
+            ]
+            .into_iter()
+            .collect();
+        let table_1:Relation = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+
+        let query_str = "SELECT a > 100 as b FROM tab_1";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "tab_1"], Arc::new(table_1.clone()))]),
+        ))
+        .unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![("b", DataType::boolean_value(false))])
+        );
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
+    #[ignore]
     fn test_values() {
         let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();
         let schema_1: Schema = vec![
@@ -1080,5 +1132,135 @@ mod tests {
         relation.display_dot().unwrap();
         let q = ast::Query::from(&relation);
         println!("query = {q}");
+    }
+
+    #[test]
+    fn test_having_in_reduce_without_group_by() {
+        let schema_1: Schema = vec![
+                ("a", DataType::integer_interval(0, 10)),
+                ("b", DataType::integer_interval(0, 10)),
+                ("c", DataType::integer_interval(0, 10)),
+            ]
+            .into_iter()
+            .collect();
+        let table_1:Relation = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+
+        let query_str = "SELECT sum(a) AS my_sum FROM tab_1 HAVING sum(b)>10";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "tab_1"], Arc::new(table_1.clone()))]),
+        ))
+        .unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![("my_sum", DataType::integer_interval(0, 1000))])
+        );
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+
+        // condition always false
+        let query_str = "SELECT sum(a) AS my_sum FROM tab_1 WHERE a > 1000 HAVING sum(b)>1000";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "tab_1"], Arc::new(table_1.clone()))]),
+        ))
+        .unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![("my_sum", DataType::Float(data_type::Float::empty()))])
+        );
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
+
+    fn test_having_in_reduce_with_group_by() {
+        let schema_1: Schema = vec![
+                ("a", DataType::integer_interval(0, 10)),
+                ("b", DataType::integer_interval(0, 10)),
+                ("c", DataType::integer_interval(0, 10)),
+            ]
+            .into_iter()
+            .collect();
+        let table_1:Relation = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+
+        let query_str = "SELECT c, sum(a) AS my_sum FROM tab_1 GROUP BY c HAVING sum(b)>10 AND c > 5";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "tab_1"], Arc::new(table_1.clone()))]),
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("c",  DataType::integer_interval(0, 10)),
+                ("my_sum", DataType::integer_interval(0, 1000))
+            ])
+        );
+        println!("relation = {relation}");
+
+        // condition always false
+        let query_str = "SELECT c, sum(a) AS my_sum FROM tab_1 GROUP BY c HAVING c > 15";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "tab_1"], Arc::new(table_1.clone()))]),
+        ))
+        .unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("c", DataType::Integer(data_type::Integer::empty())),
+                ("my_sum", DataType::Float(data_type::Float::empty()))
+            ])
+        );
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_having_in_map() {
+        let schema_1: Schema = vec![
+                ("a", DataType::integer_interval(0, 10)),
+                ("b", DataType::integer_interval(0, 10)),
+                ("c", DataType::integer_interval(0, 10)),
+            ]
+            .into_iter()
+            .collect();
+        let table_1:Relation = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+
+        let query_str = "SELECT c, 3 * sum(a) AS my_sum FROM tab_1 GROUP BY c HAVING my_sum>20 AND c > 5";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "tab_1"], Arc::new(table_1.clone()))]),
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("c",  DataType::integer_interval(0, 10)),
+                ("my_sum", DataType::integer_interval(0, 3000))
+            ])
+        );
+        println!("relation = {relation}");
     }
 }

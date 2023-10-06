@@ -492,9 +492,6 @@ impl Reduce {
         let input_data_type: Struct = input.data_type().try_into().unwrap();
         let input_columns_data_type: DataType =
             Struct::from_schema_size(input_data_type, input.size()).into();
-        println!("named_aggregate_columns = {:?}", named_aggregate_columns);
-        println!("input_columns_data_type = {:?}", input_columns_data_type);
-        println!("input = {:?}", input);
         let (fields, aggregates) = named_aggregate_columns
             .into_iter()
             .map(|(name, aggregate_column)| {
@@ -1672,10 +1669,11 @@ mod tests {
             .with(Expr::exp(Expr::col("a")))
             .input(table)
             .with(Expr::col("b") + Expr::col("d"))
+            .with(("b", Expr::gt(Expr::col("b"), Expr::val(5))))
             .filter(Expr::gt(Expr::col("a"), Expr::val(0.)))
             .build();
         println!("map = {}", map);
-        println!("map.data_type() = {:?}", map.data_type());
+        println!("map.data_type() = {}", map.data_type());
         assert_eq!(
             map.schema().field_from_index(0).unwrap().data_type(),
             DataType::float_min(1.)
@@ -1683,6 +1681,10 @@ mod tests {
         assert_eq!(
             map.schema().field_from_index(1).unwrap().data_type(),
             DataType::float_interval(-2., 3.)
+        );
+        assert_eq!(
+            map.schema().field("b").unwrap().data_type(),
+            DataType::boolean_value(false)
         );
     }
 

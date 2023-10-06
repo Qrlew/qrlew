@@ -135,21 +135,6 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
-    pub fn having(self, expr: Expr) -> MapBuilder<RequireInput> {
-        let expr::split::Map {
-            named_exprs,
-            filter,
-            ..
-        } = self.split.clone().into_map();
-
-        let expr = expr.replace(
-            named_exprs.iter()
-            .map(|(n, x)| (Expr::col(n), x.clone())).collect()
-        ).0;
-        let filter = filter.map_or_else(|| expr.clone(), |f| Expr::and(expr.clone(), f));
-        self.filter(filter)
-    }
-
     pub fn filter_iter(mut self, iter: Vec<Expr>) -> Self {
         let filter = iter
             .into_iter()
@@ -164,6 +149,27 @@ impl<RequireInput> MapBuilder<RequireInput> {
 
     pub fn order_by_iter(mut self, iter: Vec<(Expr, bool)>) -> Self {
         iter.into_iter().fold(self, |w, (x, b)| w.order_by(x, b))
+    }
+
+    pub fn having(mut self, expr: Expr) -> Self {
+        //self.split = self.split.having(expr);
+        //println!("SPLIt = {}", self.split);
+        let name = namer::name_from_content(FIELD, &expr);
+        let split = self.split;
+        println!("1. SPLIT = {split}");
+        let map = split.clone().into_map();
+        let split = if let Some(reduce) = map.reduce() {
+            let reduce = reduce.group_by().iter().fold(
+                Split::from((name, expr)),
+                |s, x| s.and(Split::group_by(x.clone()).into())
+            );
+            reduce
+        } else {
+            Split::from((name, expr)).and(split)
+        };
+        println!("2. SPLIT = {split}");
+        self.split = split;
+        self
     }
 
     /// Add a group by
@@ -470,10 +476,6 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
             ))
         });
         self
-    }
-
-    pub fn having(mut self, expr: Expr) -> MapBuilder<WithoutInput> {
-        todo!()
     }
 
     pub fn input<R: Into<Arc<Relation>>>(self, input: R) -> ReduceBuilder<WithInput> {
@@ -1243,46 +1245,6 @@ mod tests {
     }
 
     #[test]
-    fn test_map_having() {
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::float_range(1.0..=1.1)))
-                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
-                    .with(("c", DataType::float_range(0.0..=5.0)))
-                    .build(),
-            )
-            .build();
-
-        // simple with order by
-        let relation: Relation = Relation::map()
-            .with(("A", expr!(2*a)))
-            .with(("B", Expr::col("b")))
-            .filter(Expr::gt(Expr::col("b"), Expr::val(1.0)))
-            .order_by(expr!(a), true)
-            .having(
-                Expr::and(
-                    Expr::gt(Expr::col("A"), Expr::val(1.4)),
-                    Expr::lt(Expr::col("B"), Expr::val(2)),
-                )
-            )
-            .input(table.clone())
-            .build();
-        //relation.display_dot().unwrap();
-        if let Relation::Map(m) = relation {
-            assert_eq!(
-                m.filter.clone().unwrap(),
-                expr!(and(and(gt(2*a, 1.4), lt(b, 2)), gt(b, 1.0)))
-            );
-            assert_eq!(
-                m.order_by(),
-                [OrderBy::new(expr!(a), true)]
-            )
-        }
-    }
-
-    #[test]
     fn test_reduce_filter() {
         let table: Relation = Relation::table()
             .path(["db", "schema", "table"])
@@ -1324,30 +1286,6 @@ mod tests {
             .build();
         assert_eq!(relation.inputs()[0].schema()[0].data_type(), DataType::float_range(1.0..=1.1));
         reduce.display_dot().unwrap();
-    }
-
-    #[test]
-    fn test_reduce_having() {
-        let table: Relation = Relation::table()
-            .path(["db", "schema", "table"])
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::float_range(1.0..=1.1)))
-                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
-                    .with(("c", DataType::float_range(0.0..=5.0)))
-                    .build(),
-            )
-            .build();
-
-        let reduce: Relation = Relation::reduce()
-            .with(("S", AggregateColumn::sum("a")))
-            .with_group_by_column("b")
-            .filter(expr!(gt(a, 1.05)))
-            .having(expr!(gt(10*S, 10)))
-            .input(table)
-            .build();
-        reduce.display_dot().unwrap();
-
     }
 
     #[test]
@@ -1454,4 +1392,36 @@ mod tests {
         println!("{}", values);
         println!("{}", values.data_type());
     }
+
+    #[test]
+    fn test_map_having() {
+        let table: Relation = Relation::table()
+            .path(["db", "schema", "table"])
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .build(),
+            )
+            .build();
+        let reduce: Relation = Relation::reduce()
+            .with(("sum_a", expr!(sum(a))))
+            .with(("b", expr!(first(b))))
+            .group_by(expr!(b))
+            .input(table)
+            .build();
+        let map: Map = Relation::map()
+            .with(("A", Expr::col("sum_a")))
+            .with(("B", Expr::col("b")))
+            .input(reduce)
+            .build();
+        println!("Map = {map}");
+        let map_with_having: Relation = Relation::map()
+            .with(map)
+            .having(expr!(gt(sum(c), 10)))
+            .build();
+        println!("\nHAVING = {map_with_having}");
+    }
+
 }

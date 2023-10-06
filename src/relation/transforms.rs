@@ -3,7 +3,7 @@
 
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::expr::AggregateColumn;
-use crate::namer;
+use crate::namer::{self, name_from_content, FIELD};
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, DataTyped},
@@ -2096,4 +2096,5 @@ mod tests {
             names_aggs
         );
     }
+
 }

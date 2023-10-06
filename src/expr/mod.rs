@@ -1298,16 +1298,22 @@ impl DataType {
 
     /// Returns a new `DataType` clone of the current `DataType`
     /// filtered by the predicate `Identifier`
-    /// TODO
     fn filter_by_column(&self, predicate: &Identifier) -> DataType {
-        self.clone()
+        match  TryInto::<Vec<Value>>::try_into(self[predicate.deref()].clone()){
+            Ok(v) if v.len() == 1 => {
+                self.filter_by_value(&v[0])
+            },
+            _ => self.clone()
+        }
     }
 
     /// Returns a new `DataType` clone of the current `DataType`
     /// filtered by the predicate `Value`
-    /// TODO
     fn filter_by_value(&self, predicate: &Value) -> DataType {
-        self.clone()
+        match predicate {
+            value::Value::Boolean(b) if !*b.deref() => self.empty(),
+            _ => self.clone(),
+        }
     }
 
     /// Returns a new `DataType` clone of the current `DataType`
@@ -1804,6 +1810,35 @@ mod tests {
     }
 
     #[test]
+    fn test_gt() {
+        let expression = expr!(gt(x, 5));
+        assert_eq!(
+            expression
+                .super_image(&DataType::structured([
+                    ("x", DataType::float_interval(1., 2.)),
+                ]))
+                .unwrap(),
+            DataType::boolean_value(false)
+        );
+        assert_eq!(
+            expression
+                .super_image(&DataType::structured([
+                    ("x", DataType::float_interval(6., 12.)),
+                ]))
+                .unwrap(),
+            DataType::boolean_value(true)
+        );
+        assert_eq!(
+            expression
+                .super_image(&DataType::structured([
+                    ("x", DataType::float_interval(1., 10.)),
+                ]))
+                .unwrap(),
+            DataType::boolean()
+        );
+    }
+
+    #[test]
     fn test_case() {
         let expression = expr!(case(gt(x, 5), x, y));
         println!("\nexpression = {}", expression);
@@ -2202,6 +2237,18 @@ mod tests {
             ("b", DataType::integer_interval(0, 8)),
             ("c", DataType::float()),
         ]);
+
+        // (a > 100)
+        let x = expr!(gt(a, 100));
+        println!("{}", x);
+        let filtered_dt = dt.filter(&x);
+        println!("{}", filtered_dt);
+        let true_dt = DataType::structured([
+            ("a", DataType::Float(data_type::Float::empty())),
+            ("b", DataType::integer_interval(0, 8)),
+            ("c", DataType::float()),
+        ]);
+        assert_eq!(filtered_dt, true_dt);
 
         // (a > 5)
         let x = expr!(gt(a, 5));

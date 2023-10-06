@@ -438,6 +438,7 @@ impl Struct {
     /// Create a Struct from a rc slice of fields
     pub fn new(fields: Vec<(String, Arc<Value>)>) -> Struct {
         let mut uniques = HashSet::new();
+        println!("{:?}", fields);
         assert!(fields.iter().all(move |(f, _)| uniques.insert(f.clone())));
         Struct(fields)
     }
