@@ -1,4 +1,4 @@
-pub mod relation_with;
+pub mod relation_with_attributes;
 pub mod rewriting_rule;
 
 // pub enum Rewritting
@@ -16,7 +16,6 @@ mod tests {
         sql::parse,
         Relation,
     };
-    use std::sync::Arc;
 
     #[test]
     fn test_compile() {
@@ -38,7 +37,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         // Add rewritting rules
-        let relation_with_rules: rewriting_rule::RelationWithRewritingRules = (&relation).with(vec![]);
+        let relation_with_rules: rewriting_rule::RelationWithRewritingRules = relation.with_default_attributes();
         println!("{:#?}", relation_with_rules);
     }
 }
