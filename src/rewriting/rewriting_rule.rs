@@ -57,7 +57,14 @@ struct SetRewritingRulesVisitor<'a, S: SetRewritingRules<'a>>(S, PhantomData<&'a
 /// Implement Visitor for all SetRewritingRulesVisitors
 impl<'a, S: SetRewritingRules<'a>> Visitor<'a, Relation, Arc<RelationWithRewritingRules<'a>>> for SetRewritingRulesVisitor<'a, S> {
     fn visit(&self, acceptor: &'a Relation, dependencies: Visited<'a, Relation, Arc<RelationWithRewritingRules<'a>>>) -> Arc<RelationWithRewritingRules<'a>> {
-        todo!()
+        let rewriting_rules = match acceptor {
+            Relation::Table(table) => self.0.table(table),
+            Relation::Map(map) => self.0.map(map, dependencies.get(map.input())),
+            Relation::Reduce(reduce) => self.0.reduce(reduce, dependencies.get(reduce.input())),
+            Relation::Join(join) => self.0.join(join, dependencies.get(join.left()), dependencies.get(join.right())),
+            Relation::Set(set) => self.0.set(set, dependencies.get(set.left()), dependencies.get(set.right())),
+            Relation::Values(values) => self.0.values(values),
+        };
     }
 }
 
