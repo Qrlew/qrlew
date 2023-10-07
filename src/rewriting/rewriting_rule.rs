@@ -42,29 +42,37 @@ pub type RelationWithRewritingRules<'a> = super::relation_with_attributes::Relat
 // Visitors
 
 /// A Visitor to set RR
-pub trait SetRewritingRules<'a> {
+pub trait SetRewritingRulesVisitor<'a> {
     fn table(&self, table: &'a Table) -> Vec<RewritingRule>;
-    fn map(&self, map: &'a Map, input: &'a RelationWithRewritingRules<'a>) -> Vec<RewritingRule>;
-    fn reduce(&self, reduce: &'a Reduce, input: &'a RelationWithRewritingRules<'a>) -> Vec<RewritingRule>;
-    fn join(&self, join: &'a Join, left: &'a RelationWithRewritingRules<'a>, right: &'a RelationWithRewritingRules<'a>) -> Vec<RewritingRule>;
-    fn set(&self, set: &'a Set, left: &'a RelationWithRewritingRules<'a>, right: &'a RelationWithRewritingRules<'a>) -> Vec<RewritingRule>;
+    fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule>;
+    fn reduce(&self, reduce: &'a Reduce, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule>;
+    fn join(&self, join: &'a Join, left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule>;
+    fn set(&self, set: &'a Set, left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule>;
     fn values(&self, values: &'a Values) -> Vec<RewritingRule>;
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-struct SetRewritingRulesVisitor<'a, S: SetRewritingRules<'a>>(S, PhantomData<&'a S>);
+struct SetRewritingRules<'a, S: SetRewritingRulesVisitor<'a>>(S, PhantomData<&'a S>);
 
 /// Implement Visitor for all SetRewritingRulesVisitors
-impl<'a, S: SetRewritingRules<'a>> Visitor<'a, Relation, Arc<RelationWithRewritingRules<'a>>> for SetRewritingRulesVisitor<'a, S> {
+impl<'a, S: SetRewritingRulesVisitor<'a>> Visitor<'a, Relation, Arc<RelationWithRewritingRules<'a>>> for SetRewritingRules<'a, S> {
     fn visit(&self, acceptor: &'a Relation, dependencies: Visited<'a, Relation, Arc<RelationWithRewritingRules<'a>>>) -> Arc<RelationWithRewritingRules<'a>> {
         let rewriting_rules = match acceptor {
             Relation::Table(table) => self.0.table(table),
-            Relation::Map(map) => self.0.map(map, dependencies.get(map.input())),
-            Relation::Reduce(reduce) => self.0.reduce(reduce, dependencies.get(reduce.input())),
-            Relation::Join(join) => self.0.join(join, dependencies.get(join.left()), dependencies.get(join.right())),
-            Relation::Set(set) => self.0.set(set, dependencies.get(set.left()), dependencies.get(set.right())),
+            Relation::Map(map) => self.0.map(map, dependencies.get(map.input()).clone()),
+            Relation::Reduce(reduce) => self.0.reduce(reduce, dependencies.get(reduce.input()).clone()),
+            Relation::Join(join) => self.0.join(join, dependencies.get(join.left()).clone(), dependencies.get(join.right()).clone()),
+            Relation::Set(set) => self.0.set(set, dependencies.get(set.left()).clone(), dependencies.get(set.right()).clone()),
             Relation::Values(values) => self.0.values(values),
         };
+        let inputs: Vec<Arc<RelationWithRewritingRules<'a>>> = acceptor.inputs().into_iter().map(|input| dependencies.get(input).clone()).collect();
+        Arc::new(RelationWithAttributes::new(acceptor, rewriting_rules, inputs))
+    }
+}
+
+impl Relation {
+    pub fn set_rewriting_rules<'a, S: SetRewritingRulesVisitor<'a>+'a>(&'a self, set_rewriting_rules: S) -> RelationWithRewritingRules<'a> {
+        (*self.accept(SetRewritingRules(set_rewriting_rules, PhantomData))).clone()
     }
 }
 
