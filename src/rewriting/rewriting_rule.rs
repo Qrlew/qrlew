@@ -30,12 +30,14 @@ pub struct RewritingRule {
     output: Property,
 }
 
+impl RewritingRule {
+    pub fn new(inputs: Vec<Property>, output: Property) -> RewritingRule {
+        RewritingRule {inputs, output}
+    }
+}
+
 pub type RelationWithRewritingRules<'a> = super::relation_with_attributes::RelationWithAttributes<'a, Vec<RewritingRule>>;
 
-
-
-// TODO Write a map method Relation -> RelationWithRules
-// TODO Write a map method RelationWithRules -> RelationWithRules
 // TODO Write a rewrite method RelationWithRules -> Relation
 // TODO Write a dot method RelationWithRules -> Dot
 
@@ -71,6 +73,7 @@ impl<'a, S: SetRewritingRulesVisitor<'a>> Visitor<'a, Relation, Arc<RelationWith
 }
 
 impl Relation {
+    /// Take a relation and set rewriting rules
     pub fn set_rewriting_rules<'a, S: SetRewritingRulesVisitor<'a>+'a>(&'a self, set_rewriting_rules_visitor: S) -> RelationWithRewritingRules<'a> {
         (*self.accept(SetRewritingRulesVisitorWrapper(set_rewriting_rules_visitor, PhantomData))).clone()
     }
@@ -98,5 +101,95 @@ impl<'a, V: MapRewritingRulesVisitor<'a>> Visitor<'a, RelationWithRewritingRules
             Relation::Values(values) => self.values(values, acceptor.attributes()),
         };
         Arc::new(RelationWithAttributes::new(acceptor.relation(), rewriting_rules, acceptor.inputs().into_iter().cloned().collect()))
+    }
+}
+
+impl<'a> RelationWithRewritingRules<'a> {
+    /// Change rewriting rules
+    pub fn map_rewriting_rules<M: MapRewritingRulesVisitor<'a>+'a>(&'a self, map_rewriting_rules_visitor: M) -> RelationWithRewritingRules<'a> {
+        (*self.accept(map_rewriting_rules_visitor)).clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+
+    use super::*;
+    use crate::{
+        ast,
+        builder::With,
+        display::Dot,
+        io::{postgresql, Database},
+        sql::parse,
+        Relation,
+    };
+
+    #[test]
+    fn test_set_rewriting_rules() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        for (p, r) in relations.iter() {
+            println!("{} -> {r}", p.into_iter().join("."))
+        }
+
+        let query = parse(
+            "SELECT order_id, sum(price) AS sum_price,
+        count(price) AS count_price,
+        avg(price) AS mean_price
+        FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
+        )
+        .unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+
+        struct SimpleRewritingRules;
+        impl<'a> SetRewritingRulesVisitor<'a> for SimpleRewritingRules {
+            fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
+                vec![RewritingRule::new(vec![], Property::ProtectedEntityPreserving)]
+            }
+
+            fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                vec![
+                    RewritingRule::new(vec![Property::DifferentiallyPrivate], Property::Published),
+                    RewritingRule::new(vec![Property::Published], Property::Published),
+                    RewritingRule::new(vec![Property::Public], Property::Public),
+                    RewritingRule::new(vec![Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
+                ]
+            }
+
+            fn reduce(&self, reduce: &'a Reduce, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                vec![
+                    RewritingRule::new(vec![Property::Published], Property::Published),
+                    RewritingRule::new(vec![Property::Public], Property::Public),
+                    RewritingRule::new(vec![Property::ProtectedEntityPreserving], Property::DifferentiallyPrivate)
+                ]
+            }
+
+            fn join(&self, join: &'a Join, left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                vec![
+                    RewritingRule::new(vec![Property::Published, Property::Published], Property::Published),
+                    RewritingRule::new(vec![Property::Public, Property::Public], Property::Public),
+                    RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving)
+                ]
+            }
+
+            fn set(&self, set: &'a Set, left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                vec![
+                    RewritingRule::new(vec![Property::Published, Property::Published], Property::Published),
+                    RewritingRule::new(vec![Property::Public, Property::Public], Property::Public),
+                    RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving)
+                ]
+            }
+
+            fn values(&self, values: &'a Values) -> Vec<RewritingRule> {
+                vec![RewritingRule::new(vec![], Property::Public)]
+            }
+        }
+
+        // Add rewritting rules
+        let relation_with_rules = relation.set_rewriting_rules(SimpleRewritingRules);
+        println!("{:#?}", relation_with_rules);
     }
 }
