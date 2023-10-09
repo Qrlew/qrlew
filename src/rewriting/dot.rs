@@ -20,7 +20,7 @@ enum Node<'a> {
 /// An edge in the RelationWithRewritingRules representation
 #[derive(Clone, Copy, Debug, Hash)]
 enum Edge<'a> {
-    InputRelation(&'a Relation, &'a Relation),
+    RelationInput(&'a Relation, &'a Relation),
     RelationRewritingRule(&'a Relation, &'a RewritingRule),
 }
 
@@ -34,7 +34,7 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
     }
 
     fn node_label(&'a self, node: &Node<'a>) -> dot::LabelText<'a> {
-        dot::LabelText::html(match node {
+        dot::LabelText::label(match node {
             Node::Relation(relation) => format!("{}", relation.name()),
             Node::RewritingRule(rewriting_rule, _) => format!("{}", rewriting_rule.output()),
         })
@@ -64,14 +64,14 @@ impl<'a> dot::GraphWalk<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a>> {
         self.iter().flat_map(|rwrr|
             iter::once(rwrr.relation()).map(Node::Relation).chain(
-                rwrr.attributes().iter().map(|rewriting_rule| Node::RewritingRule(rewriting_rule, self.relation()))
+                rwrr.attributes().iter().map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr.relation()))
             )
         ).collect()
     }
 
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a>> {
         self.iter().flat_map(|rwrr| {
-            rwrr.relation().inputs().into_iter().map(|input| Edge::InputRelation(input, rwrr.relation())).chain(
+            rwrr.relation().inputs().into_iter().map(|input| Edge::RelationInput(rwrr.relation(), input)).chain(
                 rwrr.attributes().into_iter().map(|rewriting_rule| Edge::RelationRewritingRule(rwrr.relation(), rewriting_rule))
             )
         }).collect()
@@ -79,14 +79,14 @@ impl<'a> dot::GraphWalk<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'
 
     fn source(&'a self, edge: &Edge<'a>) -> Node<'a> {
         match edge {
-            Edge::InputRelation(input, _relation) => Node::Relation(input),
+            Edge::RelationInput(relation, _input) => Node::Relation(relation),
             Edge::RelationRewritingRule(relation, _rewriting_rule) => Node::Relation(relation),
         }
     }
 
     fn target(&'a self, edge: &Edge<'a>) -> Node<'a> {
         match edge {
-            Edge::InputRelation(_input, relation) => Node::Relation(relation),
+            Edge::RelationInput(_relation, input) => Node::Relation(input),
             Edge::RelationRewritingRule(relation, rewriting_rule) => Node::RewritingRule(rewriting_rule, relation),
         }
     }
