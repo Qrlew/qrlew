@@ -34,9 +34,14 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
     }
 
     fn node_label(&'a self, node: &Node<'a>) -> dot::LabelText<'a> {
-        dot::LabelText::label(match node {
-            Node::Relation(relation) => format!("{}", relation.name()),
-            Node::RewritingRule(rewriting_rule, _) => format!("{}", rewriting_rule.output()),
+        dot::LabelText::html(match node {
+            Node::Relation(relation) => format!("<b>{}</b><br/>{}", relation.name().to_uppercase(), relation.schema().iter().map(|f| f.name()).join(", ")),
+            Node::RewritingRule(rewriting_rule, _) => match rewriting_rule.output() {
+                Property::Public => format!("P"),
+                Property::Published => format!("p"),
+                Property::ProtectedEntityPreserving => format!("PEP"),
+                Property::DifferentiallyPrivate => format!("DP"),
+            },
         })
     }
 
@@ -51,12 +56,30 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
                 Relation::Values(_) => colors::MEDIUM_GREEN,
             },
             Node::RewritingRule(rewriting_rule, _) => match rewriting_rule.output() {
-                Property::Public => colors::TABLEAU_DARK_BLUE,
-                Property::Published => colors::TABLEAU_LIGHT_BLUE,
+                Property::Public => colors::TABLEAU_CYAN,
+                Property::Published => colors::TABLEAU_BLUE,
                 Property::ProtectedEntityPreserving => colors::TABLEAU_ORANGE,
                 Property::DifferentiallyPrivate => colors::TABLEAU_RED,
             },
         }))
+    }
+
+    fn node_shape(&'a self, node: &Node<'a>) -> Option<dot::LabelText<'a>> {
+        match node {
+            Node::Relation(_) => None,
+            Node::RewritingRule(_, _) => Some(dot::LabelText::label("circle")),
+        }
+    }
+
+    fn edge_label(&'a self, edge: &Edge<'a>) -> dot::LabelText<'a> {
+        dot::LabelText::LabelStr("".into())
+    }
+
+    fn edge_style(&'a self, edge: &Edge<'a>) -> dot::Style {
+        match edge {
+            Edge::RelationInput(r, i) => dot::Style::None,
+            Edge::RelationRewritingRule(r, rr) => dot::Style::Dotted,
+        }
     }
 }
 

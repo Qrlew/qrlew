@@ -56,9 +56,8 @@ const HTML_BODY: &str = r##"<body>
 <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
 <div id="graph" style="text-align: center; display: block; position: absolute;"></div>
 <script>
-d3.select("#graph").graphviz()
+d3.select("#graph").graphviz().engine("dot")
 .renderDot(`"##;
-
 const HTML_FOOTER: &str = r##"`);
 </script>
 "##;

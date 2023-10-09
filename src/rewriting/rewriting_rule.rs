@@ -162,9 +162,9 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        for (p, r) in relations.iter() {
-            println!("{} -> {r}", p.into_iter().join("."))
-        }
+        // for (p, r) in relations.iter() {
+        //     println!("{} -> {r}", p.into_iter().join("."))
+        // }
 
         let query = parse(
             "SELECT order_id, sum(price) AS sum_price,
