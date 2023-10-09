@@ -132,7 +132,8 @@ impl<'a, V: MapRewritingRulesVisitor<'a>> Visitor<'a, RelationWithRewritingRules
             Relation::Set(set) => self.set(set, acceptor.attributes(), dependencies.get(acceptor.inputs()[0].deref()).clone(), dependencies.get(acceptor.inputs()[1].deref()).clone()),
             Relation::Values(values) => self.values(values, acceptor.attributes()),
         };
-        Arc::new(RelationWithAttributes::new(acceptor.relation(), rewriting_rules, acceptor.inputs().into_iter().cloned().collect()))
+        let inputs: Vec<Arc<RelationWithRewritingRules<'a>>> = acceptor.inputs().into_iter().map(|input| dependencies.get(input).clone()).collect();
+        Arc::new(RelationWithAttributes::new(acceptor.relation(), rewriting_rules, inputs))
     }
 }
 
@@ -145,6 +146,8 @@ impl<'a> RelationWithRewritingRules<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use itertools::Itertools;
 
     use super::*;
@@ -176,6 +179,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
 
+        /// A basic rewriting rule setter
         struct SimpleRewritingRules;
         impl<'a> SetRewritingRulesVisitor<'a> for SimpleRewritingRules {
             fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
@@ -222,6 +226,44 @@ mod tests {
 
         // Add rewritting rules
         let relation_with_rules = relation.set_rewriting_rules(SimpleRewritingRules);
-        relation_with_rules.display_dot();
+        relation_with_rules.display_dot().unwrap();
+
+        /// A basic rewriting rule map
+        struct EliminateRewritingRules;
+        impl<'a> MapRewritingRulesVisitor<'a> for EliminateRewritingRules {
+            fn table(&self, table: &'a Table, rewriting_rules: &'a[RewritingRule]) -> Vec<RewritingRule> {
+                rewriting_rules.into_iter().cloned().collect()
+            }
+
+            fn map(&self, map: &'a Map, rewriting_rules: &'a[RewritingRule], input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                let input_properties: HashSet<&Property> = input.attributes().into_iter().map(|rr| rr.output()).collect();
+                println!("MAP {}", rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().join(", "));
+                rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().collect()
+            }
+
+            fn reduce(&self, reduce: &'a Reduce, rewriting_rules: &'a[RewritingRule], input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                let input_properties: HashSet<&Property> = input.attributes().into_iter().map(|rr| rr.output()).collect();
+                println!("REDUCE {}", rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().join(", "));
+                rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().collect()
+            }
+
+            fn join(&self, join: &'a Join, rewriting_rules: &'a[RewritingRule], left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                let left_properties: HashSet<&Property> = left.attributes().into_iter().map(|rr| rr.output()).collect();
+                let right_properties: HashSet<&Property> = right.attributes().into_iter().map(|rr| rr.output()).collect();
+                rewriting_rules.into_iter().filter(|rr| left_properties.contains(&rr.inputs()[0]) && right_properties.contains(&rr.inputs()[1])).cloned().collect()
+            }
+
+            fn set(&self, set: &'a Set, rewriting_rules: &'a[RewritingRule], left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+                let left_properties: HashSet<&Property> = left.attributes().into_iter().map(|rr| rr.output()).collect();
+                let right_properties: HashSet<&Property> = right.attributes().into_iter().map(|rr| rr.output()).collect();
+                rewriting_rules.into_iter().filter(|rr| left_properties.contains(&rr.inputs()[0]) && right_properties.contains(&rr.inputs()[1])).cloned().collect()
+            }
+
+            fn values(&self, values: &'a Values, rewriting_rules: &'a[RewritingRule]) -> Vec<RewritingRule> {
+                rewriting_rules.into_iter().cloned().collect()
+            }
+        }
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(EliminateRewritingRules);
+        relation_with_rules.display_dot().unwrap();
     }
 }
