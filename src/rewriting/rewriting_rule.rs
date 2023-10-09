@@ -222,6 +222,6 @@ mod tests {
 
         // Add rewritting rules
         let relation_with_rules = relation.set_rewriting_rules(SimpleRewritingRules);
-        println!("{:#?}", relation_with_rules);
+        relation_with_rules.display_dot();
     }
 }

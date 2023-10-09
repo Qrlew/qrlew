@@ -10,6 +10,7 @@ use crate::{
     builder::{WithContext, WithoutContext},
     data_type::DataTyped,
     namer, DataType, Expr, Relation, Value,
+    rewriting::RelationWithRewritingRules,
 };
 use std::{
     fs::File,
@@ -107,6 +108,24 @@ impl Dot for WithContext<&Expr, Value> {
         output.write(HTML_STYLE.as_bytes())?;
         output.write(HTML_BODY.as_bytes())?;
         self.dot_value(self.context.clone(), &mut output, &[])?;
+        output.write(HTML_FOOTER.as_bytes())?;
+        #[cfg(feature = "graphviz_display")]
+        Command::new("open")
+            .arg(format!("/tmp/{name}.html"))
+            .output()
+            .expect("Error: this works on MacOS");
+        Ok(())
+    }
+}
+
+impl<'a> Dot for RelationWithRewritingRules<'a> {
+    fn display_dot(&self) -> Result<()> {
+        let name = namer::name_from_content("relation_with_rewriting_rules", self);
+        let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
+        output.write(HTML_HEADER.as_bytes())?;
+        output.write(HTML_DARK_STYLE.as_bytes())?;
+        output.write(HTML_BODY.as_bytes())?;
+        self.dot(&mut output, &["dark"])?;
         output.write(HTML_FOOTER.as_bytes())?;
         #[cfg(feature = "graphviz_display")]
         Command::new("open")
