@@ -1,10 +1,13 @@
 //! For now a simple definition of Property
 
 use std::{
+    fmt,
     sync::Arc,
     ops::Deref,
     marker::PhantomData,
 };
+
+use itertools::Itertools;
 
 use crate::{
     relation::{Relation, Table, Map, Reduce, Join, Set, Values},
@@ -21,6 +24,17 @@ pub enum Property {
     DifferentiallyPrivate,
 }
 
+impl fmt::Display for Property {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Property::Public => write!(f, "Public"),
+            Property::Published => write!(f, "Published"),
+            Property::ProtectedEntityPreserving => write!(f, "PEP"),
+            Property::DifferentiallyPrivate => write!(f, "DP"),
+        }
+    }
+}
+
 /// Relation rewriting rule
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RewritingRule {
@@ -33,6 +47,24 @@ pub struct RewritingRule {
 impl RewritingRule {
     pub fn new(inputs: Vec<Property>, output: Property) -> RewritingRule {
         RewritingRule {inputs, output}
+    }
+    /// Read inputs
+    pub fn inputs(&self) -> &[Property] {
+        &self.inputs
+    }
+    /// Read output
+    pub fn output(&self) -> &Property {
+        &self.output
+    }
+}
+
+impl fmt::Display for RewritingRule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.inputs.len() {
+            0 => write!(f, "{}", self.output),
+            1 => write!(f, "{}→{}", self.inputs[0], self.output),
+            _ => write!(f, "{}→{}", self.inputs.iter().join(", "), self.output),
+        }
     }
 }
 

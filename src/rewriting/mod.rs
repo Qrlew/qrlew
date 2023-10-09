@@ -1,8 +1,9 @@
 pub mod relation_with_attributes;
 pub mod rewriting_rule;
+pub mod dot;
 
-// pub enum Rewritting
-
+pub use relation_with_attributes::RelationWithAttributes;
+pub use rewriting_rule::{Property, RewritingRule, RelationWithRewritingRules};
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
