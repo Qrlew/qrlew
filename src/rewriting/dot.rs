@@ -2,7 +2,7 @@ use std::{fmt, io, string, iter};
 
 use itertools::Itertools;
 
-use super::{Property, RewritingRule, RelationWithRewritingRules, rewriting_rule};
+use super::{Property, RewritingRule, RelationWithRewritingRules, RelationWithRewritingRule, rewriting_rule};
 use crate::{
     relation::{Relation, Variant},
     namer,
@@ -116,6 +116,13 @@ impl<'a> RelationWithRewritingRules<'a> {
     /// Render the Relation to dot
     pub fn dot<W: io::Write>(&self, w: &mut W, opts: &[&str]) -> io::Result<()> {
         display::dot::render(self, w, opts)
+    }
+}
+
+impl<'a> RelationWithRewritingRule<'a> {
+    /// Render the Relation to dot
+    pub fn dot<W: io::Write>(&self, w: &mut W, opts: &[&str]) -> io::Result<()> {
+        RelationWithRewritingRules::from(self).dot(w, opts)
     }
 }
 

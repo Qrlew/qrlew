@@ -114,7 +114,7 @@ impl<'a, S: SetRewritingRulesVisitor<'a>> Visitor<'a, Relation, Arc<RelationWith
 
 impl Relation {
     /// Take a relation and set rewriting rules
-    pub fn set_rewriting_rules<'a, S: SetRewritingRulesVisitor<'a>+'a>(&'a self, set_rewriting_rules_visitor: S) -> RelationWithRewritingRules<'a> {
+    pub fn set_rewriting_rules<'a, S: 'a+SetRewritingRulesVisitor<'a>>(&'a self, set_rewriting_rules_visitor: S) -> RelationWithRewritingRules<'a> {
         (*self.accept(SetRewritingRulesVisitorWrapper(set_rewriting_rules_visitor, PhantomData))).clone()
     }
 }
@@ -214,6 +214,12 @@ impl<'a> RelationWithRewritingRules<'a> {
     /// Change rewriting rules
     pub fn select_rewriting_rules<S: SelectRewritingRuleVisitor<'a>+'a>(&'a self, select_rewriting_rules_visitor: S) -> Vec<RelationWithRewritingRule<'a>> {
         self.accept(select_rewriting_rules_visitor).into_iter().map(|rwrr| (*rwrr).clone()).collect()
+    }
+}
+
+impl<'a> From<&'a RelationWithRewritingRule<'a>> for RelationWithRewritingRules<'a> {
+    fn from(value: &'a RelationWithRewritingRule<'a>) -> Self {
+        value.map_attributes(|rwrr| vec![rwrr.attributes().clone()])
     }
 }
 
@@ -378,7 +384,7 @@ mod tests {
         let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
-            
+            rwrr.display_dot().unwrap()
         }
     }
 }

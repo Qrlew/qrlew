@@ -1,6 +1,6 @@
 use std::{ops::Deref, sync::Arc, hash::Hash, fmt::Debug, marker::PhantomData};
 use crate::{
-    relation::Relation,
+    relation::{Relation, Table, Map, Reduce, Join, Set, Values},
     visitor::{self, Acceptor, Dependencies, Visited},
 };
 
@@ -64,11 +64,6 @@ impl<'a, Attributes: Default> visitor::Visitor<'a, Relation, Arc<RelationWithAtt
     }
 }
 
-// struct WithMappedAttributesVisitor<'a, A: 'a+Clone+Debug, B: 'a+Clone+Debug, Map: Fn(&'a RelationWithAttributes<'a, A>)->B>(Map);
-// impl<'a, A: Clone, B: Clone, Map: Fn(&'a RelationWithAttributes<'a, A>)->B> visitor::Visitor<'a, RelationWithAttributes<'a, A>, Arc<RelationWithAttributes<'a, B>>> for WithMappedAttributesVisitor<'a, A, B, Map> {
-   
-// }
-
 impl Relation {
     /// Add attributes to Relation
     pub fn with_attributes<'a, Attributes: Clone>(&'a self, attributes: Attributes) -> RelationWithAttributes<'a, Attributes> {
@@ -96,5 +91,59 @@ impl<'a, Attributes> IntoIterator for &'a RelationWithAttributes<'a, Attributes>
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+// Visitors
+
+/// A Visitor to set RR
+pub trait SetAttributesVisitor<'a, Attributes: 'a+Clone+Debug+Hash+Eq> {
+    fn table(&self, table: &'a Table) -> Attributes;
+    fn map(&self, map: &'a Map, input: Arc<RelationWithAttributes<'a, Attributes>>) -> Attributes;
+    fn reduce(&self, reduce: &'a Reduce, input: Arc<RelationWithAttributes<'a, Attributes>>) -> Attributes;
+    fn join(&self, join: &'a Join, left: Arc<RelationWithAttributes<'a, Attributes>>, right: Arc<RelationWithAttributes<'a, Attributes>>) -> Attributes;
+    fn set(&self, set: &'a Set, left: Arc<RelationWithAttributes<'a, Attributes>>, right: Arc<RelationWithAttributes<'a, Attributes>>) -> Attributes;
+    fn values(&self, values: &'a Values) -> Attributes;
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct SetAttributesVisitorWrapper<'a, Attributes: 'a+Clone+Debug+Hash+Eq, S: SetAttributesVisitor<'a, Attributes>>(S, PhantomData<(&'a Attributes, &'a S)>);
+
+/// Implement the visitor trait
+impl<'a, Attributes: 'a+Clone+Debug+Hash+Eq, S: SetAttributesVisitor<'a, Attributes>> visitor::Visitor<'a, Relation, Arc<RelationWithAttributes<'a, Attributes>>> for SetAttributesVisitorWrapper<'a, Attributes, S> {
+    fn visit(&self, acceptor: &'a Relation, dependencies: Visited<'a, Relation, Arc<RelationWithAttributes<'a, Attributes>>>) -> Arc<RelationWithAttributes<'a, Attributes>> {
+        let rewriting_rules = match acceptor {
+            Relation::Table(table) => self.0.table(table),
+            Relation::Map(map) => self.0.map(map, dependencies.get(map.input()).clone()),
+            Relation::Reduce(reduce) => self.0.reduce(reduce, dependencies.get(reduce.input()).clone()),
+            Relation::Join(join) => self.0.join(join, dependencies.get(join.left()).clone(), dependencies.get(join.right()).clone()),
+            Relation::Set(set) => self.0.set(set, dependencies.get(set.left()).clone(), dependencies.get(set.right()).clone()),
+            Relation::Values(values) => self.0.values(values),
+        };
+        let inputs: Vec<Arc<RelationWithAttributes<'a, Attributes>>> = acceptor.inputs().into_iter().map(|input| dependencies.get(input).clone()).collect();
+        Arc::new(RelationWithAttributes::new(acceptor, rewriting_rules, inputs))
+    }
+}
+
+impl Relation {
+    /// Take a relation and set rewriting rules
+    pub fn set_attributes<'a, Attributes: 'a+Clone+Debug+Hash+Eq, S: 'a+SetAttributesVisitor<'a, Attributes>>(&'a self, set_attributes_visitor: S) -> RelationWithAttributes<'a, Attributes> {
+        (*self.accept(SetAttributesVisitorWrapper(set_attributes_visitor, PhantomData))).clone()
+    }
+}
+
+/// A Visitor to update RRs
+struct MapAttributesVisitor<'a, A: 'a+Clone+Debug, B: Clone, Map: Fn(&'a RelationWithAttributes<'a, A>)->B>(Map, PhantomData<(&'a A, B)>);
+
+impl<'a, A: 'a+Clone+Debug+Hash+Eq, B: Clone, Map: Fn(&'a RelationWithAttributes<'a, A>)->B> visitor::Visitor<'a, RelationWithAttributes<'a, A>, Arc<RelationWithAttributes<'a, B>>> for MapAttributesVisitor<'a, A, B, Map> {
+    fn visit(&self, acceptor: &'a RelationWithAttributes<'a, A>, mut dependencies: Visited<'a, RelationWithAttributes<'a, A>, Arc<RelationWithAttributes<'a, B>>>) -> Arc<RelationWithAttributes<'a, B>> {
+        Arc::new(RelationWithAttributes::new(acceptor.relation(), self.0(acceptor), acceptor.inputs().into_iter().map(|r| dependencies.pop(r)).collect()))
+    }
+}
+
+impl<'a, A: 'a+Clone+Debug+Hash+Eq> RelationWithAttributes<'a, A> {
+    /// Add attributes to Relation
+    pub fn map_attributes<B: Clone, Map: Fn(&'a RelationWithAttributes<'a, A>)->B>(&'a self, map: Map) -> RelationWithAttributes<'a, B> {
+        (*self.accept(MapAttributesVisitor(map, PhantomData))).clone()
     }
 }

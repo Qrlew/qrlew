@@ -3,7 +3,7 @@ pub mod rewriting_rule;
 pub mod dot;
 
 pub use relation_with_attributes::RelationWithAttributes;
-pub use rewriting_rule::{Property, RewritingRule, RelationWithRewritingRules};
+pub use rewriting_rule::{Property, RewritingRule, RelationWithRewritingRules, RelationWithRewritingRule};
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
