@@ -3161,8 +3161,6 @@ impl DataType {
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
-    use statrs::statistics::Data;
-
     use super::*;
     use std::convert::TryFrom;
 
