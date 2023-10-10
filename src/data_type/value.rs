@@ -13,8 +13,8 @@ use std::{
     convert::Infallible,
     error, fmt, hash,
     ops::{self, Deref, Index},
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 use super::{

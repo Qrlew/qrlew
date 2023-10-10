@@ -23,8 +23,8 @@ use std::{
     convert::identity,
     error, fmt, hash,
     ops::{Add, BitAnd, BitOr, BitXor, Deref, Div, Mul, Neg, Not, Rem, Sub},
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 use crate::{

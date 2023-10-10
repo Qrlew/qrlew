@@ -20,7 +20,7 @@ use crate::{
     hierarchy::Hierarchy,
     relation::{builder::TableBuilder, schema::Schema, Relation, Table, Variant as _},
 };
-use std::{convert::Infallible, error, fmt, io, num, sync::Arc, result};
+use std::{convert::Infallible, error, fmt, io, num, result, sync::Arc};
 
 const DATA_GENERATION_SEED: u64 = 1234;
 

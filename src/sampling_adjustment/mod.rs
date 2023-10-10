@@ -11,7 +11,7 @@ use crate::{
     visitor::Acceptor,
     WithIterator,
 };
-use std::{error, fmt, sync::Arc, result, vec};
+use std::{error, fmt, result, sync::Arc, vec};
 
 #[derive(Debug, Clone)]
 pub enum Error {
