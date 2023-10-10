@@ -1266,16 +1266,22 @@ impl DataType {
 
     /// Returns a new `DataType` clone of the current `DataType`
     /// filtered by the predicate `Identifier`
-    /// TODO
     fn filter_by_column(&self, predicate: &Identifier) -> DataType {
-        self.clone()
+        match  TryInto::<Vec<Value>>::try_into(self[predicate.deref()].clone()){
+            Ok(v) if v.len() == 1 => {
+                self.filter_by_value(&v[0])
+            },
+            _ => self.clone()
+        }
     }
 
     /// Returns a new `DataType` clone of the current `DataType`
     /// filtered by the predicate `Value`
-    /// TODO
     fn filter_by_value(&self, predicate: &Value) -> DataType {
-        self.clone()
+        match predicate {
+            value::Value::Boolean(b) if !*b.deref() => self.empty(),
+            _ => self.clone(),
+        }
     }
 
     /// Returns a new `DataType` clone of the current `DataType`
@@ -2498,6 +2504,49 @@ mod tests {
             Expr::in_list(Expr::col("col1"), Expr::list([1, 4, 5])),
         );
         assert_eq!(x, true_expr)
+    }
+
+    #[test]
+    fn test_filter_by_value() {
+        let dt = DataType::structured([
+            ("a", DataType::float_interval(-10., 10.)),
+            ("b", DataType::integer_interval(0, 8)),
+            ("c", DataType::float()),
+        ]);
+
+        // true: do nothing
+        let x = Expr::val(true);
+        let filtered_dt = dt.filter(&x);
+        assert_eq!(filtered_dt, dt);
+
+        // false: return empty ds
+        let x = Expr::val(false);
+        let filtered_dt = dt.filter(&x);
+        assert_eq!(filtered_dt, dt.empty());
+    }
+
+    #[test]
+    fn test_filter_by_column() {
+        let dt = DataType::structured([
+            ("true_col", DataType::boolean_value(true)),
+            ("false_col", DataType::boolean_value(false)),
+            ("col", DataType::float()),
+        ]);
+
+        // true: do nothing
+        let x = Expr::col("true_col");
+        let filtered_dt = dt.filter(&x);
+        assert_eq!(filtered_dt, dt);
+
+        // false: return empty ds
+        let x = Expr::col("false_col");
+        let filtered_dt = dt.filter(&x);
+        assert_eq!(filtered_dt, dt.empty());
+
+        // otherwise: do nothing
+        let x = Expr::col("col");
+        let filtered_dt = dt.filter(&x);
+        assert_eq!(filtered_dt, dt);
     }
 
     #[test]

@@ -2400,6 +2400,33 @@ impl DataType {
             _ => panic!(),
         }
     }
+
+        /// Return the empty datatype of the same variant
+        pub fn empty(&self) -> DataType {
+            match self {
+                DataType::Boolean(_) => DataType::from(Boolean::empty()),
+                DataType::Integer(_) => DataType::from(Integer::empty()),
+                DataType::Float(_) => DataType::from(Float::empty()),
+                DataType::Text(_) => DataType::from(Text::empty()),
+                DataType::Date(_) => DataType::from(Date::empty()),
+                DataType::Time(_) => DataType::from(Time::empty()),
+                DataType::DateTime(_) => DataType::from(DateTime::empty()),
+                DataType::Duration(_) => DataType::from(Duration::empty()),
+                DataType::Struct(s) => DataType::structured(
+                    s.fields()
+                    .into_iter()
+                    .map(|(s, d)| (s, d.deref().empty()))
+                    .collect::<Vec<_>>()
+                ),
+                DataType::Union(u) => DataType::union(
+                    u.fields()
+                    .into_iter()
+                    .map(|(s, d)| (s, d.deref().empty()))
+                    .collect::<Vec<_>>()
+                ),
+                _ => self.default(),
+            }
+        }
 }
 
 impl Variant for DataType {
@@ -3134,6 +3161,8 @@ impl DataType {
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
+    use statrs::statistics::Data;
+
     use super::*;
     use std::convert::TryFrom;
 
@@ -4280,6 +4309,37 @@ mod tests {
         assert_eq!(
             b.flatten_optional(),
             DataType::unit() & DataType::float() & DataType::integer_interval(0, 10)
+        );
+    }
+
+    #[test]
+    fn test_empty() {
+        let dt = DataType::structured([
+            ("bool", DataType::boolean()),
+            ("int", DataType::integer()),
+            ("float", DataType::float()),
+            ("date", DataType::date()),
+        ]);
+        assert_eq!(
+            dt.empty(),
+            DataType::structured([
+                ("bool", DataType::from(Boolean::empty())),
+                ("int", DataType::from(Integer::empty())),
+                ("float",DataType::from(Float::empty())),
+                ("date", DataType::from(Date::empty())),
+            ])
+        );
+
+        let dt_union = DataType::union([
+            ("bool", DataType::boolean()),
+            ("struct", dt.clone()),
+        ]);
+        assert_eq!(
+            dt_union.empty(),
+            DataType::union([
+                ("bool", DataType::from(Boolean::empty())),
+                ("struct", dt.empty()),
+            ])
         );
     }
 }
