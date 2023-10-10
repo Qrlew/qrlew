@@ -5,7 +5,7 @@ use crate::data_type::{
 };
 use paste::paste;
 use rand::rngs::OsRng;
-use std::sync::{Mutex, Arc};
+use std::sync::{Arc, Mutex};
 
 macro_rules! function_implementations {
     ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], $function:ident, $default:block) => {

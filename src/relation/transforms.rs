@@ -17,8 +17,8 @@ use std::{
     error, fmt,
     num::ParseFloatError,
     ops::{self, Deref},
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 #[derive(Debug, PartialEq)]

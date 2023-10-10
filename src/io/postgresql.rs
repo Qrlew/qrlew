@@ -18,7 +18,7 @@ use postgres::{
 };
 use rand::{rngs::StdRng, SeedableRng};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
-use std::{env, fmt, process::Command, sync::Arc, str::FromStr, sync::Mutex, thread, time};
+use std::{env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time};
 
 const DB: &str = "qrlew-test";
 const PORT: usize = 5432;

@@ -10,7 +10,7 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
-use std::{error, fmt, ops::Deref, sync::Arc, result};
+use std::{error, fmt, ops::Deref, result, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub enum Error {

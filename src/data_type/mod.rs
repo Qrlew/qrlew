@@ -56,8 +56,8 @@ use std::{
     error, fmt, hash,
     marker::Copy,
     ops::{self, Deref, Index},
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 use crate::{

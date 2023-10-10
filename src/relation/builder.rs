@@ -922,7 +922,10 @@ impl<RequireLeftInput, RequireRightInput> SetBuilder<RequireLeftInput, RequireRi
         self
     }
 
-    pub fn left<R: Into<Arc<Relation>>>(self, input: R) -> SetBuilder<WithInput, RequireRightInput> {
+    pub fn left<R: Into<Arc<Relation>>>(
+        self,
+        input: R,
+    ) -> SetBuilder<WithInput, RequireRightInput> {
         SetBuilder {
             name: self.name,
             operator: self.operator,
@@ -932,7 +935,10 @@ impl<RequireLeftInput, RequireRightInput> SetBuilder<RequireLeftInput, RequireRi
         }
     }
 
-    pub fn right<R: Into<Arc<Relation>>>(self, input: R) -> SetBuilder<RequireLeftInput, WithInput> {
+    pub fn right<R: Into<Arc<Relation>>>(
+        self,
+        input: R,
+    ) -> SetBuilder<RequireLeftInput, WithInput> {
         SetBuilder {
             name: self.name,
             operator: self.operator,

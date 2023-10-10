@@ -14,8 +14,8 @@ pub mod transforms;
 use std::{
     cmp, error, fmt, hash,
     ops::{Deref, Index},
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 use colored::Colorize;
