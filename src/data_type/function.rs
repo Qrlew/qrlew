@@ -1977,7 +1977,7 @@ mod tests {
 
     #[test]
     fn test_gt() {
-        println!("Test eq");
+        println!("Test gt");
         let fun = gt();
         println!("type = {}", fun);
         println!("domain = {}", fun.domain());

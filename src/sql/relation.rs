@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     ast,
-    builder::{Ready, With, WithoutContext, WithIterator},
+    builder::{Ready, With, WithIterator, WithoutContext},
     dialect::{Dialect, GenericDialect},
     expr::{Expr, Identifier, Split},
     hierarchy::{Hierarchy, Path},
@@ -355,17 +355,21 @@ impl<'a> VisitedQueryRelations<'a> {
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
             let mut expr = Expr::try_from(expr.with(columns))?;
-            let columns = named_exprs.iter()
+            let columns = named_exprs
+                .iter()
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
                 .collect();
             expr = expr.replace(columns).0;
             if let Ok(g) = &group_by {
-                let columns = g.iter()
-                    .filter_map(|x| matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone()))))
+                let columns = g
+                    .iter()
+                    .filter_map(|x| {
+                        matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone())))
+                    })
                     .collect();
                 expr = expr.replace(columns).0;
             }
-            named_exprs.push((having_name.clone(),  expr));
+            named_exprs.push((having_name.clone(), expr));
             Some(having_name)
         } else {
             None
@@ -395,10 +399,11 @@ impl<'a> VisitedQueryRelations<'a> {
         if let Some(h) = having {
             relation = Relation::map()
                 .with_iter(
-                    relation.fields()
+                    relation
+                        .fields()
                         .iter()
                         .filter_map(|f| (f.name() != h).then_some((f.name(), Expr::col(f.name()))))
-                        .collect::<Vec<_>>()
+                        .collect::<Vec<_>>(),
                 )
                 .filter(Expr::col(h))
                 .input(relation)
@@ -423,34 +428,34 @@ impl<'a> VisitedQueryRelations<'a> {
             sort_by,
             having,
             named_window,
-            qualify
+            qualify,
         } = select;
         if distinct.is_some() {
-            return Err(Error::other("DISTINCT is not supported"))
+            return Err(Error::other("DISTINCT is not supported"));
         }
         if top.is_some() {
-            return Err(Error::other("TOP is not supported"))
+            return Err(Error::other("TOP is not supported"));
         }
         if into.is_some() {
-            return Err(Error::other("INTO is not supported"))
+            return Err(Error::other("INTO is not supported"));
         }
         if !lateral_views.is_empty() {
-            return Err(Error::other("LATERAL VIEWS are not supported"))
+            return Err(Error::other("LATERAL VIEWS are not supported"));
         }
         if !cluster_by.is_empty() {
-            return Err(Error::other("CLUSTER BY is not supported"))
+            return Err(Error::other("CLUSTER BY is not supported"));
         }
         if !distribute_by.is_empty() {
-            return Err(Error::other("DISTRIBUTE BY is not supported"))
+            return Err(Error::other("DISTRIBUTE BY is not supported"));
         }
         if !sort_by.is_empty() {
-            return Err(Error::other("SORT BY is not supported"))
+            return Err(Error::other("SORT BY is not supported"));
         }
         if !named_window.is_empty() {
-            return Err(Error::other("NAMED WINDOW is not supported"))
+            return Err(Error::other("NAMED WINDOW is not supported"));
         }
         if qualify.is_some() {
-            return Err(Error::other("QUALIFY is not supported"))
+            return Err(Error::other("QUALIFY is not supported"));
         }
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
         let relation = self.try_from_select_items_selection_and_group_by(
@@ -459,7 +464,7 @@ impl<'a> VisitedQueryRelations<'a> {
             selection,
             group_by,
             from,
-            having
+            having,
         )?;
         Ok(RelationWithColumns::new(relation, columns))
     }
@@ -638,7 +643,12 @@ mod tests {
     use colored::Colorize;
 
     use super::*;
-    use crate::{builder::Ready, data_type::DataType, display::Dot, relation::schema::Schema};
+    use crate::{
+        builder::Ready,
+        data_type::{DataType, DataTyped},
+        display::Dot,
+        relation::schema::Schema,
+    };
 
     #[test]
     fn test_map_from_query() {
@@ -1064,5 +1074,114 @@ mod tests {
         relation.display_dot().unwrap();
         let q = ast::Query::from(&relation);
         println!("query = {q}");
+    }
+
+    #[test]
+    fn test_having() {
+        let query = parse("SELECT SUM(b) As my_sum FROM table_1 HAVING COUNT(b) > 4;").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("table_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![("my_sum", DataType::float_interval(0., 1000.))])
+        );
+
+        //relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+
+        let query = parse("SELECT SUM(b) AS my_sum FROM table_1 GROUP BY a HAVING COUNT(b) > 4 and a > 4 AND my_sum > 6;").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_values([0, 2, 4, 10])),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("table_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![("my_sum", DataType::float_interval(0., 1000.))])
+        );
+
+        let query =
+            parse("SELECT SUM(b) AS my_sum FROM table_1 GROUP BY a HAVING a > 40;").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_values([0, 2, 4, 10])),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("table_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![("my_sum", DataType::float().empty())])
+        );
+
+        let query = parse("SELECT SUM(b) AS my_sum FROM table_1 GROUP BY a HAVING COUNT(b) > 4 and a > 40 AND my_sum > 6;").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_values([0, 2, 4, 10])),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("table_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![("my_sum", DataType::float().empty())])
+        );
     }
 }

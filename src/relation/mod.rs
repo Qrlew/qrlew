@@ -1850,7 +1850,7 @@ mod tests {
         let schema: Schema = vec![
             ("a", DataType::float()),
             ("b", DataType::float_interval(-2., 2.)),
-            ("c", DataType::float()),
+            ("c", DataType::float_values([1., 3.4])),
             ("d", DataType::float_interval(0., 1.)),
         ]
         .into_iter()
@@ -1866,12 +1866,21 @@ mod tests {
         let map: Arc<Relation> = Arc::new(
             Relation::map()
                 .name("map_1")
-                .with(Expr::exp(Expr::col("a")))
+                .with(("A", Expr::exp(Expr::col("a"))))
                 .input(table.clone())
-                .with(Expr::col("b") + Expr::col("d"))
+                .with(("B", Expr::col("b") + Expr::col("d")))
+                .with(("C", expr!(gt(c, 5))))
                 .build(),
         );
         println!("MAP: {}", map);
+        assert_eq!(
+            map.data_type(),
+            DataType::structured(vec![
+                ("A", DataType::float_min(0.)),
+                ("B", DataType::float_interval(-2., 3.)),
+                ("C", DataType::boolean_value(false)),
+            ])
+        );
     }
 
     #[test]
