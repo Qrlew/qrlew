@@ -26,9 +26,9 @@ use itertools::Itertools;
 use std::{
     convert::TryFrom,
     iter::{once, Iterator},
-    sync::Arc,
     result,
     str::FromStr,
+    sync::Arc,
 };
 
 /*

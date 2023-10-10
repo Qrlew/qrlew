@@ -7,8 +7,8 @@ use std::{
     error,
     fmt::{self, Debug, Display},
     ops::BitAnd,
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 use super::{

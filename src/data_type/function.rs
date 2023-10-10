@@ -6,8 +6,8 @@ use std::{
     error, fmt,
     hash::Hasher,
     ops::Deref,
-    sync::{Arc, Mutex},
     result,
+    sync::{Arc, Mutex},
 };
 
 use itertools::Itertools;
@@ -213,7 +213,11 @@ pub struct Pointwise {
 
 impl Pointwise {
     /// Constructor for Generic
-    pub fn new(domain: DataType, co_domain: DataType, value: Arc<dyn Fn(Value) -> Value + Sync + Send>) -> Self {
+    pub fn new(
+        domain: DataType,
+        co_domain: DataType,
+        value: Arc<dyn Fn(Value) -> Value + Sync + Send>,
+    ) -> Self {
         Pointwise {
             domain,
             co_domain,
@@ -225,7 +229,9 @@ impl Pointwise {
         domain: A,
         co_domain: B,
         value: impl Fn(<A::Element as value::Variant>::Wrapped) -> <B::Element as value::Variant>::Wrapped
-        + Sync + Send + 'static,
+            + Sync
+            + Send
+            + 'static,
     ) -> Self
     where
         <<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
@@ -247,7 +253,9 @@ impl Pointwise {
                 <A::Element as value::Variant>::Wrapped,
                 <B::Element as value::Variant>::Wrapped,
             ) -> <C::Element as value::Variant>::Wrapped
-            + Sync + Send + 'static,
+            + Sync
+            + Send
+            + 'static,
     ) -> Self
     where
         <A::Element as value::Variant>::Wrapped: TryFrom<Value>,
@@ -277,7 +285,9 @@ impl Pointwise {
         value: impl Fn(
                 Vec<<D::Element as value::Variant>::Wrapped>,
             ) -> <C::Element as value::Variant>::Wrapped
-            + Sync + Send + 'static,
+            + Sync
+            + Send
+            + 'static,
     ) -> Self
     where
         <D::Element as value::Variant>::Wrapped: TryFrom<Value>,
@@ -443,7 +453,10 @@ where
 impl<A: Bound + Sync + Send + 'static, B: Bound + Sync + Send>
     PartitionnedMonotonic<Intervals<A>, (A,), Term<Intervals<A>, Unit>, B>
 {
-    pub fn univariate(domain: Intervals<A>, value: impl Fn(A) -> B + Sync + Send + 'static) -> Self {
+    pub fn univariate(
+        domain: Intervals<A>,
+        value: impl Fn(A) -> B + Sync + Send + 'static,
+    ) -> Self {
         Self::new(
             domain.clone().into(),
             Arc::new(move |set: Intervals<A>| vec![set.intersection(domain.clone())]),
@@ -577,7 +590,8 @@ where
     }
 }
 
-impl<P, T, Prod: IntervalsProduct + Sync + Send, U: Bound> Function for PartitionnedMonotonic<P, T, Prod, U>
+impl<P, T, Prod: IntervalsProduct + Sync + Send, U: Bound> Function
+    for PartitionnedMonotonic<P, T, Prod, U>
 where
     P: From<Prod> + Into<Prod> + Into<DataType> + TryFrom<DataType, Error = data_type::Error>,
     T: From<<Prod::IntervalProduct as IntervalProduct>::BoundProduct>
@@ -856,8 +870,8 @@ impl<F: Function + Sync + 'static, G: Function + Sync + 'static> From<(F, G)> fo
     }
 }
 
-impl<F: Function + Sync + 'static, G: Function + Sync + 'static, H: Function + Sync + 'static> From<(F, G, H)>
-    for Polymorphic
+impl<F: Function + Sync + 'static, G: Function + Sync + 'static, H: Function + Sync + 'static>
+    From<(F, G, H)> for Polymorphic
 {
     fn from((f, g, h): (F, G, H)) -> Self {
         Polymorphic(vec![Arc::new(f), Arc::new(g), Arc::new(h)])
@@ -1245,7 +1259,9 @@ pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function
     Stateful::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
-        Arc::new(Mutex::new(RefCell::new(move |v| rng.lock().unwrap().borrow_mut().gen::<f64>().into()))),
+        Arc::new(Mutex::new(RefCell::new(move |v| {
+            rng.lock().unwrap().borrow_mut().gen::<f64>().into()
+        }))),
     )
 }
 

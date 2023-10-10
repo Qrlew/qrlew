@@ -14,8 +14,8 @@ pub mod rewriting;
 use std::{
     cmp, error, fmt, hash,
     ops::{Deref, Index},
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 use colored::Colorize;
