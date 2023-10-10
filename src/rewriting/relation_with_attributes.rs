@@ -64,6 +64,11 @@ impl<'a, Attributes: Default> visitor::Visitor<'a, Relation, Arc<RelationWithAtt
     }
 }
 
+// struct WithMappedAttributesVisitor<'a, A: 'a+Clone+Debug, B: 'a+Clone+Debug, Map: Fn(&'a RelationWithAttributes<'a, A>)->B>(Map);
+// impl<'a, A: Clone, B: Clone, Map: Fn(&'a RelationWithAttributes<'a, A>)->B> visitor::Visitor<'a, RelationWithAttributes<'a, A>, Arc<RelationWithAttributes<'a, B>>> for WithMappedAttributesVisitor<'a, A, B, Map> {
+   
+// }
+
 impl Relation {
     /// Add attributes to Relation
     pub fn with_attributes<'a, Attributes: Clone>(&'a self, attributes: Attributes) -> RelationWithAttributes<'a, Attributes> {
