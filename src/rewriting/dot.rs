@@ -36,12 +36,7 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
     fn node_label(&'a self, node: &Node<'a>) -> dot::LabelText<'a> {
         dot::LabelText::html(match node {
             Node::Relation(relation) => format!("<b>{}</b><br/>{}", relation.name().to_uppercase(), relation.schema().iter().map(|f| f.name()).join(", ")),
-            Node::RewritingRule(rewriting_rule, _) => match rewriting_rule.output() {
-                Property::Public => format!("P"),
-                Property::Published => format!("p"),
-                Property::ProtectedEntityPreserving => format!("PEP"),
-                Property::DifferentiallyPrivate => format!("DP"),
-            },
+            Node::RewritingRule(rewriting_rule, _) => format!("{rewriting_rule}").replace(" → ", "<br/>→<br/>"),
         })
     }
 
@@ -56,10 +51,12 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
                 Relation::Values(_) => colors::MEDIUM_GREEN,
             },
             Node::RewritingRule(rewriting_rule, _) => match rewriting_rule.output() {
-                Property::Public => colors::TABLEAU_CYAN,
-                Property::Published => colors::TABLEAU_BLUE,
+                Property::Private => colors::TABLEAU_BROWN,
+                Property::SyntheticData => colors::TABLEAU_GREEN,
                 Property::ProtectedEntityPreserving => colors::TABLEAU_ORANGE,
                 Property::DifferentiallyPrivate => colors::TABLEAU_RED,
+                Property::Published => colors::TABLEAU_BLUE,
+                Property::Public => colors::TABLEAU_CYAN,
             },
         }))
     }
