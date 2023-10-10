@@ -1267,11 +1267,9 @@ impl DataType {
     /// Returns a new `DataType` clone of the current `DataType`
     /// filtered by the predicate `Identifier`
     fn filter_by_column(&self, predicate: &Identifier) -> DataType {
-        match  TryInto::<Vec<Value>>::try_into(self[predicate.deref()].clone()){
-            Ok(v) if v.len() == 1 => {
-                self.filter_by_value(&v[0])
-            },
-            _ => self.clone()
+        match TryInto::<Vec<Value>>::try_into(self[predicate.deref()].clone()) {
+            Ok(v) if v.len() == 1 => self.filter_by_value(&v[0]),
+            _ => self.clone(),
         }
     }
 
