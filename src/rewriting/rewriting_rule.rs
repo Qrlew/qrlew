@@ -154,18 +154,31 @@ impl<'a> RelationWithRewritingRules<'a> {
 
 /// A Visitor to select one RR
 pub trait SelectRewritingRuleVisitor<'a> {
-    fn table(&self, table: &'a Table, rewriting_rules: &'a[RewritingRule]) -> Vec<RelationWithRewritingRule<'a>>;
-    fn map(&self, map: &'a Map, rewriting_rules: &'a[RewritingRule], input: Vec<RelationWithRewritingRule<'a>>) -> Vec<RelationWithRewritingRule<'a>>;
-    fn reduce(&self, reduce: &'a Reduce, rewriting_rules: &'a[RewritingRule], input: Vec<RelationWithRewritingRule<'a>>) -> Vec<RelationWithRewritingRule<'a>>;
-    fn join(&self, join: &'a Join, rewriting_rules: &'a[RewritingRule], left: Vec<RelationWithRewritingRule<'a>>, right: Vec<RelationWithRewritingRule<'a>>) -> Vec<RelationWithRewritingRule<'a>>;
-    fn set(&self, set: &'a Set, rewriting_rules: &'a[RewritingRule], left: Vec<RelationWithRewritingRule<'a>>, right: Vec<RelationWithRewritingRule<'a>>) -> Vec<RelationWithRewritingRule<'a>>;
-    fn values(&self, values: &'a Values, rewriting_rules: &'a[RewritingRule]) -> Vec<RelationWithRewritingRule<'a>>;
+    fn table(&self, table: &'a Table, rewriting_rules: &'a[RewritingRule]) -> RelationWithRewritingRule<'a>;
+    fn map(&self, map: &'a Map, rewriting_rules: &'a[RewritingRule], input: RelationWithRewritingRule<'a>) -> RelationWithRewritingRule<'a>;
+    fn reduce(&self, reduce: &'a Reduce, rewriting_rules: &'a[RewritingRule], input: RelationWithRewritingRule<'a>) -> RelationWithRewritingRule<'a>;
+    fn join(&self, join: &'a Join, rewriting_rules: &'a[RewritingRule], left: RelationWithRewritingRule<'a>, right: RelationWithRewritingRule<'a>) -> RelationWithRewritingRule<'a>;
+    fn set(&self, set: &'a Set, rewriting_rules: &'a[RewritingRule], left: RelationWithRewritingRule<'a>, right: RelationWithRewritingRule<'a>) -> RelationWithRewritingRule<'a>;
+    fn values(&self, values: &'a Values, rewriting_rules: &'a[RewritingRule]) -> RelationWithRewritingRule<'a>;
 }
 
 /// Implement the visitor trait
 impl<'a, V: SelectRewritingRuleVisitor<'a>> Visitor<'a, RelationWithRewritingRules<'a>, Vec<RelationWithRewritingRule<'a>>> for V {
     fn visit(&self, acceptor: &'a RelationWithRewritingRules<'a>, dependencies: Visited<'a, RelationWithRewritingRules<'a>, Vec<RelationWithRewritingRule<'a>>>) -> Vec<RelationWithRewritingRule<'a>> {
-        todo!()
+        match acceptor.relation() {
+            Relation::Table(table) => vec![self.table(table, acceptor.attributes())],
+            Relation::Map(map) => dependencies.get(acceptor.inputs()[0].deref()).into_iter()
+                .map(|rwrr| self.map(map, acceptor.attributes(), rwrr.clone())).collect(),
+            Relation::Reduce(reduce) => dependencies.get(acceptor.inputs()[0].deref()).into_iter()
+                .map(|rwrr| self.reduce(reduce, acceptor.attributes(), rwrr.clone())).collect(),
+            Relation::Join(join) => dependencies.get(acceptor.inputs()[0].deref()).into_iter()
+                .flat_map(|left| dependencies.get(acceptor.inputs()[1].deref()).into_iter().map(move |right| (left, right)))
+                .map(|(left, right)| self.join(join, acceptor.attributes(), left.clone(), right.clone())).collect(),
+            Relation::Set(set) => dependencies.get(acceptor.inputs()[0].deref()).into_iter()
+                .flat_map(|left| dependencies.get(acceptor.inputs()[1].deref()).into_iter().map(move |right| (left, right)))
+                .map(|(left, right)| self.set(set, acceptor.attributes(), left.clone(), right.clone())).collect(),
+            Relation::Values(values) => vec![self.values(values, acceptor.attributes())],
+        }
     }
 }
 
