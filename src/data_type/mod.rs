@@ -56,8 +56,8 @@ use std::{
     error, fmt, hash,
     marker::Copy,
     ops::{self, Deref, Index},
-    sync::Arc,
     result,
+    sync::Arc,
 };
 
 use crate::{
@@ -2401,32 +2401,32 @@ impl DataType {
         }
     }
 
-        /// Return the empty datatype of the same variant
-        pub fn empty(&self) -> DataType {
-            match self {
-                DataType::Boolean(_) => DataType::from(Boolean::empty()),
-                DataType::Integer(_) => DataType::from(Integer::empty()),
-                DataType::Float(_) => DataType::from(Float::empty()),
-                DataType::Text(_) => DataType::from(Text::empty()),
-                DataType::Date(_) => DataType::from(Date::empty()),
-                DataType::Time(_) => DataType::from(Time::empty()),
-                DataType::DateTime(_) => DataType::from(DateTime::empty()),
-                DataType::Duration(_) => DataType::from(Duration::empty()),
-                DataType::Struct(s) => DataType::structured(
-                    s.fields()
+    /// Return the empty datatype of the same variant
+    pub fn empty(&self) -> DataType {
+        match self {
+            DataType::Boolean(_) => DataType::from(Boolean::empty()),
+            DataType::Integer(_) => DataType::from(Integer::empty()),
+            DataType::Float(_) => DataType::from(Float::empty()),
+            DataType::Text(_) => DataType::from(Text::empty()),
+            DataType::Date(_) => DataType::from(Date::empty()),
+            DataType::Time(_) => DataType::from(Time::empty()),
+            DataType::DateTime(_) => DataType::from(DateTime::empty()),
+            DataType::Duration(_) => DataType::from(Duration::empty()),
+            DataType::Struct(s) => DataType::structured(
+                s.fields()
                     .into_iter()
                     .map(|(s, d)| (s, d.deref().empty()))
-                    .collect::<Vec<_>>()
-                ),
-                DataType::Union(u) => DataType::union(
-                    u.fields()
+                    .collect::<Vec<_>>(),
+            ),
+            DataType::Union(u) => DataType::union(
+                u.fields()
                     .into_iter()
                     .map(|(s, d)| (s, d.deref().empty()))
-                    .collect::<Vec<_>>()
-                ),
-                _ => self.default(),
-            }
+                    .collect::<Vec<_>>(),
+            ),
+            _ => self.default(),
         }
+    }
 }
 
 impl Variant for DataType {
@@ -4325,15 +4325,12 @@ mod tests {
             DataType::structured([
                 ("bool", DataType::from(Boolean::empty())),
                 ("int", DataType::from(Integer::empty())),
-                ("float",DataType::from(Float::empty())),
+                ("float", DataType::from(Float::empty())),
                 ("date", DataType::from(Date::empty())),
             ])
         );
 
-        let dt_union = DataType::union([
-            ("bool", DataType::boolean()),
-            ("struct", dt.clone()),
-        ]);
+        let dt_union = DataType::union([("bool", DataType::boolean()), ("struct", dt.clone())]);
         assert_eq!(
             dt_union.empty(),
             DataType::union([
