@@ -129,7 +129,8 @@ impl<RequireInput> MapBuilder<RequireInput> {
             Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
                 reduce.named_aggregates,
                 reduce.group_by,
-                Some(Split::filter(filter.into())),
+                reduce.map.as_deref()
+                    .map(|m| Split::from(m.clone()).and(Split::filter(filter).into()).into_map()),
             )),
         });
         self
@@ -451,7 +452,8 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
             Split::Reduce(reduce) => Split::Reduce(expr::Reduce::new(
                 reduce.named_aggregates,
                 reduce.group_by,
-                Some(Split::filter(filter.into())),
+                reduce.map.as_deref()
+                    .map(|m| Split::from(m.clone()).and(Split::filter(filter).into()).into_map()),
             )),
         });
         self
@@ -1219,6 +1221,50 @@ mod tests {
                 )
             )
         }
+    }
+
+    #[test]
+    fn test_reduce_filter() {
+        let table: Relation = Relation::table()
+            .path(["db", "schema", "table"])
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .build(),
+            )
+            .build();
+
+        // Reduce inputing a Map
+        let relation: Relation = Relation::reduce()
+            .with(("S", expr!(sum( 3 * a ))))
+            .group_by(Expr::col("b"))
+            .input(table.clone())
+            .filter(expr!(gt(b, 0.5)))
+            .build();
+        //relation.display_dot().unwrap();
+        assert_eq!(relation.inputs()[0].schema()[1].data_type(), DataType::float_values([1.0, 5.0]));
+
+        // Simple Reduce
+        let relation: Relation = Relation::reduce()
+            .with(("S", expr!(sum(a))))
+            .with_group_by_column("b")
+            .filter(expr!(gt(b, 0.5)))
+            .input(table.clone())
+            .build();
+        relation.display_dot().unwrap();
+        assert_eq!(relation.inputs()[0].schema()[1].data_type(), DataType::float_values([1.0, 5.0]));
+        assert_eq!(relation.data_type()["b"], DataType::float_values([1.0, 5.0]));
+
+        let reduce: Relation = Relation::reduce()
+            .with(("S", AggregateColumn::sum("a")))
+            .group_by(Expr::col("b"))
+            .filter(expr!(gt(a, 1.05)))
+            .input(table)
+            .build();
+        assert_eq!(relation.inputs()[0].schema()[0].data_type(), DataType::float_range(1.0..=1.1));
+        reduce.display_dot().unwrap();
     }
 
     #[test]
