@@ -881,8 +881,7 @@ impl Struct {
     }
 
     pub fn all_values(&self) -> bool {
-        self.iter()
-            .all(|(_, dt)| dt.all_values())
+        self.iter().all(|(_, dt)| dt.all_values())
     }
 }
 
@@ -2695,7 +2694,11 @@ impl TryInto<Vec<Value>> for DataType {
             DataType::Unit(_) => Ok(vec![Value::unit()]),
             DataType::Boolean(b) => b.try_into(),
             DataType::Integer(i) => i.try_into(),
-            DataType::Enum(e) => Ok(e.values.iter().map(|(_, i)| Value::enumeration(*i, e.values.clone())).collect()),
+            DataType::Enum(e) => Ok(e
+                .values
+                .iter()
+                .map(|(_, i)| Value::enumeration(*i, e.values.clone()))
+                .collect()),
             DataType::Float(f) => f.try_into(),
             DataType::Text(t) => t.try_into(),
             DataType::Date(d) => d.try_into(),
@@ -2703,24 +2706,22 @@ impl TryInto<Vec<Value>> for DataType {
             DataType::DateTime(d) => d.try_into(),
             DataType::Duration(d) => d.try_into(),
             DataType::Struct(s) => {
-                let vec_of_vec = s.into_iter()
-                    .map(|(f, d)| TryInto::<Vec<Value>>::try_into(d.deref().clone())
-                        .map(|vec| vec.into_iter()
-                            .map(|v| Value::structured(vec![(f.to_string(), v)]))
-                            .collect::<Vec<_>>()
-                        )
-                    )
+                let vec_of_vec = s
+                    .into_iter()
+                    .map(|(f, d)| {
+                        TryInto::<Vec<Value>>::try_into(d.deref().clone()).map(|vec| {
+                            vec.into_iter()
+                                .map(|v| Value::structured(vec![(f.to_string(), v)]))
+                                .collect::<Vec<_>>()
+                        })
+                    })
                     .collect::<Result<Vec<_>>>()?;
 
-                    let first = vec_of_vec[0].clone();
-                    Ok(
-                        vec_of_vec.into_iter()
-                        .skip(1)
-                        .fold(
-                            first,
-                            |res, s| combine_vec_of_values(res, s)
-                        )
-                    )
+                let first = vec_of_vec[0].clone();
+                Ok(vec_of_vec
+                    .into_iter()
+                    .skip(1)
+                    .fold(first, |res, s| combine_vec_of_values(res, s)))
             }
             _ => Err(Error::invalid_conversion(
                 stringify!($Variant),
@@ -2730,13 +2731,10 @@ impl TryInto<Vec<Value>> for DataType {
     }
 }
 
-fn combine_vec_of_values(
-    a: Vec<Value>,
-    b: Vec<Value>,
-) -> Vec<Value> {
+fn combine_vec_of_values(a: Vec<Value>, b: Vec<Value>) -> Vec<Value> {
     a.into_iter()
-		.flat_map(|k| b.clone().into_iter().map(move |v| k.clone().and(v)))
-		.collect()
+        .flat_map(|k| b.clone().into_iter().map(move |v| k.clone().and(v)))
+        .collect()
 }
 
 impl cmp::PartialEq for DataType {
@@ -4225,18 +4223,45 @@ mod tests {
         let dt = DataType::structured(vec![
             ("a", DataType::integer_values([1, 2])),
             ("b", DataType::float_value(3.)),
-            ("c", DataType::text_values(["e".to_string(), "f".to_string(), "g".to_string()]))
+            (
+                "c",
+                DataType::text_values(["e".to_string(), "f".to_string(), "g".to_string()]),
+            ),
         ]);
         let values = TryInto::<Vec<Value>>::try_into(dt).unwrap();
         assert_eq!(
             values,
             vec![
-                Value::structured([("a", Value::from(1)), ("b", Value::from(3.)), ("c", Value::from("e".to_string()))]),
-                Value::structured([("a", Value::from(1)), ("b", Value::from(3.)), ("c", Value::from("f".to_string()))]),
-                Value::structured([("a", Value::from(1)), ("b", Value::from(3.)), ("c", Value::from("g".to_string()))]),
-                Value::structured([("a", Value::from(2)), ("b", Value::from(3.)), ("c", Value::from("e".to_string()))]),
-                Value::structured([("a", Value::from(2)), ("b", Value::from(3.)), ("c", Value::from("f".to_string()))]),
-                Value::structured([("a", Value::from(2)), ("b", Value::from(3.)), ("c", Value::from("g".to_string()))]),
+                Value::structured([
+                    ("a", Value::from(1)),
+                    ("b", Value::from(3.)),
+                    ("c", Value::from("e".to_string()))
+                ]),
+                Value::structured([
+                    ("a", Value::from(1)),
+                    ("b", Value::from(3.)),
+                    ("c", Value::from("f".to_string()))
+                ]),
+                Value::structured([
+                    ("a", Value::from(1)),
+                    ("b", Value::from(3.)),
+                    ("c", Value::from("g".to_string()))
+                ]),
+                Value::structured([
+                    ("a", Value::from(2)),
+                    ("b", Value::from(3.)),
+                    ("c", Value::from("e".to_string()))
+                ]),
+                Value::structured([
+                    ("a", Value::from(2)),
+                    ("b", Value::from(3.)),
+                    ("c", Value::from("f".to_string()))
+                ]),
+                Value::structured([
+                    ("a", Value::from(2)),
+                    ("b", Value::from(3.)),
+                    ("c", Value::from("g".to_string()))
+                ]),
             ]
         )
     }

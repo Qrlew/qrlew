@@ -309,19 +309,19 @@ impl Pointwise {
                 //     .into_iter()
                 //     .map(|(_n, v)| v.as_ref().clone().try_into())//.unwrap())
                 //     .collect();
-                let vec = value::Struct::try_from(v).unwrap()
+                let vec = value::Struct::try_from(v)
+                    .unwrap()
                     .into_iter()
-                    .map(|(_n, v)| <D::Element as value::Variant>::Wrapped::try_from(v.as_ref().clone()))//.unwrap())
+                    .map(|(_n, v)| {
+                        <D::Element as value::Variant>::Wrapped::try_from(v.as_ref().clone())
+                    }) //.unwrap())
                     .collect::<Vec<_>>();
                 if vec.iter().all(|v| v.is_ok()) {
-                    let v = vec.into_iter()
-                        .map(|v| v.unwrap())
-                        .collect();
+                    let v = vec.into_iter().map(|v| v.unwrap()).collect();
                     Ok(value(v).into())
                 } else {
                     Err(Error::other("Argument out of range"))
                 }
-
             }),
         )
     }
@@ -357,7 +357,7 @@ impl Function for Pointwise {
                         .collect()
                 } else {
                     self.co_domain.clone()
-                }
+                },
             )
         }
     }
