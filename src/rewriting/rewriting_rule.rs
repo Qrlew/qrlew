@@ -13,6 +13,8 @@ use crate::{
     relation::{Relation, Table, Map, Reduce, Join, Set, Values},
     visitor::{Visitor, Dependencies, Visited, Acceptor},
     rewriting::relation_with_attributes::RelationWithAttributes,
+    protection::protected_entity::ProtectedEntity,
+    differential_privacy::budget::Budget,
 };
 
 /// A simple Property object to tag Relations properties
@@ -37,6 +39,14 @@ impl fmt::Display for Property {
             Property::Public => write!(f, "Pub"),
         }
     }
+}
+
+/// Possible parameters for RewritingRules
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum Parameters {
+    None,
+    Budget(Budget),
+    ProtectedEntity(ProtectedEntity)
 }
 
 /// Relation rewriting rule

@@ -4,9 +4,10 @@
 //!
 pub mod protected_entity;
 
-use protected_entity::{Path, FieldPath, ReferredField};
+use itertools::Itertools;
+use protected_entity::{Path, FieldPath, ReferredField, ProtectedEntity};
 use crate::{
-    builder::{Ready, With},
+    builder::{Ready, With, WithIterator},
     expr::{identifier::Identifier, AggregateColumn, Expr},
     hierarchy::Hierarchy,
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _, Visitor},
@@ -130,21 +131,64 @@ impl Relation {
             true
         }
     }
-
-    /// Add a field designated with a "field path"
-    pub fn with_field_path<'a>(
+    /// Add a field designated with a foreign relation and a field
+    pub fn with_referred_field(
         self,
-        relations: &'a Hierarchy<Arc<Relation>>,
-        path: Vec<(&'a str, &'a str, &'a str)>,
-        referred_field: &'a str,
-        referred_field_name: &'a str,
+        referring_id: String,
+        referred_relation: Arc<Relation>,
+        referred_id: String,
+        referred_field: String,
+        referred_field_name: String,
     ) -> Relation {
-        if path.is_empty() {
-            self.identity_with_field(referred_field_name, Expr::col(referred_field))
+        let left_size = referred_relation.schema().len();
+        let names: Vec<String> = self
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .filter(|name| name != &referred_field_name)
+            .collect();
+        let join: Relation = Relation::join()
+            .inner()
+            .on(Expr::eq(
+                Expr::qcol(self.name(), &referring_id),
+                Expr::qcol(referred_relation.name(), &referred_id),
+            ))
+            .left(referred_relation)
+            .right(self)
+            .build();
+        let left: Vec<_> = join
+            .schema()
+            .iter()
+            .zip(join.input_fields())
+            .take(left_size)
+            .collect();
+        let right: Vec<_> = join
+            .schema()
+            .iter()
+            .zip(join.input_fields())
+            .skip(left_size)
+            .collect();
+        Relation::map()
+            .with_iter(left.into_iter().find_map(|(o, i)| {
+                (referred_field == i.name()).then_some((referred_field_name.clone(), Expr::col(o.name())))
+            }))
+            .with_iter(right.into_iter().filter_map(|(o, i)| {
+                names
+                    .contains(&i.name().to_string())
+                    .then_some((i.name(), Expr::col(o.name())))
+            }))
+            .input(join)
+            .build()
+    }
+    /// Add a field designated with a "field path"
+    pub fn with_field_path(
+        self,
+        relations: &Hierarchy<Arc<Relation>>,
+        field_path: FieldPath,
+    ) -> Relation {
+        if field_path.0.len()==1 {// TODO Remove this?
+            self.identity_with_field(&field_path.0[0].referred_field_name, Expr::col(&field_path.0[0].referred_field))
         } else {
-            let path = Path::from_iter(path);
-            let field_path = FieldPath::from_path(path, referred_field, referred_field_name);
-            // Build the relation following the path to compute the new field
             field_path.into_iter().fold(
                 self,
                 |relation,
@@ -251,7 +295,7 @@ impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
 pub fn protect_visitor_from_exprs<'a>(
     protected_entity: Vec<(&'a Table, Expr)>,
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation>+'a> {
     let protect_tables = move |table: &Table| match protected_entity
         .iter()
         .find_map(|(t, e)| (table == *t).then(|| e.clone()))
@@ -271,25 +315,26 @@ pub fn protect_visitor_from_field_paths<'a>(
     relations: &'a Hierarchy<Arc<Relation>>,
     protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
-    let protect_tables = move |table: &Table| match protected_entity
-        .iter()
-        .find(|(tab, _path, _field)| table.name() == relations[*tab].name())
-    {
-        Some((_tab, path, field)) => PEPRelation::try_from(
-            Relation::from(table.clone())
-                .with_field_path(relations, path.clone(), field, PE_ID)
-                .map_fields(|n, e| {
-                    if n == PE_ID {
-                        Expr::md5(Expr::cast_as_text(e))
-                    } else {
-                        e
-                    }
-                })
-                .insert_field(1, PE_WEIGHT, Expr::val(1)),
-        ),
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation>+'a> {
+    let protected_entity = ProtectedEntity::from(protected_entity.into_iter().map(|(table, protection, referred_field)|(table, protection, referred_field, PE_ID)).collect_vec());
+    let protect_tables = move |table: &Table| match protected_entity.0.get(table.name()) {
+        Some(field_path) => {
+            // let 
+            PEPRelation::try_from(
+                Relation::from(table.clone())
+                    .with_field_path(relations, field_path.clone())
+                    .map_fields(|n, e| {
+                        if n == PE_ID {
+                            Expr::md5(Expr::cast_as_text(e))
+                        } else {
+                            e
+                        }
+                    })
+                    .insert_field(1, PE_WEIGHT, Expr::val(1)),
+            )
+        },
         None => Err(Error::unprotected_table(table)),
-    }; //TODO fix MD5 here
+    };
     ProtectVisitor::new(protect_tables, strategy)
 }
 
@@ -463,13 +508,13 @@ impl Relation {
     }
 
     /// Add protection
-    pub fn protect_from_field_paths<'a>(
+    pub fn protect_from_field_paths(
         self,
-        relations: &'a Hierarchy<Arc<Relation>>,
-        protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
+        relations: Hierarchy<Arc<Relation>>,
+        protected_entity: Vec<(&str, Vec<(&str, &str, &str)>, &str)>,
     ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_field_paths(
-            relations,
+            &relations,
             protected_entity,
             Strategy::Soft,
         ))
@@ -494,10 +539,10 @@ impl Relation {
     }
 
     /// Force protection
-    pub fn force_protect_from_field_paths<'a>(
+    pub fn force_protect_from_field_paths(
         self,
-        relations: &'a Hierarchy<Arc<Relation>>,
-        protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
+        relations: &Hierarchy<Arc<Relation>>,
+        protected_entity: Vec<(&str, Vec<(&str, &str, &str)>, &str)>,
     ) -> PEPRelation {
         self.accept(protect_visitor_from_field_paths(
             relations,
@@ -520,6 +565,42 @@ mod tests {
     };
     use colored::Colorize;
     use itertools::Itertools;
+
+    #[test]
+    fn test_field_path() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        // Link orders to users
+        let orders = relations.get(&["orders".to_string()]).unwrap().as_ref();
+        let relation =
+            orders
+                .clone()
+                .with_field_path(&relations, FieldPath::from((vec![("user_id", "users", "id")], "id", "peid")));
+        assert!(relation.schema()[0].name() == "peid");
+        // // Link items to orders
+        let items = relations.get(&["items".to_string()]).unwrap().as_ref();
+        let relation = items.clone().with_field_path(
+            &relations,
+            FieldPath::from((vec![("order_id", "orders", "id"), ("user_id", "users", "id")], "name", "peid"))
+        );
+        assert!(relation.schema()[0].name() == "peid");
+        // Produce the query
+        relation.display_dot();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        println!(
+            "{}\n{}",
+            format!("{query}").yellow(),
+            database
+                .query(query)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
+        // let relation = relation.filter_fields(|n| n != "peid");
+        // assert!(relation.schema()[0].name() != "peid");
+    }
 
     #[test]
     fn test_table_protection() {
@@ -546,7 +627,7 @@ mod tests {
         // Table
         let table = table
             .protect_from_field_paths(
-                &relations,
+                relations.clone(),
                 vec![(
                     "item_table",
                     vec![("order_id", "order_table", "id")],
