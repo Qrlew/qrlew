@@ -2,7 +2,9 @@
 //!
 //! This is experimental and little tested yet.
 //!
+pub mod protected_entity;
 
+use protected_entity::{Path, FieldPath, ReferredField};
 use crate::{
     builder::{Ready, With},
     expr::{identifier::Identifier, AggregateColumn, Expr},
@@ -126,6 +128,45 @@ impl Relation {
             false
         } else {
             true
+        }
+    }
+
+    /// Add a field designated with a "field path"
+    pub fn with_field_path<'a>(
+        self,
+        relations: &'a Hierarchy<Arc<Relation>>,
+        path: &'a [(&'a str, &'a str, &'a str)],
+        referred_field: &'a str,
+        referred_field_name: &'a str,
+    ) -> Relation {
+        if path.is_empty() {
+            self.identity_with_field(referred_field_name, Expr::col(referred_field))
+        } else {
+            let path = Path::from_iter(path);
+            let field_path = FieldPath::from_path(path, referred_field, referred_field_name);
+            // Build the relation following the path to compute the new field
+            field_path.into_iter().fold(
+                self,
+                |relation,
+                 ReferredField {
+                     referring_id,
+                     referred_relation,
+                     referred_id,
+                     referred_field,
+                     referred_field_name,
+                 }| {
+                    relation.with_referred_field(
+                        referring_id,
+                        relations
+                            .get(&[referred_relation.to_string()])
+                            .unwrap()
+                            .clone(),
+                        referred_id,
+                        referred_field,
+                        referred_field_name,
+                    )
+                },
+            )
         }
     }
 }
