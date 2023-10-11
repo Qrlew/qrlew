@@ -186,28 +186,21 @@ impl Relation {
         relations: &Hierarchy<Arc<Relation>>,
         field_path: FieldPath,
     ) -> Relation {
-        if field_path.0.len()==1 {// TODO Remove this?
-            self.identity_with_field(&field_path.0[0].referred_field_name, Expr::col(&field_path.0[0].referred_field))
+        if field_path.path().is_empty() {// TODO Remove this?
+            self.identity_with_field(field_path.referred_field_name(), Expr::col(field_path.referred_field()))
         } else {
             field_path.into_iter().fold(
                 self,
-                |relation,
-                 ReferredField {
-                     referring_id,
-                     referred_relation,
-                     referred_id,
-                     referred_field,
-                     referred_field_name,
-                 }| {
+                |relation, referred_field| {
                     relation.with_referred_field(
-                        referring_id,
+                        referred_field.referring_id,
                         relations
-                            .get(&[referred_relation.to_string()])
+                            .get(&[referred_field.referred_relation.to_string()])
                             .unwrap()
                             .clone(),
-                        referred_id,
-                        referred_field,
-                        referred_field_name,
+                        referred_field.referred_id,
+                        referred_field.referred_field,
+                        referred_field.referred_field_name,
                     )
                 },
             )
@@ -317,7 +310,7 @@ pub fn protect_visitor_from_field_paths<'a>(
     strategy: Strategy,
 ) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation>+'a> {
     let protected_entity = ProtectedEntity::from(protected_entity.into_iter().map(|(table, protection, referred_field)|(table, protection, referred_field, PE_ID)).collect_vec());
-    let protect_tables = move |table: &Table| match protected_entity.0.get(table.name()) {
+    let protect_tables = move |table: &Table| match protected_entity.get(table.name()) {
         Some(field_path) => {
             // let 
             PEPRelation::try_from(

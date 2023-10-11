@@ -351,7 +351,7 @@ mod tests {
             .input(table.clone())
             .build();
         let pep_relation =
-            relation.force_protect_from_field_paths(relations.clone(), vec![("table", vec![], "id")]);
+            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
         let (dp_relation, private_query) = pep_relation
             .dp_compile(
                 epsilon,
