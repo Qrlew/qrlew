@@ -14,7 +14,8 @@ use crate::{
     visitor::{Visitor, Dependencies, Visited, Acceptor},
     rewriting::relation_with_attributes::RelationWithAttributes,
     protection::protected_entity::ProtectedEntity,
-    differential_privacy::budget::Budget,
+    differential_privacy::budget::Budget, hierarchy::Hierarchy,
+    builder::{With, Ready},
 };
 
 /// A simple Property object to tag Relations properties
@@ -71,6 +72,10 @@ impl RewritingRule {
     /// Read output
     pub fn output(&self) -> &Property {
         &self.output
+    }
+    /// Read output
+    pub fn parameters(&self) -> &Parameters {
+        &self.parameters
     }
 }
 
@@ -402,38 +407,42 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
     }
 }
 
-struct BaseRewriter;// TODO implement this properly
+struct BaseRewriter<'a>(&'a Hierarchy<Arc<Relation>>);// TODO implement this properly
 
-impl<'a> RewriteVisitor<'a> for BaseRewriter {
+impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
     fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> Arc<Relation> {
-        Arc::new(match rewriting_rule.output() {
-            Property::Private => table.clone().into(),
-            Property::ProtectedEntityPreserving => table.clone().into(),
-            Property::DifferentiallyPrivate => table.clone().into(),
-            Property::Published => table.clone().into(),
-            Property::Public => table.clone().into(),
-            _ => unreachable!()
+        Arc::new(match (rewriting_rule.output(), rewriting_rule.parameters()) {
+            (Property::Private, _) => table.clone().into(),
+            (Property::ProtectedEntityPreserving, Parameters::ProtectedEntity(protected_entity)) => {
+                let protected_entity: Vec<_> = protected_entity.into();
+                let protected_entity: Vec<_> = protected_entity.into_iter().map(|(table, path, referred_field, referred_field_name)| (table, path, referred_field)).collect();
+                Relation::from(table.clone()).protect_from_field_paths(self.0, protected_entity.into()).unwrap().into()
+            },
+            (Property::DifferentiallyPrivate, _) => table.clone().into(),
+            (Property::Published, _) => table.clone().into(),
+            (Property::Public, _) => table.clone().into(),
+            _ => table.clone().into(),
         })
     }
 
     fn map(&self, map: &'a Map, rewriting_rule: &'a RewritingRule, rewritten_input: Arc<Relation>) -> Arc<Relation> {
-        todo!()
+        Arc::new(Relation::map().with(map.clone()).input(rewritten_input).build())
     }
 
     fn reduce(&self, reduce: &'a Reduce, rewriting_rule: &'a RewritingRule, rewritten_input: Arc<Relation>) -> Arc<Relation> {
-        todo!()
+        Arc::new(Relation::reduce().with(reduce.clone()).input(rewritten_input).build())
     }
 
     fn join(&self, join: &'a Join, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation> {
-        todo!()
+        Arc::new(Relation::join().with(join.clone()).left(rewritten_left).left(rewritten_right).build())
     }
 
     fn set(&self, set: &'a Set, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation> {
-        todo!()
+        Arc::new(Relation::set().with(set.clone()).left(rewritten_left).left(rewritten_right).build())
     }
 
     fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> Arc<Relation> {
-        todo!()
+        Arc::new(values.clone().into())
     }
 }
 
@@ -451,7 +460,7 @@ mod tests {
 
     #[test]
     fn test_set_eliminate_select_rewriting_rules() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         // Print relations with paths
         for (p, r) in relations.iter() {
@@ -486,13 +495,14 @@ mod tests {
         let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
-            rwrr.display_dot().unwrap()
+            rwrr.display_dot().unwrap();
+            rwrr.rewrite(BaseRewriter(&relations)).display_dot().unwrap();
         }
     }
 
     #[test]
     fn test_set_eliminate_select_rewriting_rules_on_complex_query() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse(r#"
         WITH order_avg_price (order_id, avg_price) AS (SELECT order_id, avg(price) AS avg_price FROM item_table GROUP BY order_id),
@@ -524,7 +534,8 @@ mod tests {
         let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
-            rwrr.display_dot().unwrap()
+            rwrr.display_dot().unwrap();
+            // rwrr.rewrite(BaseRewriter(&relations)).display_dot().unwrap();
         }
     }
 }
