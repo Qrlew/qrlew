@@ -1,6 +1,6 @@
 //! For now a simple definition of Property
 use std::{
-    fmt,
+    fmt::{self, Arguments},
     sync::Arc,
     ops::Deref,
     marker::PhantomData,
@@ -56,11 +56,13 @@ pub struct RewritingRule {
     inputs: Vec<Property>,
     /// Rewriting output property
     output: Property,
+    /// Parameters
+    parameters: Parameters,
 }
 
 impl RewritingRule {
-    pub fn new(inputs: Vec<Property>, output: Property) -> RewritingRule {
-        RewritingRule {inputs, output}
+    pub fn new(inputs: Vec<Property>, output: Property, parameters: Parameters) -> RewritingRule {
+        RewritingRule {inputs, output, parameters}
     }
     /// Read inputs
     pub fn inputs(&self) -> &[Property] {
@@ -263,62 +265,75 @@ impl<'a> RelationWithRewritingRule<'a> {
 // # Implement various rewriting rules visitors
 
 /// A basic rewriting rule setter
-struct BaseRewritingRulesSetter;// TODO implement this properly
+struct BaseRewritingRulesSetter {
+    protected_entity: ProtectedEntity,
+    budget: Budget,
+}
+// TODO implement this properly
+
+impl BaseRewritingRulesSetter {
+    pub fn new(protected_entity: ProtectedEntity, budget: Budget) -> BaseRewritingRulesSetter {
+        BaseRewritingRulesSetter {
+            protected_entity,
+            budget,
+        }
+    }
+}
 
 impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
     fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![], Property::Private),
-            RewritingRule::new(vec![], Property::SyntheticData),
-            RewritingRule::new(vec![], Property::ProtectedEntityPreserving),
+            RewritingRule::new(vec![], Property::Private, Parameters::None),
+            RewritingRule::new(vec![], Property::SyntheticData, Parameters::None),
+            RewritingRule::new(vec![], Property::ProtectedEntityPreserving, Parameters::ProtectedEntity(self.protected_entity.clone())),
         ]
     }
 
     fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![Property::DifferentiallyPrivate], Property::Published),
-            RewritingRule::new(vec![Property::Published], Property::Published),
-            RewritingRule::new(vec![Property::Public], Property::Public),
-            RewritingRule::new(vec![Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
-            RewritingRule::new(vec![Property::SyntheticData], Property::SyntheticData),
+            RewritingRule::new(vec![Property::DifferentiallyPrivate], Property::Published, Parameters::None),
+            RewritingRule::new(vec![Property::Published], Property::Published, Parameters::None),
+            RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::SyntheticData], Property::SyntheticData, Parameters::None),
         ]
     }
 
     fn reduce(&self, reduce: &'a Reduce, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![Property::Published], Property::Published),
-            RewritingRule::new(vec![Property::Public], Property::Public),
-            RewritingRule::new(vec![Property::ProtectedEntityPreserving], Property::DifferentiallyPrivate),
-            RewritingRule::new(vec![Property::SyntheticData], Property::SyntheticData),
+            RewritingRule::new(vec![Property::Published], Property::Published, Parameters::None),
+            RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving], Property::DifferentiallyPrivate, Parameters::None),
+            RewritingRule::new(vec![Property::SyntheticData], Property::SyntheticData, Parameters::None),
         ]
     }
 
     fn join(&self, join: &'a Join, left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![Property::Published, Property::Published], Property::Published),
-            RewritingRule::new(vec![Property::Public, Property::Public], Property::Public),
-            RewritingRule::new(vec![Property::Published, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
-            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::Published], Property::ProtectedEntityPreserving),
-            RewritingRule::new(vec![Property::DifferentiallyPrivate, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
-            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::DifferentiallyPrivate], Property::ProtectedEntityPreserving),
-            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
-            RewritingRule::new(vec![Property::SyntheticData, Property::SyntheticData], Property::SyntheticData),
+            RewritingRule::new(vec![Property::Published, Property::Published], Property::Published, Parameters::None),
+            RewritingRule::new(vec![Property::Public, Property::Public], Property::Public, Parameters::None),
+            RewritingRule::new(vec![Property::Published, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::Published], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::DifferentiallyPrivate, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::DifferentiallyPrivate], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::SyntheticData, Property::SyntheticData], Property::SyntheticData, Parameters::None),
         ]
     }
 
     fn set(&self, set: &'a Set, left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![Property::Published, Property::Published], Property::Published),
-            RewritingRule::new(vec![Property::Public, Property::Public], Property::Public),
-            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
-            RewritingRule::new(vec![Property::SyntheticData, Property::SyntheticData], Property::SyntheticData),
+            RewritingRule::new(vec![Property::Published, Property::Published], Property::Published, Parameters::None),
+            RewritingRule::new(vec![Property::Public, Property::Public], Property::Public, Parameters::None),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::SyntheticData, Property::SyntheticData], Property::SyntheticData, Parameters::None),
         ]
     }
 
     fn values(&self, values: &'a Values) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![], Property::SyntheticData),
-            RewritingRule::new(vec![], Property::Public),
+            RewritingRule::new(vec![], Property::SyntheticData, Parameters::None),
+            RewritingRule::new(vec![], Property::Public, Parameters::None),
         ]
     }
 }
@@ -431,7 +446,7 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
-        Relation,
+        Relation, protection::protected_entity,
     };
 
     #[test]
@@ -449,10 +464,24 @@ mod tests {
         FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
         )
         .unwrap();
+        let protected_entity = ProtectedEntity::from(
+            vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name", "peid"
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name", "peid"),
+            ("user_table", vec![], "name", "peid"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter);
+        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(protected_entity, budget));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
@@ -473,10 +502,24 @@ mod tests {
         SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
         "#,
         ).unwrap();
+        let protected_entity = ProtectedEntity::from(
+            vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name", "peid"
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name", "peid"),
+            ("user_table", vec![], "name", "peid"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter);
+        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(protected_entity, budget));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();

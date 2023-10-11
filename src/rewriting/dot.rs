@@ -137,12 +137,12 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         sql::parse,
-        Relation,
+        Relation, rewriting::rewriting_rule::Parameters,
     };
 
     #[test]
     fn test_set_rewriting_rules() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse(
             "SELECT order_id, sum(price) AS sum_price,
@@ -154,7 +154,7 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules = relation.with_attributes(vec![RewritingRule::new(vec![], Property::Public)]);
+        let relation_with_rules = relation.with_attributes(vec![RewritingRule::new(vec![], Property::Public, Parameters::None)]);
         relation_with_rules.display_dot().unwrap();
     }
 }
