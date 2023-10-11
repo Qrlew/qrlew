@@ -135,7 +135,7 @@ impl Relation {
     pub fn with_field_path<'a>(
         self,
         relations: &'a Hierarchy<Arc<Relation>>,
-        path: &'a [(&'a str, &'a str, &'a str)],
+        path: Vec<(&'a str, &'a str, &'a str)>,
         referred_field: &'a str,
         referred_field_name: &'a str,
     ) -> Relation {
@@ -278,7 +278,7 @@ pub fn protect_visitor_from_field_paths<'a>(
     {
         Some((_tab, path, field)) => PEPRelation::try_from(
             Relation::from(table.clone())
-                .with_field_path(relations, path, field, PE_ID)
+                .with_field_path(relations, path.clone(), field, PE_ID)
                 .map_fields(|n, e| {
                     if n == PE_ID {
                         Expr::md5(Expr::cast_as_text(e))

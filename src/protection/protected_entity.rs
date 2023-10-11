@@ -1,10 +1,10 @@
 use std::{
     ops::Deref,
-    collections::HashMap,
+    collections::HashMap, hash::Hash,
 };
 
 // A few utility objects
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
 pub struct Step<'a> {
     pub referring_id: &'a str,
     pub referred_relation: &'a str,
@@ -22,7 +22,7 @@ impl<'a> From<(&'a str, &'a str, &'a str)> for Step<'a> {
 }
 
 /// A path to a field
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub struct Path<'a>(pub Vec<Step<'a>>);
 
 impl<'a> Deref for Path<'a> {
@@ -33,8 +33,9 @@ impl<'a> Deref for Path<'a> {
     }
 }
 
-impl<'a> FromIterator<&'a (&'a str, &'a str, &'a str)> for Path<'a> {
-    fn from_iter<T: IntoIterator<Item = &'a (&'a str, &'a str, &'a str)>>(iter: T) -> Self {
+// TODO test this
+impl<'a> FromIterator<(&'a str, &'a str, &'a str)> for Path<'a> {
+    fn from_iter<T: IntoIterator<Item = (&'a str, &'a str, &'a str)>>(iter: T) -> Self {
         Path(
             iter.into_iter()
                 .map(|(referring_id, referred_relation, referred_id)| Step {
@@ -47,6 +48,7 @@ impl<'a> FromIterator<&'a (&'a str, &'a str, &'a str)> for Path<'a> {
     }
 }
 
+// TODO test this
 impl<'a> IntoIterator for Path<'a> {
     type Item = Step<'a>;
     type IntoIter = <Vec<Step<'a>> as IntoIterator>::IntoIter;
@@ -57,7 +59,7 @@ impl<'a> IntoIterator for Path<'a> {
 }
 
 /// A link to a relation and a field to keep with a new name
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
 pub struct ReferredField<'a> {
     pub referring_id: &'a str,
     pub referred_relation: &'a str,
@@ -67,7 +69,7 @@ pub struct ReferredField<'a> {
 }
 
 /// A path to a field
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub struct FieldPath<'a>(pub Vec<ReferredField<'a>>);
 
 impl<'a> FieldPath<'a> {
@@ -128,5 +130,29 @@ impl<'a> IntoIterator for FieldPath<'a> {
 }
 
 /// Associate a PEID to each table
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProtectedEntity<'a>(pub HashMap<&'a str, Vec<ReferredField<'a>>>);
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct ProtectedEntity<'a>(pub HashMap<&'a str, FieldPath<'a>>);
+
+impl<'a> From<Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str)>> for ProtectedEntity<'a> {
+    fn from(value: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str)>) -> Self {
+        let mut result = HashMap::new();
+        for (table, protection, referred_field, referred_field_name) in value {
+            result.insert(table, FieldPath::from_path(Path::from_iter(protection.into_iter()), referred_field, referred_field_name));
+        }
+        ProtectedEntity(result)
+    }
+}
+
+impl<'a> From<ProtectedEntity<'a>> for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str)> {
+    fn from(value: ProtectedEntity<'a>) -> Self {
+        value.0.into_iter().map(|(table, field_path)| {
+            let mut current_referred_field = ReferredField::default();
+            let mut path = vec![];
+            for referred_field in field_path.0 {
+                current_referred_field = referred_field;
+                path.push((referred_field.referring_id, referred_field.referred_relation, referred_field.referred_id))
+            }
+            (table, path, current_referred_field.referred_field, current_referred_field.referred_field_name)
+        }).collect()
+    }
+}

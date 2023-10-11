@@ -838,13 +838,13 @@ mod tests {
         let relation =
             orders
                 .clone()
-                .with_field_path(&relations, &[("user_id", "users", "id")], "id", "peid");
+                .with_field_path(&relations, vec![("user_id", "users", "id")], "id", "peid");
         assert!(relation.schema()[0].name() == "peid");
         // // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
             &relations,
-            &[("order_id", "orders", "id"), ("user_id", "users", "id")],
+            vec![("order_id", "orders", "id"), ("user_id", "users", "id")],
             "name",
             "peid",
         );
