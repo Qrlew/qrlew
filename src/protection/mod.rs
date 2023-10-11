@@ -310,8 +310,11 @@ pub fn protect_visitor_from_field_paths<'a>(
     strategy: Strategy,
 ) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation>+'a> {
     let protected_entity = ProtectedEntity::from(protected_entity.into_iter().map(|(table, protection, referred_field)|(table, protection, referred_field, PE_ID)).collect_vec());
-    let protect_tables = move |table: &Table| match protected_entity.get(table.name()) {
-        Some(field_path) => {
+    let protect_tables = move |table: &Table| match protected_entity
+        .iter()
+        .find(|(tab, _field_path)| table.name() == relations[tab.as_str()].name())
+    {
+        Some((_tab, field_path)) => {
             // let 
             PEPRelation::try_from(
                 Relation::from(table.clone())
@@ -326,7 +329,7 @@ pub fn protect_visitor_from_field_paths<'a>(
                     .insert_field(1, PE_WEIGHT, Expr::val(1)),
             )
         },
-        None => Err(Error::unprotected_table(table)),
+        None => Err(Error::unprotected_table(table.path())),
     };
     ProtectVisitor::new(protect_tables, strategy)
 }
@@ -503,11 +506,11 @@ impl Relation {
     /// Add protection
     pub fn protect_from_field_paths(
         self,
-        relations: Hierarchy<Arc<Relation>>,
+        relations: &Hierarchy<Arc<Relation>>,
         protected_entity: Vec<(&str, Vec<(&str, &str, &str)>, &str)>,
     ) -> Result<PEPRelation> {
         self.accept(protect_visitor_from_field_paths(
-            &relations,
+            relations,
             protected_entity,
             Strategy::Soft,
         ))
@@ -597,7 +600,7 @@ mod tests {
 
     #[test]
     fn test_table_protection() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
         // Table
@@ -610,7 +613,7 @@ mod tests {
 
     #[test]
     fn test_table_protection_from_field_paths() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         let table = relations
             .get(&["item_table".into()])
@@ -620,7 +623,7 @@ mod tests {
         // Table
         let table = table
             .protect_from_field_paths(
-                relations.clone(),
+                &relations,
                 vec![(
                     "item_table",
                     vec![("order_id", "order_table", "id")],

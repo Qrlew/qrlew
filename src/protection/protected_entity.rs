@@ -1,8 +1,7 @@
 use std::{
     ops::Deref,
-    collections::HashMap, hash::Hash, fmt::Display,
+    hash::Hash, fmt::Display,
 };
-use chrono::format::format;
 use colored::Colorize;
 use itertools::Itertools;
 
@@ -209,7 +208,7 @@ impl<'a> IntoIterator for FieldPath {
 
 /// Associate a PEID to each table
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ProtectedEntity(HashMap<String, FieldPath>);
+pub struct ProtectedEntity(Vec<(String, FieldPath)>);
 
 impl Display for ProtectedEntity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -218,14 +217,14 @@ impl Display for ProtectedEntity {
 }
 
 impl Deref for ProtectedEntity {
-    type Target = HashMap<String, FieldPath>;
+    type Target = Vec<(String, FieldPath)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<ProtectedEntity> for HashMap<String, FieldPath> {
+impl From<ProtectedEntity> for Vec<(String, FieldPath)> {
     fn from(value: ProtectedEntity) -> Self {
         value.0
     }
@@ -233,9 +232,9 @@ impl From<ProtectedEntity> for HashMap<String, FieldPath> {
 
 impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>> for ProtectedEntity {
     fn from(value: Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>) -> Self {
-        let mut result = HashMap::new();
+        let mut result = vec![];
         for (table, protection, referred_field, referred_field_name) in value {
-            result.insert(table.into(), FieldPath::new(Path::from_iter(protection), referred_field.into(), referred_field_name.into()));
+            result.push((table.into(), FieldPath::new(Path::from_iter(protection), referred_field.into(), referred_field_name.into())));
         }
         ProtectedEntity(result)
     }
