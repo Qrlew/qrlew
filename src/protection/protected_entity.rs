@@ -2,6 +2,7 @@ use std::{
     ops::Deref,
     collections::HashMap, hash::Hash, fmt::Display,
 };
+use chrono::format::format;
 use colored::Colorize;
 use itertools::Itertools;
 
@@ -105,7 +106,6 @@ pub struct ReferredField {
     pub referred_field_name: String,
 }
 
-
 impl ReferredField {
     pub fn new(referring_id: String, referred_relation: String, referred_id: String, referred_field: String, referred_field_name: String) -> ReferredField {
         ReferredField {
@@ -147,7 +147,6 @@ impl FieldPath {
         &self.referred_field_name
     }
 }
-
 
 impl Display for FieldPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -211,6 +210,12 @@ impl<'a> IntoIterator for FieldPath {
 /// Associate a PEID to each table
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct ProtectedEntity(HashMap<String, FieldPath>);
+
+impl Display for ProtectedEntity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.iter().map(|(table, field_path)| format!("{} {} {}", table, "→".cyan(), field_path)).join("\n"))
+    }
+}
 
 impl Deref for ProtectedEntity {
     type Target = HashMap<String, FieldPath>;
@@ -290,13 +295,31 @@ mod tests {
             ("user_id", "user_table", "id"),
         ],
         "name", "peid").into();
-        println!("{:#?}", field_path);
+        println!("{}", field_path);
     }
 
     #[test]
     fn test_length_zero_field_path() {
         let field_path: FieldPath = (vec![],
         "name", "peid").into();
-        println!("{:#?}", field_path);
+        println!("{}", field_path);
+    }
+
+    // Add some tests
+    #[test]
+    fn test_protected_entity() {
+        let protected_entity = ProtectedEntity::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name", "peid"
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name", "peid"),
+            ("user_table", vec![], "name", "peid"),
+        ]);
+        println!("{}", protected_entity);
     }
 }
