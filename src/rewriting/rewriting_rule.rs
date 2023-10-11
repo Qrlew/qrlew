@@ -159,7 +159,6 @@ pub trait SelectRewritingRuleVisitor<'a> {
     fn set(&self, set: &'a Set, rewriting_rules: &'a[RewritingRule], left: &RelationWithRewritingRule<'a>, right: &RelationWithRewritingRule<'a>) -> Vec<RewritingRule>;
     fn values(&self, values: &'a Values, rewriting_rules: &'a[RewritingRule]) -> Vec<RewritingRule>;
 }
-
 /// Implement the visitor trait
 impl<'a, V: SelectRewritingRuleVisitor<'a>> Visitor<'a, RelationWithRewritingRules<'a>, Vec<Arc<RelationWithRewritingRule<'a>>>> for V {
     fn visit(&self, acceptor: &'a RelationWithRewritingRules<'a>, dependencies: Visited<'a, RelationWithRewritingRules<'a>, Vec<Arc<RelationWithRewritingRule<'a>>>>) -> Vec<Arc<RelationWithRewritingRule<'a>>> {
@@ -230,7 +229,7 @@ pub trait RewriteVisitor<'a> {
     fn set(&self, set: &'a Set, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation>;
     fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> Arc<Relation>;
 }
-
+/// Implement the visitor trait
 impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, Arc<Relation>> for V {
     fn visit(&self, acceptor: &'a RelationWithRewritingRule<'a>, dependencies: Visited<'a, RelationWithRewritingRule<'a>, Arc<Relation>>) -> Arc<Relation> {
         match acceptor.relation() {
@@ -244,6 +243,12 @@ impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, Arc<R
     }
 }
 
+impl<'a> RelationWithRewritingRule<'a> {
+    /// Rewrite the RelationWithRewritingRule
+    pub fn rewrite<V: RewriteVisitor<'a>>(&'a self, rewrite_visitor: V) -> Relation {
+        (*self.accept(rewrite_visitor)).clone()
+    }
+}
 
 // # Implement various rewriting rules visitors
 
@@ -369,6 +374,41 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
 
     fn values(&self, values: &'a Values, rewriting_rules: &'a[RewritingRule]) -> Vec<RewritingRule> {
         rewriting_rules.into_iter().cloned().collect()
+    }
+}
+
+struct BaseRewriter;// TODO implement this properly
+
+impl<'a> RewriteVisitor<'a> for BaseRewriter {
+    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> Arc<Relation> {
+        Arc::new(match rewriting_rule.output() {
+            Property::Private => table.clone().into(),
+            Property::ProtectedEntityPreserving => table.clone().into(),
+            Property::DifferentiallyPrivate => table.clone().into(),
+            Property::Published => table.clone().into(),
+            Property::Public => table.clone().into(),
+            _ => unreachable!()
+        })
+    }
+
+    fn map(&self, map: &'a Map, rewriting_rule: &'a RewritingRule, rewritten_input: Arc<Relation>) -> Arc<Relation> {
+        todo!()
+    }
+
+    fn reduce(&self, reduce: &'a Reduce, rewriting_rule: &'a RewritingRule, rewritten_input: Arc<Relation>) -> Arc<Relation> {
+        todo!()
+    }
+
+    fn join(&self, join: &'a Join, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation> {
+        todo!()
+    }
+
+    fn set(&self, set: &'a Set, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation> {
+        todo!()
+    }
+
+    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> Arc<Relation> {
+        todo!()
     }
 }
 
