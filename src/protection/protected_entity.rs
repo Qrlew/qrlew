@@ -1,9 +1,10 @@
 use std::{
     ops::Deref,
+    collections::HashMap,
 };
 
 // A few utility objects
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Step<'a> {
     pub referring_id: &'a str,
     pub referred_relation: &'a str,
@@ -20,8 +21,8 @@ impl<'a> From<(&'a str, &'a str, &'a str)> for Step<'a> {
     }
 }
 
-
-#[derive(Clone, Debug)]
+/// A path to a field
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Path<'a>(pub Vec<Step<'a>>);
 
 impl<'a> Deref for Path<'a> {
@@ -56,7 +57,7 @@ impl<'a> IntoIterator for Path<'a> {
 }
 
 /// A link to a relation and a field to keep with a new name
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct ReferredField<'a> {
     pub referring_id: &'a str,
     pub referred_relation: &'a str,
@@ -66,7 +67,7 @@ pub struct ReferredField<'a> {
 }
 
 /// A path to a field
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct FieldPath<'a>(pub Vec<ReferredField<'a>>);
 
 impl<'a> FieldPath<'a> {
@@ -125,3 +126,7 @@ impl<'a> IntoIterator for FieldPath<'a> {
         self.0.into_iter()
     }
 }
+
+/// Associate a PEID to each table
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProtectedEntity<'a>(pub HashMap<&'a str, Vec<ReferredField<'a>>>);
