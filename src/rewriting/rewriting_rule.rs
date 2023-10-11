@@ -95,7 +95,6 @@ pub trait SetRewritingRulesVisitor<'a> {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct SetRewritingRulesVisitorWrapper<'a, S: SetRewritingRulesVisitor<'a>>(S, PhantomData<&'a S>);
-
 /// Implement the visitor trait
 impl<'a, S: SetRewritingRulesVisitor<'a>> Visitor<'a, Relation, Arc<RelationWithRewritingRules<'a>>> for SetRewritingRulesVisitorWrapper<'a, S> {
     fn visit(&self, acceptor: &'a Relation, dependencies: Visited<'a, Relation, Arc<RelationWithRewritingRules<'a>>>) -> Arc<RelationWithRewritingRules<'a>> {
@@ -128,7 +127,6 @@ pub trait MapRewritingRulesVisitor<'a> {
     fn set(&self, set: &'a Set, rewriting_rules: &'a[RewritingRule], left: Arc<RelationWithRewritingRules<'a>>, right: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule>;
     fn values(&self, values: &'a Values, rewriting_rules: &'a[RewritingRule]) -> Vec<RewritingRule>;
 }
-
 /// Implement the visitor trait
 impl<'a, V: MapRewritingRulesVisitor<'a>> Visitor<'a, RelationWithRewritingRules<'a>, Arc<RelationWithRewritingRules<'a>>> for V {
     fn visit(&self, acceptor: &'a RelationWithRewritingRules<'a>, dependencies: Visited<'a, RelationWithRewritingRules<'a>, Arc<RelationWithRewritingRules<'a>>>) -> Arc<RelationWithRewritingRules<'a>> {
@@ -216,12 +214,36 @@ impl<'a> RelationWithRewritingRules<'a> {
         self.accept(select_rewriting_rules_visitor).into_iter().map(|rwrr| (*rwrr).clone()).collect()
     }
 }
-
+/// Implement the visitor trait
 impl<'a> From<&'a RelationWithRewritingRule<'a>> for RelationWithRewritingRules<'a> {
     fn from(value: &'a RelationWithRewritingRule<'a>) -> Self {
         value.map_attributes(|rwrr| vec![rwrr.attributes().clone()])
     }
 }
+
+/// A Visitor to rewrite a RelationWithRewritingRule
+pub trait RewriteVisitor<'a> {
+    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> Arc<Relation>;
+    fn map(&self, map: &'a Map, rewriting_rule: &'a RewritingRule, rewritten_input: Arc<Relation>) -> Arc<Relation>;
+    fn reduce(&self, reduce: &'a Reduce, rewriting_rule: &'a RewritingRule, rewritten_input: Arc<Relation>) -> Arc<Relation>;
+    fn join(&self, join: &'a Join, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation>;
+    fn set(&self, set: &'a Set, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation>;
+    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> Arc<Relation>;
+}
+
+impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, Arc<Relation>> for V {
+    fn visit(&self, acceptor: &'a RelationWithRewritingRule<'a>, dependencies: Visited<'a, RelationWithRewritingRule<'a>, Arc<Relation>>) -> Arc<Relation> {
+        match acceptor.relation() {
+            Relation::Table(table) => self.table(table, acceptor.attributes()),
+            Relation::Map(map) => self.map(map, acceptor.attributes(), dependencies.get(acceptor.inputs()[0].deref()).clone()),
+            Relation::Reduce(reduce) => self.reduce(reduce, acceptor.attributes(), dependencies.get(acceptor.inputs()[0].deref()).clone()),
+            Relation::Join(join) => self.join(join, acceptor.attributes(), dependencies.get(acceptor.inputs()[0].deref()).clone(), dependencies.get(acceptor.inputs()[1].deref()).clone()),
+            Relation::Set(set) => self.set(set, acceptor.attributes(), dependencies.get(acceptor.inputs()[0].deref()).clone(), dependencies.get(acceptor.inputs()[1].deref()).clone()),
+            Relation::Values(values) => self.values(values, acceptor.attributes()),
+        }
+    }
+}
+
 
 // # Implement various rewriting rules visitors
 
@@ -260,6 +282,10 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
         vec![
             RewritingRule::new(vec![Property::Published, Property::Published], Property::Published),
             RewritingRule::new(vec![Property::Public, Property::Public], Property::Public),
+            RewritingRule::new(vec![Property::Published, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::Published], Property::ProtectedEntityPreserving),
+            RewritingRule::new(vec![Property::DifferentiallyPrivate, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::DifferentiallyPrivate], Property::ProtectedEntityPreserving),
             RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving),
             RewritingRule::new(vec![Property::SyntheticData, Property::SyntheticData], Property::SyntheticData),
         ]
@@ -292,13 +318,11 @@ impl<'a> MapRewritingRulesVisitor<'a> for BaseRewritingRulesEliminator {
 
     fn map(&self, map: &'a Map, rewriting_rules: &'a[RewritingRule], input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         let input_properties: HashSet<&Property> = input.attributes().into_iter().map(|rr| rr.output()).collect();
-        println!("MAP {}", rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().join(", "));
         rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().collect()
     }
 
     fn reduce(&self, reduce: &'a Reduce, rewriting_rules: &'a[RewritingRule], input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         let input_properties: HashSet<&Property> = input.attributes().into_iter().map(|rr| rr.output()).collect();
-        println!("REDUCE {}", rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().join(", "));
         rewriting_rules.into_iter().filter(|rr| input_properties.contains(&rr.inputs()[0])).cloned().collect()
     }
 
@@ -361,14 +385,13 @@ mod tests {
     };
 
     #[test]
-    fn test_set_rewriting_rules() {
+    fn test_set_eliminate_select_rewriting_rules() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
-        // for (p, r) in relations.iter() {
-        //     println!("{} -> {r}", p.into_iter().join("."))
-        // }
-
+        // Print relations with paths
+        for (p, r) in relations.iter() {
+            println!("{} -> {r}", p.into_iter().join("."))
+        }
         let query = parse(
             "SELECT order_id, sum(price) AS sum_price,
         count(price) AS count_price,
@@ -376,6 +399,30 @@ mod tests {
         FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
         )
         .unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        // Add rewritting rules
+        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter);
+        relation_with_rules.display_dot().unwrap();
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        relation_with_rules.display_dot().unwrap();
+        for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
+            rwrr.display_dot().unwrap()
+        }
+    }
+
+    #[test]
+    fn test_set_eliminate_select_rewriting_rules_on_complex_query() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse(r#"
+        WITH order_avg_price (order_id, avg_price) AS (SELECT order_id, avg(price) AS avg_price FROM item_table GROUP BY order_id),
+        order_std_price (order_id, std_price) AS (SELECT order_id, 2*stddev(price) AS std_price FROM item_table GROUP BY order_id),
+        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price-order_avg_price.avg_price)/(0.1+order_std_price.std_price) AS normalized_price
+            FROM item_table JOIN order_avg_price ON item_table.order_id=order_avg_price.order_id JOIN order_std_price ON item_table.order_id=order_std_price.order_id)
+        SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
+        "#,
+        ).unwrap();
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
