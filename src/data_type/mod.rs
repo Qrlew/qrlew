@@ -909,7 +909,7 @@ impl Struct {
     }
 
     pub fn all_values(&self) -> bool {
-        self.iter().all(|(_, dt)| dt.all_values())
+        self.iter().all(|(_, dt)| dt.deref().all_values())
     }
 }
 
@@ -2502,6 +2502,10 @@ impl DataType {
             DataType::Union(u) => u.fields(),
             _ => panic!(),
         }
+    }
+
+    pub fn all_values(&self) -> bool {
+        TryInto::<Vec<Value>>::try_into(self.clone()).is_ok()
     }
 }
 
