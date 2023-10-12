@@ -13,7 +13,7 @@ use crate::{
     builder::{Ready, With},
     differential_privacy::budget::Budget,
     hierarchy::Hierarchy,
-    protection::protected_entity::ProtectedEntity,
+    protection::{protected_entity::ProtectedEntity, Protection},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
     visitor::{Acceptor, Dependencies, Visited, Visitor},
@@ -916,17 +916,8 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     Property::ProtectedEntityPreserving,
                     Parameters::ProtectedEntity(protected_entity),
                 ) => {
-                    let protected_entity: Vec<_> = protected_entity.into();
-                    let protected_entity: Vec<_> = protected_entity
-                        .into_iter()
-                        .map(|(table, path, referred_field, referred_field_name)| {
-                            (table, path, referred_field)
-                        })
-                        .collect();
-                    let relation: Relation = Relation::from(table.clone())
-                        .protect_from_field_paths(self.0, protected_entity.into())
-                        .unwrap()
-                        .into();
+                    let protection = Protection::new(self.0, protected_entity.clone(), crate::protection::Strategy::Hard);
+                    let relation = protection.table(table.clone()).unwrap().0;
                     // relation.with_name(table.name().into()).filter_fields(|name| !name.starts_with("_"))// TODO this is awfully ugly! change that quickly!
                     table.clone().into()
                 }

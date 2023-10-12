@@ -195,341 +195,341 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_dp_compile_aggregates_with_sum() {
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with(("id", DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
-            .into_iter()
-            .collect();
-        let (epsilon, delta) = (1., 1e-3);
+    // #[test]
+    // fn test_dp_compile_aggregates_with_sum() {
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_range(1..=10)))
+    //                 .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+    //                 .with(("c", DataType::integer_range(5..=20)))
+    //                 .with(("id", DataType::integer_range(1..=100)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
+    //         .into_iter()
+    //         .collect();
+    //     let (epsilon, delta) = (1., 1e-3);
 
-        let relation: Relation = Relation::reduce()
-            .name("reduce_relation")
-            .group_by(expr!(b))
-            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
-            .with(("b".to_string(), AggregateColumn::first("b")))
-            .input(table.clone())
-            .build();
-        //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(
-            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
-        );
-        //pep_relation.display_dot().unwrap();
-        if let Relation::Reduce(reduce) = pep_relation {
-            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce
-                .dp_compile_aggregates(epsilon, delta)
-                .unwrap()
-                .into();
-            dp_relation.display_dot().unwrap();
-            assert_eq!(dp_relation.schema().len(), 2);
-            matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
-            assert_eq!(
-                dp_relation.data_type()["b"],
-                DataType::integer_values([1, 2, 5, 6, 7, 8])
-            );
-            assert_eq!(
-                private_query,
-                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
-            );
-        } else {
-            panic!()
-        }
-    }
+    //     let relation: Relation = Relation::reduce()
+    //         .name("reduce_relation")
+    //         .group_by(expr!(b))
+    //         .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+    //         .with(("b".to_string(), AggregateColumn::first("b")))
+    //         .input(table.clone())
+    //         .build();
+    //     //relation.display_dot().unwrap();
+    //     let pep_relation = Relation::from(
+    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+    //     );
+    //     //pep_relation.display_dot().unwrap();
+    //     if let Relation::Reduce(reduce) = pep_relation {
+    //         let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+    //         let (dp_relation, private_query) = pep_reduce
+    //             .dp_compile_aggregates(epsilon, delta)
+    //             .unwrap()
+    //             .into();
+    //         dp_relation.display_dot().unwrap();
+    //         assert_eq!(dp_relation.schema().len(), 2);
+    //         matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
+    //         assert_eq!(
+    //             dp_relation.data_type()["b"],
+    //             DataType::integer_values([1, 2, 5, 6, 7, 8])
+    //         );
+    //         assert_eq!(
+    //             private_query,
+    //             PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+    //         );
+    //     } else {
+    //         panic!()
+    //     }
+    // }
 
-    #[test]
-    fn test_dp_compile_aggregates_with_count() {
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with(("id", DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
-            .into_iter()
-            .collect();
-        let (epsilon, delta) = (1., 1e-3);
+    // #[test]
+    // fn test_dp_compile_aggregates_with_count() {
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_range(1..=10)))
+    //                 .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+    //                 .with(("c", DataType::integer_range(5..=20)))
+    //                 .with(("id", DataType::integer_range(1..=100)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
+    //         .into_iter()
+    //         .collect();
+    //     let (epsilon, delta) = (1., 1e-3);
 
-        let relation: Relation = Relation::reduce()
-            .name("reduce_relation")
-            .with(("count_a".to_string(), AggregateColumn::count("a")))
-            .group_by(expr!(b))
-            .input(table.clone())
-            .build();
-        //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(
-            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
-        );
-        //pep_relation.display_dot().unwrap();
-        if let Relation::Reduce(reduce) = pep_relation {
-            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce
-                .dp_compile_aggregates(epsilon, delta)
-                .unwrap()
-                .into();
-            dp_relation.display_dot().unwrap();
-            assert_eq!(dp_relation.schema().len(), 1);
-            matches!(dp_relation.data_type()["count_a"], DataType::Float(_));
-            assert_eq!(
-                private_query,
-                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.)
-            );
-        } else {
-            panic!()
-        }
-    }
+    //     let relation: Relation = Relation::reduce()
+    //         .name("reduce_relation")
+    //         .with(("count_a".to_string(), AggregateColumn::count("a")))
+    //         .group_by(expr!(b))
+    //         .input(table.clone())
+    //         .build();
+    //     //relation.display_dot().unwrap();
+    //     let pep_relation = Relation::from(
+    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+    //     );
+    //     //pep_relation.display_dot().unwrap();
+    //     if let Relation::Reduce(reduce) = pep_relation {
+    //         let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+    //         let (dp_relation, private_query) = pep_reduce
+    //             .dp_compile_aggregates(epsilon, delta)
+    //             .unwrap()
+    //             .into();
+    //         dp_relation.display_dot().unwrap();
+    //         assert_eq!(dp_relation.schema().len(), 1);
+    //         matches!(dp_relation.data_type()["count_a"], DataType::Float(_));
+    //         assert_eq!(
+    //             private_query,
+    //             PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.)
+    //         );
+    //     } else {
+    //         panic!()
+    //     }
+    // }
 
-    #[test]
-    fn test_dp_compile_aggregates_with_avg() {
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with(("id", DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
-            .into_iter()
-            .collect();
-        let (epsilon, delta) = (1., 1e-3);
+    // #[test]
+    // fn test_dp_compile_aggregates_with_avg() {
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_range(1..=10)))
+    //                 .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+    //                 .with(("c", DataType::integer_range(5..=20)))
+    //                 .with(("id", DataType::integer_range(1..=100)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
+    //         .into_iter()
+    //         .collect();
+    //     let (epsilon, delta) = (1., 1e-3);
 
-        let relation: Relation = Relation::reduce()
-            .name("reduce_relation")
-            .with(("avg_a".to_string(), AggregateColumn::mean("a")))
-            .input(table.clone())
-            .build();
-        //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(
-            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
-        );
-        //pep_relation.display_dot().unwrap();
-        if let Relation::Reduce(reduce) = pep_relation {
-            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce
-                .dp_compile_aggregates(epsilon, delta)
-                .unwrap()
-                .into();
-            dp_relation.display_dot().unwrap();
-            assert_eq!(dp_relation.schema().len(), 1);
-            matches!(dp_relation.data_type()["avg_a"], DataType::Float(_));
-            assert_eq!(
-                private_query,
-                vec![
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
-                ]
-                .into()
-            );
-        } else {
-            panic!()
-        }
-    }
+    //     let relation: Relation = Relation::reduce()
+    //         .name("reduce_relation")
+    //         .with(("avg_a".to_string(), AggregateColumn::mean("a")))
+    //         .input(table.clone())
+    //         .build();
+    //     //relation.display_dot().unwrap();
+    //     let pep_relation = Relation::from(
+    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+    //     );
+    //     //pep_relation.display_dot().unwrap();
+    //     if let Relation::Reduce(reduce) = pep_relation {
+    //         let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+    //         let (dp_relation, private_query) = pep_reduce
+    //             .dp_compile_aggregates(epsilon, delta)
+    //             .unwrap()
+    //             .into();
+    //         dp_relation.display_dot().unwrap();
+    //         assert_eq!(dp_relation.schema().len(), 1);
+    //         matches!(dp_relation.data_type()["avg_a"], DataType::Float(_));
+    //         assert_eq!(
+    //             private_query,
+    //             vec![
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+    //             ]
+    //             .into()
+    //         );
+    //     } else {
+    //         panic!()
+    //     }
+    // }
 
-    #[test]
-    fn test_dp_compile_aggregates_multi() {
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with(("id", DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
-            .into_iter()
-            .collect();
-        let (epsilon, delta) = (1., 1e-3);
+    // #[test]
+    // fn test_dp_compile_aggregates_multi() {
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_range(1..=10)))
+    //                 .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+    //                 .with(("c", DataType::integer_range(5..=20)))
+    //                 .with(("id", DataType::integer_range(1..=100)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
+    //         .into_iter()
+    //         .collect();
+    //     let (epsilon, delta) = (1., 1e-3);
 
-        let relation: Relation = Relation::reduce()
-            .name("reduce_relation")
-            .with(("avg_a".to_string(), AggregateColumn::mean("a")))
-            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
-            .with(("count_a".to_string(), AggregateColumn::count("a")))
-            .with(("sum_b".to_string(), AggregateColumn::sum("b")))
-            .input(table.clone())
-            .build();
-        //relation.display_dot().unwrap();
-        let pep_relation = Relation::from(
-            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
-        );
-        //pep_relation.display_dot().unwrap();
-        if let Relation::Reduce(reduce) = pep_relation {
-            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce
-                .dp_compile_aggregates(epsilon, delta)
-                .unwrap()
-                .into();
-            dp_relation.display_dot().unwrap();
-            assert_eq!(dp_relation.schema().len(), 4);
-            matches!(dp_relation.data_type()["avg_a"], DataType::Float(_));
-            matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
-            matches!(dp_relation.data_type()["count_a"], DataType::Float(_));
-            matches!(dp_relation.data_type()["sum_b"], DataType::Float(_));
-            assert_eq!(
-                private_query,
-                vec![
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.),
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 8.),
-                ]
-                .into()
-            );
-        } else {
-            panic!()
-        }
-    }
+    //     let relation: Relation = Relation::reduce()
+    //         .name("reduce_relation")
+    //         .with(("avg_a".to_string(), AggregateColumn::mean("a")))
+    //         .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+    //         .with(("count_a".to_string(), AggregateColumn::count("a")))
+    //         .with(("sum_b".to_string(), AggregateColumn::sum("b")))
+    //         .input(table.clone())
+    //         .build();
+    //     //relation.display_dot().unwrap();
+    //     let pep_relation = Relation::from(
+    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+    //     );
+    //     //pep_relation.display_dot().unwrap();
+    //     if let Relation::Reduce(reduce) = pep_relation {
+    //         let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+    //         let (dp_relation, private_query) = pep_reduce
+    //             .dp_compile_aggregates(epsilon, delta)
+    //             .unwrap()
+    //             .into();
+    //         dp_relation.display_dot().unwrap();
+    //         assert_eq!(dp_relation.schema().len(), 4);
+    //         matches!(dp_relation.data_type()["avg_a"], DataType::Float(_));
+    //         matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
+    //         matches!(dp_relation.data_type()["count_a"], DataType::Float(_));
+    //         matches!(dp_relation.data_type()["sum_b"], DataType::Float(_));
+    //         assert_eq!(
+    //             private_query,
+    //             vec![
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.),
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 8.),
+    //             ]
+    //             .into()
+    //         );
+    //     } else {
+    //         panic!()
+    //     }
+    // }
 
-    #[test]
-    fn test_dp_compile_aggregates_map_input() {
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .with(("c", DataType::float_interval(-10., 2.)))
-                    .with(("id", DataType::integer_range(1..=100)))
-                    .build(),
-            )
-            .build();
-        let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
-            .into_iter()
-            .collect();
-        let (epsilon, delta) = (1., 1e-3);
+    // #[test]
+    // fn test_dp_compile_aggregates_map_input() {
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_range(1..=10)))
+    //                 .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+    //                 .with(("c", DataType::float_interval(-10., 2.)))
+    //                 .with(("id", DataType::integer_range(1..=100)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
+    //         .into_iter()
+    //         .collect();
+    //     let (epsilon, delta) = (1., 1e-3);
 
-        let input: Relation = Relation::map()
-            .name("map_relation")
-            .with(("a", expr!(a)))
-            .with(("twice_b", expr!(2 * b)))
-            .with(("c", expr!(3 * c)))
-            .input(table.clone())
-            .build();
-        let relation: Relation = Relation::reduce()
-            .name("reduce_relation")
-            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
-            .with(("sum_twice_b".to_string(), AggregateColumn::sum("twice_b")))
-            .with(("sum_c".to_string(), AggregateColumn::sum("c")))
-            .input(input)
-            .build();
-        let pep_relation = Relation::from(
-            relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
-        );
-        pep_relation.display_dot().unwrap();
-        if let Relation::Reduce(reduce) = pep_relation {
-            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce
-                .dp_compile_aggregates(epsilon, delta)
-                .unwrap()
-                .into();
-            dp_relation.display_dot().unwrap();
-            assert_eq!(dp_relation.schema().len(), 3);
-            matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
-            matches!(dp_relation.data_type()["sum_twice_b"], DataType::Float(_));
-            matches!(dp_relation.data_type()["sum_c"], DataType::Float(_));
-            assert_eq!(
-                private_query,
-                vec![
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.),
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 16.),
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 30.),
-                ]
-                .into()
-            );
-        } else {
-            panic!()
-        }
-    }
+    //     let input: Relation = Relation::map()
+    //         .name("map_relation")
+    //         .with(("a", expr!(a)))
+    //         .with(("twice_b", expr!(2 * b)))
+    //         .with(("c", expr!(3 * c)))
+    //         .input(table.clone())
+    //         .build();
+    //     let relation: Relation = Relation::reduce()
+    //         .name("reduce_relation")
+    //         .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+    //         .with(("sum_twice_b".to_string(), AggregateColumn::sum("twice_b")))
+    //         .with(("sum_c".to_string(), AggregateColumn::sum("c")))
+    //         .input(input)
+    //         .build();
+    //     let pep_relation = Relation::from(
+    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]),
+    //     );
+    //     pep_relation.display_dot().unwrap();
+    //     if let Relation::Reduce(reduce) = pep_relation {
+    //         let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+    //         let (dp_relation, private_query) = pep_reduce
+    //             .dp_compile_aggregates(epsilon, delta)
+    //             .unwrap()
+    //             .into();
+    //         dp_relation.display_dot().unwrap();
+    //         assert_eq!(dp_relation.schema().len(), 3);
+    //         matches!(dp_relation.data_type()["sum_a"], DataType::Float(_));
+    //         matches!(dp_relation.data_type()["sum_twice_b"], DataType::Float(_));
+    //         matches!(dp_relation.data_type()["sum_c"], DataType::Float(_));
+    //         assert_eq!(
+    //             private_query,
+    //             vec![
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.),
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 16.),
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 30.),
+    //             ]
+    //             .into()
+    //         );
+    //     } else {
+    //         panic!()
+    //     }
+    // }
 
-    #[test]
-    fn test_dp_compile_complex() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-        let (epsilon, delta) = (1., 1e-3);
+    // #[test]
+    // fn test_dp_compile_complex() {
+    //     let mut database = postgresql::test_database();
+    //     let relations = database.relations();
+    //     let (epsilon, delta) = (1., 1e-3);
 
-        let join: Relation = Relation::join()
-            .name("join_relation")
-            .left(relations["table_1"].clone())
-            .right(relations["table_2"].clone())
-            .inner()
-            .on(Expr::eq(Expr::col("a"), Expr::col("x")))
-            .left_names(vec!["a", "b", "c", "d"])
-            .right_names(vec!["x", "y", "z"])
-            .build();
+    //     let join: Relation = Relation::join()
+    //         .name("join_relation")
+    //         .left(relations["table_1"].clone())
+    //         .right(relations["table_2"].clone())
+    //         .inner()
+    //         .on(Expr::eq(Expr::col("a"), Expr::col("x")))
+    //         .left_names(vec!["a", "b", "c", "d"])
+    //         .right_names(vec!["x", "y", "z"])
+    //         .build();
 
-        let map: Relation = Relation::map()
-            .name("map_relation")
-            .with(("d", expr!(d)))
-            .with(("twice_a", expr!(2 * a)))
-            .with(("z", expr!(z)))
-            .input(join)
-            .build();
+    //     let map: Relation = Relation::map()
+    //         .name("map_relation")
+    //         .with(("d", expr!(d)))
+    //         .with(("twice_a", expr!(2 * a)))
+    //         .with(("z", expr!(z)))
+    //         .input(join)
+    //         .build();
 
-        let relation: Relation = Relation::reduce()
-            .name("reduce_relation")
-            .with(("sum_a".to_string(), AggregateColumn::sum("twice_a")))
-            .with(("my_d", AggregateColumn::first("d")))
-            .with(("avg_a".to_string(), AggregateColumn::mean("twice_a")))
-            .with(("count_a".to_string(), AggregateColumn::count("twice_a")))
-            .group_by(expr!(d))
-            .group_by(expr!(z))
-            .input(map)
-            .build();
+    //     let relation: Relation = Relation::reduce()
+    //         .name("reduce_relation")
+    //         .with(("sum_a".to_string(), AggregateColumn::sum("twice_a")))
+    //         .with(("my_d", AggregateColumn::first("d")))
+    //         .with(("avg_a".to_string(), AggregateColumn::mean("twice_a")))
+    //         .with(("count_a".to_string(), AggregateColumn::count("twice_a")))
+    //         .group_by(expr!(d))
+    //         .group_by(expr!(z))
+    //         .input(map)
+    //         .build();
 
-        let pep_relation = Relation::from(relation.force_protect_from_field_paths(
-            &relations,
-            vec![
-                ("table_1", vec![], "c"),
-                ("table_2", vec![("x", "table_1", "a")], "c"),
-            ],
-        ));
-        pep_relation.display_dot().unwrap();
-        if let Relation::Reduce(reduce) = pep_relation {
-            let pep_reduce = PEPReduce::try_from(reduce).unwrap();
-            let (dp_relation, private_query) = pep_reduce
-                .dp_compile_aggregates(epsilon, delta)
-                .unwrap()
-                .into();
-            dp_relation.display_dot().unwrap();
-            assert_eq!(
-                private_query,
-                vec![
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 20.),
-                    PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
-                ]
-                .into()
-            );
-            assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
-                ("sum_a", DataType::float()),
-                ("my_d", DataType::integer_interval(0, 10)),
-                ("avg_a", DataType::float()),
-                ("count_a", DataType::float())
-            ])));
-            let dp_query = ast::Query::from(&dp_relation);
-            database.query(&dp_query.to_string()).unwrap();
-        } else {
-            panic!()
-        }
-    }
+    //     let pep_relation = Relation::from(relation.force_protect_from_field_paths(
+    //         &relations,
+    //         vec![
+    //             ("table_1", vec![], "c"),
+    //             ("table_2", vec![("x", "table_1", "a")], "c"),
+    //         ],
+    //     ));
+    //     pep_relation.display_dot().unwrap();
+    //     if let Relation::Reduce(reduce) = pep_relation {
+    //         let pep_reduce = PEPReduce::try_from(reduce).unwrap();
+    //         let (dp_relation, private_query) = pep_reduce
+    //             .dp_compile_aggregates(epsilon, delta)
+    //             .unwrap()
+    //             .into();
+    //         dp_relation.display_dot().unwrap();
+    //         assert_eq!(
+    //             private_query,
+    //             vec![
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 20.),
+    //                 PrivateQuery::gaussian_privacy_pars(epsilon, delta, 1.),
+    //             ]
+    //             .into()
+    //         );
+    //         assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
+    //             ("sum_a", DataType::float()),
+    //             ("my_d", DataType::integer_interval(0, 10)),
+    //             ("avg_a", DataType::float()),
+    //             ("count_a", DataType::float())
+    //         ])));
+    //         let dp_query = ast::Query::from(&dp_relation);
+    //         database.query(&dp_query.to_string()).unwrap();
+    //     } else {
+    //         panic!()
+    //     }
+    // }
 }

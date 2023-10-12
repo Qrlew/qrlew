@@ -96,7 +96,7 @@ impl TryFrom<Relation> for PEPRelation {
     type Error = Error;
 
     fn try_from(value: Relation) -> Result<Self> {
-        if value.is_pep() {
+        if value.schema().field(PE_ID).is_err() || value.schema().field(PE_WEIGHT).is_err() {
             Ok(PEPRelation(value))
         } else {
             Err(Error::NotProtectedEntityPreserving(
@@ -124,13 +124,6 @@ impl Deref for PEPRelation {
 }
 
 impl Relation {
-    pub fn is_pep(&self) -> bool {
-        if self.schema().field(PE_ID).is_err() || self.schema().field(PE_WEIGHT).is_err() {
-            false
-        } else {
-            true
-        }
-    }
     /// Add a field designated with a foreign relation and a field
     pub fn with_referred_field(
         self,
@@ -239,7 +232,7 @@ impl TryFrom<Reduce> for PEPReduce {
     type Error = Error;
 
     fn try_from(value: Reduce) -> Result<Self> {
-        if value.is_pep() {
+        if value.schema().field(PE_ID).is_err() || value.schema().field(PE_WEIGHT).is_err() {
             Ok(PEPReduce(value))
         } else {
             Err(Error::NotProtectedEntityPreserving(
@@ -260,102 +253,43 @@ impl Deref for PEPReduce {
     }
 }
 
-impl Reduce {
-    pub fn is_pep(&self) -> bool {
-        if self.schema().field(PE_ID).is_err() || self.schema().field(PE_WEIGHT).is_err() {
-            false
-        } else {
-            true
-        }
-    }
-}
-
-/// A visitor to compute Relation protection
-#[derive(Clone, Debug)]
-pub struct ProtectVisitor<F: Fn(&Table) -> Result<PEPRelation>> {
-    /// The protected entity definition
-    protect_tables: F,
-    /// Strategy used
+/// Implements the protection of various relations
+pub struct Protection<'a> {
+    relations: &'a Hierarchy<Arc<Relation>>,
+    protected_entity: ProtectedEntity,
     strategy: Strategy,
 }
 
-impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
-    pub fn new(protect_tables: F, strategy: Strategy) -> Self {
-        ProtectVisitor {
-            protect_tables,
+impl<'a> Protection<'a> {
+    pub fn new(relations: &'a Hierarchy<Arc<Relation>>, protected_entity: ProtectedEntity, strategy: Strategy) -> Protection {
+        Protection {
+            relations,
+            protected_entity,
             strategy,
         }
     }
-}
-
-/// Build a visitor from exprs
-pub fn protect_visitor_from_exprs<'a>(
-    protected_entity: Vec<(&'a Table, Expr)>,
-    strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
-    let protect_tables = move |table: &Table| match protected_entity
-        .iter()
-        .find_map(|(t, e)| (table == *t).then(|| e.clone()))
-    {
-        Some(expr) => PEPRelation::try_from(
-            Relation::from(table.clone())
-                .identity_with_field(PE_ID, expr.clone())
-                .insert_field(1, PE_WEIGHT, Expr::val(1)),
-        ),
-        None => Err(Error::unprotected_table(table)),
-    };
-    ProtectVisitor::new(protect_tables, strategy)
-}
-
-/// Build a visitor from exprs
-pub fn protect_visitor_from_field_paths<'a>(
-    relations: &'a Hierarchy<Arc<Relation>>,
-    protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
-    strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
-    let protected_entity = ProtectedEntity::from(
-        protected_entity
-            .into_iter()
-            .map(|(table, protection, referred_field)| (table, protection, referred_field, PE_ID))
-            .collect_vec(),
-    );
-    let protect_tables = move |table: &Table| match protected_entity
-        .iter()
-        .find(|(tab, _field_path)| table.name() == relations[tab.as_str()].name())
-    {
-        Some((_tab, field_path)) => {
-            // let
-            PEPRelation::try_from(
-                Relation::from(table.clone())
-                    .with_field_path(relations, field_path.clone())
-                    .map_fields(|n, e| {
-                        if n == PE_ID {
-                            Expr::md5(Expr::cast_as_text(e))
-                        } else {
-                            e
-                        }
-                    })
-                    .insert_field(1, PE_WEIGHT, Expr::val(1)),
-            )
-        }
-        None => Err(Error::unprotected_table(table.path())),
-    };
-    ProtectVisitor::new(protect_tables, strategy)
-}
-
-impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
-    for ProtectVisitor<F>
-{
-    fn table(&self, table: &'a Table) -> Result<PEPRelation> {
+    
+    /// Table protection
+    pub fn table(&self, table: Table) -> Result<PEPRelation> {
+        let (name, field_path) = self.protected_entity.iter()
+            .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
+            .ok_or(Error::unprotected_table(table.path()))?;
         PEPRelation::try_from(
-            Relation::from((self.protect_tables)(table)?)
-                .insert_field(1, PE_WEIGHT, Expr::val(1))
-                // We preserve the name
-                .with_name(format!("{}{}", PROTECTION_PREFIX, table.name())),
+            Relation::from(table)
+                .with_field_path(self.relations, field_path.clone())
+                .map_fields(|name, expr| {
+                    if name == PE_ID {
+                        Expr::md5(Expr::cast_as_text(expr))
+                    } else {
+                        expr
+                    }
+                })
+                .insert_field(1, PE_WEIGHT, Expr::val(1)),
         )
     }
 
-    fn map(&self, map: &'a Map, input: Result<PEPRelation>) -> Result<PEPRelation> {
+    /// Map protection from another PEP relation
+    pub fn map(&self, map: &'a Map, input: Result<PEPRelation>) -> Result<PEPRelation> {
         let relation: Relation = Relation::map()
             .with((PE_ID, Expr::col(PE_ID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
@@ -365,9 +299,10 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
         PEPRelation::try_from(relation)
     }
 
-    fn reduce(&self, reduce: &'a Reduce, input: Result<PEPRelation>) -> Result<PEPRelation> {
+    /// Reduce protection from another PEP relation
+    pub fn reduce(&self, reduce: &'a Reduce, input: Result<PEPRelation>) -> Result<PEPRelation> {
         match self.strategy {
-            Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce)),
+            Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce.name())),
             Strategy::Hard => {
                 let relation: Relation = Relation::reduce()
                     .with_group_by_column(PE_ID)
@@ -380,7 +315,8 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
         }
     }
 
-    fn join(
+    /// Join protection from 2 PEP relations
+    pub fn join(
         //TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
@@ -466,7 +402,8 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
         }
     }
 
-    fn set(
+    /// Set protection from 2 PEP relations
+    pub fn set(
         &self,
         set: &'a crate::relation::Set,
         left: Result<PEPRelation>,
@@ -482,79 +419,37 @@ impl<'a, F: Fn(&Table) -> Result<PEPRelation>> Visitor<'a, Result<PEPRelation>>
         PEPRelation::try_from(relation)
     }
 
-    fn values(&self, values: &'a Values) -> Result<PEPRelation> {
+    /// Values protection
+    pub fn values(&self, values: &'a Values) -> Result<PEPRelation> {
         PEPRelation::try_from(Relation::Values(values.clone()))
     }
 }
 
-impl Relation {
-    /// Add protection
-    pub fn protect_from_visitor<F: Fn(&Table) -> Result<PEPRelation>>(
-        self,
-        protect_visitor: ProtectVisitor<F>,
-    ) -> Result<PEPRelation> {
-        self.accept(protect_visitor)
+impl<'a> From<(&'a Hierarchy<Arc<Relation>>, Vec<(&str, Vec<(&str, &str, &str)>, &str)>, Strategy)> for Protection<'a> {
+    fn from(value: (&'a Hierarchy<Arc<Relation>>, Vec<(&str, Vec<(&str, &str, &str)>, &str)>, Strategy)) -> Self {
+        let (relations, protected_entity, strategy) = value;
+        let protected_entity: Vec<_> = protected_entity
+            .into_iter()
+            .map(|(table, protection, referred_field)| (table, protection, referred_field, PE_ID))
+            .collect();
+        Protection::new(relations, ProtectedEntity::from(protected_entity), strategy)
     }
+}
+/// A visitor to compute Relation protection
+#[derive(Clone, Debug)]
+pub struct ProtectVisitor<F: Fn(&Table) -> Result<PEPRelation>> {
+    /// The protected entity definition
+    protect_tables: F,
+    /// Strategy used
+    strategy: Strategy,
+}
 
-    /// Add protection
-    pub fn protect<F: Fn(&Table) -> Result<PEPRelation>>(
-        self,
-        protect_tables: F,
-    ) -> Result<PEPRelation> {
-        self.accept(ProtectVisitor::new(protect_tables, Strategy::Soft))
-    }
-
-    /// Add protection
-    pub fn protect_from_exprs<'a>(
-        self,
-        protected_entity: Vec<(&'a Table, Expr)>,
-    ) -> Result<PEPRelation> {
-        self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Soft))
-    }
-
-    /// Add protection
-    pub fn protect_from_field_paths(
-        self,
-        relations: &Hierarchy<Arc<Relation>>,
-        protected_entity: Vec<(&str, Vec<(&str, &str, &str)>, &str)>,
-    ) -> Result<PEPRelation> {
-        self.accept(protect_visitor_from_field_paths(
-            relations,
-            protected_entity,
-            Strategy::Soft,
-        ))
-    }
-
-    /// Force protection
-    pub fn force_protect<F: Fn(&Table) -> Result<PEPRelation>>(
-        self,
-        protect_tables: F,
-    ) -> PEPRelation {
-        self.accept(ProtectVisitor::new(protect_tables, Strategy::Hard))
-            .unwrap()
-    }
-
-    /// Force protection
-    pub fn force_protect_from_exprs<'a>(
-        self,
-        protected_entity: Vec<(&'a Table, Expr)>,
-    ) -> PEPRelation {
-        self.accept(protect_visitor_from_exprs(protected_entity, Strategy::Hard))
-            .unwrap()
-    }
-
-    /// Force protection
-    pub fn force_protect_from_field_paths(
-        self,
-        relations: &Hierarchy<Arc<Relation>>,
-        protected_entity: Vec<(&str, Vec<(&str, &str, &str)>, &str)>,
-    ) -> PEPRelation {
-        self.accept(protect_visitor_from_field_paths(
-            relations,
-            protected_entity,
-            Strategy::Hard,
-        ))
-        .unwrap()
+impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
+    pub fn new(protect_tables: F, strategy: Strategy) -> Self {
+        ProtectVisitor {
+            protect_tables,
+            strategy,
+        }
     }
 }
 
@@ -612,19 +507,6 @@ mod tests {
     }
 
     #[test]
-    fn test_table_protection() {
-        let database = postgresql::test_database();
-        let relations = database.relations();
-        let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
-        // Table
-        let table = table
-            .protect_from_exprs(vec![(&database.tables()[0], expr!(md5(a)))])
-            .unwrap();
-        println!("Schema protected = {}", table.schema());
-        assert_eq!(table.schema()[0].name(), PE_ID)
-    }
-
-    #[test]
     fn test_table_protection_from_field_paths() {
         let database = postgresql::test_database();
         let relations = database.relations();
@@ -633,159 +515,20 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
+        let protection = Protection::from((
+            &relations,
+            vec![(
+                "item_table",
+                vec![("order_id", "order_table", "id")],
+                "date",
+            )],
+            Strategy::Soft,
+        ));
         // Table
-        let table = table
-            .protect_from_field_paths(
-                &relations,
-                vec![(
-                    "item_table",
-                    vec![("order_id", "order_table", "id")],
-                    "date",
-                )],
-            )
-            .unwrap();
+        let table = protection.table(table.try_into().unwrap()).unwrap();
         table.display_dot().unwrap();
         println!("Schema protected = {}", table.schema());
         println!("Query protected = {}", ast::Query::from(&*table));
         assert_eq!(table.schema()[0].name(), PE_ID)
-    }
-
-    #[test]
-    fn test_relation_protection() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-        let relation = Relation::try_from(
-            parse("SELECT sum(price) AS sum_price FROM item_table GROUP BY order_id")
-                .unwrap()
-                .with(&relations),
-        )
-        .unwrap();
-        relation.display_dot().unwrap();
-        // Table
-        let relation = relation.force_protect_from_field_paths(
-            &relations,
-            vec![
-                (
-                    "item_table",
-                    vec![
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
-                    ],
-                    "name",
-                ),
-                ("order_table", vec![("user_id", "user_table", "id")], "name"),
-                ("user_table", vec![], "name"),
-            ],
-        );
-        relation.display_dot().unwrap();
-        println!("Schema protected = {}", relation.schema());
-        assert_eq!(relation.schema()[0].name(), PE_ID);
-        // Print query
-        let query: &str = &ast::Query::from(&*relation).to_string();
-        println!(
-            "{}\n{}",
-            format!("{query}").yellow(),
-            database
-                .query(query)
-                .unwrap()
-                .iter()
-                .map(ToString::to_string)
-                .join("\n")
-        );
-    }
-
-    #[test]
-    fn test_compute_norm_on_protected_relation() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-        let relation =
-            Relation::try_from(parse("SELECT * FROM item_table").unwrap().with(&relations))
-                .unwrap();
-        let relation = relation.force_protect_from_field_paths(
-            &relations,
-            vec![
-                (
-                    "items",
-                    vec![("order_id", "orders", "id"), ("user_id", "users", "id")],
-                    "name",
-                ),
-                ("order_table", vec![("user_id", "users", "id")], "name"),
-                ("user_table", vec![], "name"),
-            ],
-        );
-        //display(&relation);
-        println!("Schema protected = {}", relation.schema());
-        assert_eq!(relation.schema()[0].name(), PE_ID);
-
-        let vector = PE_ID.clone();
-        let base = vec!["item"];
-        let coordinates = vec!["price"];
-        let norm = Relation::from(relation).l2_norms(vector, base, coordinates);
-        norm.display_dot().unwrap();
-        // Print query
-        let query: &str = &ast::Query::from(&norm).to_string();
-        println!(
-            "{}\n{}",
-            format!("{query}").yellow(),
-            database
-                .query(query)
-                .unwrap()
-                .iter()
-                .map(ToString::to_string)
-                .join("\n")
-        );
-    }
-
-    #[test]
-    fn test_relation_protection_weights() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-        let relation = Relation::try_from(
-            parse("SELECT * FROM order_table JOIN item_table ON id=order_id")
-                .unwrap()
-                .with(&relations),
-        )
-        .unwrap();
-        // Table
-        let relation = relation.force_protect_from_field_paths(
-            &relations,
-            vec![
-                (
-                    "item_table",
-                    vec![
-                        ("order_id", "order_table", "id"),
-                        ("user_id", "user_table", "id"),
-                    ],
-                    "name",
-                ),
-                ("order_table", vec![("user_id", "user_table", "id")], "name"),
-                ("user_table", vec![], "name"),
-            ],
-        );
-        relation.display_dot().unwrap();
-        println!("Schema protected = {}", relation.schema());
-        assert_eq!(relation.schema()[0].name(), PE_ID);
-        // Print query
-        let query: &str = &ast::Query::from(&*relation).to_string();
-        println!("{}", format!("{query}").yellow());
-        println!(
-            "{}\n{}",
-            format!("{query}").yellow(),
-            database
-                .query(query)
-                .unwrap()
-                .iter()
-                .map(ToString::to_string)
-                .join("\n")
-        );
-    }
-
-    #[test]
-    fn test_peid_computation() {
-        // Change schema and table names
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        println!("{relations}");
     }
 }
