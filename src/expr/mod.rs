@@ -11,9 +11,9 @@ pub mod dot;
 pub mod function;
 pub mod identifier;
 pub mod implementation;
+pub mod rewriting;
 pub mod split;
 pub mod sql;
-pub mod transforms;
 
 use itertools::Itertools;
 use paste::paste;

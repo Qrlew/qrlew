@@ -9,7 +9,9 @@ pub mod dot;
 use crate::{
     builder::{WithContext, WithoutContext},
     data_type::DataTyped,
-    namer, DataType, Expr, Relation, Value,
+    namer,
+    rewriting::{RelationWithRewritingRule, RelationWithRewritingRules},
+    DataType, Expr, Relation, Value,
 };
 use std::{
     fs::File,
@@ -55,9 +57,8 @@ const HTML_BODY: &str = r##"<body>
 <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
 <div id="graph" style="text-align: center; display: block; position: absolute;"></div>
 <script>
-d3.select("#graph").graphviz()
+d3.select("#graph").graphviz().engine("dot")
 .renderDot(`"##;
-
 const HTML_FOOTER: &str = r##"`);
 </script>
 "##;
@@ -103,10 +104,45 @@ impl Dot for WithContext<&Expr, Value> {
         let name = namer::name_from_content("expr_value", &self.object);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
-        output.write(HTML_HEADER.as_bytes())?;
         output.write(HTML_STYLE.as_bytes())?;
         output.write(HTML_BODY.as_bytes())?;
         self.dot_value(self.context.clone(), &mut output, &[])?;
+        output.write(HTML_FOOTER.as_bytes())?;
+        #[cfg(feature = "graphviz_display")]
+        Command::new("open")
+            .arg(format!("/tmp/{name}.html"))
+            .output()
+            .expect("Error: this works on MacOS");
+        Ok(())
+    }
+}
+
+impl<'a> Dot for RelationWithRewritingRules<'a> {
+    fn display_dot(&self) -> Result<()> {
+        let name = namer::name_from_content("relation_with_rewriting_rules", self);
+        let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
+        output.write(HTML_HEADER.as_bytes())?;
+        output.write(HTML_STYLE.as_bytes())?;
+        output.write(HTML_BODY.as_bytes())?;
+        self.dot(&mut output, &[])?;
+        output.write(HTML_FOOTER.as_bytes())?;
+        #[cfg(feature = "graphviz_display")]
+        Command::new("open")
+            .arg(format!("/tmp/{name}.html"))
+            .output()
+            .expect("Error: this works on MacOS");
+        Ok(())
+    }
+}
+
+impl<'a> Dot for RelationWithRewritingRule<'a> {
+    fn display_dot(&self) -> Result<()> {
+        let name = namer::name_from_content("relation_with_rewriting_rules", self);
+        let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
+        output.write(HTML_HEADER.as_bytes())?;
+        output.write(HTML_STYLE.as_bytes())?;
+        output.write(HTML_BODY.as_bytes())?;
+        self.dot(&mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
         #[cfg(feature = "graphviz_display")]
         Command::new("open")

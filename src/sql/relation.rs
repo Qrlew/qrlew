@@ -645,7 +645,7 @@ mod tests {
     use super::*;
     use crate::{
         builder::Ready,
-        data_type::{DataType, DataTyped},
+        data_type::{DataType, DataTyped, Variant},
         display::Dot,
         relation::schema::Schema,
     };
@@ -1155,7 +1155,7 @@ mod tests {
         println!("query = {q}");
         assert_eq!(
             relation.data_type(),
-            DataType::structured(vec![("my_sum", DataType::float().empty())])
+            DataType::structured(vec![("my_sum", DataType::float().try_empty().unwrap())])
         );
 
         let query = parse("SELECT SUM(b) AS my_sum FROM table_1 GROUP BY a HAVING COUNT(b) > 4 and a > 40 AND my_sum > 6;").unwrap();
@@ -1181,7 +1181,7 @@ mod tests {
         println!("query = {q}");
         assert_eq!(
             relation.data_type(),
-            DataType::structured(vec![("my_sum", DataType::float().empty())])
+            DataType::structured(vec![("my_sum", DataType::float().try_empty().unwrap())])
         );
     }
 

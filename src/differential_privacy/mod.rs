@@ -4,6 +4,7 @@
 //!
 
 pub mod aggregates;
+pub mod budget;
 pub mod group_by;
 pub mod private_query;
 
@@ -12,7 +13,7 @@ use crate::{
     differential_privacy::private_query::PrivateQuery,
     expr,
     protection::{self, PEPReduce, PEPRelation},
-    relation::{transforms, Join, Map, Reduce, Relation, Table, Visitor},
+    relation::{rewriting, Join, Map, Reduce, Relation, Table, Visitor},
     visitor::Acceptor,
     Ready,
 };
@@ -48,8 +49,8 @@ impl From<expr::Error> for Error {
         Error::Other(err.to_string())
     }
 }
-impl From<transforms::Error> for Error {
-    fn from(err: transforms::Error) -> Self {
+impl From<rewriting::Error> for Error {
+    fn from(err: rewriting::Error) -> Self {
         Error::Other(err.to_string())
     }
 }
