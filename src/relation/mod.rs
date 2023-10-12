@@ -7,9 +7,9 @@
 pub mod builder;
 pub mod dot;
 pub mod field;
+pub mod rewriting;
 pub mod schema;
 pub mod sql;
-pub mod rewriting;
 
 use std::{
     cmp, error, fmt, hash,

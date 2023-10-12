@@ -4,9 +4,9 @@
 //!
 
 pub mod aggregates;
+pub mod budget;
 pub mod group_by;
 pub mod private_query;
-pub mod budget;
 
 use crate::{
     builder::With,

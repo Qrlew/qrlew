@@ -1,9 +1,6 @@
-use std::{
-    ops::Deref,
-    hash::Hash, fmt::Display,
-};
 use colored::Colorize;
 use itertools::Itertools;
+use std::{fmt::Display, hash::Hash, ops::Deref};
 
 // A few utility objects
 
@@ -26,7 +23,14 @@ impl Step {
 
 impl Display for Step {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}.{}", self.referring_id.blue(), "→".red(), self.referred_relation.blue(), self.referred_id.blue())
+        write!(
+            f,
+            "{} {} {}.{}",
+            self.referring_id.blue(),
+            "→".red(),
+            self.referred_relation.blue(),
+            self.referred_id.blue()
+        )
     }
 }
 
@@ -42,7 +46,11 @@ impl From<(&str, &str, &str)> for Step {
 
 impl<'a> From<&'a Step> for (&'a str, &'a str, &'a str) {
     fn from(value: &'a Step) -> Self {
-        (&value.referring_id, &value.referred_relation, &value.referred_id)
+        (
+            &value.referring_id,
+            &value.referred_relation,
+            &value.referred_id,
+        )
     }
 }
 
@@ -74,7 +82,9 @@ impl<'a> FromIterator<(&'a str, &'a str, &'a str)> for Path {
     fn from_iter<T: IntoIterator<Item = (&'a str, &'a str, &'a str)>>(iter: T) -> Self {
         Path(
             iter.into_iter()
-                .map(|(referring_id, referred_relation, referred_id)| Step::from((referring_id, referred_relation, referred_id)))
+                .map(|(referring_id, referred_relation, referred_id)| {
+                    Step::from((referring_id, referred_relation, referred_id))
+                })
                 .collect(),
         )
     }
@@ -91,7 +101,11 @@ impl IntoIterator for Path {
 
 impl Display for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.iter().join(format!(" {} ", "|".yellow()).as_str()))
+        write!(
+            f,
+            "{}",
+            self.iter().join(format!(" {} ", "|".yellow()).as_str())
+        )
     }
 }
 
@@ -106,16 +120,37 @@ pub struct ReferredField {
 }
 
 impl ReferredField {
-    pub fn new(referring_id: String, referred_relation: String, referred_id: String, referred_field: String, referred_field_name: String) -> ReferredField {
+    pub fn new(
+        referring_id: String,
+        referred_relation: String,
+        referred_id: String,
+        referred_field: String,
+        referred_field_name: String,
+    ) -> ReferredField {
         ReferredField {
-            referring_id, referred_relation, referred_id, referred_field, referred_field_name,
+            referring_id,
+            referred_relation,
+            referred_id,
+            referred_field,
+            referred_field_name,
         }
     }
 }
 
 impl Display for ReferredField {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {} AS {}", Step::new(self.referring_id.clone(), self.referred_relation.clone(), self.referred_id.clone()), "→".yellow(), self.referred_field, self.referred_field_name)
+        write!(
+            f,
+            "{} {} {} AS {}",
+            Step::new(
+                self.referring_id.clone(),
+                self.referred_relation.clone(),
+                self.referred_id.clone()
+            ),
+            "→".yellow(),
+            self.referred_field,
+            self.referred_field_name
+        )
     }
 }
 
@@ -130,7 +165,9 @@ pub struct FieldPath {
 impl FieldPath {
     pub fn new(path: Path, referred_field: String, referred_field_name: String) -> FieldPath {
         FieldPath {
-            path, referred_field, referred_field_name,
+            path,
+            referred_field,
+            referred_field_name,
         }
     }
 
@@ -149,19 +186,36 @@ impl FieldPath {
 
 impl Display for FieldPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {} AS {}", self.path, "→".yellow(), self.referred_field, self.referred_field_name)
+        write!(
+            f,
+            "{} {} {} AS {}",
+            self.path,
+            "→".yellow(),
+            self.referred_field,
+            self.referred_field_name
+        )
     }
 }
 
 impl From<(Vec<(&str, &str, &str)>, &str, &str)> for FieldPath {
-    fn from((path, referred_field, referred_field_name): (Vec<(&str, &str, &str)>, &str, &str)) -> Self {
-        FieldPath::new(Path::from_iter(path), referred_field.into(), referred_field_name.into())
+    fn from(
+        (path, referred_field, referred_field_name): (Vec<(&str, &str, &str)>, &str, &str),
+    ) -> Self {
+        FieldPath::new(
+            Path::from_iter(path),
+            referred_field.into(),
+            referred_field_name.into(),
+        )
     }
 }
 
 impl<'a> From<&'a FieldPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str) {
     fn from(value: &'a FieldPath) -> Self {
-        ((&value.path).into(), &value.referred_field, &value.referred_field_name)
+        (
+            (&value.path).into(),
+            &value.referred_field,
+            &value.referred_field_name,
+        )
     }
 }
 
@@ -204,15 +258,19 @@ impl<'a> IntoIterator for FieldPath {
     }
 }
 
-
-
 /// Associate a PEID to each table
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct ProtectedEntity(Vec<(String, FieldPath)>);
 
 impl Display for ProtectedEntity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.iter().map(|(table, field_path)| format!("{} {} {}", table, "→".cyan(), field_path)).join("\n"))
+        write!(
+            f,
+            "{}",
+            self.iter()
+                .map(|(table, field_path)| format!("{} {} {}", table, "→".cyan(), field_path))
+                .join("\n")
+        )
     }
 }
 
@@ -234,17 +292,34 @@ impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>> for ProtectedEntity 
     fn from(value: Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>) -> Self {
         let mut result = vec![];
         for (table, protection, referred_field, referred_field_name) in value {
-            result.push((table.into(), FieldPath::new(Path::from_iter(protection), referred_field.into(), referred_field_name.into())));
+            result.push((
+                table.into(),
+                FieldPath::new(
+                    Path::from_iter(protection),
+                    referred_field.into(),
+                    referred_field_name.into(),
+                ),
+            ));
         }
         ProtectedEntity(result)
     }
 }
 
-impl<'a> From<&'a ProtectedEntity> for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str)> {
+impl<'a> From<&'a ProtectedEntity>
+    for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str)>
+{
     fn from(value: &'a ProtectedEntity) -> Self {
-        value.iter().map(|(table, field_path)| {
-            (table.as_str(), field_path.path().into(), field_path.referred_field(), field_path.referred_field_name())
-        }).collect()
+        value
+            .iter()
+            .map(|(table, field_path)| {
+                (
+                    table.as_str(),
+                    field_path.path().into(),
+                    field_path.referred_field(),
+                    field_path.referred_field_name(),
+                )
+            })
+            .collect()
     }
 }
 
@@ -289,18 +364,21 @@ mod tests {
     // Add some tests
     #[test]
     fn test_field_path() {
-        let field_path: FieldPath = (vec![
-            ("order_id", "order_table", "id"),
-            ("user_id", "user_table", "id"),
-        ],
-        "name", "peid").into();
+        let field_path: FieldPath = (
+            vec![
+                ("order_id", "order_table", "id"),
+                ("user_id", "user_table", "id"),
+            ],
+            "name",
+            "peid",
+        )
+            .into();
         println!("{}", field_path);
     }
 
     #[test]
     fn test_length_zero_field_path() {
-        let field_path: FieldPath = (vec![],
-        "name", "peid").into();
+        let field_path: FieldPath = (vec![], "name", "peid").into();
         println!("{}", field_path);
     }
 
@@ -314,9 +392,15 @@ mod tests {
                     ("order_id", "order_table", "id"),
                     ("user_id", "user_table", "id"),
                 ],
-                "name", "peid"
+                "name",
+                "peid",
             ),
-            ("order_table", vec![("user_id", "user_table", "id")], "name", "peid"),
+            (
+                "order_table",
+                vec![("user_id", "user_table", "id")],
+                "name",
+                "peid",
+            ),
             ("user_table", vec![], "name", "peid"),
         ]);
         println!("{}", protected_entity);

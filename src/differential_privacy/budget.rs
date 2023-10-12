@@ -1,7 +1,4 @@
-use std::{
-    hash::Hash,
-    cmp::Eq,
-};
+use std::{cmp::Eq, hash::Hash};
 
 /// Represent a simple privacy budget
 #[derive(Clone, Debug, PartialEq)]
@@ -12,7 +9,7 @@ pub struct Budget {
 
 impl Budget {
     pub fn new(epsilon: f64, delta: f64) -> Budget {
-        Budget {epsilon, delta}
+        Budget { epsilon, delta }
     }
 }
 
