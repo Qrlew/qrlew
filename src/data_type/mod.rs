@@ -282,7 +282,7 @@ pub trait Variant:
             .and_then(|var| self.into_data_type(&var))
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Err(Error::other("Cannot build an empty DataType"))
     }
 }
@@ -422,7 +422,7 @@ impl Variant for Unit {
         Ok(Unit)
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Unit)
     }
 }
@@ -457,7 +457,7 @@ impl Variant for Boolean {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -505,7 +505,7 @@ impl Variant for Integer {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -701,7 +701,7 @@ impl Variant for Float {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -749,7 +749,7 @@ impl Variant for Text {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -810,7 +810,7 @@ impl Variant for Bytes {
         Ok(Bytes)
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Bytes)
     }
 }
@@ -1132,12 +1132,12 @@ impl Variant for Struct {
         Ok(Struct::new(vec![]))
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::new(
             self.fields()
                 .into_iter()
                 .map(|(s, d)| {
-                    if let Ok(dd) = d.deref().empty() {
+                    if let Ok(dd) = d.deref().try_empty() {
                         Ok((s.to_string(), Arc::new(dd)))
                     } else {
                         Err(Error::other("other"))
@@ -1458,12 +1458,12 @@ impl Variant for Union {
         Ok(Union::new(vec![]))
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::new(
             self.fields()
                 .into_iter()
                 .map(|(s, d)| {
-                    if let Ok(dd) = d.deref().empty() {
+                    if let Ok(dd) = d.deref().try_empty() {
                         Ok((s.to_string(), Arc::new(dd)))
                     } else {
                         Err(Error::other("other"))
@@ -1604,8 +1604,8 @@ impl Variant for Optional {
         Ok(Optional::from_data_type(DataType::Any))
     }
 
-    fn empty(&self) -> Result<Self> {
-        Ok(Optional::from_data_type(self.data_type.empty()?))
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Optional::from_data_type(self.data_type.try_empty()?))
     }
 }
 
@@ -1718,8 +1718,11 @@ impl Variant for List {
         ))
     }
 
-    fn empty(&self) -> Result<Self> {
-        Ok(Self::new(self.data_type().deref().clone().into(), 0.into()))
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::new(
+            self.data_type().deref().try_empty()?.into(),
+            0.into(),
+        ))
     }
 }
 
@@ -1835,8 +1838,11 @@ impl Variant for Set {
         ))
     }
 
-    fn empty(&self) -> Result<Self> {
-        Ok(Self::new(self.data_type().deref().clone().into(), 0.into()))
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::new(
+            self.data_type().deref().try_empty()?.into(),
+            0.into(),
+        ))
     }
 }
 
@@ -1945,9 +1951,9 @@ impl Variant for Array {
         )))
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::new(
-            self.data_type().deref().clone().into(),
+            self.data_type().deref().try_empty()?.into(),
             Arc::new([0 as usize]),
         ))
     }
@@ -2001,7 +2007,7 @@ impl Variant for Date {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -2049,7 +2055,7 @@ impl Variant for Time {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -2097,7 +2103,7 @@ impl Variant for DateTime {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -2145,7 +2151,7 @@ impl Variant for Duration {
         Ok(Self::full())
     }
 
-    fn empty(&self) -> Result<Self> {
+    fn try_empty(&self) -> Result<Self> {
         Ok(Self::empty())
     }
 }
@@ -2652,8 +2658,14 @@ impl Variant for DataType {
         )
     }
 
-    fn empty(&self) -> Result<Self> {
-        for_all_variants!(self, x, Ok(x.empty()?.into()), [Enum], Ok(self.default()))
+    fn try_empty(&self) -> Result<Self> {
+        for_all_variants!(
+            self,
+            x,
+            Ok(x.try_empty()?.into()),
+            [Enum],
+            Ok(self.default())
+        )
     }
 }
 
@@ -4383,9 +4395,9 @@ mod tests {
     #[test]
     fn test_empty() {
         if let DataType::Boolean(b) = DataType::boolean() {
-            println!("{:?}", b.empty());
+            println!("{:?}", b.try_empty());
         }
-        println!("{:?}", DataType::boolean().empty());
+        println!("{:?}", DataType::boolean().try_empty());
         let dt = DataType::structured([
             ("bool", DataType::boolean()),
             ("int", DataType::integer()),
@@ -4393,7 +4405,7 @@ mod tests {
             ("date", DataType::date()),
         ]);
         assert_eq!(
-            dt.empty().unwrap(),
+            dt.try_empty().unwrap(),
             DataType::structured([
                 ("bool", DataType::from(Boolean::empty())),
                 ("int", DataType::from(Integer::empty())),
@@ -4404,10 +4416,10 @@ mod tests {
 
         let dt_union = DataType::union([("bool", DataType::boolean()), ("struct", dt.clone())]);
         assert_eq!(
-            dt_union.empty().unwrap(),
+            dt_union.try_empty().unwrap(),
             DataType::union([
                 ("bool", DataType::from(Boolean::empty())),
-                ("struct", dt.empty().unwrap()),
+                ("struct", dt.try_empty().unwrap()),
             ])
         );
     }
