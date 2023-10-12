@@ -2659,29 +2659,19 @@ impl Variant for DataType {
     }
 
     fn try_empty(&self) -> Result<Self> {
-        Ok(match self {
-            DataType::Null => DataType::Null,
-            DataType::Unit(x) => x.try_empty()?.into(),
-            DataType::Boolean(x) => x.try_empty()?.into(),
-            DataType::Integer(x) => x.try_empty()?.into(),
-            DataType::Enum(_) => DataType::Any,
-            DataType::Float(x) => x.try_empty()?.into(),
-            DataType::Text(x) => x.try_empty()?.into(),
-            DataType::Bytes(x) => x.try_empty()?.into(),
-            DataType::Struct(x) => x.try_empty()?.into(),
-            DataType::Union(x) => x.try_empty()?.into(),
-            DataType::Optional(x) => x.try_empty()?.into(),
-            DataType::List(x) => x.try_empty()?.into(),
-            DataType::Set(x) => x.try_empty()?.into(),
-            DataType::Array(x) => x.try_empty()?.into(),
-            DataType::Date(x) => x.try_empty()?.into(),
-            DataType::Time(x) => x.try_empty()?.into(),
-            DataType::DateTime(x) => x.try_empty()?.into(),
-            DataType::Duration(x) => x.try_empty()?.into(),
-            DataType::Id(x) => x.try_empty()?.into(),
-            DataType::Function(x) => x.try_empty()?.into(),
-            DataType::Any => DataType::Any,
-        })
+        for_all_variants!(
+            self,
+            x,
+            Ok(x.try_empty()?.into()),
+            [
+                Unit, Boolean, Integer, Enum, Float, Text, Bytes, Struct, Union, Optional, List,
+                Set, Array, Date, Time, DateTime, Duration, Id, Function
+            ],
+            match self {
+                DataType::Null => Ok(DataType::Null),
+                _ => Err(Error::other("Cannot build an empty DataType")),
+            }
+        )
     }
 }
 
