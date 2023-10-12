@@ -1,10 +1,10 @@
 //! Plot the dot graph of an expression to debug
 
-use std::{fmt, fs::File, io, process::Command, string};
+use std::{fmt, io, string};
 
 use super::{aggregate, function, Column, Error, Expr, Value, Visitor};
 use crate::{
-    builder::{WithContext, WithoutContext},
+    builder::{WithContext as _, WithoutContext as _},
     data_type::{DataType, DataTyped},
     display::{self, colors},
     namer,

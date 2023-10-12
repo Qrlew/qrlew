@@ -13,7 +13,7 @@ pub mod identifier;
 pub mod implementation;
 pub mod split;
 pub mod sql;
-pub mod transforms;
+pub mod rewriting;
 
 use itertools::Itertools;
 use paste::paste;
