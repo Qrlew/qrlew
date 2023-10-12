@@ -68,9 +68,11 @@ impl Dot for Relation {
         let name = namer::name_from_content("relation", self);
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
-        output.write(HTML_DARK_STYLE.as_bytes())?;
+        output.write(HTML_STYLE.as_bytes())?;
+        // output.write(HTML_DARK_STYLE.as_bytes())?;
         output.write(HTML_BODY.as_bytes())?;
-        self.dot(&mut output, &["dark"])?;
+        self.dot(&mut output, &[])?;
+        // self.dot(&mut output, &["dark"])?;
         output.write(HTML_FOOTER.as_bytes())?;
         #[cfg(feature = "graphviz_display")]
         Command::new("open")
@@ -87,6 +89,7 @@ impl Dot for WithContext<&Expr, DataType> {
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
         output.write(HTML_STYLE.as_bytes())?;
+        // output.write(HTML_DARK_STYLE.as_bytes())?;
         output.write(HTML_BODY.as_bytes())?;
         self.dot(self.context.clone(), &mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
@@ -105,6 +108,7 @@ impl Dot for WithContext<&Expr, Value> {
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
         output.write(HTML_STYLE.as_bytes())?;
+        // output.write(HTML_DARK_STYLE.as_bytes())?;
         output.write(HTML_BODY.as_bytes())?;
         self.dot_value(self.context.clone(), &mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
@@ -123,6 +127,7 @@ impl<'a> Dot for RelationWithRewritingRules<'a> {
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
         output.write(HTML_STYLE.as_bytes())?;
+        // output.write(HTML_DARK_STYLE.as_bytes())?;
         output.write(HTML_BODY.as_bytes())?;
         self.dot(&mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;
@@ -141,6 +146,7 @@ impl<'a> Dot for RelationWithRewritingRule<'a> {
         let mut output = File::create(format!("/tmp/{name}.html")).unwrap();
         output.write(HTML_HEADER.as_bytes())?;
         output.write(HTML_STYLE.as_bytes())?;
+        // output.write(HTML_DARK_STYLE.as_bytes())?;
         output.write(HTML_BODY.as_bytes())?;
         self.dot(&mut output, &[])?;
         output.write(HTML_FOOTER.as_bytes())?;

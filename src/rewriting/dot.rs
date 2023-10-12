@@ -16,15 +16,15 @@ use crate::{
 /// A node in the RelationWithRewritingRules representation
 #[derive(Clone, Copy, Debug, Hash)]
 enum Node<'a> {
-    Relation(&'a Relation),
-    RewritingRule(&'a RewritingRule, &'a Relation),
+    Relation(&'a RelationWithRewritingRules<'a>),
+    RewritingRule(&'a RewritingRule, &'a RelationWithRewritingRules<'a>),
 }
 
 /// An edge in the RelationWithRewritingRules representation
 #[derive(Clone, Copy, Debug, Hash)]
 enum Edge<'a> {
-    RelationInput(&'a Relation, &'a Relation),
-    RelationRewritingRule(&'a Relation, &'a RewritingRule),
+    RelationInput(&'a RelationWithRewritingRules<'a>, &'a RelationWithRewritingRules<'a>),
+    RelationRewritingRule(&'a RelationWithRewritingRules<'a>, &'a RewritingRule),
 }
 
 impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a> {
@@ -51,7 +51,7 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
 
     fn node_color(&'a self, node: &Node<'a>) -> Option<dot::LabelText<'a>> {
         Some(dot::LabelText::label(match node {
-            Node::Relation(relation) => match relation {
+            Node::Relation(rwrr) => match rwrr.relation() {
                 Relation::Table(_) => colors::MEDIUM_RED,
                 Relation::Map(_) => colors::LIGHT_GREEN,
                 Relation::Reduce(_) => colors::DARK_GREEN,
@@ -91,29 +91,19 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
 
 impl<'a> dot::GraphWalk<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a> {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a>> {
-        self.iter()
-            .flat_map(|rwrr| {
-                iter::once(rwrr.relation()).map(Node::Relation).chain(
-                    rwrr.attributes()
-                        .iter()
-                        .map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr.relation())),
-                )
-            })
-            .collect()
+        self.iter().flat_map(|rwrr|
+            iter::once(rwrr).map(Node::Relation).chain(
+                rwrr.attributes().iter().map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr))
+            )
+        ).collect()
     }
 
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a>> {
-        self.iter()
-            .flat_map(|rwrr| {
-                rwrr.relation()
-                    .inputs()
-                    .into_iter()
-                    .map(|input| Edge::RelationInput(rwrr.relation(), input))
-                    .chain(rwrr.attributes().into_iter().map(|rewriting_rule| {
-                        Edge::RelationRewritingRule(rwrr.relation(), rewriting_rule)
-                    }))
-            })
-            .collect()
+        self.iter().flat_map(|rwrr| {
+            rwrr.inputs().into_iter().map(|input| Edge::RelationInput(rwrr, input)).chain(
+                rwrr.attributes().into_iter().map(|rewriting_rule| Edge::RelationRewritingRule(rwrr, rewriting_rule))
+            )
+        }).collect()
     }
 
     fn source(&'a self, edge: &Edge<'a>) -> Node<'a> {

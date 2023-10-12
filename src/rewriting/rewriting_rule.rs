@@ -974,10 +974,10 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         rewritten_right: Arc<Relation>,
     ) -> Arc<Relation> {
         // TODO this is awfully ugly! change that quickly!
-        println!("DEBUG LEFT {}", rewritten_left.schema());
-        println!("DEBUG LEFT {}", join.left().schema());
-        println!("DEBUG RIGHT {}", rewritten_right.schema());
-        println!("DEBUG RIGHT {}", join.right().schema());
+        // println!("DEBUG LEFT {}", rewritten_left.schema());
+        // println!("DEBUG LEFT {}", join.left().schema());
+        // println!("DEBUG RIGHT {}", rewritten_right.schema());
+        // println!("DEBUG RIGHT {}", join.right().schema());
         let names: Vec<_> = join.schema().iter().map(|f| f.name().to_string()).collect();
         // let left
         Arc::new(
