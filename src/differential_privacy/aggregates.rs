@@ -105,6 +105,9 @@ impl PEPReduce {
         let mut sums = Reduce::builder();
         // Add aggregate colums
         for (name, aggregate) in self.named_aggregates().into_iter() {
+            if *aggregate.distinct() {
+                todo!()
+            }
             match aggregate.aggregate() {
                 aggregate::Aggregate::First => {
                     sums = sums.with((
