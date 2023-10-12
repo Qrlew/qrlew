@@ -844,8 +844,7 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
     ) -> Vec<RewritingRule> {
         rewriting_rules
             .into_iter()
-            .find(|rr| rr.inputs()[0] == *input.attributes().output())
-            .into_iter()
+            .filter(|rr| rr.inputs()[0] == *input.attributes().output())
             .cloned()
             .collect()
     }
@@ -858,8 +857,7 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
     ) -> Vec<RewritingRule> {
         rewriting_rules
             .into_iter()
-            .find(|rr| rr.inputs()[0] == *input.attributes().output())
-            .into_iter()
+            .filter(|rr| rr.inputs()[0] == *input.attributes().output())
             .cloned()
             .collect()
     }
@@ -873,11 +871,10 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
     ) -> Vec<RewritingRule> {
         rewriting_rules
             .into_iter()
-            .find(|rr| {
+            .filter(|rr| {
                 rr.inputs()[0] == *left.attributes().output()
                     && rr.inputs()[1] == *right.attributes().output()
             })
-            .into_iter()
             .cloned()
             .collect()
     }
@@ -891,11 +888,10 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
     ) -> Vec<RewritingRule> {
         rewriting_rules
             .into_iter()
-            .find(|rr| {
+            .filter(|rr| {
                 rr.inputs()[0] == *left.attributes().output()
                     && rr.inputs()[1] == *right.attributes().output()
             })
-            .into_iter()
             .cloned()
             .collect()
     }
@@ -1037,6 +1033,54 @@ mod tests {
             println!("{} -> {r}", p.into_iter().join("."))
         }
         let query = parse(
+            "SELECT order_id, price FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)",
+        )
+        .unwrap();
+        let protected_entity = ProtectedEntity::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+                "peid",
+            ),
+            (
+                "order_table",
+                vec![("user_id", "user_table", "id")],
+                "name",
+                "peid",
+            ),
+            ("user_table", vec![], "name", "peid"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        // Add rewritting rules
+        let relation_with_rules =
+            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(protected_entity, budget));
+        relation_with_rules.display_dot().unwrap();
+        let relation_with_rules =
+            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        relation_with_rules.display_dot().unwrap();
+        for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
+            rwrr.display_dot().unwrap();
+            rwrr.rewrite(BaseRewriter(&relations))
+                .display_dot()
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_set_eliminate_select_rewriting_rules_aggregation() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        // Print relations with paths
+        for (p, r) in relations.iter() {
+            println!("{} -> {r}", p.into_iter().join("."))
+        }
+        let query = parse(
             "SELECT order_id, sum(price) AS sum_price,
         count(price) AS count_price,
         avg(price) AS mean_price
@@ -1080,7 +1124,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_eliminate_select_rewriting_rules_on_complex_query() {
+    fn test_set_eliminate_select_rewriting_rules_complex_query() {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse(r#"
