@@ -10,7 +10,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    relation::{Relation, Table, Map, Reduce, Join, Set, Values},
+    relation::{Relation, Table, Map, Reduce, Join, Set, Values, Variant as _},
     visitor::{Visitor, Dependencies, Visited, Acceptor},
     rewriting::relation_with_attributes::RelationWithAttributes,
     protection::protected_entity::ProtectedEntity,
@@ -319,6 +319,8 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(vec![Property::Public, Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(vec![Property::Published, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
             RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::Published], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::SyntheticData, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
+            RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::SyntheticData], Property::ProtectedEntityPreserving, Parameters::None),
             RewritingRule::new(vec![Property::DifferentiallyPrivate, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
             RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::DifferentiallyPrivate], Property::ProtectedEntityPreserving, Parameters::None),
             RewritingRule::new(vec![Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving], Property::ProtectedEntityPreserving, Parameters::None),
@@ -416,7 +418,9 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
             (Property::ProtectedEntityPreserving, Parameters::ProtectedEntity(protected_entity)) => {
                 let protected_entity: Vec<_> = protected_entity.into();
                 let protected_entity: Vec<_> = protected_entity.into_iter().map(|(table, path, referred_field, referred_field_name)| (table, path, referred_field)).collect();
-                Relation::from(table.clone()).protect_from_field_paths(self.0, protected_entity.into()).unwrap().into()
+                let relation: Relation = Relation::from(table.clone()).protect_from_field_paths(self.0, protected_entity.into()).unwrap().into();
+                // relation.with_name(table.name().into()).filter_fields(|name| !name.starts_with("_"))// TODO this is awfully ugly! change that quickly!
+                table.clone().into()
             },
             (Property::DifferentiallyPrivate, _) => table.clone().into(),
             (Property::Published, _) => table.clone().into(),
@@ -434,11 +438,20 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
     }
 
     fn join(&self, join: &'a Join, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation> {
-        Arc::new(Relation::join().with(join.clone()).left(rewritten_left).left(rewritten_right).build())
+        // TODO this is awfully ugly! change that quickly!
+        println!("DEBUG LEFT {}", rewritten_left.schema());
+        println!("DEBUG LEFT {}", join.left().schema());
+        println!("DEBUG RIGHT {}", rewritten_right.schema());
+        println!("DEBUG RIGHT {}", join.right().schema());
+        let names: Vec<_> = join.schema().iter().map(|f| f.name().to_string()).collect();
+        // let left
+        Arc::new(Relation::join().with(join.clone())
+            // .left_names(names[0..rewritten_left])
+            .left(rewritten_left).right(rewritten_right).build())
     }
 
     fn set(&self, set: &'a Set, rewriting_rule: &'a RewritingRule, rewritten_left: Arc<Relation>, rewritten_right: Arc<Relation>) -> Arc<Relation> {
-        Arc::new(Relation::set().with(set.clone()).left(rewritten_left).left(rewritten_right).build())
+        Arc::new(Relation::set().with(set.clone()).left(rewritten_left).right(rewritten_right).build())
     }
 
     fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> Arc<Relation> {
@@ -513,7 +526,7 @@ mod tests {
         "#,
         ).unwrap();
         let protected_entity = ProtectedEntity::from(
-            vec![
+        vec![
             (
                 "item_table",
                 vec![
@@ -535,7 +548,7 @@ mod tests {
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
             rwrr.display_dot().unwrap();
-            // rwrr.rewrite(BaseRewriter(&relations)).display_dot().unwrap();
+            rwrr.rewrite(BaseRewriter(&relations)).display_dot().unwrap();
         }
     }
 }
