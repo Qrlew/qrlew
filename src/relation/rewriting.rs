@@ -3,20 +3,19 @@
 
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
-    namer,
     builder::{Ready, With, WithIterator},
     data_type::{self, DataTyped},
     expr::{self, aggregate, Aggregate, Expr, Value},
-    io, relation,
+    io, namer, relation,
 };
 use std::{
+    collections::{BTreeMap, HashMap},
     convert::Infallible,
     error, fmt,
     num::ParseFloatError,
     ops::{self, Deref},
     result,
     sync::Arc,
-    collections::{BTreeMap, HashMap},
 };
 
 #[derive(Debug, PartialEq)]
@@ -724,9 +723,9 @@ mod tests {
     use super::*;
     use crate::{
         ast,
-        data_type::{DataType, value::List, DataTyped},
-        expr::AggregateColumn,
+        data_type::{value::List, DataType, DataTyped},
         display::Dot,
+        expr::AggregateColumn,
         io::{postgresql, Database},
         relation::schema::Schema,
         sql::parse,
@@ -773,8 +772,13 @@ mod tests {
             Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations))
                 .unwrap();
         let user = relations.get(&["user_table".to_string()]).unwrap().as_ref();
-        let relation =
-            orders.with_referred_field("user_id".into(), Arc::new(user.clone()), "id".into(), "id".into(), "peid".into());
+        let relation = orders.with_referred_field(
+            "user_id".into(),
+            Arc::new(user.clone()),
+            "id".into(),
+            "id".into(),
+            "peid".into(),
+        );
         assert!(relation.schema()[0].name() == "peid");
         let relation = relation.filter_fields(|n| n != "peid");
         assert!(relation.schema()[0].name() != "peid");

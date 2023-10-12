@@ -1,13 +1,16 @@
-use std::{fmt, io, string, iter};
+use std::{fmt, io, iter, string};
 
 use itertools::Itertools;
 
-use super::{Property, RewritingRule, RelationWithRewritingRules, RelationWithRewritingRule, rewriting_rule};
+use super::{
+    rewriting_rule, Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule,
+};
 use crate::{
-    relation::{Relation, Variant},
+    display::{self, colors},
+    expr::{rewriting, Reduce},
     namer,
+    relation::{Relation, Variant},
     visitor::Acceptor,
-    display::{self, colors}, expr::{Reduce, rewriting},
 };
 
 /// A node in the RelationWithRewritingRules representation
@@ -35,8 +38,14 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
 
     fn node_label(&'a self, node: &Node<'a>) -> dot::LabelText<'a> {
         dot::LabelText::html(match node {
-            Node::Relation(relation) => format!("<b>{}</b><br/>{}", relation.name().to_uppercase(), relation.schema().iter().map(|f| f.name()).join(", ")),
-            Node::RewritingRule(rewriting_rule, _) => format!("{rewriting_rule}").replace(" → ", "<br/>→<br/>"),
+            Node::Relation(relation) => format!(
+                "<b>{}</b><br/>{}",
+                relation.name().to_uppercase(),
+                relation.schema().iter().map(|f| f.name()).join(", ")
+            ),
+            Node::RewritingRule(rewriting_rule, _) => {
+                format!("{rewriting_rule}").replace(" → ", "<br/>→<br/>")
+            }
         })
     }
 
@@ -82,19 +91,29 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
 
 impl<'a> dot::GraphWalk<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a> {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a>> {
-        self.iter().flat_map(|rwrr|
-            iter::once(rwrr.relation()).map(Node::Relation).chain(
-                rwrr.attributes().iter().map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr.relation()))
-            )
-        ).collect()
+        self.iter()
+            .flat_map(|rwrr| {
+                iter::once(rwrr.relation()).map(Node::Relation).chain(
+                    rwrr.attributes()
+                        .iter()
+                        .map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr.relation())),
+                )
+            })
+            .collect()
     }
 
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a>> {
-        self.iter().flat_map(|rwrr| {
-            rwrr.relation().inputs().into_iter().map(|input| Edge::RelationInput(rwrr.relation(), input)).chain(
-                rwrr.attributes().into_iter().map(|rewriting_rule| Edge::RelationRewritingRule(rwrr.relation(), rewriting_rule))
-            )
-        }).collect()
+        self.iter()
+            .flat_map(|rwrr| {
+                rwrr.relation()
+                    .inputs()
+                    .into_iter()
+                    .map(|input| Edge::RelationInput(rwrr.relation(), input))
+                    .chain(rwrr.attributes().into_iter().map(|rewriting_rule| {
+                        Edge::RelationRewritingRule(rwrr.relation(), rewriting_rule)
+                    }))
+            })
+            .collect()
     }
 
     fn source(&'a self, edge: &Edge<'a>) -> Node<'a> {
@@ -107,7 +126,9 @@ impl<'a> dot::GraphWalk<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'
     fn target(&'a self, edge: &Edge<'a>) -> Node<'a> {
         match edge {
             Edge::RelationInput(_relation, input) => Node::Relation(input),
-            Edge::RelationRewritingRule(relation, rewriting_rule) => Node::RewritingRule(rewriting_rule, relation),
+            Edge::RelationRewritingRule(relation, rewriting_rule) => {
+                Node::RewritingRule(rewriting_rule, relation)
+            }
         }
     }
 }
@@ -136,8 +157,9 @@ mod tests {
         builder::With,
         display::Dot,
         io::{postgresql, Database},
+        rewriting::rewriting_rule::Parameters,
         sql::parse,
-        Relation, rewriting::rewriting_rule::Parameters,
+        Relation,
     };
 
     #[test]
@@ -154,7 +176,11 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules = relation.with_attributes(vec![RewritingRule::new(vec![], Property::Public, Parameters::None)]);
+        let relation_with_rules = relation.with_attributes(vec![RewritingRule::new(
+            vec![],
+            Property::Public,
+            Parameters::None,
+        )]);
         relation_with_rules.display_dot().unwrap();
     }
 }

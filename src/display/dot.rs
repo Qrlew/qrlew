@@ -104,7 +104,7 @@ pub fn render<
             text.push(&shape);
             text.push("]");
             // Remove margin for circles
-            if shape==r#""circle""# {
+            if shape == r#""circle""# {
                 text.push("[margin=0.1]");
                 text.push(r#"[fontsize="8pt"]"#);
             }

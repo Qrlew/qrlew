@@ -9,8 +9,9 @@ pub mod dot;
 use crate::{
     builder::{WithContext, WithoutContext},
     data_type::DataTyped,
-    namer, DataType, Expr, Relation, Value,
-    rewriting::{RelationWithRewritingRules, RelationWithRewritingRule},
+    namer,
+    rewriting::{RelationWithRewritingRule, RelationWithRewritingRules},
+    DataType, Expr, Relation, Value,
 };
 use std::{
     fs::File,
