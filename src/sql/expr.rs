@@ -382,33 +382,31 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Value(value) => self.value(value),
             ast::Expr::TypedString { data_type, value } => todo!(),
             ast::Expr::MapAccess { column, keys } => todo!(),
-            ast::Expr::Function(function) => {
-                self.function(function, {
-                    let mut result = vec![];
-                    for function_arg in function.args.iter() {
-                        result.push(match function_arg {
-                            ast::FunctionArg::Named { name, arg } => FunctionArg::Named {
-                                name: name.clone(),
-                                arg: match arg {
-                                    ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
-                                    ast::FunctionArgExpr::QualifiedWildcard(idents) => {
-                                        self.qualified_wildcard(&idents.0)
-                                    }
-                                    ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                                },
-                            },
-                            ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
+            ast::Expr::Function(function) => self.function(function, {
+                let mut result = vec![];
+                for function_arg in function.args.iter() {
+                    result.push(match function_arg {
+                        ast::FunctionArg::Named { name, arg } => FunctionArg::Named {
+                            name: name.clone(),
+                            arg: match arg {
                                 ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
                                 ast::FunctionArgExpr::QualifiedWildcard(idents) => {
                                     self.qualified_wildcard(&idents.0)
                                 }
                                 ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                            }),
-                        });
-                    }
-                    result
-                })
-            }
+                            },
+                        },
+                        ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
+                            ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
+                            ast::FunctionArgExpr::QualifiedWildcard(idents) => {
+                                self.qualified_wildcard(&idents.0)
+                            }
+                            ast::FunctionArgExpr::Wildcard => self.wildcard(),
+                        }),
+                    });
+                }
+                result
+            }),
             ast::Expr::AggregateExpressionWithFilter { expr, filter } => todo!(),
             ast::Expr::Case {
                 operand,
@@ -710,49 +708,49 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 } else {
                     Expr::min(flat_args[0].clone())
                 }
-            },
+            }
             "max" => {
                 if distinct {
                     Expr::distinct_max(flat_args[0].clone())
                 } else {
                     Expr::max(flat_args[0].clone())
                 }
-            },
+            }
             "count" => {
                 if distinct {
                     Expr::distinct_count(flat_args[0].clone())
                 } else {
                     Expr::count(flat_args[0].clone())
                 }
-            },
+            }
             "avg" => {
                 if distinct {
                     Expr::distinct_mean(flat_args[0].clone())
                 } else {
                     Expr::mean(flat_args[0].clone())
                 }
-            },
+            }
             "sum" => {
                 if distinct {
                     Expr::distinct_sum(flat_args[0].clone())
                 } else {
                     Expr::sum(flat_args[0].clone())
                 }
-            },
+            }
             "variance" => {
                 if distinct {
                     Expr::distinct_var(flat_args[0].clone())
                 } else {
                     Expr::var(flat_args[0].clone())
                 }
-            },
+            }
             "stddev" => {
                 if distinct {
                     Expr::distinct_std(flat_args[0].clone())
                 } else {
                     Expr::std(flat_args[0].clone())
                 }
-            },
+            }
             _ => todo!(),
         })
     }

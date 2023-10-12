@@ -163,7 +163,7 @@ impl fmt::Display for Function {
                         .map(|expr| expr.to_string())
                         .join(", ")
                 )
-            },
+            }
         }
     }
 }
@@ -408,7 +408,7 @@ impl Aggregate {
         Aggregate {
             aggregate,
             argument,
-            distinct
+            distinct,
         }
     }
     /// Get aggregate
@@ -434,7 +434,13 @@ impl Aggregate {
 
 impl fmt::Display for Aggregate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({}{})", self.aggregate, if self.distinct{"DISTINCT "} else {""}, self.argument)
+        write!(
+            f,
+            "{}({}{})",
+            self.aggregate,
+            if self.distinct { "DISTINCT " } else { "" },
+            self.argument
+        )
     }
 }
 
@@ -779,7 +785,11 @@ impl AggregateColumn {
             aggregate,
             column: column.clone(),
             distinct,
-            expr: Expr::Aggregate(Aggregate::new(aggregate, Arc::new(Expr::Column(column)), distinct)),
+            expr: Expr::Aggregate(Aggregate::new(
+                aggregate,
+                Arc::new(Expr::Column(column)),
+                distinct,
+            )),
         }
     }
     /// Access aggregate
@@ -848,7 +858,11 @@ impl From<Column> for AggregateColumn {
 
 impl<S: Into<String>> From<S> for AggregateColumn {
     fn from(value: S) -> Self {
-        AggregateColumn::new(aggregate::Aggregate::First, Column::from(value.into()), false)
+        AggregateColumn::new(
+            aggregate::Aggregate::First,
+            Column::from(value.into()),
+            false,
+        )
     }
 }
 
@@ -876,9 +890,11 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Expr, T> for V {
                     .map(|a| dependencies.get(&**a).clone())
                     .collect(),
             ),
-            Expr::Aggregate(a) => {
-                self.aggregate(&a.aggregate, &a.distinct, dependencies.get(&a.argument).clone())
-            }
+            Expr::Aggregate(a) => self.aggregate(
+                &a.aggregate,
+                &a.distinct,
+                dependencies.get(&a.argument).clone(),
+            ),
             Expr::Struct(s) => self.structured(
                 s.fields
                     .iter()
@@ -914,7 +930,12 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         }
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, distinct: &'a bool,  argument: String) -> String {
+    fn aggregate(
+        &self,
+        aggregate: &'a aggregate::Aggregate,
+        distinct: &'a bool,
+        argument: String,
+    ) -> String {
         if *distinct {
             format!("{}(DISTINCT {})", aggregate, argument)
         } else {
@@ -953,7 +974,12 @@ impl<'a> Visitor<'a, DataType> for DomainVisitor {
         DataType::product(arguments)
     }
 
-    fn aggregate(&self, _aggregate: &'a aggregate::Aggregate, _distinct: &'a bool, argument: DataType) -> DataType {
+    fn aggregate(
+        &self,
+        _aggregate: &'a aggregate::Aggregate,
+        _distinct: &'a bool,
+        argument: DataType,
+    ) -> DataType {
         argument
     }
 
@@ -1126,7 +1152,12 @@ impl<'a> Visitor<'a, bool> for HasColumnVisitor {
         arguments.into_iter().any(identity)
     }
 
-    fn aggregate(&self, _aggregate: &'a aggregate::Aggregate, _distinct: &'a bool, argument: bool) -> bool {
+    fn aggregate(
+        &self,
+        _aggregate: &'a aggregate::Aggregate,
+        _distinct: &'a bool,
+        argument: bool,
+    ) -> bool {
         argument
     }
 
@@ -1162,8 +1193,17 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
         Expr::Function(Function::new(function.clone(), arguments))
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, distinct: &'a bool, argument: Expr) -> Expr {
-        Expr::Aggregate(Aggregate::new(aggregate.clone(), Arc::new(argument), distinct.clone()))
+    fn aggregate(
+        &self,
+        aggregate: &'a aggregate::Aggregate,
+        distinct: &'a bool,
+        argument: Expr,
+    ) -> Expr {
+        Expr::Aggregate(Aggregate::new(
+            aggregate.clone(),
+            Arc::new(argument),
+            distinct.clone(),
+        ))
     }
 
     fn structured(&self, fields: Vec<(Identifier, Expr)>) -> Expr {

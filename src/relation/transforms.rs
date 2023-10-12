@@ -872,7 +872,6 @@ impl Relation {
             ))
         });
         red.ordered_reduce(grouping_exprs, aggregates_exprs)
-
     }
 
     pub fn public_values_column(&self, colname: &str) -> Result<Relation> {

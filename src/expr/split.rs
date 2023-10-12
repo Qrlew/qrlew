@@ -176,7 +176,10 @@ impl Map {
                 .map(|(name, expr)| {
                     let alias = namer::name_from_content(FIELD, &expr);
                     (
-                        (name, AggregateColumn::new(aggregate, alias.clone().into(), distinct)),
+                        (
+                            name,
+                            AggregateColumn::new(aggregate, alias.clone().into(), distinct),
+                        ),
                         (alias, expr),
                     )
                 })
@@ -740,8 +743,15 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
         .into()
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, distinct: &'a bool, argument: Split) -> Split {
-        argument.into_reduce(aggregate.clone(), distinct.clone()).into()
+    fn aggregate(
+        &self,
+        aggregate: &'a aggregate::Aggregate,
+        distinct: &'a bool,
+        argument: Split,
+    ) -> Split {
+        argument
+            .into_reduce(aggregate.clone(), distinct.clone())
+            .into()
     }
 
     fn structured(&self, fields: Vec<(Identifier, Split)>) -> Split {

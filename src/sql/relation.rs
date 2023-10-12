@@ -1187,7 +1187,9 @@ mod tests {
 
     #[test]
     fn test_distinct() {
-        let query = parse("SELECT SUM(b) AS my_sum, SUM(DISTINCT b) AS my_distinct_sum FROM table_1;").unwrap();
+        let query =
+            parse("SELECT SUM(b) AS my_sum, SUM(DISTINCT b) AS my_distinct_sum FROM table_1;")
+                .unwrap();
         let schema_1: Schema = vec![
             ("a", DataType::integer_interval(0, 10)),
             ("b", DataType::float_interval(0., 10.)),

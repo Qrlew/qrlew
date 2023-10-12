@@ -40,7 +40,12 @@ impl<'a> Visitor<'a, DataType> for DotVisitor<'a> {
         function.clone().super_image(&arguments).unwrap()
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, _distinct: &'a bool, argument: DataType) -> DataType {
+    fn aggregate(
+        &self,
+        aggregate: &'a aggregate::Aggregate,
+        _distinct: &'a bool,
+        argument: DataType,
+    ) -> DataType {
         aggregate.clone().super_image(&argument).unwrap()
     }
 
@@ -69,7 +74,12 @@ impl<'a> Visitor<'a, Value> for DotValueVisitor<'a> {
         function.clone().value(&arguments).unwrap()
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, _distinct: &'a bool, argument: Value) -> Value {
+    fn aggregate(
+        &self,
+        aggregate: &'a aggregate::Aggregate,
+        _distinct: &'a bool,
+        argument: Value,
+    ) -> Value {
         aggregate.clone().value(&argument).unwrap()
     }
 
