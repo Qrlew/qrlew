@@ -2659,13 +2659,29 @@ impl Variant for DataType {
     }
 
     fn try_empty(&self) -> Result<Self> {
-        for_all_variants!(
-            self,
-            x,
-            Ok(x.try_empty()?.into()),
-            [Enum],
-            Ok(self.default())
-        )
+        Ok(match self {
+            DataType::Null => DataType::Null,
+            DataType::Unit(x) => x.try_empty()?.into(),
+            DataType::Boolean(x) => x.try_empty()?.into(),
+            DataType::Integer(x) => x.try_empty()?.into(),
+            DataType::Enum(_) => DataType::Any,
+            DataType::Float(x) => x.try_empty()?.into(),
+            DataType::Text(x) => x.try_empty()?.into(),
+            DataType::Bytes(x) => x.try_empty()?.into(),
+            DataType::Struct(x) => x.try_empty()?.into(),
+            DataType::Union(x) => x.try_empty()?.into(),
+            DataType::Optional(x) => x.try_empty()?.into(),
+            DataType::List(x) => x.try_empty()?.into(),
+            DataType::Set(x) => x.try_empty()?.into(),
+            DataType::Array(x) => x.try_empty()?.into(),
+            DataType::Date(x) => x.try_empty()?.into(),
+            DataType::Time(x) => x.try_empty()?.into(),
+            DataType::DateTime(x) => x.try_empty()?.into(),
+            DataType::Duration(x) => x.try_empty()?.into(),
+            DataType::Id(x) => x.try_empty()?.into(),
+            DataType::Function(x) => x.try_empty()?.into(),
+            DataType::Any => DataType::Any,
+        })
     }
 }
 
@@ -4393,11 +4409,11 @@ mod tests {
     }
 
     #[test]
-    fn test_empty() {
-        if let DataType::Boolean(b) = DataType::boolean() {
-            println!("{:?}", b.try_empty());
-        }
-        println!("{:?}", DataType::boolean().try_empty());
+    fn test_try_empty() {
+        assert_eq!(
+            DataType::boolean().try_empty().unwrap(),
+            Boolean::empty().into()
+        );
         let dt = DataType::structured([
             ("bool", DataType::boolean()),
             ("int", DataType::integer()),
