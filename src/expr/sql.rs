@@ -225,6 +225,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
     fn aggregate(
         &self,
         aggregate: &'a expr::aggregate::Aggregate,
+        distinct: &'a bool,
         argument: ast::Expr,
     ) -> ast::Expr {
         match aggregate {
@@ -237,7 +238,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                     argument,
                 ))],
                 over: None,
-                distinct: false,
+                distinct: distinct.clone(),
                 special: false,
                 order_by: vec![],
             }),
@@ -250,7 +251,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                     argument,
                 ))],
                 over: None,
-                distinct: false,
+                distinct: distinct.clone(),
                 special: false,
                 order_by: vec![],
             }),
@@ -269,7 +270,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                     argument,
                 ))],
                 over: None,
-                distinct: false,
+                distinct: distinct.clone(),
                 special: false,
                 order_by: vec![],
             }),
@@ -283,7 +284,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                     argument,
                 ))],
                 over: None,
-                distinct: false,
+                distinct: distinct.clone(),
                 special: false,
                 order_by: vec![],
             }),
@@ -298,7 +299,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                     argument,
                 ))],
                 over: None,
-                distinct: false,
+                distinct: distinct.clone(),
                 special: false,
                 order_by: vec![],
             }),
@@ -312,7 +313,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                     argument,
                 ))],
                 over: None,
-                distinct: false,
+                distinct: distinct.clone(),
                 special: false,
                 order_by: vec![],
             }),
@@ -325,7 +326,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                     argument,
                 ))],
                 over: None,
-                distinct: false,
+                distinct: distinct.clone(),
                 special: false,
                 order_by: vec![],
             }),
@@ -453,5 +454,34 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {}", gen_expr.to_string());
         assert_eq!(gen_expr.to_string(), "a IN (4, 5)".to_string(),);
+    }
+
+    #[test]
+    fn test_aggregates() {
+        let str_expr = "SUM(DISTINCT a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("ast::expr = {ast_expr}");
+        println!("ast::expr = {:?}", ast_expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        println!("expr = {:?}", expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {}", gen_expr.to_string());
+        assert_eq!(gen_expr.to_string(), "sum(DISTINCT a)".to_string(),);
+
+        let str_expr = "SUM(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("ast::expr = {ast_expr}");
+        println!("ast::expr = {:?}", ast_expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        println!("expr = {:?}", expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {}", gen_expr.to_string());
+        assert_eq!(gen_expr.to_string(), "sum(a)".to_string(),);
     }
 }

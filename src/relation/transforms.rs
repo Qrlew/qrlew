@@ -868,10 +868,11 @@ impl Relation {
         aggregates.into_iter().for_each(|(c, agg)| {
             aggregates_exprs.push((
                 c,
-                Expr::Aggregate(Aggregate::new(agg, Arc::new(Expr::col(column)))),
+                Expr::Aggregate(Aggregate::new(agg, Arc::new(Expr::col(column)), false)),
             ))
         });
         red.ordered_reduce(grouping_exprs, aggregates_exprs)
+
     }
 
     pub fn public_values_column(&self, colname: &str) -> Result<Relation> {

@@ -1184,4 +1184,34 @@ mod tests {
             DataType::structured(vec![("my_sum", DataType::float().empty())])
         );
     }
+
+    #[test]
+    fn test_distinct() {
+        let query = parse("SELECT SUM(b) AS my_sum, SUM(DISTINCT b) AS my_distinct_sum FROM table_1;").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("table_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("my_sum", DataType::float_interval(0., 1000.)),
+                ("my_distinct_sum", DataType::float_interval(0., 1000.)),
+            ])
+        );
+        relation.display_dot().unwrap();
+    }
 }

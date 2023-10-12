@@ -153,15 +153,17 @@ impl fmt::Display for Function {
                 "({} {} {})",
                 self.arguments[0], self.function, self.arguments[1]
             ),
-            function::Style::Function => write!(
-                f,
-                "{}({})",
-                self.function,
-                self.arguments
-                    .iter()
-                    .map(|expr| expr.to_string())
-                    .join(", ")
-            ),
+            function::Style::Function => {
+                write!(
+                    f,
+                    "{}({})",
+                    self.function,
+                    self.arguments
+                        .iter()
+                        .map(|expr| expr.to_string())
+                        .join(", ")
+                )
+            },
         }
     }
 }
@@ -396,14 +398,17 @@ pub struct Aggregate {
     aggregate: aggregate::Aggregate,
     /// Argument
     argument: Arc<Expr>,
+    // Distinct
+    distinct: bool,
 }
 
 impl Aggregate {
     /// Basic constructor
-    pub fn new(aggregate: aggregate::Aggregate, argument: Arc<Expr>) -> Aggregate {
+    pub fn new(aggregate: aggregate::Aggregate, argument: Arc<Expr>, distinct: bool) -> Aggregate {
         Aggregate {
             aggregate,
             argument,
+            distinct
         }
     }
     /// Get aggregate
@@ -429,7 +434,7 @@ impl Aggregate {
 
 impl fmt::Display for Aggregate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({})", self.aggregate, self.argument)
+        write!(f, "{}({}{})", self.aggregate, if self.distinct{"DISTINCT "} else {""}, self.argument)
     }
 }
 
@@ -441,7 +446,14 @@ macro_rules! impl_aggregation_constructors {
         impl Aggregate {
             paste! {
                 $(pub fn [<$Aggregate:snake>]<E: Into<Expr>>(expr: E) -> Aggregate {
-                    Aggregate::new(aggregate::Aggregate::$Aggregate, Arc::new(expr.into()))
+                    Aggregate::new(aggregate::Aggregate::$Aggregate, Arc::new(expr.into()), false)
+                }
+                )*
+            }
+
+            paste! {
+                $(pub fn [<distinct_ $Aggregate:snake>]<E: Into<Expr>>(expr: E) -> Aggregate {
+                    Aggregate::new(aggregate::Aggregate::$Aggregate, Arc::new(expr.into()), true)
                 }
                 )*
             }
@@ -454,12 +466,26 @@ macro_rules! impl_aggregation_constructors {
                 }
                 )*
             }
+
+            paste! {
+                $(pub fn [<distinct_ $Aggregate:snake>]<E: Into<Expr>>(expr: E) -> Expr {
+                    Expr::from(Aggregate::[<distinct_ $Aggregate:snake>](expr))
+                }
+                )*
+            }
         }
 
         impl AggregateColumn {
             paste! {
                 $(pub fn [<$Aggregate:snake>]<S: Into<String>>(col: S) -> AggregateColumn {
-                    AggregateColumn::new(aggregate::Aggregate::$Aggregate, Column::from(col.into()))
+                    AggregateColumn::new(aggregate::Aggregate::$Aggregate, Column::from(col.into()), false)
+                }
+                )*
+            }
+
+            paste! {
+                $(pub fn [<distinct_ $Aggregate:snake>]<S: Into<String>>(col: S) -> AggregateColumn {
+                    AggregateColumn::new(aggregate::Aggregate::$Aggregate, Column::from(col.into()), true)
                 }
                 )*
             }
@@ -743,15 +769,17 @@ impl<'a> IntoIterator for &'a Expr {
 pub struct AggregateColumn {
     aggregate: aggregate::Aggregate,
     column: Column,
+    distinct: bool,
     expr: Expr,
 }
 
 impl AggregateColumn {
-    pub fn new(aggregate: aggregate::Aggregate, column: Column) -> Self {
+    pub fn new(aggregate: aggregate::Aggregate, column: Column, distinct: bool) -> Self {
         AggregateColumn {
             aggregate,
             column: column.clone(),
-            expr: Expr::Aggregate(Aggregate::new(aggregate, Arc::new(Expr::Column(column)))),
+            distinct,
+            expr: Expr::Aggregate(Aggregate::new(aggregate, Arc::new(Expr::Column(column)), distinct)),
         }
     }
     /// Access aggregate
@@ -765,6 +793,10 @@ impl AggregateColumn {
     /// Access column name
     pub fn column_name(&self) -> Result<&str> {
         Ok(&self.column.last()?)
+    }
+    /// Access distinct
+    pub fn distinct(&self) -> &bool {
+        &self.distinct
     }
     /// A constructor
     pub fn col<S: Into<String>>(field: S) -> AggregateColumn {
@@ -795,9 +827,10 @@ impl TryFrom<Expr> for AggregateColumn {
             Expr::Aggregate(Aggregate {
                 aggregate,
                 argument,
+                distinct,
             }) => {
                 if let Expr::Column(column) = argument.as_ref() {
-                    Ok(AggregateColumn::new(aggregate, column.clone()))
+                    Ok(AggregateColumn::new(aggregate, column.clone(), distinct))
                 } else {
                     Err(Error::invalid_conversion(argument, "Column"))
                 }
@@ -809,13 +842,13 @@ impl TryFrom<Expr> for AggregateColumn {
 
 impl From<Column> for AggregateColumn {
     fn from(value: Column) -> Self {
-        AggregateColumn::new(aggregate::Aggregate::First, value)
+        AggregateColumn::new(aggregate::Aggregate::First, value, false)
     }
 }
 
 impl<S: Into<String>> From<S> for AggregateColumn {
     fn from(value: S) -> Self {
-        AggregateColumn::new(aggregate::Aggregate::First, Column::from(value.into()))
+        AggregateColumn::new(aggregate::Aggregate::First, Column::from(value.into()), false)
     }
 }
 
@@ -826,7 +859,7 @@ pub trait Visitor<'a, T: Clone> {
     fn column(&self, column: &'a Column) -> T;
     fn value(&self, value: &'a Value) -> T;
     fn function(&self, function: &'a function::Function, arguments: Vec<T>) -> T;
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: T) -> T;
+    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, distinct: &'a bool, argument: T) -> T;
     fn structured(&self, fields: Vec<(Identifier, T)>) -> T;
 }
 
@@ -844,7 +877,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, Expr, T> for V {
                     .collect(),
             ),
             Expr::Aggregate(a) => {
-                self.aggregate(&a.aggregate, dependencies.get(&a.argument).clone())
+                self.aggregate(&a.aggregate, &a.distinct, dependencies.get(&a.argument).clone())
             }
             Expr::Struct(s) => self.structured(
                 s.fields
@@ -881,8 +914,12 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         }
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: String) -> String {
-        format!("{}({})", aggregate, argument)
+    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, distinct: &'a bool,  argument: String) -> String {
+        if *distinct {
+            format!("{}(DISTINCT {})", aggregate, argument)
+        } else {
+            format!("{}({})", aggregate, argument)
+        }
     }
 
     fn structured(&self, fields: Vec<(Identifier, String)>) -> String {
@@ -916,7 +953,7 @@ impl<'a> Visitor<'a, DataType> for DomainVisitor {
         DataType::product(arguments)
     }
 
-    fn aggregate(&self, _aggregate: &'a aggregate::Aggregate, argument: DataType) -> DataType {
+    fn aggregate(&self, _aggregate: &'a aggregate::Aggregate, _distinct: &'a bool, argument: DataType) -> DataType {
         argument
     }
 
@@ -950,6 +987,7 @@ impl<'a> Visitor<'a, Result<DataType>> for SuperImageVisitor<'a> {
     fn aggregate(
         &self,
         aggregate: &'a aggregate::Aggregate,
+        _distinct: &'a bool,
         argument: Result<DataType>,
     ) -> Result<DataType> {
         aggregate.super_image(&argument?)
@@ -989,6 +1027,7 @@ impl<'a> Visitor<'a, Result<Value>> for ValueVisitor<'a> {
     fn aggregate(
         &self,
         aggregate: &'a aggregate::Aggregate,
+        _distinct: &'a bool,
         argument: Result<Value>,
     ) -> Result<Value> {
         aggregate.value(&argument?)
@@ -1048,6 +1087,7 @@ impl<'a> Visitor<'a, Vec<&'a Column>> for ColumnsVisitor {
     fn aggregate(
         &self,
         _aggregate: &'a aggregate::Aggregate,
+        _distinct: &'a bool,
         argument: Vec<&'a Column>,
     ) -> Vec<&'a Column> {
         argument
@@ -1086,7 +1126,7 @@ impl<'a> Visitor<'a, bool> for HasColumnVisitor {
         arguments.into_iter().any(identity)
     }
 
-    fn aggregate(&self, _aggregate: &'a aggregate::Aggregate, argument: bool) -> bool {
+    fn aggregate(&self, _aggregate: &'a aggregate::Aggregate, _distinct: &'a bool, argument: bool) -> bool {
         argument
     }
 
@@ -1122,8 +1162,8 @@ impl<'a> Visitor<'a, Expr> for RenameVisitor<'a> {
         Expr::Function(Function::new(function.clone(), arguments))
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: Expr) -> Expr {
-        Expr::Aggregate(Aggregate::new(aggregate.clone(), Arc::new(argument)))
+    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, distinct: &'a bool, argument: Expr) -> Expr {
+        Expr::Aggregate(Aggregate::new(aggregate.clone(), Arc::new(argument), distinct.clone()))
     }
 
     fn structured(&self, fields: Vec<(Identifier, Expr)>) -> Expr {
@@ -1181,6 +1221,7 @@ impl<'a> visitor::Visitor<'a, Expr, (Expr, Vec<(Expr, Expr)>)> for ReplaceVisito
                                 Expr::Aggregate(Aggregate::new(
                                     a.aggregate.clone(),
                                     Arc::new(argument.clone()),
+                                    a.distinct.clone(),
                                 )),
                                 matched.clone(),
                             )

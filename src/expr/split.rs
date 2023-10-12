@@ -46,9 +46,9 @@ impl Split {
         }
     }
 
-    pub fn into_reduce(self, aggregate: aggregate::Aggregate) -> Reduce {
+    pub fn into_reduce(self, aggregate: aggregate::Aggregate, distinct: bool) -> Reduce {
         match self {
-            Split::Map(map) => map.into_reduce(aggregate),
+            Split::Map(map) => map.into_reduce(aggregate, distinct),
             Split::Reduce(reduce) => reduce,
         }
     }
@@ -163,7 +163,7 @@ impl Map {
         self.reduce.as_deref()
     }
 
-    pub fn into_reduce(self, aggregate: aggregate::Aggregate) -> Reduce {
+    pub fn into_reduce(self, aggregate: aggregate::Aggregate, distinct: bool) -> Reduce {
         let Map {
             named_exprs,
             filter,
@@ -176,7 +176,7 @@ impl Map {
                 .map(|(name, expr)| {
                     let alias = namer::name_from_content(FIELD, &expr);
                     (
-                        (name, AggregateColumn::new(aggregate, alias.clone().into())),
+                        (name, AggregateColumn::new(aggregate, alias.clone().into(), distinct)),
                         (alias, expr),
                     )
                 })
@@ -740,8 +740,8 @@ impl<'a> Visitor<'a, Split> for SplitVisitor {
         .into()
     }
 
-    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, argument: Split) -> Split {
-        argument.into_reduce(aggregate.clone()).into()
+    fn aggregate(&self, aggregate: &'a aggregate::Aggregate, distinct: &'a bool, argument: Split) -> Split {
+        argument.into_reduce(aggregate.clone(), distinct.clone()).into()
     }
 
     fn structured(&self, fields: Vec<(Identifier, Split)>) -> Split {
@@ -909,7 +909,7 @@ mod tests {
         );
         println!("reduce = {}", reduce);
         let filter: Split = Split::filter(expr!(lt(x, 5)))
-            .into_reduce(aggregate::Aggregate::First)
+            .into_reduce(aggregate::Aggregate::First, false)
             .into();
         let split: Split = reduce.into();
         let split = split.and(filter);
