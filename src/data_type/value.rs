@@ -37,10 +37,10 @@ pub enum Error {
 
 impl Error {
     pub fn value(err: impl fmt::Display) -> Error {
-        Error::Value(format!("Error: {}", err))
+        Error::Value(format!("ValueError: {}", err))
     }
     pub fn conversion(err: impl fmt::Display) -> Error {
-        Error::Conversion(format!("Error: {}", err))
+        Error::Conversion(format!("ConversionError: {}", err))
     }
     pub fn other(err: impl fmt::Display) -> Error {
         Error::Other(format!("Error: {}", err))
@@ -1744,5 +1744,15 @@ mod tests {
         println!("x['a'] = {}", x["a"]);
         println!("x['a.a_1'] = {}", x[["a", "a_0"]]);
         assert_eq!(x[["b", "b_1"]], 10.0.into());
+    }
+
+    #[test]
+    fn test_struct_and() {
+        let a = Value::structured(vec![("a", Value::from(1.))]);
+        let b = Value::structured(vec![("b", Value::from(10))]);
+        assert_eq!(
+            a.and(b),
+            Value::structured(vec![("a", Value::from(1.)), ("b", Value::from(10))])
+        );
     }
 }
