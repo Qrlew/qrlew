@@ -287,13 +287,12 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
     dot::GraphWalk<'a, Node<'a, T>, Edge<'a, T>> for VisitedRelation<'a, V>
 {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a, T>> {
-        let mut nodes = self
+        self
             .0
             .iter_with(self.1.clone())
+            .collect_vec().into_iter().rev()
             .map(|(relation, t)| Node(relation, t))
-            .collect::<Vec<_>>();
-        nodes.reverse();
-        nodes.into()
+            .collect()
     }
 
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a, T>> {

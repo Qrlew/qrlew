@@ -91,7 +91,7 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
 
 impl<'a> dot::GraphWalk<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a> {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a>> {
-        self.iter().flat_map(|rwrr|
+        self.iter().collect_vec().into_iter().rev().flat_map(|rwrr|
             iter::once(rwrr).map(Node::Relation).chain(
                 rwrr.attributes().iter().map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr))
             )
