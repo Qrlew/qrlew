@@ -281,6 +281,10 @@ pub trait Variant:
             .maximal_superset()
             .and_then(|var| self.into_data_type(&var))
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Err(Error::other("Cannot build an empty DataType"))
+    }
 }
 
 // A few basic shared implementations
@@ -417,6 +421,10 @@ impl Variant for Unit {
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Unit)
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Unit)
+    }
 }
 
 /// Boolean variant
@@ -447,6 +455,10 @@ impl Variant for Boolean {
 
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
+    }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
     }
 }
 
@@ -491,6 +503,10 @@ impl Variant for Integer {
 
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
+    }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
     }
 }
 
@@ -684,6 +700,10 @@ impl Variant for Float {
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
+    }
 }
 
 impl InjectInto<DataType> for Float {
@@ -727,6 +747,10 @@ impl Variant for Text {
 
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
+    }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
     }
 }
 
@@ -783,6 +807,10 @@ impl Variant for Bytes {
     }
 
     fn maximal_superset(&self) -> Result<Self> {
+        Ok(Bytes)
+    }
+
+    fn try_empty(&self) -> Result<Self> {
         Ok(Bytes)
     }
 }
@@ -1107,6 +1135,21 @@ impl Variant for Struct {
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Struct::new(vec![]))
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::new(
+            self.fields()
+                .into_iter()
+                .map(|(s, d)| {
+                    if let Ok(dd) = d.deref().try_empty() {
+                        Ok((s.to_string(), Arc::new(dd)))
+                    } else {
+                        Err(Error::other("other"))
+                    }
+                })
+                .collect::<Result<Vec<_>>>()?,
+        ))
+    }
 }
 
 impl InjectInto<DataType> for Struct {
@@ -1418,6 +1461,21 @@ impl Variant for Union {
     fn minimal_subset(&self) -> Result<Self> {
         Ok(Union::new(vec![]))
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::new(
+            self.fields()
+                .into_iter()
+                .map(|(s, d)| {
+                    if let Ok(dd) = d.deref().try_empty() {
+                        Ok((s.to_string(), Arc::new(dd)))
+                    } else {
+                        Err(Error::other("other"))
+                    }
+                })
+                .collect::<Result<Vec<_>>>()?,
+        ))
+    }
 }
 
 impl InjectInto<DataType> for Union {
@@ -1549,6 +1607,10 @@ impl Variant for Optional {
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Optional::from_data_type(DataType::Any))
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Optional::from_data_type(self.data_type.try_empty()?))
+    }
 }
 
 impl InjectInto<DataType> for Optional {
@@ -1657,6 +1719,13 @@ impl Variant for List {
         Ok(List::from_data_type_size(
             DataType::Any,
             Integer::from_max(i64::MAX),
+        ))
+    }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::new(
+            self.data_type().deref().try_empty()?.into(),
+            0.into(),
         ))
     }
 }
@@ -1772,6 +1841,13 @@ impl Variant for Set {
             Integer::from_max(i64::MAX),
         ))
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::new(
+            self.data_type().deref().try_empty()?.into(),
+            0.into(),
+        ))
+    }
 }
 
 impl InjectInto<DataType> for Set {
@@ -1878,6 +1954,13 @@ impl Variant for Array {
             self.shape(),
         )))
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::new(
+            self.data_type().deref().try_empty()?.into(),
+            Arc::new([0 as usize]),
+        ))
+    }
 }
 
 impl InjectInto<DataType> for Array {
@@ -1927,6 +2010,10 @@ impl Variant for Date {
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
+    }
 }
 
 impl InjectInto<DataType> for Date {
@@ -1970,6 +2057,10 @@ impl Variant for Time {
 
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
+    }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
     }
 }
 
@@ -2015,6 +2106,10 @@ impl Variant for DateTime {
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
     }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
+    }
 }
 
 impl InjectInto<DataType> for DateTime {
@@ -2058,6 +2153,10 @@ impl Variant for Duration {
 
     fn maximal_superset(&self) -> Result<Self> {
         Ok(Self::full())
+    }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(Self::empty())
     }
 }
 
@@ -2404,37 +2503,6 @@ impl DataType {
             _ => panic!(),
         }
     }
-
-    /// Return the empty datatype of the same variant
-    pub fn empty(&self) -> DataType {
-        match self {
-            DataType::Boolean(_) => DataType::from(Boolean::empty()),
-            DataType::Integer(_) => DataType::from(Integer::empty()),
-            DataType::Float(_) => DataType::from(Float::empty()),
-            DataType::Text(_) => DataType::from(Text::empty()),
-            DataType::Date(_) => DataType::from(Date::empty()),
-            DataType::Time(_) => DataType::from(Time::empty()),
-            DataType::DateTime(_) => DataType::from(DateTime::empty()),
-            DataType::Duration(_) => DataType::from(Duration::empty()),
-            DataType::Struct(s) => DataType::structured(
-                s.fields()
-                    .into_iter()
-                    .map(|(s, d)| (s, d.deref().empty()))
-                    .collect::<Vec<_>>(),
-            ),
-            DataType::Union(u) => DataType::union(
-                u.fields()
-                    .into_iter()
-                    .map(|(s, d)| (s, d.deref().empty()))
-                    .collect::<Vec<_>>(),
-            ),
-            _ => self.default(),
-        }
-    }
-
-    pub fn all_values(&self) -> bool {
-        TryInto::<Vec<Value>>::try_into(self.clone()).is_ok()
-    }
 }
 
 impl Variant for DataType {
@@ -2592,6 +2660,32 @@ impl Variant for DataType {
             ],
             Ok(DataType::Any)
         )
+    }
+
+    fn try_empty(&self) -> Result<Self> {
+        Ok(match self {
+            DataType::Null => DataType::Null,
+            DataType::Unit(x) => x.try_empty()?.into(),
+            DataType::Boolean(x) => x.try_empty()?.into(),
+            DataType::Integer(x) => x.try_empty()?.into(),
+            DataType::Enum(_) => DataType::Any,
+            DataType::Float(x) => x.try_empty()?.into(),
+            DataType::Text(x) => x.try_empty()?.into(),
+            DataType::Bytes(x) => x.try_empty()?.into(),
+            DataType::Struct(x) => x.try_empty()?.into(),
+            DataType::Union(x) => x.try_empty()?.into(),
+            DataType::Optional(x) => x.try_empty()?.into(),
+            DataType::List(x) => x.try_empty()?.into(),
+            DataType::Set(x) => x.try_empty()?.into(),
+            DataType::Array(x) => x.try_empty()?.into(),
+            DataType::Date(x) => x.try_empty()?.into(),
+            DataType::Time(x) => x.try_empty()?.into(),
+            DataType::DateTime(x) => x.try_empty()?.into(),
+            DataType::Duration(x) => x.try_empty()?.into(),
+            DataType::Id(x) => x.try_empty()?.into(),
+            DataType::Function(x) => x.try_empty()?.into(),
+            DataType::Any => DataType::Any,
+        })
     }
 }
 
@@ -3199,8 +3293,6 @@ impl DataType {
 // TODO Write tests for all types
 #[cfg(test)]
 mod tests {
-    use statrs::statistics::Data;
-
     use super::*;
     use std::convert::TryFrom;
 
@@ -4397,7 +4489,11 @@ mod tests {
     }
 
     #[test]
-    fn test_empty() {
+    fn test_try_empty() {
+        assert_eq!(
+            DataType::boolean().try_empty().unwrap(),
+            Boolean::empty().into()
+        );
         let dt = DataType::structured([
             ("bool", DataType::boolean()),
             ("int", DataType::integer()),
@@ -4405,7 +4501,7 @@ mod tests {
             ("date", DataType::date()),
         ]);
         assert_eq!(
-            dt.empty(),
+            dt.try_empty().unwrap(),
             DataType::structured([
                 ("bool", DataType::from(Boolean::empty())),
                 ("int", DataType::from(Integer::empty())),
@@ -4416,10 +4512,10 @@ mod tests {
 
         let dt_union = DataType::union([("bool", DataType::boolean()), ("struct", dt.clone())]);
         assert_eq!(
-            dt_union.empty(),
+            dt_union.try_empty().unwrap(),
             DataType::union([
                 ("bool", DataType::from(Boolean::empty())),
-                ("struct", dt.empty()),
+                ("struct", dt.try_empty().unwrap()),
             ])
         );
     }
