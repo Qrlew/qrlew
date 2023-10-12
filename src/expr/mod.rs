@@ -1474,6 +1474,34 @@ mod tests {
     }
 
     #[test]
+    fn test_gt() {
+        let dt = DataType::unit()
+            & ("a", DataType::float_interval(-5., 2.))
+            & ("b", DataType::float_values([1., 2.]));
+
+        // True or False
+        let expr = expr!(gt(a, 0));
+        println!("{}({}) =  {}", expr, dt, expr.super_image(&dt).unwrap(),);
+        assert_eq!(expr.super_image(&dt).unwrap(), DataType::boolean());
+
+        // True
+        let expr = expr!(gt(b, 0.5));
+        println!("{}({}) =  {}", expr, dt, expr.super_image(&dt).unwrap(),);
+        assert_eq!(
+            expr.super_image(&dt).unwrap(),
+            DataType::boolean_value(true)
+        );
+
+        // False
+        let expr = expr!(gt(b, 50));
+        println!("{}({}) =  {}", expr, dt, expr.super_image(&dt).unwrap(),);
+        assert_eq!(
+            expr.super_image(&dt).unwrap(),
+            DataType::boolean_value(false)
+        );
+    }
+
+    #[test]
     fn test_bool_ops() {
         let dict = DataType::unit()
             & ("left", DataType::boolean())
