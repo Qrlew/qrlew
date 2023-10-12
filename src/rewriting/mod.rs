@@ -1,9 +1,11 @@
+pub mod dot;
 pub mod relation_with_attributes;
 pub mod rewriting_rule;
-pub mod dot;
 
 pub use relation_with_attributes::RelationWithAttributes;
-pub use rewriting_rule::{Property, RewritingRule, RelationWithRewritingRules, RelationWithRewritingRule};
+pub use rewriting_rule::{
+    Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule,
+};
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
@@ -38,7 +40,8 @@ mod tests {
         relation.display_dot().unwrap();
 
         // Add rewritting rules
-        let relation_with_rules: rewriting_rule::RelationWithRewritingRules = relation.with_default_attributes();
+        let relation_with_rules: rewriting_rule::RelationWithRewritingRules =
+            relation.with_default_attributes();
         println!("{:#?}", relation_with_rules);
     }
 }

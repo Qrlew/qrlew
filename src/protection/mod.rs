@@ -4,8 +4,6 @@
 //!
 pub mod protected_entity;
 
-use itertools::Itertools;
-use protected_entity::{Path, FieldPath, ReferredField, ProtectedEntity};
 use crate::{
     builder::{Ready, With, WithIterator},
     expr::{identifier::Identifier, AggregateColumn, Expr},
@@ -13,6 +11,8 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _, Visitor},
     visitor::Acceptor,
 };
+use itertools::Itertools;
+use protected_entity::{FieldPath, Path, ProtectedEntity, ReferredField};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
 
 #[derive(Debug, Clone)]
@@ -170,7 +170,8 @@ impl Relation {
             .collect();
         Relation::map()
             .with_iter(left.into_iter().find_map(|(o, i)| {
-                (referred_field == i.name()).then_some((referred_field_name.clone(), Expr::col(o.name())))
+                (referred_field == i.name())
+                    .then_some((referred_field_name.clone(), Expr::col(o.name())))
             }))
             .with_iter(right.into_iter().filter_map(|(o, i)| {
                 names
@@ -186,12 +187,16 @@ impl Relation {
         relations: &Hierarchy<Arc<Relation>>,
         field_path: FieldPath,
     ) -> Relation {
-        if field_path.path().is_empty() {// TODO Remove this?
-            self.identity_with_field(field_path.referred_field_name(), Expr::col(field_path.referred_field()))
+        if field_path.path().is_empty() {
+            // TODO Remove this?
+            self.identity_with_field(
+                field_path.referred_field_name(),
+                Expr::col(field_path.referred_field()),
+            )
         } else {
-            field_path.into_iter().fold(
-                self,
-                |relation, referred_field| {
+            field_path
+                .into_iter()
+                .fold(self, |relation, referred_field| {
                     relation.with_referred_field(
                         referred_field.referring_id,
                         relations
@@ -202,8 +207,7 @@ impl Relation {
                         referred_field.referred_field,
                         referred_field.referred_field_name,
                     )
-                },
-            )
+                })
         }
     }
 }
@@ -288,7 +292,7 @@ impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
 pub fn protect_visitor_from_exprs<'a>(
     protected_entity: Vec<(&'a Table, Expr)>,
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation>+'a> {
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
     let protect_tables = move |table: &Table| match protected_entity
         .iter()
         .find_map(|(t, e)| (table == *t).then(|| e.clone()))
@@ -308,14 +312,19 @@ pub fn protect_visitor_from_field_paths<'a>(
     relations: &'a Hierarchy<Arc<Relation>>,
     protected_entity: Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>,
     strategy: Strategy,
-) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation>+'a> {
-    let protected_entity = ProtectedEntity::from(protected_entity.into_iter().map(|(table, protection, referred_field)|(table, protection, referred_field, PE_ID)).collect_vec());
+) -> ProtectVisitor<impl Fn(&Table) -> Result<PEPRelation> + 'a> {
+    let protected_entity = ProtectedEntity::from(
+        protected_entity
+            .into_iter()
+            .map(|(table, protection, referred_field)| (table, protection, referred_field, PE_ID))
+            .collect_vec(),
+    );
     let protect_tables = move |table: &Table| match protected_entity
         .iter()
         .find(|(tab, _field_path)| table.name() == relations[tab.as_str()].name())
     {
         Some((_tab, field_path)) => {
-            // let 
+            // let
             PEPRelation::try_from(
                 Relation::from(table.clone())
                     .with_field_path(relations, field_path.clone())
@@ -328,7 +337,7 @@ pub fn protect_visitor_from_field_paths<'a>(
                     })
                     .insert_field(1, PE_WEIGHT, Expr::val(1)),
             )
-        },
+        }
         None => Err(Error::unprotected_table(table.path())),
     };
     ProtectVisitor::new(protect_tables, strategy)
@@ -568,16 +577,20 @@ mod tests {
         let relations = database.relations();
         // Link orders to users
         let orders = relations.get(&["orders".to_string()]).unwrap().as_ref();
-        let relation =
-            orders
-                .clone()
-                .with_field_path(&relations, FieldPath::from((vec![("user_id", "users", "id")], "id", "peid")));
+        let relation = orders.clone().with_field_path(
+            &relations,
+            FieldPath::from((vec![("user_id", "users", "id")], "id", "peid")),
+        );
         assert!(relation.schema()[0].name() == "peid");
         // // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
             &relations,
-            FieldPath::from((vec![("order_id", "orders", "id"), ("user_id", "users", "id")], "name", "peid"))
+            FieldPath::from((
+                vec![("order_id", "orders", "id"), ("user_id", "users", "id")],
+                "name",
+                "peid",
+            )),
         );
         assert!(relation.schema()[0].name() == "peid");
         // Produce the query
