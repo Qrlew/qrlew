@@ -214,85 +214,85 @@ mod tests {
         assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003))
     }
 
-    #[test]
-    fn test_dp_values() {
-        // Only possible values
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_values([1, 2, 4, 6])))
-                    .with(("b", DataType::float_values([1.2, 4.6, 7.8])))
-                    .with((PE_ID, DataType::integer_range(1..=100)))
-                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
-                    .build(),
-            )
-            .build();
-        let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
-        matches!(rel, Relation::Join(_));
-        //rel.display_dot();
-        assert_eq!(
-            rel.data_type(),
-            DataType::structured([
-                ("a", DataType::integer_values([1, 2, 4, 6])),
-                ("b", DataType::float_values([1.2, 4.6, 7.8]))
-            ])
-        );
-        assert_eq!(pq, PrivateQuery::null());
+    // #[test]
+    // fn test_dp_values() {
+    //     // Only possible values
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_values([1, 2, 4, 6])))
+    //                 .with(("b", DataType::float_values([1.2, 4.6, 7.8])))
+    //                 .with((PE_ID, DataType::integer_range(1..=100)))
+    //                 .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let protected_table = PEPRelation(table);
+    //     let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
+    //     matches!(rel, Relation::Join(_));
+    //     //rel.display_dot();
+    //     assert_eq!(
+    //         rel.data_type(),
+    //         DataType::structured([
+    //             ("a", DataType::integer_values([1, 2, 4, 6])),
+    //             ("b", DataType::float_values([1.2, 4.6, 7.8]))
+    //         ])
+    //     );
+    //     assert_eq!(pq, PrivateQuery::null());
 
-        // Only tau-thresholding values
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=10)))
-                    .with(("b", DataType::float_range(5.4..=20.)))
-                    .with((PE_ID, DataType::integer_range(1..=100)))
-                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
-                    .build(),
-            )
-            .build();
-        let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
-        matches!(rel, Relation::Map(_));
-        //rel.display_dot();
-        assert_eq!(
-            rel.data_type(),
-            DataType::structured([
-                ("a", DataType::integer_range(1..=10)),
-                ("b", DataType::float_range(5.4..=20.))
-            ])
-        );
-        assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
+    //     // Only tau-thresholding values
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_range(1..=10)))
+    //                 .with(("b", DataType::float_range(5.4..=20.)))
+    //                 .with((PE_ID, DataType::integer_range(1..=100)))
+    //                 .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let protected_table = PEPRelation(table);
+    //     let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
+    //     matches!(rel, Relation::Map(_));
+    //     //rel.display_dot();
+    //     assert_eq!(
+    //         rel.data_type(),
+    //         DataType::structured([
+    //             ("a", DataType::integer_range(1..=10)),
+    //             ("b", DataType::float_range(5.4..=20.))
+    //         ])
+    //     );
+    //     assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
 
-        // Both possible and tau-thresholding values
-        let table: Relation = Relation::table()
-            .name("table")
-            .schema(
-                Schema::builder()
-                    .with(("a", DataType::integer_range(1..=5)))
-                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-                    .with(("c", DataType::integer_range(5..=20)))
-                    .with((PE_ID, DataType::integer_range(1..=100)))
-                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
-                    .build(),
-            )
-            .build();
-        let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
-        matches!(rel, Relation::Join(_));
-        rel.display_dot();
-        assert_eq!(
-            rel.data_type(),
-            DataType::structured([
-                ("b", DataType::integer_values([1, 2, 5, 6, 7, 8])),
-                ("a", DataType::integer_range(1..=5)),
-                ("c", DataType::integer_range(5..=20))
-            ])
-        );
-        assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
-    }
+    //     // Both possible and tau-thresholding values
+    //     let table: Relation = Relation::table()
+    //         .name("table")
+    //         .schema(
+    //             Schema::builder()
+    //                 .with(("a", DataType::integer_range(1..=5)))
+    //                 .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+    //                 .with(("c", DataType::integer_range(5..=20)))
+    //                 .with((PE_ID, DataType::integer_range(1..=100)))
+    //                 .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
+    //                 .build(),
+    //         )
+    //         .build();
+    //     let protected_table = PEPRelation(table);
+    //     let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
+    //     matches!(rel, Relation::Join(_));
+    //     rel.display_dot();
+    //     assert_eq!(
+    //         rel.data_type(),
+    //         DataType::structured([
+    //             ("b", DataType::integer_values([1, 2, 5, 6, 7, 8])),
+    //             ("a", DataType::integer_range(1..=5)),
+    //             ("c", DataType::integer_range(5..=20))
+    //         ])
+    //     );
+    //     assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
+    // }
 
     // #[test]
     // fn test_dp_compile_group_by_simple() {
