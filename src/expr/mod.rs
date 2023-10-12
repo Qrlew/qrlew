@@ -1277,7 +1277,7 @@ impl DataType {
     /// filtered by the predicate `Value`
     fn filter_by_value(&self, predicate: &Value) -> DataType {
         match predicate {
-            value::Value::Boolean(b) if !*b.deref() => self.empty(),
+            value::Value::Boolean(b) if !*b.deref() => self.try_empty().unwrap(),
             _ => self.clone(),
         }
     }
@@ -2548,7 +2548,7 @@ mod tests {
         // false: return empty ds
         let x = Expr::val(false);
         let filtered_dt = dt.filter(&x);
-        assert_eq!(filtered_dt, dt.empty());
+        assert_eq!(filtered_dt, dt.try_empty().unwrap());
     }
 
     #[test]
@@ -2567,7 +2567,7 @@ mod tests {
         // false: return empty ds
         let x = Expr::col("false_col");
         let filtered_dt = dt.filter(&x);
-        assert_eq!(filtered_dt, dt.empty());
+        assert_eq!(filtered_dt, dt.try_empty().unwrap());
 
         // otherwise: do nothing
         let x = Expr::col("col");

@@ -225,7 +225,7 @@ impl Pointwise {
         }
     }
     /// Build univariate pointwise function
-    pub fn univariate<A: Variant + Sync + Send, B: Variant>(
+    pub fn univariate<A: Variant, B: Variant>(
         domain: A,
         co_domain: B,
         value: impl Fn(<A::Element as value::Variant>::Wrapped) -> <B::Element as value::Variant>::Wrapped
@@ -235,22 +235,22 @@ impl Pointwise {
     ) -> Self
     where
         <<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
     {
         Self::new(
             domain.into(),
             co_domain.into(),
             Arc::new(move |a| {
-                if let Ok(a) = <A::Element as value::Variant>::Wrapped::try_from(a) {
-                    Ok(value(a).into())
-                } else {
-                    Err(Error::other("Argument out of range"))
-                }
+                Ok(
+                    <A::Element as value::Variant>::Wrapped::try_from(a)
+                        .map(|a| value(a).into())?,
+                )
             }),
         )
     }
 
     /// Build bivariate pointwise function
-    pub fn bivariate<A: Variant + Sync + Send, B: Variant + Sync + Send, C: Variant>(
+    pub fn bivariate<A: Variant, B: Variant, C: Variant>(
         domain: (A, B),
         co_domain: C,
         value: impl Fn(
@@ -265,7 +265,9 @@ impl Pointwise {
         <A::Element as value::Variant>::Wrapped: TryFrom<Value>,
         <B::Element as value::Variant>::Wrapped: TryFrom<Value>,
         <<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
         <<B::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<B::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
         <C::Element as value::Variant>::Wrapped: Into<Value>,
     {
         let domain = data_type::Struct::from_data_types(&[domain.0.into(), domain.1.into()]);
@@ -276,11 +278,7 @@ impl Pointwise {
                 let ab = value::Struct::try_from(ab).unwrap();
                 let a = <A::Element as value::Variant>::Wrapped::try_from(ab[0].as_ref().clone());
                 let b = <B::Element as value::Variant>::Wrapped::try_from(ab[1].as_ref().clone());
-                if let (Ok(a), Ok(b)) = (a, b) {
-                    Ok(value(a, b).into())
-                } else {
-                    Err(Error::other("Argument out of range"))
-                }
+                Ok(a.map(|a| b.map(|b| value(a, b).into()))??)
             }),
         )
     }
@@ -305,10 +303,6 @@ impl Pointwise {
             domain.into(),
             co_domain.into(),
             Arc::new(move |v| {
-                // let v: Result<Vec<<D::Element as value::Variant>::Wrapped>> = v
-                //     .into_iter()
-                //     .map(|(_n, v)| v.as_ref().clone().try_into())//.unwrap())
-                //     .collect();
                 let vec = value::Struct::try_from(v)
                     .unwrap()
                     .into_iter()
@@ -345,25 +339,33 @@ impl Function for Pointwise {
     }
 
     fn super_image(&self, set: &DataType) -> Result<DataType> {
-        if !set.is_subset_of(&self.domain()) {
-            Err(Error::set_out_of_range(set, self.domain()))
+        let converted_set = &set.into_data_type(&self.domain())?;
+        let super_image = if let Ok(vec) = TryInto::<Vec<Value>>::try_into(converted_set.clone()) {
+            vec.into_iter()
+                .map(|v| (*self.value)(v))
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .collect()
         } else {
-            Ok(
-                if let Ok(vec) = TryInto::<Vec<Value>>::try_into(set.clone()) {
-                    vec.into_iter()
-                        .map(|v| (*self.value)(v))
-                        .collect::<Result<Vec<_>>>()?
-                        .into_iter()
-                        .collect()
-                } else {
-                    self.co_domain.clone()
-                },
-            )
+            self.co_domain.clone()
+        };
+        if !converted_set.is_subset_of(&self.domain()) {
+            Err(Error::set_out_of_range(converted_set, self.domain()))
+        } else {
+            Ok(super_image)
         }
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
-        (*self.value)(arg.clone())
+        let converted_arg = &arg.as_data_type(&self.domain())?;
+        let value = (*self.value)(converted_arg.clone())?;
+        if !self.domain().contains(converted_arg) {
+            Err(Error::argument_out_of_range(converted_arg, self.domain()))
+        } else if !self.co_domain().contains(&value) {
+            Err(Error::argument_out_of_range(value, self.co_domain()))
+        } else {
+            Ok(value)
+        }
     }
 }
 
@@ -1257,189 +1259,109 @@ pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function
 
 pub fn gt() -> impl Function {
     Polymorphic::default()
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a as f64 > b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Float::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b as f64).into(),
-        ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
+            |a, b| (a > b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Date::default(), data_type::Date::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
+            |a, b| (a > b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Time::default(), data_type::Time::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
+            |a, b| (a > b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (
                 data_type::DateTime::default(),
                 data_type::DateTime::default(),
             ),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
+            |a, b| (a > b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Text::default(), data_type::Text::default()),
-            data_type::Boolean::default(),
-            |a, b| (a > b).into(),
+            |a, b| (a > b),
         ))
 }
 
 pub fn lt() -> impl Function {
     Polymorphic::default()
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a < b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| ((a as f64) < b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Float::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a < b as f64).into(),
-        ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a < b).into(),
+            |a, b| (a < b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Date::default(), data_type::Date::default()),
-            data_type::Boolean::default(),
-            |a, b| (a < b).into(),
+            |a, b| (a < b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Time::default(), data_type::Time::default()),
-            data_type::Boolean::default(),
-            |a, b| (a < b).into(),
+            |a, b| (a < b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (
                 data_type::DateTime::default(),
                 data_type::DateTime::default(),
             ),
-            data_type::Boolean::default(),
-            |a, b| (a < b).into(),
+            |a, b| (a < b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Text::default(), data_type::Text::default()),
-            data_type::Boolean::default(),
-            |a, b| (a < b).into(),
+            |a, b| (a < b),
         ))
 }
 
 pub fn gt_eq() -> impl Function {
     Polymorphic::default()
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a >= b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a as f64 >= b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Float::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a >= b as f64).into(),
-        ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a >= b).into(),
+            |a, b| (a >= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Date::default(), data_type::Date::default()),
-            data_type::Boolean::default(),
-            |a, b| (a >= b).into(),
+            |a, b| (a >= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Time::default(), data_type::Time::default()),
-            data_type::Boolean::default(),
-            |a, b| (a >= b).into(),
+            |a, b| (a >= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (
                 data_type::DateTime::default(),
                 data_type::DateTime::default(),
             ),
-            data_type::Boolean::default(),
-            |a, b| (a >= b).into(),
+            |a, b| (a >= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Text::default(), data_type::Text::default()),
-            data_type::Boolean::default(),
-            |a, b| (a >= b).into(),
+            |a, b| (a >= b),
         ))
 }
 
 pub fn lt_eq() -> impl Function {
     Polymorphic::default()
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a <= b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Integer::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a as f64 <= b).into(),
-        ))
-        .with(Pointwise::bivariate(
-            (data_type::Float::default(), data_type::Integer::default()),
-            data_type::Boolean::default(),
-            |a, b| (a <= b as f64).into(),
-        ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
-            data_type::Boolean::default(),
-            |a, b| (a <= b).into(),
+            |a, b| (a <= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Date::default(), data_type::Date::default()),
-            data_type::Boolean::default(),
-            |a, b| (a <= b).into(),
+            |a, b| (a <= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Time::default(), data_type::Time::default()),
-            data_type::Boolean::default(),
-            |a, b| (a <= b).into(),
+            |a, b| (a <= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (
                 data_type::DateTime::default(),
                 data_type::DateTime::default(),
             ),
-            data_type::Boolean::default(),
-            |a, b| (a <= b).into(),
+            |a, b| (a <= b),
         ))
-        .with(Pointwise::bivariate(
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Text::default(), data_type::Text::default()),
-            data_type::Boolean::default(),
-            |a, b| (a <= b).into(),
+            |a, b| (a <= b),
         ))
 }
 
@@ -2002,9 +1924,17 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::boolean_value(false));
+        let set = DataType::float_interval(1., 2.) & DataType::float_interval(3.01, 4.1);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_value(false));
 
         // true
         let set = DataType::float_values([4.1, 5.03]) & DataType::float_values([3., 4.]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(im, DataType::boolean_value(true));
+        let set = DataType::float_interval(4.1, 5.03) & DataType::float_interval(3., 4.);
         let im = fun.super_image(&set).unwrap();
         println!("\nim({}) = {}", set, im);
         assert_eq!(im, DataType::boolean_value(true));
