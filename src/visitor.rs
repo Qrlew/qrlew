@@ -124,7 +124,6 @@ pub trait Visitor<'a, A: Acceptor<'a>, O: Clone> {
         acceptor.dependencies()
     }
 }
-
 /// The identity Visitor
 pub struct Identity;
 
@@ -136,6 +135,7 @@ impl<'a, A: Acceptor<'a>> Visitor<'a, A, &'a A> for Identity {
 
 pub type Iter<'a, A> =
     iter::FilterMap<Iterator<'a, &'a A, Identity, A>, fn((&'a A, State<&'a A>)) -> Option<&'a A>>;
+
 pub type IterWith<'a, O, A, V> =
     iter::FilterMap<Iterator<'a, O, V, A>, fn((&'a A, State<O>)) -> Option<(&'a A, O)>>;
 

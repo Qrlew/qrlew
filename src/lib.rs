@@ -29,6 +29,7 @@ pub mod io;
 pub mod namer;
 pub mod protection;
 pub mod relation;
+pub mod rewriting;
 pub mod sampling_adjustment;
 pub mod sql;
 pub mod types;

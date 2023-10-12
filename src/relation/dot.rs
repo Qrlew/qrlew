@@ -7,7 +7,7 @@ use crate::{
     visitor::Acceptor,
 };
 use itertools::Itertools;
-use std::{borrow::Cow, fmt, fs::File, io, process::Command, str, string};
+use std::{borrow::Cow, fmt, io, str, string};
 
 impl From<string::FromUtf8Error> for Error {
     fn from(err: string::FromUtf8Error) -> Self {
