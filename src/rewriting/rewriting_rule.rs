@@ -559,8 +559,8 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
     fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         vec![
             RewritingRule::new(
-                vec![Property::DifferentiallyPrivate],
-                Property::Published,
+                vec![Property::Public],
+                Property::Public,
                 Parameters::None,
             ),
             RewritingRule::new(
@@ -568,7 +568,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                 Property::Published,
                 Parameters::None,
             ),
-            RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
+            RewritingRule::new(
+                vec![Property::DifferentiallyPrivate],
+                Property::Published,
+                Parameters::None,
+            ),
             RewritingRule::new(
                 vec![Property::ProtectedEntityPreserving],
                 Property::ProtectedEntityPreserving,
@@ -588,6 +592,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
         input: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
         vec![
+            RewritingRule::new(
+                vec![Property::Public],
+                Property::Public,
+                Parameters::None,
+            ),
             RewritingRule::new(
                 vec![Property::Published],
                 Property::Published,
@@ -620,13 +629,13 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
     ) -> Vec<RewritingRule> {
         vec![
             RewritingRule::new(
-                vec![Property::Published, Property::Published],
-                Property::Published,
+                vec![Property::Public, Property::Public],
+                Property::Public,
                 Parameters::None,
             ),
             RewritingRule::new(
-                vec![Property::Public, Property::Public],
-                Property::Public,
+                vec![Property::Published, Property::Published],
+                Property::Published,
                 Parameters::None,
             ),
             RewritingRule::new(
@@ -679,13 +688,13 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
     ) -> Vec<RewritingRule> {
         vec![
             RewritingRule::new(
-                vec![Property::Published, Property::Published],
-                Property::Published,
+                vec![Property::Public, Property::Public],
+                Property::Public,
                 Parameters::None,
             ),
             RewritingRule::new(
-                vec![Property::Public, Property::Public],
-                Property::Public,
+                vec![Property::Published, Property::Published],
+                Property::Published,
                 Parameters::None,
             ),
             RewritingRule::new(
