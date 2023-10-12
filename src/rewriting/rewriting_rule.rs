@@ -604,6 +604,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                 Property::SyntheticData,
                 Parameters::None,
             ),
+            RewritingRule::new(
+                vec![Property::SyntheticData],
+                Property::Published,
+                Parameters::None,
+            ),
         ]
     }
 
@@ -631,16 +636,6 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             ),
             RewritingRule::new(
                 vec![Property::ProtectedEntityPreserving, Property::Published],
-                Property::ProtectedEntityPreserving,
-                Parameters::None,
-            ),
-            RewritingRule::new(
-                vec![Property::SyntheticData, Property::ProtectedEntityPreserving],
-                Property::ProtectedEntityPreserving,
-                Parameters::None,
-            ),
-            RewritingRule::new(
-                vec![Property::ProtectedEntityPreserving, Property::SyntheticData],
                 Property::ProtectedEntityPreserving,
                 Parameters::None,
             ),
