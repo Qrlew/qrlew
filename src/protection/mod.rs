@@ -289,18 +289,18 @@ impl<'a> Protection<'a> {
     }
 
     /// Map protection from another PEP relation
-    pub fn map(&self, map: &'a Map, input: Result<PEPRelation>) -> Result<PEPRelation> {
+    pub fn map(&self, map: &'a Map, input: PEPRelation) -> Result<PEPRelation> {
         let relation: Relation = Relation::map()
             .with((PE_ID, Expr::col(PE_ID)))
             .with((PE_WEIGHT, Expr::col(PE_WEIGHT)))
             .with(map.clone())
-            .input(Relation::from(input?))
+            .input(Relation::from(input))
             .build();
         PEPRelation::try_from(relation)
     }
 
     /// Reduce protection from another PEP relation
-    pub fn reduce(&self, reduce: &'a Reduce, input: Result<PEPRelation>) -> Result<PEPRelation> {
+    pub fn reduce(&self, reduce: &'a Reduce, input: PEPRelation) -> Result<PEPRelation> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_protected_entity_preserving(reduce.name())),
             Strategy::Hard => {
@@ -308,7 +308,7 @@ impl<'a> Protection<'a> {
                     .with_group_by_column(PE_ID)
                     .with((PE_WEIGHT, AggregateColumn::sum(PE_WEIGHT)))
                     .with(reduce.clone())
-                    .input(Relation::from(input?))
+                    .input(Relation::from(input))
                     .build();
                 PEPRelation::try_from(relation)
             }
@@ -320,11 +320,11 @@ impl<'a> Protection<'a> {
         //TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
-        left: Result<PEPRelation>,
-        right: Result<PEPRelation>,
+        left: PEPRelation,
+        right: PEPRelation,
     ) -> Result<PEPRelation> {
-        let left_name = left.as_ref().unwrap().name().to_string();
-        let right_name: String = right.as_ref().unwrap().name().to_string();
+        let left_name = left.name().to_string();
+        let right_name: String = right.name().to_string();
         // Preserve names
         let names: Vec<String> = join.schema().iter().map(|f| f.name().to_string()).collect();
         let mut left_names = vec![format!("_LEFT{PE_ID}"), format!("_LEFT{PE_WEIGHT}")];
@@ -337,8 +337,6 @@ impl<'a> Protection<'a> {
             Strategy::Hard => {
                 let name = join.name();
                 let operator = join.operator();
-                let left = left?;
-                let right = right?;
                 // Compute the mapping between current and new columns //TODO clean this code a bit
                 let columns: Hierarchy<Identifier> = join
                     .left()
@@ -400,6 +398,28 @@ impl<'a> Protection<'a> {
                 PEPRelation::try_from(relation)
             }
         }
+    }
+
+    /// Join protection from 2 PEP relations
+    pub fn join_left_published(
+        //TODO this need to be cleaned (really)
+        &self,
+        join: &'a crate::relation::Join,
+        left: Relation,
+        right: PEPRelation,
+    ) -> Result<PEPRelation> {
+        todo!()
+    }
+
+    /// Join protection from 2 PEP relations
+    pub fn join_right_published(
+        //TODO this need to be cleaned (really)
+        &self,
+        join: &'a crate::relation::Join,
+        left: PEPRelation,
+        right: Relation,
+    ) -> Result<PEPRelation> {
+        todo!()
     }
 
     /// Set protection from 2 PEP relations
