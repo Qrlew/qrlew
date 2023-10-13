@@ -96,7 +96,7 @@ impl TryFrom<Relation> for PEPRelation {
     type Error = Error;
 
     fn try_from(value: Relation) -> Result<Self> {
-        if value.schema().field(PE_ID).is_err() || value.schema().field(PE_WEIGHT).is_err() {
+        if value.schema().field(PE_ID).is_ok() && value.schema().field(PE_WEIGHT).is_ok() {
             Ok(PEPRelation(value))
         } else {
             Err(Error::NotProtectedEntityPreserving(
@@ -232,7 +232,7 @@ impl TryFrom<Reduce> for PEPReduce {
     type Error = Error;
 
     fn try_from(value: Reduce) -> Result<Self> {
-        if value.schema().field(PE_ID).is_err() || value.schema().field(PE_WEIGHT).is_err() {
+        if value.schema().field(PE_ID).is_ok() && value.schema().field(PE_WEIGHT).is_ok() {
             Ok(PEPReduce(value))
         } else {
             Err(Error::NotProtectedEntityPreserving(
