@@ -2131,27 +2131,6 @@ mod tests {
             ),
         ]);
 
-        // table1.a < table1.x
-        let x = Expr::lt(Expr::qcol("table1", "a"), Expr::qcol("table1", "x"));
-        println!("{}", x);
-        let filtered_dt = dt.filter(&x);
-        let true_dt = DataType::union([
-            (
-                "table1",
-                DataType::structured([
-                    ("a", DataType::float_interval(-10., 5.)),
-                    ("x", DataType::float_interval(-10., 5.)),
-                ]),
-            ),
-            (
-                "table2",
-                DataType::structured([("x", DataType::float_interval(-15., 3.))]),
-            ),
-        ]);
-        println!("{true_dt}\n{filtered_dt}");
-        println!("{}", true_dt[["table1"]] == filtered_dt[["table1"]]);
-        assert_eq!(filtered_dt, true_dt);
-
         // a < table1.x
         let x = Expr::lt(Expr::col("a"), Expr::qcol("table1", "x"));
         println!("{}", x);

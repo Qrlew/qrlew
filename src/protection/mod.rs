@@ -143,8 +143,8 @@ impl Relation {
         let join: Relation = Relation::join()
             .inner()
             .on(Expr::eq(
-                Expr::qcol(self.name(), &referring_id),
-                Expr::qcol(referred_relation.name(), &referred_id),
+                Expr::qcol(Join::right_name(), &referring_id),
+                Expr::qcol(Join::left_name(), &referred_id),
             ))
             .left(referred_relation)
             .right(self)
@@ -268,7 +268,7 @@ impl<'a> Protection<'a> {
             strategy,
         }
     }
-    
+
     /// Table protection
     pub fn table(&self, table: Table) -> Result<PEPRelation> {
         let (name, field_path) = self.protected_entity.iter()

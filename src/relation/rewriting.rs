@@ -412,10 +412,7 @@ impl Relation {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
             .inner()
-            .on(Expr::eq(
-                Expr::qcol(self.name(), entities),
-                Expr::qcol(scale_factors.name(), entities),
-            ))
+            .on_eq(entities,entities)
             .left_names(
                 self.fields()
                     .into_iter()
@@ -1000,10 +997,7 @@ mod tests {
         let relation: Relation = Relation::join()
             .left(left)
             .right(right)
-            .on(Expr::eq(
-                Expr::qcol("items", "order_id"),
-                Expr::qcol("orders", "id"),
-            ))
+            .on_eq("order_id", "id")
             .build();
         let schema = relation.schema().clone();
         let item = schema.field_from_index(1).unwrap().name();

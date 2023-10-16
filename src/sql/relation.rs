@@ -269,6 +269,20 @@ impl<'a> VisitedQueryRelations<'a> {
                 let RelationWithColumns(left_relation, left_columns) = left?;
                 let RelationWithColumns(right_relation, right_columns) =
                     self.try_from_table_factor(&join.relation)?;
+                let left_columns = Hierarchy::from_iter(
+                    left_columns.into_iter()
+                    .map(|(p, v)| {
+                        (vec![Join::left_name().to_string(), p[1].to_string()], v)
+                    })
+                    .collect::<Vec<_>>()
+                );
+                let right_columns = Hierarchy::from_iter(
+                    right_columns.into_iter()
+                    .map(|(p, v)| {
+                        (vec![Join::right_name().to_string(), p[1].to_string()], v)
+                    })
+                    .collect::<Vec<_>>()
+                );
                 let all_columns = left_columns.with(right_columns);
                 let operator = self.try_from_join_operator_with_columns(
                     &join.join_operator,

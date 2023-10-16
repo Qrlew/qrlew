@@ -95,14 +95,11 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
         _right: FieldDataTypes,
     ) -> FieldDataTypes {
         FieldDataTypes(
-            join.field_inputs()
-                .map(|(f, i)| {
-                    (
-                        join.field_from_identifier(&f.into()).unwrap().clone(),
-                        Expr::from(i),
-                    )
-                })
-                .collect(),
+            join.names()
+                .iter()
+                .zip(join.schema().iter())
+                .map(|((p, _), field)| (field.clone(), Expr::qcol(p[0].to_string(), p[1].to_string())))
+                .collect()
         )
     }
 
@@ -359,7 +356,6 @@ mod tests {
             .size(1000)
             .build();
         println!("table = {}", table);
-        println!("table[a] = {}", table[&"a".into()]);
         let map: Relation = Relation::map()
             .name("map_1")
             .with(("exp_a", Expr::exp(Expr::col("a"))))
@@ -368,7 +364,6 @@ mod tests {
             .build();
         println!("map = {}", map);
         println!("map[0] = {}", map[0]);
-        println!("map[table.a] = {}", map[&["table", "a"].into()]);
         let join: Relation = Relation::join()
             .name("join")
             .cross()
@@ -403,7 +398,6 @@ mod tests {
             .size(1000)
             .build();
         println!("table = {}", table);
-        println!("table[a] = {}", table[&"a".into()]);
         let map: Relation = Relation::map()
             .name("map_1")
             .with((
