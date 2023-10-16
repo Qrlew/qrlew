@@ -1000,6 +1000,33 @@ mod tests {
     }
 
     #[test]
+    fn test_auto_join() {
+        let query = parse("SELECT * FROM table_1 AS t1 INNER JOIN table_1 AS t2 ON t1.a = t2.a").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1: Relation = Relation::table()
+            .name("tab_1")
+            .path(["schema", "table_1"])
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        )).unwrap();
+        relation.display_dot();
+        // .unwrap();
+        // println!("relation = {relation}");
+        // relation.display_dot().unwrap();
+        // let q = ast::Query::from(&relation);
+        // println!("query = {q}");
+    }
+
+    #[test]
     fn test_reduce_with_only_group_by_columns() {
         let query = parse("SELECT a AS a FROM table_1 GROUP BY a").unwrap();
         let schema_1: Schema = vec![("a", DataType::integer_interval(0, 10))]
