@@ -164,7 +164,8 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
     fn node_label(&'a self, node: &Node<'a, T>) -> dot::LabelText<'a> {
         dot::LabelText::html(match &node.0 {
             Relation::Table(table) => format!(
-                "<b>{} size ∈ {}</b><br/>{}",
+                "<b>{} AS {} size ∈ {}</b><br/>{}",
+                table.path(),
                 table.name().to_uppercase(),
                 table.size(),
                 &node.1
@@ -287,10 +288,11 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
     dot::GraphWalk<'a, Node<'a, T>, Edge<'a, T>> for VisitedRelation<'a, V>
 {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a, T>> {
-        self
-            .0
+        self.0
             .iter_with(self.1.clone())
-            .collect_vec().into_iter().rev()
+            .collect_vec()
+            .into_iter()
+            .rev()
             .map(|(relation, t)| Node(relation, t))
             .collect()
     }

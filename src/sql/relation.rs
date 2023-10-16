@@ -26,6 +26,7 @@ use itertools::Itertools;
 use std::{
     convert::TryFrom,
     iter::{once, Iterator},
+    ops::Deref,
     result,
     str::FromStr,
     sync::Arc,
@@ -146,7 +147,10 @@ impl<'a> VisitedQueryRelations<'a> {
                 let relation = relations
                     .get(&name.cloned())
                     .cloned()
-                    .ok_or(Error::parsing_error(format!("Unknown table: {name}")))?;
+                    .ok_or(Error::parsing_error(format!("Unknown table: {name}")))?
+                    .deref()
+                    .clone()
+                    .rename(alias.name.to_string());
                 let columns: Hierarchy<Identifier> = relation
                     .schema()
                     .iter()
@@ -162,7 +166,7 @@ impl<'a> VisitedQueryRelations<'a> {
                         )
                     })
                     .collect();
-                Ok(RelationWithColumns::new(relation, columns))
+                Ok(RelationWithColumns::new(Arc::new(relation), columns))
             }
             ast::TableFactor::Derived {
                 subquery,
@@ -1001,7 +1005,13 @@ mod tests {
 
     #[test]
     fn test_auto_join() {
-        let query = parse("SELECT * FROM table_1 AS t1 INNER JOIN table_1 AS t2 ON t1.a = t2.a").unwrap();
+        use crate::{
+            ast,
+            display::Dot,
+            io::{postgresql, Database},
+        };
+        let mut database = postgresql::test_database();
+        let query = parse("SELECT t1.a AS a1, t2.a AS a2, t2.b AS b2, t1.b AS b1 FROM table_1 AS t1 INNER JOIN table_1 AS t2 ON t1.a = t2.a").unwrap();
         let schema_1: Schema = vec![
             ("a", DataType::integer_interval(0, 10)),
             ("b", DataType::float_interval(0., 10.)),
@@ -1010,20 +1020,33 @@ mod tests {
         .collect();
         let table_1: Relation = Relation::table()
             .name("tab_1")
-            .path(["schema", "table_1"])
+            .path(["table_1"])
             .schema(schema_1.clone())
             .size(100)
             .build();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
-            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
-        )).unwrap();
-        relation.display_dot();
-        // .unwrap();
-        // println!("relation = {relation}");
-        // relation.display_dot().unwrap();
-        // let q = ast::Query::from(&relation);
-        // println!("query = {q}");
+            &Hierarchy::from([(["table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("a1", DataType::integer_interval(0, 10)),
+                ("a2", DataType::integer_interval(0, 10)),
+                ("b2", DataType::float_interval(0., 10.)),
+                ("b1", DataType::float_interval(0., 10.)),
+            ])
+        );
+        let query = ast::Query::from(&relation).to_string();
+        println!("query = {query}");
+        _ = database
+            .query(&query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
+            .join("\n");
     }
 
     #[test]

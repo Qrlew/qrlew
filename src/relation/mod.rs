@@ -149,6 +149,8 @@ pub trait Variant:
             .copied()
             .ok_or_else(|| Error::InvalidIndex(identifier.to_string()))
     }
+    /// rename the Relation
+    fn rename<S: Into<String>>(self, name: S) -> Self;
 }
 
 // Table Relation
@@ -201,7 +203,13 @@ impl Table {
 
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.name.to_string().bold().red())
+        write!(
+            f,
+            "{} {} {}",
+            self.path,
+            "AS".to_string().bold().blue(),
+            self.name.to_string().bold().red()
+        )
     }
 }
 
@@ -226,6 +234,15 @@ impl Variant for Table {
 
     fn inputs(&self) -> Vec<&Relation> {
         vec![]
+    }
+
+    fn rename<S: Into<String>>(self, name: S) -> Self {
+        Self {
+            name: name.into(),
+            path: self.path,
+            schema: self.schema,
+            size: self.size,
+        }
     }
 }
 
@@ -437,6 +454,19 @@ impl Variant for Map {
     fn inputs(&self) -> Vec<&Relation> {
         vec![&self.input]
     }
+
+    fn rename<S: Into<String>>(self, name: S) -> Self {
+        Self {
+            name: name.into(),
+            projection: self.projection,
+            filter: self.filter,
+            order_by: self.order_by,
+            limit: self.limit,
+            schema: self.schema,
+            size: self.size,
+            input: self.input,
+        }
+    }
 }
 
 // Reduce Relation
@@ -627,6 +657,17 @@ impl Variant for Reduce {
 
     fn inputs(&self) -> Vec<&Relation> {
         vec![&self.input]
+    }
+
+    fn rename<S: Into<String>>(self, name: S) -> Self {
+        Self {
+            name: name.into(),
+            aggregate: self.aggregate,
+            group_by: self.group_by,
+            schema: self.schema,
+            size: self.size,
+            input: self.input,
+        }
     }
 }
 
@@ -949,17 +990,13 @@ impl fmt::Display for Join {
         };
         write!(
             f,
-            "{} {} {} ( {} ) {} {} {} ( {} ) {} {} {}",
+            "{} {} {} {} {} {} {}",
             "SELECT".to_string().bold().blue(),
             named_columns.join(", "),
             "FROM".to_string().bold().blue(),
             self.left,
-            "AS".to_string().bold().blue(),
-            self.left.name().purple(),
             operator,
             self.right,
-            "AS".to_string().bold().blue(),
-            self.right.name().purple(),
             constraint,
         )
     }
@@ -986,6 +1023,17 @@ impl Variant for Join {
 
     fn inputs(&self) -> Vec<&Relation> {
         vec![&self.left, &self.right]
+    }
+
+    fn rename<S: Into<String>>(self, name: S) -> Self {
+        Self {
+            name: name.into(),
+            operator: self.operator,
+            schema: self.schema,
+            size: self.size,
+            left: self.left,
+            right: self.right,
+        }
     }
 }
 
@@ -1193,6 +1241,18 @@ impl Variant for Set {
     fn inputs(&self) -> Vec<&Relation> {
         vec![&self.left, &self.right]
     }
+
+    fn rename<S: Into<String>>(self, name: S) -> Self {
+        Self {
+            name: name.into(),
+            operator: self.operator,
+            quantifier: self.quantifier,
+            schema: self.schema,
+            size: self.size,
+            left: self.left,
+            right: self.right,
+        }
+    }
 }
 /// Values
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -1264,6 +1324,15 @@ impl Variant for Values {
 
     fn inputs(&self) -> Vec<&Relation> {
         vec![]
+    }
+
+    fn rename<S: Into<String>>(self, name: S) -> Self {
+        Self {
+            name: name.into(),
+            values: self.values,
+            schema: self.schema,
+            size: self.size,
+        }
     }
 }
 // The Relation
@@ -1441,6 +1510,12 @@ macro_rules! impl_traits {
             fn inputs(&self) -> Vec<&Relation> {
                 match self {
                     $(Relation::$Variant(variant) => variant.inputs(),)*
+                }
+            }
+
+            fn rename<S: Into<String>>(self, name: S) -> Self {
+                match self {
+                    $(Relation::$Variant(variant) => variant.rename(name).into(),)*
                 }
             }
         }

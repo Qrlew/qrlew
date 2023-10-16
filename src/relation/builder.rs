@@ -11,9 +11,13 @@ use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
     expr::{self, aggregate, AggregateColumn, Expr, Identifier, Split},
+    hierarchy::Hierarchy,
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
+
+pub const LEFT: &str = "left_relation";
+pub const RIGHT: &str = "right_relation";
 
 // A Table builder
 #[derive(Debug, Default)]
@@ -641,6 +645,7 @@ pub struct JoinBuilder<RequireLeftInput, RequireRightInput> {
     name: Option<String>,
     left_names: Vec<String>,
     right_names: Vec<String>,
+    names: Hierarchy<String>,
     operator: Option<JoinOperator>,
     left: RequireLeftInput,
     right: RequireRightInput,
@@ -655,6 +660,11 @@ impl JoinBuilder<WithoutInput, WithoutInput> {
 impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireRightInput> {
     pub fn name<S: Into<String>>(mut self, name: S) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    pub fn names(mut self, names: Hierarchy<String>) -> Self {
+        self.names = names;
         self
     }
 
@@ -787,6 +797,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
             name: self.name,
             left_names: self.left_names,
             right_names: self.right_names,
+            names: Hierarchy::<String>::empty(),
             operator: self.operator,
             left: WithInput(input.into()),
             right: self.right,
@@ -801,6 +812,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
             name: self.name,
             left_names: self.left_names,
             right_names: self.right_names,
+            names: Hierarchy::<String>::empty(),
             operator: self.operator,
             left: self.left,
             right: WithInput(input.into()),
@@ -833,26 +845,40 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .name
             .clone()
             .unwrap_or(namer::name_from_content(JOIN, &self));
-        let left_names = if self.left_names.is_empty() {
-            self.left
-                .0
-                .schema()
-                .iter()
-                .map(|field| namer::name_from_content(FIELD, &(&self.left.0, &field)))
-                .collect()
-        } else {
-            self.left_names
-        };
-        let right_names = if self.right_names.is_empty() {
-            self.right
-                .0
-                .schema()
-                .iter()
-                .map(|field| namer::name_from_content(FIELD, &(&self.right.0, &field)))
-                .collect()
-        } else {
-            self.right_names
-        };
+        let left_names = self
+            .left
+            .0
+            .schema()
+            .iter()
+            .enumerate()
+            .map(|(i, field)| {
+                self.names
+                    .get(&[LEFT.to_string(), field.name().to_string()])
+                    .unwrap_or(
+                        self.left_names
+                            .get(i)
+                            .unwrap_or(&namer::name_from_content(FIELD, &(LEFT, &field))),
+                    )
+                    .to_string()
+            })
+            .collect();
+        let right_names = self
+            .right
+            .0
+            .schema()
+            .iter()
+            .enumerate()
+            .map(|(i, field)| {
+                self.names
+                    .get(&[RIGHT.to_string(), field.name().to_string()])
+                    .unwrap_or(
+                        self.right_names
+                            .get(i)
+                            .unwrap_or(&namer::name_from_content(FIELD, &(RIGHT, &field))),
+                    )
+                    .to_string()
+            })
+            .collect();
         let operator = self
             .operator
             .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
@@ -1060,7 +1086,8 @@ impl Ready<Values> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataTyped, display::Dot, expr::aggregate::Aggregate, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType};
+    use std::ops::Deref;
 
     #[test]
     fn test_map_building() {
@@ -1144,7 +1171,7 @@ mod tests {
             .on(Expr::eq(Expr::col("d"), Expr::col("x")))
             .and(Expr::lt(Expr::col("a"), Expr::col("x")))
             .build();
-        join.display_dot();
+        join.display_dot().unwrap();
         println!("Join = {join}");
         let query = &ast::Query::from(&join).to_string();
         println!(
@@ -1157,6 +1184,70 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
+    }
+
+    #[test]
+    fn test_auto_join_building() {
+        use crate::{
+            ast,
+            display::Dot,
+            hierarchy::Path,
+            io::{postgresql, Database},
+        };
+        let mut database = postgresql::test_database();
+        let table1 = database
+            .relations()
+            .get(&"table_1".path())
+            .unwrap()
+            .deref()
+            .clone();
+        let join: Relation = Relation::join()
+            .left(table1.clone().rename("t1"))
+            .right(table1.clone().rename("t2"))
+            .inner()
+            .on(Expr::eq(Expr::qcol("t1", "d"), Expr::qcol("t2", "d")))
+            .names(Hierarchy::<String>::from_iter(vec![
+                ([LEFT, "a"], "a1".to_string()),
+                ([LEFT, "d"], "d1".to_string()),
+            ]))
+            .left_names(vec!["l_a", "l_b", "l_c", "l_d"])
+            .right_names(vec!["a", "b", "c", "d"])
+            .build();
+        join.display_dot().unwrap();
+        println!("Join = {join}");
+        let query = &ast::Query::from(&join).to_string();
+        println!("query = {}", query);
+        assert_eq!(
+            join.data_type(),
+            DataType::structured(vec![
+                ("a1", DataType::float_interval(0., 10.)),
+                ("l_b", DataType::optional(DataType::float_interval(-1., 1.))),
+                (
+                    "l_c",
+                    DataType::date_interval(
+                        chrono::NaiveDate::from_ymd_opt(1980, 12, 06).unwrap(),
+                        chrono::NaiveDate::from_ymd_opt(2023, 12, 06).unwrap(),
+                    )
+                ),
+                ("d1", DataType::integer_interval(0, 10)),
+                ("a", DataType::float_interval(0., 10.)),
+                ("b", DataType::optional(DataType::float_interval(-1., 1.))),
+                (
+                    "c",
+                    DataType::date_interval(
+                        chrono::NaiveDate::from_ymd_opt(1980, 12, 06).unwrap(),
+                        chrono::NaiveDate::from_ymd_opt(2023, 12, 06).unwrap(),
+                    )
+                ),
+                ("d", DataType::integer_interval(0, 10)),
+            ])
+        );
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
+            .join("\n");
     }
 
     #[test]
