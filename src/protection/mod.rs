@@ -279,18 +279,19 @@ impl<'a> Protection<'a> {
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::unprotected_table(table.path()))?;
         PEPRelation::try_from(
-            Relation::from(table)
-                .with_field_path(self.relations, field_path.clone())
-                .map_fields(|name, expr| {
-                    if name == PE_ID {
-                        Expr::md5(Expr::cast_as_text(expr))
-                    } else {
-                        expr
-                    }
-                })
-                .insert_field(1, PE_WEIGHT, Expr::val(1)),
+            Relation::from(table.clone())
+            .with_field_path(self.relations, field_path.clone())
+            .map_fields(|name, expr| {
+                if name == PE_ID {
+                    Expr::md5(Expr::cast_as_text(expr))
+                } else {
+                    expr
+                }
+            })
+            .insert_field(1, PE_WEIGHT, Expr::val(1))
         )
     }
+
 
     /// Map protection from another PEP relation
     pub fn map(&self, map: &'a Map, input: PEPRelation) -> Result<PEPRelation> {
