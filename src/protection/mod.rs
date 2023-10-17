@@ -281,7 +281,6 @@ impl<'a> Protection<'a> {
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::unprotected_table(table.path()))?;
-        println!("table  = {:?}", table);
         let relation = Relation::from(table)
             .with_field_path(self.relations, field_path.clone())
             .map_fields(|name, expr| {
@@ -599,6 +598,75 @@ mod tests {
         let protected_right = protection.table(right.try_into().unwrap()).unwrap();
         let protected_join = protection
             .join(&join, protected_left, protected_right)
+            .unwrap();
+        protected_join.display_dot().unwrap();
+
+        let pe_columns = vec![
+            format!("_LEFT{PE_ID}"),
+            format!("_LEFT{PE_WEIGHT}"),
+            format!("_RIGHT{PE_ID}"),
+            format!("_RIGHT{PE_WEIGHT}"),
+        ];
+        let fields: Vec<(&str, DataType)> = join
+            .schema()
+            .iter()
+            .filter_map(|f| {
+                (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type()))
+            })
+            .collect::<Vec<_>>();
+
+        let mut true_fields = vec![
+            (PE_ID, DataType::text()),
+            (PE_WEIGHT, DataType::integer_value(1)),
+        ];
+        true_fields.extend(fields.into_iter());
+        assert_eq!(
+            protected_join.deref().data_type(),
+            DataType::structured(true_fields)
+        );
+
+        let query: &str = &ast::Query::from(protected_join.deref()).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
+            .join("\n");
+    }
+
+    #[test]
+    fn test_auto_join_protection() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let join: Join = Join::builder()
+            .inner()
+            .on_eq("item", "item")
+            .left(table.clone())
+            .right(table.clone())
+            .build();
+        Relation::from(join.clone()).display_dot().unwrap();
+        let protection = Protection::from((
+            &relations,
+            vec![
+                (
+                    "item_table",
+                    vec![("order_id", "order_table", "id")],
+                    "date",
+                ),
+                ("order_table", vec![], "date"),
+            ],
+            Strategy::Hard,
+        ));
+        let protected_table = protection.table(table.try_into().unwrap()).unwrap();
+        let protected_join = protection
+            .join(&join, protected_table.clone(), protected_table.clone())
             .unwrap();
         protected_join.display_dot().unwrap();
 
