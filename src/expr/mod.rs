@@ -239,19 +239,6 @@ impl Expr {
             .collect();
         Self::and_iter(predicates)
     }
-
-    // returns true if the current `Expr` contains `expr``, false otherwise
-    pub fn contains(&self, expr: &Self) -> bool {
-        if self == expr {
-            return true;
-        }
-        match self {
-            Expr::Column(_) | Expr::Value(_) => false,
-            Expr::Function(f) => f.arguments().iter().any(|x| x.contains(expr)),
-            Expr::Aggregate(agg) => agg.argument().contains(expr),
-            Expr::Struct(s) => s.fields.iter().any(|(_, x)| x.contains(expr)),
-        }
-    }
 }
 
 /// Implement unary function constructors

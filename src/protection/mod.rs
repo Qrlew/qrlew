@@ -6,11 +6,10 @@ pub mod protected_entity;
 
 use crate::{
     builder::{Ready, With, WithIterator},
-    display::Dot,
     expr::{AggregateColumn, Expr},
     hierarchy::Hierarchy,
     relation::{
-        Join, JoinConstraint, JoinOperator, Map, Reduce, Relation, Table, Values, Variant as _,
+        Join, Map, Reduce, Relation, Table, Values, Variant as _,
     },
 };
 use protected_entity::{FieldPath, ProtectedEntity};
@@ -281,7 +280,8 @@ impl<'a> Protection<'a> {
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::unprotected_table(table.path()))?;
-        let relation = Relation::from(table)
+        PEPRelation::try_from(
+            Relation::from(table)
             .with_field_path(self.relations, field_path.clone())
             .map_fields(|name, expr| {
                 if name == PE_ID {
@@ -290,9 +290,8 @@ impl<'a> Protection<'a> {
                     expr
                 }
             })
-            .insert_field(1, PE_WEIGHT, Expr::val(1));
-        relation.display_dot().unwrap();
-        PEPRelation::try_from(relation)
+            .insert_field(1, PE_WEIGHT, Expr::val(1))
+        )
     }
 
     /// Map protection from another PEP relation
@@ -329,28 +328,12 @@ impl<'a> Protection<'a> {
         left: PEPRelation,
         right: PEPRelation,
     ) -> Result<PEPRelation> {
-        let peid_in_the_join = match join.operator() {
-            JoinOperator::Inner(c)
-            | JoinOperator::LeftOuter(c)
-            | JoinOperator::RightOuter(c)
-            | JoinOperator::FullOuter(c) => match c {
-                JoinConstraint::On(x) => x.contains(&Expr::eq(
-                    Expr::qcol(Join::left_name(), PE_ID),
-                    Expr::qcol(Join::right_name(), PE_ID),
-                )),
-                JoinConstraint::Using(v) => v.contains(&PE_ID.into()),
-                JoinConstraint::Natural => true,
-                JoinConstraint::None => false,
-            },
-            _ => false,
-        };
-
         // Create the protected join
         match self.strategy {
-            Strategy::Soft if !peid_in_the_join => {
+            Strategy::Soft => {
                 Err(Error::not_protected_entity_preserving(join))
             }
-            _ => {
+            Strategy::Hard => {
                 let name = join.name();
                 let operator = join.operator().clone();
                 let names = join.names();
