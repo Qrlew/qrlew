@@ -348,6 +348,10 @@ impl<'a> Protection<'a> {
                 let join: Join = Relation::join()
                     .names(names)
                     .operator(operator)
+                    .and(Expr::eq(
+                        Expr::qcol(Join::left_name(), PE_ID),
+                        Expr::qcol(Join::right_name(), PE_ID)
+                    ))
                     .left(Relation::from(left))
                     .right(Relation::from(right))
                     .build();
