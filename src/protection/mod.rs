@@ -8,9 +8,7 @@ use crate::{
     builder::{Ready, With, WithIterator},
     expr::{AggregateColumn, Expr},
     hierarchy::Hierarchy,
-    relation::{
-        Join, Map, Reduce, Relation, Table, Values, Variant as _,
-    },
+    relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
 };
 use protected_entity::{FieldPath, ProtectedEntity};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
@@ -282,15 +280,15 @@ impl<'a> Protection<'a> {
             .ok_or(Error::unprotected_table(table.path()))?;
         PEPRelation::try_from(
             Relation::from(table)
-            .with_field_path(self.relations, field_path.clone())
-            .map_fields(|name, expr| {
-                if name == PE_ID {
-                    Expr::md5(Expr::cast_as_text(expr))
-                } else {
-                    expr
-                }
-            })
-            .insert_field(1, PE_WEIGHT, Expr::val(1))
+                .with_field_path(self.relations, field_path.clone())
+                .map_fields(|name, expr| {
+                    if name == PE_ID {
+                        Expr::md5(Expr::cast_as_text(expr))
+                    } else {
+                        expr
+                    }
+                })
+                .insert_field(1, PE_WEIGHT, Expr::val(1)),
         )
     }
 
@@ -330,9 +328,7 @@ impl<'a> Protection<'a> {
     ) -> Result<PEPRelation> {
         // Create the protected join
         match self.strategy {
-            Strategy::Soft => {
-                Err(Error::not_protected_entity_preserving(join))
-            }
+            Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
                 let name = join.name();
                 let operator = join.operator().clone();
@@ -354,7 +350,7 @@ impl<'a> Protection<'a> {
                     .operator(operator)
                     .and(Expr::eq(
                         Expr::qcol(Join::left_name(), PE_ID),
-                        Expr::qcol(Join::right_name(), PE_ID)
+                        Expr::qcol(Join::right_name(), PE_ID),
                     ))
                     .left(Relation::from(left))
                     .right(Relation::from(right))
