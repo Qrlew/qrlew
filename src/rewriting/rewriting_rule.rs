@@ -913,9 +913,7 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         protected_entity.clone(),
                         crate::protection::Strategy::Hard,
                     );
-                    let relation = protection.table(table.clone()).unwrap().0;
-                    // relation.with_name(table.name().into()).filter_fields(|name| !name.starts_with("_"))// TODO this is awfully ugly! change that quickly!
-                    table.clone().into()
+                    protection.table(table.clone()).unwrap().into()
                 }
                 (Property::DifferentiallyPrivate, _) => table.clone().into(),
                 (Property::Published, _) => table.clone().into(),
@@ -1012,7 +1010,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore]
     fn test_set_eliminate_select_rewriting_rules() {
         let database = postgresql::test_database();
         let relations = database.relations();
