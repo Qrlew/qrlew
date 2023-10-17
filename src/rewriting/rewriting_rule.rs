@@ -930,10 +930,24 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         rewritten_input: Arc<Relation>,
     ) -> Arc<Relation> {
         Arc::new(
-            Relation::map()
-                .with(map.clone())
-                .input(rewritten_input)
-                .build(),
+            match (rewriting_rule.inputs()[0], rewriting_rule.output(), rewriting_rule.parameters()) {
+                (
+                    Property::ProtectedEntityPreserving,
+                    Property::ProtectedEntityPreserving,
+                    Parameters::ProtectedEntity(protected_entity),
+                ) => {
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Hard,
+                    );
+                    protection.map(map, (*rewritten_input).clone().try_into().unwrap()).unwrap().into()
+                },
+                _ => Relation::map()
+                    .with(map.clone())
+                    .input(rewritten_input)
+                    .build(),
+            }
         )
     }
 
@@ -944,10 +958,24 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         rewritten_input: Arc<Relation>,
     ) -> Arc<Relation> {
         Arc::new(
-            Relation::reduce()
-                .with(reduce.clone())
-                .input(rewritten_input)
-                .build(),
+            match (rewriting_rule.inputs()[0], rewriting_rule.output(), rewriting_rule.parameters()) {
+                (
+                    Property::ProtectedEntityPreserving,
+                    Property::ProtectedEntityPreserving,
+                    Parameters::ProtectedEntity(protected_entity),
+                ) => {
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Hard,
+                    );
+                    protection.reduce(reduce, (*rewritten_input).clone().try_into().unwrap()).unwrap().into()
+                },
+                _ => Relation::reduce()
+                    .with(reduce.clone())
+                    .input(rewritten_input)
+                    .build(),
+            }
         )
     }
 
@@ -1029,15 +1057,15 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "peid",
+                "_PROTECTED_ENTITY_ID_",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "peid",
+                "_PROTECTED_ENTITY_ID_",
             ),
-            ("user_table", vec![], "name", "peid"),
+            ("user_table", vec![], "name", "_PROTECTED_ENTITY_ID_"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -1058,7 +1086,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_set_eliminate_select_rewriting_rules_aggregation() {
         let database = postgresql::test_database();
         let relations = database.relations();
@@ -1081,15 +1108,15 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "peid",
+                "_PROTECTED_ENTITY_ID_",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "peid",
+                "_PROTECTED_ENTITY_ID_",
             ),
-            ("user_table", vec![], "name", "peid"),
+            ("user_table", vec![], "name", "_PROTECTED_ENTITY_ID_"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -1110,7 +1137,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_set_eliminate_select_rewriting_rules_complex_query() {
         let database = postgresql::test_database();
         let relations = database.relations();
@@ -1130,15 +1156,15 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "peid",
+                "_PROTECTED_ENTITY_ID_",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "peid",
+                "_PROTECTED_ENTITY_ID_",
             ),
-            ("user_table", vec![], "name", "peid"),
+            ("user_table", vec![], "name", "_PROTECTED_ENTITY_ID_"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
