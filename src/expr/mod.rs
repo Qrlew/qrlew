@@ -243,7 +243,7 @@ impl Expr {
     // returns true if the current `Expr` contains `expr``, false otherwise
     pub fn contains(&self, expr: &Self) -> bool {
         if self == expr {
-            return true
+            return true;
         }
         match self {
             Expr::Column(_) | Expr::Value(_) => false,

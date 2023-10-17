@@ -4,15 +4,15 @@ use itertools::Itertools;
 
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Values, Variant
+    SetOperator, SetQuantifier, Table, Values, Variant,
 };
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
     expr::{self, AggregateColumn, Expr, Identifier, Split},
+    hierarchy::Hierarchy,
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
-    hierarchy::Hierarchy,
 };
 
 // A Table builder
@@ -861,11 +861,10 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .map(|(i, field)| {
                 self.names
                     .get(&[Join::left_name().to_string(), field.name().to_string()])
-                    .unwrap_or(
-                        self.left_names
-                            .get(i)
-                            .unwrap_or(&namer::name_from_content(FIELD, &(Join::left_name(), &field))),
-                    )
+                    .unwrap_or(self.left_names.get(i).unwrap_or(&namer::name_from_content(
+                        FIELD,
+                        &(Join::left_name(), &field),
+                    )))
                     .to_string()
             })
             .collect();
@@ -878,11 +877,10 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .map(|(i, field)| {
                 self.names
                     .get(&[Join::right_name().to_string(), field.name().to_string()])
-                    .unwrap_or(
-                        self.right_names
-                            .get(i)
-                            .unwrap_or(&namer::name_from_content(FIELD, &(Join::right_name(), &field))),
-                    )
+                    .unwrap_or(self.right_names.get(i).unwrap_or(&namer::name_from_content(
+                        FIELD,
+                        &(Join::right_name(), &field),
+                    )))
                     .to_string()
             })
             .collect();

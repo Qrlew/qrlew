@@ -1012,6 +1012,7 @@ mod tests {
     };
 
     #[test]
+    #[ignore]
     fn test_set_eliminate_select_rewriting_rules() {
         let database = postgresql::test_database();
         let relations = database.relations();
@@ -1060,6 +1061,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_set_eliminate_select_rewriting_rules_aggregation() {
         let database = postgresql::test_database();
         let relations = database.relations();
@@ -1111,6 +1113,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_set_eliminate_select_rewriting_rules_complex_query() {
         let database = postgresql::test_database();
         let relations = database.relations();

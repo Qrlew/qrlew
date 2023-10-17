@@ -6,9 +6,12 @@ pub mod protected_entity;
 
 use crate::{
     builder::{Ready, With, WithIterator},
+    display::Dot,
     expr::{AggregateColumn, Expr},
     hierarchy::Hierarchy,
-    relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _, JoinOperator, JoinConstraint}, display::Dot,
+    relation::{
+        Join, JoinConstraint, JoinOperator, Map, Reduce, Relation, Table, Values, Variant as _,
+    },
 };
 use protected_entity::{FieldPath, ProtectedEntity};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
@@ -273,7 +276,6 @@ impl<'a> Protection<'a> {
 
     /// Table protection
     pub fn table(&self, table: Table) -> Result<PEPRelation> {
-
         let (_, field_path) = self
             .protected_entity
             .iter()
@@ -332,36 +334,40 @@ impl<'a> Protection<'a> {
             JoinOperator::Inner(c)
             | JoinOperator::LeftOuter(c)
             | JoinOperator::RightOuter(c)
-            | JoinOperator::FullOuter(c) => {
-                match c {
-                    JoinConstraint::On(x) => x.contains(
-                        &Expr::eq(
-                            Expr::qcol(Join::left_name(), PE_ID),
-                            Expr::qcol(Join::right_name(), PE_ID)
-                        )
-                    ),
-                    JoinConstraint::Using(v) => v.contains(&PE_ID.into()),
-                    JoinConstraint::Natural => true,
-                    JoinConstraint::None => false,
-                }
+            | JoinOperator::FullOuter(c) => match c {
+                JoinConstraint::On(x) => x.contains(&Expr::eq(
+                    Expr::qcol(Join::left_name(), PE_ID),
+                    Expr::qcol(Join::right_name(), PE_ID),
+                )),
+                JoinConstraint::Using(v) => v.contains(&PE_ID.into()),
+                JoinConstraint::Natural => true,
+                JoinConstraint::None => false,
             },
             _ => false,
         };
 
         // Create the protected join
         match self.strategy {
-            Strategy::Soft if !peid_in_the_join => Err(Error::not_protected_entity_preserving(join)),
+            Strategy::Soft if !peid_in_the_join => {
+                Err(Error::not_protected_entity_preserving(join))
+            }
             _ => {
                 let name = join.name();
                 let operator = join.operator().clone();
                 let names = join.names();
                 let names = names.with(vec![
                     (vec![Join::left_name(), PE_ID], format!("_LEFT{PE_ID}")),
-                    (vec![Join::left_name(), PE_WEIGHT], format!("_LEFT{PE_WEIGHT}")),
+                    (
+                        vec![Join::left_name(), PE_WEIGHT],
+                        format!("_LEFT{PE_WEIGHT}"),
+                    ),
                     (vec![Join::right_name(), PE_ID], format!("_RIGHT{PE_ID}")),
-                    (vec![Join::right_name(), PE_WEIGHT], format!("_RIGHT{PE_WEIGHT}")),
+                    (
+                        vec![Join::right_name(), PE_WEIGHT],
+                        format!("_RIGHT{PE_WEIGHT}"),
+                    ),
                 ]);
-                let join:Join = Relation::join()
+                let join: Join = Relation::join()
                     .names(names)
                     .operator(operator)
                     .left(Relation::from(left))
@@ -480,11 +486,11 @@ mod tests {
     use super::*;
     use crate::{
         ast,
+        data_type::{DataType, DataTyped},
         display::Dot,
         io::{postgresql, Database},
         relation::Variant,
-        data_type::{DataType, DataTyped},
-        sql::parse
+        sql::parse,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -560,8 +566,16 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let left = relations.get(&["item_table".to_string()]).unwrap().deref().clone();
-        let right = relations.get(&["order_table".to_string()]).unwrap().deref().clone();
+        let left = relations
+            .get(&["item_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let right = relations
+            .get(&["order_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
         let join: Join = Join::builder()
             .inner()
             .on_eq("order_id", "id")
@@ -577,19 +591,16 @@ mod tests {
                     vec![("order_id", "order_table", "id")],
                     "date",
                 ),
-                (
-                    "order_table",
-                    vec![],
-                    "date",
-                ),
+                ("order_table", vec![], "date"),
             ],
             Strategy::Hard,
         ));
         let protected_left = protection.table(left.try_into().unwrap()).unwrap();
         let protected_right = protection.table(right.try_into().unwrap()).unwrap();
-        let protected_join = protection.join(&join, protected_left, protected_right).unwrap();
+        let protected_join = protection
+            .join(&join, protected_left, protected_right)
+            .unwrap();
         protected_join.display_dot().unwrap();
-
 
         let pe_columns = vec![
             format!("_LEFT{PE_ID}"),
@@ -597,89 +608,17 @@ mod tests {
             format!("_RIGHT{PE_ID}"),
             format!("_RIGHT{PE_WEIGHT}"),
         ];
-        let fields: Vec<(&str, DataType)> = join.schema()
+        let fields: Vec<(&str, DataType)> = join
+            .schema()
             .iter()
-            .filter_map(|f| (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type())))
+            .filter_map(|f| {
+                (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type()))
+            })
             .collect::<Vec<_>>();
-
 
         let mut true_fields = vec![
             (PE_ID, DataType::text()),
-            (PE_WEIGHT, DataType::integer_value(1))
-        ];
-        true_fields.extend(fields.into_iter());
-        assert_eq!(
-            protected_join.deref().data_type(),
-            DataType::structured(true_fields)
-        );
-
-        let query: &str = &ast::Query::from(protected_join.deref()).to_string();
-        println!("{query}");
-        _ = database
-            .query(query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string)
-            .join("\n");
-    }
-
-    #[test]
-    fn test_map() {
-        let database = postgresql::test_database();
-        let relations = database.relations();
-        // Print relations with paths
-        for (p, r) in relations.iter() {
-            println!("{} -> {r}", p.into_iter().join("."))
-        }
-        let query = parse(
-            "SELECT order_id, price FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)",
-        )
-        .unwrap();
-        let protected_entity = ProtectedEntity::from(vec![
-            (
-                "item_table",
-                vec![
-                    ("order_id", "order_table", "id"),
-                    ("user_id", "user_table", "id"),
-                ],
-                "name",
-                "peid",
-            ),
-            (
-                "order_table",
-                vec![("user_id", "user_table", "id")],
-                "name",
-                "peid",
-            ),
-            ("user_table", vec![], "name", "peid"),
-        ]);
-
-        let protection = Protection::new(
-            &relations,
-            protected_entity,
-            Strategy::Hard,
-        );
-        let protected_left = protection.table(left.try_into().unwrap()).unwrap();
-        let protected_right = protection.table(right.try_into().unwrap()).unwrap();
-        let protected_join = protection.join(&join, protected_left, protected_right).unwrap();
-        protected_join.display_dot().unwrap();
-
-
-        let pe_columns = vec![
-            format!("_LEFT{PE_ID}"),
-            format!("_LEFT{PE_WEIGHT}"),
-            format!("_RIGHT{PE_ID}"),
-            format!("_RIGHT{PE_WEIGHT}"),
-        ];
-        let fields: Vec<(&str, DataType)> = join.schema()
-            .iter()
-            .filter_map(|f| (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type())))
-            .collect::<Vec<_>>();
-
-
-        let mut true_fields = vec![
-            (PE_ID, DataType::text()),
-            (PE_WEIGHT, DataType::integer_value(1))
+            (PE_WEIGHT, DataType::integer_value(1)),
         ];
         true_fields.extend(fields.into_iter());
         assert_eq!(
