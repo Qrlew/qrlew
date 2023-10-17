@@ -913,7 +913,7 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         protected_entity.clone(),
                         crate::protection::Strategy::Hard,
                     );
-                    protection.table(table.clone()).unwrap().into()
+                    protection.table(table).unwrap().into()
                 }
                 (Property::DifferentiallyPrivate, _) => table.clone().into(),
                 (Property::Published, _) => table.clone().into(),

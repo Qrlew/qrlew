@@ -578,8 +578,8 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let protected_left = protection.table(left.try_into().unwrap()).unwrap();
-        let protected_right = protection.table(right.try_into().unwrap()).unwrap();
+        let protected_left = protection.table(&left.try_into().unwrap()).unwrap();
+        let protected_right = protection.table(&right.try_into().unwrap()).unwrap();
         let protected_join = protection
             .join(&join, protected_left, protected_right)
             .unwrap();
@@ -640,7 +640,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let protected_table = protection.table(table.try_into().unwrap()).unwrap();
+        let protected_table = protection.table(&table.try_into().unwrap()).unwrap();
         let protected_join = protection
             .join(&join, protected_table.clone(), protected_table.clone())
             .unwrap();
