@@ -558,11 +558,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
 
     fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(
-                vec![Property::Public],
-                Property::Public,
-                Parameters::None,
-            ),
+            RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(
                 vec![Property::Published],
                 Property::Published,
@@ -592,11 +588,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
         input: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(
-                vec![Property::Public],
-                Property::Public,
-                Parameters::None,
-            ),
+            RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(
                 vec![Property::Published],
                 Property::Published,
@@ -916,7 +908,11 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     Property::ProtectedEntityPreserving,
                     Parameters::ProtectedEntity(protected_entity),
                 ) => {
-                    let protection = Protection::new(self.0, protected_entity.clone(), crate::protection::Strategy::Hard);
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Hard,
+                    );
                     let relation = protection.table(table.clone()).unwrap().0;
                     // relation.with_name(table.name().into()).filter_fields(|name| !name.starts_with("_"))// TODO this is awfully ugly! change that quickly!
                     table.clone().into()

@@ -114,14 +114,17 @@ impl<'a> VisitedQueryRelations<'a> {
     ) -> Result<RelationWithColumns> {
         let VisitedQueryRelations(relations, visited) = self;
         // Process the table_factor
+
         match &table_factor {
-            ast::TableFactor::Table {
-                name, alias: None, ..
-            } => {
+            ast::TableFactor::Table { name, alias, .. } => {
                 let relation = relations
                     .get(&name.cloned())
                     .cloned()
                     .ok_or(Error::parsing_error(format!("Unknown table: {name}")))?;
+                let name = alias
+                    .clone()
+                    .map(|a| a.name.cloned())
+                    .unwrap_or(name.cloned());
                 let columns: Hierarchy<Identifier> = relation
                     .schema()
                     .iter()
@@ -131,81 +134,30 @@ impl<'a> VisitedQueryRelations<'a> {
                                 .into_iter()
                                 .chain(once(f.name().to_string()))
                                 .collect_vec(),
-                            [relation.name(), f.name()].into(),
-                        )
-                    })
-                    .collect();
-                Ok(RelationWithColumns::new(relation, columns))
-            }
-            ast::TableFactor::Table {
-                name,
-                alias: Some(alias),
-                ..
-            } => {
-                // TODO Only the table can be aliased for now -> Fix this
-                let relation = relations
-                    .get(&name.cloned())
-                    .cloned()
-                    .ok_or(Error::parsing_error(format!("Unknown table: {name}")))?;
-                let columns: Hierarchy<Identifier> = relation
-                    .schema()
-                    .iter()
-                    .map(|f| {
-                        (
-                            alias
-                                .name
-                                .cloned()
-                                .into_iter()
-                                .chain(once(f.name().to_string()))
-                                .collect_vec(),
-                            [relation.name(), f.name()].into(),
+                            [f.name()].into(),
                         )
                     })
                     .collect();
                 Ok(RelationWithColumns::new(relation, columns))
             }
             ast::TableFactor::Derived {
-                subquery,
-                alias: None,
-                ..
+                subquery, alias, ..
             } => {
                 let relation = visited.get(subquery).clone()?;
+                let name = alias
+                    .clone()
+                    .map(|a| a.name.cloned())
+                    .unwrap_or(relation.name().cloned());
                 let columns: Hierarchy<Identifier> = relation
                     .schema()
                     .iter()
                     .map(|f| {
                         (
-                            relation
-                                .name()
-                                .cloned()
+                            name.cloned()
                                 .into_iter()
                                 .chain(once(f.name().to_string()))
                                 .collect_vec(),
-                            [relation.name(), f.name()].into(),
-                        )
-                    })
-                    .collect();
-                Ok(RelationWithColumns::new(relation, columns))
-            }
-            ast::TableFactor::Derived {
-                subquery,
-                alias: Some(alias),
-                ..
-            } => {
-                // TODO Only the table can be aliased for now -> Fix this
-                let relation = visited.get(subquery).clone()?;
-                let columns: Hierarchy<Identifier> = relation
-                    .schema()
-                    .iter()
-                    .map(|f| {
-                        (
-                            alias
-                                .name
-                                .cloned()
-                                .into_iter()
-                                .chain(once(f.name().to_string()))
-                                .collect_vec(),
-                            [relation.name(), f.name()].into(),
+                            [f.name()].into(),
                         )
                     })
                     .collect();
@@ -269,20 +221,16 @@ impl<'a> VisitedQueryRelations<'a> {
                 let RelationWithColumns(left_relation, left_columns) = left?;
                 let RelationWithColumns(right_relation, right_columns) =
                     self.try_from_table_factor(&join.relation)?;
-                let left_columns = Hierarchy::from_iter(
-                    left_columns.into_iter()
-                    .map(|(p, v)| {
-                        (vec![Join::left_name().to_string(), p[1].to_string()], v)
-                    })
-                    .collect::<Vec<_>>()
-                );
-                let right_columns = Hierarchy::from_iter(
-                    right_columns.into_iter()
-                    .map(|(p, v)| {
-                        (vec![Join::right_name().to_string(), p[1].to_string()], v)
-                    })
-                    .collect::<Vec<_>>()
-                );
+                let left_columns = left_columns.map(|i| {
+                    let mut v = vec![Join::left_name().to_string()];
+                    v.extend(i.to_vec());
+                    v.into()
+                });
+                let right_columns = right_columns.map(|i| {
+                    let mut v = vec![Join::right_name().to_string()];
+                    v.extend(i.to_vec());
+                    v.into()
+                });
                 let all_columns = left_columns.with(right_columns);
                 let operator = self.try_from_join_operator_with_columns(
                     &join.join_operator,
@@ -666,7 +614,7 @@ mod tests {
 
     #[test]
     fn test_map_from_query() {
-        let query = parse("SELECT exp(a) FROM schema.table").unwrap();
+        let query = parse("SELECT exp(table.a) FROM schema.table").unwrap();
         let schema: Schema = vec![
             ("a", DataType::float()),
             ("b", DataType::float_interval(-2., 2.)),
@@ -685,13 +633,12 @@ mod tests {
             &Hierarchy::from([(["schema", "table"], Arc::new(table))]),
         ))
         .unwrap();
-        print!("{}", map)
+        print!("{}", map);
     }
 
     #[test]
     fn test_parse() {
-        let query = parse("SELECT 2 * (price - 1) FROM schema.table").unwrap();
-        let query = parse("SELECT 2 * price FROM schema.table").unwrap();
+        let query = parse("SELECT 2 * my_table.price FROM schema.table AS my_table").unwrap();
         //println!("\nquery: {:?}", query);
         println!("\n{}", query.to_string());
         let schema: Schema = vec![("price", DataType::float_interval(1., 4.))]
@@ -711,6 +658,34 @@ mod tests {
         //println!("\nquery2: {:?}", query2);
         println!("\n{}", query2.to_string());
         map.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_parse_auto_join() {
+        let query = parse("SELECT 2 * my_table.price + table2.price FROM schema.table AS my_table JOIN schema.table AS table2 ON my_table.id = table2.id").unwrap();
+        //println!("\nquery: {:?}", query);
+        println!("\n{}", query.to_string());
+        let schema: Schema = vec![
+            ("price", DataType::float_interval(1., 4.)),
+            ("id", DataType::text()),
+        ]
+        .into_iter()
+        .collect();
+        let table = Relation::table()
+            .name("tab")
+            .schema(schema.clone())
+            .size(100)
+            .build();
+        println!("Table = {:?}", table);
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table"], Arc::new(table))]),
+        ))
+        .unwrap();
+        let query2 = &ast::Query::from(&relation);
+        //println!("\nquery2: {:?}", query2);
+        println!("\n{}", query2.to_string());
+        relation.display_dot().unwrap();
     }
 
     fn complex_query() -> ast::Query {

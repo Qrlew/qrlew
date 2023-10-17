@@ -97,7 +97,6 @@ impl Schema {
     pub fn iter(&self) -> impl Iterator<Item = &Field> {
         self.fields.iter()
     }
-
 }
 
 impl Default for Schema {

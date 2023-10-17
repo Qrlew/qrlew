@@ -172,7 +172,11 @@ fn table_factor(relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
     }
 }
 
-fn table_with_joins(relation: &Relation, alias: Option<&str>, joins: Vec<ast::Join>) -> ast::TableWithJoins {
+fn table_with_joins(
+    relation: &Relation,
+    alias: Option<&str>,
+    joins: Vec<ast::Join>,
+) -> ast::TableWithJoins {
     ast::TableWithJoins {
         relation: table_factor(relation, alias),
         joins,
@@ -365,7 +369,10 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     join.left.as_ref().into(),
                     Some(Join::left_name()),
                     vec![ast::Join {
-                        relation: table_factor(join.right.as_ref().into(), Some(Join::right_name())),
+                        relation: table_factor(
+                            join.right.as_ref().into(),
+                            Some(Join::right_name()),
+                        ),
                         join_operator: join.operator.clone().into(),
                     }],
                 ),
@@ -472,7 +479,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(&values.clone().into(), None,vec![]),
+            table_with_joins(&values.clone().into(), None, vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -683,7 +690,7 @@ mod tests {
             .name("join")
             .left_outer()
             //.using("a")
-            .on_eq( "b", "b")
+            .on_eq("b", "b")
             .left(left)
             .right(right)
             .build();

@@ -98,8 +98,13 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
             join.names()
                 .iter()
                 .zip(join.schema().iter())
-                .map(|((p, _), field)| (field.clone(), Expr::qcol(p[0].to_string(), p[1].to_string())))
-                .collect()
+                .map(|((p, _), field)| {
+                    (
+                        field.clone(),
+                        Expr::qcol(p[0].to_string(), p[1].to_string()),
+                    )
+                })
+                .collect(),
         )
     }
 
@@ -284,10 +289,11 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T> + Clone>
     dot::GraphWalk<'a, Node<'a, T>, Edge<'a, T>> for VisitedRelation<'a, V>
 {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a, T>> {
-        self
-            .0
+        self.0
             .iter_with(self.1.clone())
-            .collect_vec().into_iter().rev()
+            .collect_vec()
+            .into_iter()
+            .rev()
             .map(|(relation, t)| Node(relation, t))
             .collect()
     }

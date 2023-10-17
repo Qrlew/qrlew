@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Values, Variant, LEFT_INPUT_NAME, RIGHT_INPUT_NAME
+    SetOperator, SetQuantifier, Table, Values, Variant, LEFT_INPUT_NAME, RIGHT_INPUT_NAME,
 };
 use crate::{
     ast,

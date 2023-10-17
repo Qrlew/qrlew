@@ -412,7 +412,7 @@ impl Relation {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
             .inner()
-            .on_eq(entities,entities)
+            .on_eq(entities, entities)
             .left_names(
                 self.fields()
                     .into_iter()
