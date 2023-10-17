@@ -639,12 +639,15 @@ Join Builder
 #[derive(Debug, Default, Hash)]
 pub struct JoinBuilder<RequireLeftInput, RequireRightInput> {
     name: Option<String>,
+    /// Input names indexed by qualified names
+    names: Hierarchy<String>,
+    /// Names by position as a fallback
     left_names: Vec<String>,
+    /// Names by position as a fallback
     right_names: Vec<String>,
     operator: Option<JoinOperator>,
     left: RequireLeftInput,
     right: RequireRightInput,
-    names: Hierarchy<String>,
 }
 
 impl JoinBuilder<WithoutInput, WithoutInput> {
