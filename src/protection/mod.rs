@@ -588,18 +588,10 @@ mod tests {
             .unwrap();
         protected_join.display_dot().unwrap();
 
-        let pe_columns = vec![
-            format!("_LEFT{PE_ID}"),
-            format!("_LEFT{PE_WEIGHT}"),
-            format!("_RIGHT{PE_ID}"),
-            format!("_RIGHT{PE_WEIGHT}"),
-        ];
         let fields: Vec<(&str, DataType)> = join
             .schema()
             .iter()
-            .filter_map(|f| {
-                (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type()))
-            })
+            .map(|f| (f.name(), f.data_type()))
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
@@ -657,18 +649,10 @@ mod tests {
             .unwrap();
         protected_join.display_dot().unwrap();
 
-        let pe_columns = vec![
-            format!("_LEFT{PE_ID}"),
-            format!("_LEFT{PE_WEIGHT}"),
-            format!("_RIGHT{PE_ID}"),
-            format!("_RIGHT{PE_WEIGHT}"),
-        ];
         let fields: Vec<(&str, DataType)> = join
             .schema()
             .iter()
-            .filter_map(|f| {
-                (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type()))
-            })
+            .map(|f| (f.name(), f.data_type()))
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
