@@ -4,13 +4,12 @@ use itertools::Itertools;
 
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Values, Variant,
+    SetOperator, SetQuantifier, Table, Values, Variant
 };
 use crate::{
-    ast,
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    expr::{self, aggregate, AggregateColumn, Expr, Identifier, Split},
+    expr::{self, AggregateColumn, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
@@ -711,6 +710,14 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         self
     }
 
+    pub fn on_eq(self, left: &str, right: &str) -> Self {
+        let x = Expr::eq(
+            Expr::qcol(Join::left_name(), left),
+            Expr::qcol(Join::right_name(), right),
+        );
+        self.on(x)
+    }
+
     pub fn on_iter<I: IntoIterator<Item = Expr>>(mut self, exprs: I) -> Self {
         self = self.on(Expr::and_iter(exprs));
         self
@@ -838,7 +845,7 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
                 .0
                 .schema()
                 .iter()
-                .map(|field| namer::name_from_content(FIELD, &(&self.left.0, &field)))
+                .map(|field| namer::name_from_content(FIELD, &(Join::left_name(), &field)))
                 .collect()
         } else {
             self.left_names
@@ -848,7 +855,7 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
                 .0
                 .schema()
                 .iter()
-                .map(|field| namer::name_from_content(FIELD, &(&self.right.0, &field)))
+                .map(|field| namer::name_from_content(FIELD, &(Join::right_name(), &field)))
                 .collect()
         } else {
             self.right_names
@@ -1141,7 +1148,7 @@ mod tests {
                     .unwrap()
                     .clone(),
             )
-            .on(Expr::eq(Expr::col("d"), Expr::col("x")))
+            .on_eq("d", "x")
             .and(Expr::lt(Expr::col("a"), Expr::col("x")))
             .build();
         join.display_dot();
