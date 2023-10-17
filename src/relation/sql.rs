@@ -173,12 +173,11 @@ fn table_factor(relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
 }
 
 fn table_with_joins(
-    relation: &Relation,
-    alias: Option<&str>,
+    relation: ast::TableFactor,
     joins: Vec<ast::Join>,
 ) -> ast::TableWithJoins {
     ast::TableWithJoins {
-        relation: table_factor(relation, alias),
+        relation,
         joins,
     }
 }
@@ -242,7 +241,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             vec![ast::SelectItem::Wildcard(
                 ast::WildcardAdditionalOptions::default(),
             )],
-            table_with_joins(&table.clone().into(), None, vec![]),
+            table_with_joins(table_factor(&table.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -271,7 +270,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(map.input.as_ref().into(), None, vec![]),
+                table_with_joins(table_factor(map.input.as_ref().into(), None), vec![]),
                 map.filter.as_ref().map(ast::Expr::from),
                 ast::GroupByExpr::Expressions(vec![]),
                 map.order_by
@@ -289,7 +288,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(&map.clone().into(), None, vec![]),
+            table_with_joins(table_factor(&map.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -321,7 +320,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(reduce.input.as_ref().into(), None, vec![]),
+                table_with_joins(table_factor(reduce.input.as_ref().into(), None), vec![]),
                 None,
                 ast::GroupByExpr::Expressions(
                     reduce.group_by.iter().map(ast::Expr::from).collect(),
@@ -333,7 +332,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(&reduce.clone().into(), None, vec![]),
+            table_with_joins(table_factor(&reduce.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -366,8 +365,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 vec![],
                 all(),
                 table_with_joins(
-                    join.left.as_ref().into(),
-                    Some(Join::left_name()),
+                    table_factor(join.left.as_ref().into(), Some(Join::left_name())),
                     vec![ast::Join {
                         relation: table_factor(
                             join.right.as_ref().into(),
@@ -385,7 +383,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(&join.clone().into(), None, vec![]),
+            table_with_joins(table_factor(&join.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -425,7 +423,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(&set.clone().into(), None, vec![]),
+            table_with_joins(table_factor(&set.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -479,7 +477,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
         query(
             input_ctes,
             all(),
-            table_with_joins(&values.clone().into(), None, vec![]),
+            table_with_joins(table_factor(&values.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -726,7 +724,7 @@ mod tests {
         let query = ast::Query::from(&join);
         assert_eq!(
             query.to_string(),
-            "WITH my_values (my_values) AS (SELECT * FROM (VALUES (3), (4)) AS my_values (my_values)), join_h_as (field_mp40, field_2bhy) AS (SELECT * FROM my_values AS LEFT_NAME_ CROSS JOIN table AS RIGHT_NAME_) SELECT * FROM join_h_as".to_string()
+            "WITH my_values (my_values) AS (SELECT * FROM (VALUES (3), (4)) AS my_values (my_values)), join_h_as (field_gu2a, field_b8x4) AS (SELECT * FROM my_values AS _LEFT_ CROSS JOIN table AS _RIGHT_) SELECT * FROM join_h_as".to_string()
         );
     }
 }
