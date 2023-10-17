@@ -379,11 +379,44 @@ impl<'a> Protection<'a> {
 
     /// Join protection from 2 PEP relations
     pub fn join_left_published(
-        //TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
         left: Relation,
         right: PEPRelation,
+    ) -> Result<PEPRelation> {
+        let name = join.name();
+        let operator = join.operator().clone();
+        let names = join.names();
+        let names = names.with(vec![
+            (vec![Join::right_name(), PE_ID], PE_ID.to_string()),
+            (vec![Join::right_name(), PE_WEIGHT],PE_WEIGHT.to_string()),
+        ]);
+        let join: Join = Relation::join()
+            .names(names)
+            .operator(operator)
+            .left(Relation::from(left))
+            .right(Relation::from(right))
+            .build();
+        let mut builder = Relation::map().name(name);
+        builder = builder.with((PE_ID, Expr::col(PE_ID)));
+        builder = builder.with((PE_WEIGHT, Expr::col(PE_WEIGHT)));
+        builder = join.names().iter().fold(builder, |b, (p, n)| {
+            if [PE_ID, PE_WEIGHT].contains(&p[1].as_str()) {
+                b
+            } else {
+                b.with((n, Expr::col(n)))
+            }
+        });
+        let relation: Relation = builder.input(Arc::new(join.into())).build();
+        PEPRelation::try_from(relation)
+    }
+
+    /// Join protection from 2 PEP relations
+    pub fn join_right_published(
+        &self,
+        join: &'a crate::relation::Join,
+        left: PEPRelation,
+        right: Relation,
     ) -> Result<PEPRelation> {
         let name = join.name();
         let operator = join.operator().clone();
@@ -402,25 +435,14 @@ impl<'a> Protection<'a> {
         builder = builder.with((PE_ID, Expr::col(PE_ID)));
         builder = builder.with((PE_WEIGHT, Expr::col(PE_WEIGHT)));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
-                    if [PE_ID, PE_WEIGHT].contains(&p[1].as_str()) {
-                        b
-                    } else {
-                        b.with((n, Expr::col(n)))
-                    }
-                });
-                let relation: Relation = builder.input(Arc::new(join.into())).build();
-                PEPRelation::try_from(relation)
-    }
-
-    /// Join protection from 2 PEP relations
-    pub fn join_right_published(
-        //TODO this need to be cleaned (really)
-        &self,
-        join: &'a crate::relation::Join,
-        left: PEPRelation,
-        right: Relation,
-    ) -> Result<PEPRelation> {
-        todo!()
+            if [PE_ID, PE_WEIGHT].contains(&p[1].as_str()) {
+                b
+            } else {
+                b.with((n, Expr::col(n)))
+            }
+        });
+        let relation: Relation = builder.input(Arc::new(join.into())).build();
+        PEPRelation::try_from(relation)
     }
 
     /// Set protection from 2 PEP relations
@@ -607,18 +629,10 @@ mod tests {
             .unwrap();
         protected_join.display_dot().unwrap();
 
-        let pe_columns = vec![
-            format!("_LEFT{PE_ID}"),
-            format!("_LEFT{PE_WEIGHT}"),
-            format!("_RIGHT{PE_ID}"),
-            format!("_RIGHT{PE_WEIGHT}"),
-        ];
         let fields: Vec<(&str, DataType)> = join
             .schema()
             .iter()
-            .filter_map(|f| {
-                (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type()))
-            })
+            .map(|f| (f.name(), f.data_type()))
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
@@ -676,18 +690,144 @@ mod tests {
             .unwrap();
         protected_join.display_dot().unwrap();
 
-        let pe_columns = vec![
-            format!("_LEFT{PE_ID}"),
-            format!("_LEFT{PE_WEIGHT}"),
-            format!("_RIGHT{PE_ID}"),
-            format!("_RIGHT{PE_WEIGHT}"),
-        ];
         let fields: Vec<(&str, DataType)> = join
             .schema()
             .iter()
-            .filter_map(|f| {
-                (!pe_columns.contains(&f.name().to_string())).then_some((f.name(), f.data_type()))
-            })
+            .map(|f| {(f.name(), f.data_type())})
+            .collect::<Vec<_>>();
+
+        let mut true_fields = vec![
+            (PE_ID, DataType::text()),
+            (PE_WEIGHT, DataType::integer_value(1)),
+        ];
+        true_fields.extend(fields.into_iter());
+        assert_eq!(
+            protected_join.deref().data_type(),
+            DataType::structured(true_fields)
+        );
+
+        let query: &str = &ast::Query::from(protected_join.deref()).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
+            .join("\n");
+    }
+
+    #[test]
+    fn test_join_left_published() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let left = relations
+            .get(&["item_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let right = relations
+            .get(&["order_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let join: Join = Join::builder()
+            .inner()
+            .on_eq("order_id", "id")
+            .left(left.clone())
+            .right(right.clone())
+            .build();
+        Relation::from(join.clone()).display_dot().unwrap();
+        let protection = Protection::from((
+            &relations,
+            vec![
+                (
+                    "item_table",
+                    vec![("order_id", "order_table", "id")],
+                    "date",
+                ),
+                ("order_table", vec![], "date"),
+            ],
+            Strategy::Hard,
+        ));
+        let published_left = left;
+        let protected_right = protection.table(right.try_into().unwrap()).unwrap();
+        let protected_join = protection
+            .join_left_published(&join, published_left, protected_right)
+            .unwrap();
+        protected_join.display_dot().unwrap();
+
+        let fields: Vec<(&str, DataType)> = join
+            .schema()
+            .iter()
+            .map(|f| (f.name(), f.data_type()))
+            .collect::<Vec<_>>();
+
+        let mut true_fields = vec![
+            (PE_ID, DataType::text()),
+            (PE_WEIGHT, DataType::integer_value(1)),
+        ];
+        true_fields.extend(fields.into_iter());
+        assert_eq!(
+            protected_join.deref().data_type(),
+            DataType::structured(true_fields)
+        );
+
+        let query: &str = &ast::Query::from(protected_join.deref()).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string)
+            .join("\n");
+    }
+
+    #[test]
+    fn test_join_right_published() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let left = relations
+            .get(&["item_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let right = relations
+            .get(&["order_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let join: Join = Join::builder()
+            .inner()
+            .on_eq("order_id", "id")
+            .left(left.clone())
+            .right(right.clone())
+            .build();
+        Relation::from(join.clone()).display_dot().unwrap();
+        let protection = Protection::from((
+            &relations,
+            vec![
+                (
+                    "item_table",
+                    vec![("order_id", "order_table", "id")],
+                    "date",
+                ),
+                ("order_table", vec![], "date"),
+            ],
+            Strategy::Hard,
+        ));
+        let protected_left = protection.table(left.try_into().unwrap()).unwrap();
+        let published_right = right;
+        let protected_join = protection
+            .join_right_published(&join, protected_left, published_right)
+            .unwrap();
+        protected_join.display_dot().unwrap();
+
+        let fields: Vec<(&str, DataType)> = join
+            .schema()
+            .iter()
+            .map(|f| (f.name(), f.data_type()))
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
