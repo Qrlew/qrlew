@@ -209,7 +209,6 @@ mod tests {
             .size(1000)
             .build();
         println!("table = {}", table);
-        println!("table[a] = {}", table[&"a".into()]);
         let map: Relation = Relation::map()
             .name("map_1")
             .with(("exp_a", Expr::exp(Expr::col("a"))))
@@ -218,7 +217,6 @@ mod tests {
             .build();
         println!("map = {}", map);
         println!("map[0] = {}", map[0]);
-        println!("map[table.a] = {}", map[&["table", "a"].into()]);
         let join: Relation = Relation::join()
             .name("join")
             .cross()

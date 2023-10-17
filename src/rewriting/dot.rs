@@ -23,7 +23,10 @@ enum Node<'a> {
 /// An edge in the RelationWithRewritingRules representation
 #[derive(Clone, Copy, Debug, Hash)]
 enum Edge<'a> {
-    RelationInput(&'a RelationWithRewritingRules<'a>, &'a RelationWithRewritingRules<'a>),
+    RelationInput(
+        &'a RelationWithRewritingRules<'a>,
+        &'a RelationWithRewritingRules<'a>,
+    ),
     RelationRewritingRule(&'a RelationWithRewritingRules<'a>, &'a RewritingRule),
 }
 
@@ -91,19 +94,33 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
 
 impl<'a> dot::GraphWalk<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a> {
     fn nodes(&'a self) -> dot::Nodes<'a, Node<'a>> {
-        self.iter().collect_vec().into_iter().rev().flat_map(|rwrr|
-            iter::once(rwrr).map(Node::Relation).chain(
-                rwrr.attributes().iter().map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr))
-            )
-        ).collect()
+        self.iter()
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .flat_map(|rwrr| {
+                iter::once(rwrr).map(Node::Relation).chain(
+                    rwrr.attributes()
+                        .iter()
+                        .map(|rewriting_rule| Node::RewritingRule(rewriting_rule, rwrr)),
+                )
+            })
+            .collect()
     }
 
     fn edges(&'a self) -> dot::Edges<'a, Edge<'a>> {
-        self.iter().flat_map(|rwrr| {
-            rwrr.inputs().into_iter().map(|input| Edge::RelationInput(rwrr, input)).chain(
-                rwrr.attributes().into_iter().map(|rewriting_rule| Edge::RelationRewritingRule(rwrr, rewriting_rule))
-            )
-        }).collect()
+        self.iter()
+            .flat_map(|rwrr| {
+                rwrr.inputs()
+                    .into_iter()
+                    .map(|input| Edge::RelationInput(rwrr, input))
+                    .chain(
+                        rwrr.attributes().into_iter().map(|rewriting_rule| {
+                            Edge::RelationRewritingRule(rwrr, rewriting_rule)
+                        }),
+                    )
+            })
+            .collect()
     }
 
     fn source(&'a self, edge: &Edge<'a>) -> Node<'a> {

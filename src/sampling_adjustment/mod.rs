@@ -588,14 +588,12 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
 
-        let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
-        let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
         let join: Relation = Relation::join()
             .left_names(left_names)
             .right_names(right_exprs)
             .left(sampled_order_table)
             .right(sampled_item_table)
-            .on(Expr::eq(qcol_expr_right, qcol_expr_left))
+            .on_eq("order_id", "id")
             .build();
         let exprs: Vec<(&str, Expr)> = join
             .schema()
@@ -663,15 +661,12 @@ mod tests {
             .skip(sampled_order_table.schema().len())
             .map(|s| s.to_string())
             .collect();
-
-        let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
-        let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
         let join: Relation = Relation::join()
             .left_names(left_names)
             .right_names(right_exprs)
             .left(sampled_order_table)
             .right(sampled_item_table)
-            .on(Expr::eq(qcol_expr_right, qcol_expr_left))
+            .on_eq("order_id", "id")
             .build();
         let exprs: Vec<(&str, Expr)> = join
             .schema()
@@ -738,14 +733,12 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
 
-        let qcol_expr_left = Expr::qcol(sampled_item_table.name(), "order_id");
-        let qcol_expr_right = Expr::qcol(sampled_order_table.name(), "id");
         let join: Relation = Relation::join()
             .left_names(left_names)
             .right_names(right_exprs)
             .left(sampled_order_table)
             .right(sampled_item_table)
-            .on(Expr::eq(qcol_expr_right, qcol_expr_left))
+            .on_eq("order_id", "id")
             .build();
         let exprs: Vec<(&str, Expr)> = join
             .schema()

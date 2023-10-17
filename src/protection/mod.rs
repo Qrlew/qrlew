@@ -143,8 +143,8 @@ impl Relation {
         let join: Relation = Relation::join()
             .inner()
             .on(Expr::eq(
-                Expr::qcol(self.name(), &referring_id),
-                Expr::qcol(referred_relation.name(), &referred_id),
+                Expr::qcol(Join::right_name(), &referring_id),
+                Expr::qcol(Join::left_name(), &referred_id),
             ))
             .left(referred_relation)
             .right(self)
@@ -261,17 +261,23 @@ pub struct Protection<'a> {
 }
 
 impl<'a> Protection<'a> {
-    pub fn new(relations: &'a Hierarchy<Arc<Relation>>, protected_entity: ProtectedEntity, strategy: Strategy) -> Protection {
+    pub fn new(
+        relations: &'a Hierarchy<Arc<Relation>>,
+        protected_entity: ProtectedEntity,
+        strategy: Strategy,
+    ) -> Protection {
         Protection {
             relations,
             protected_entity,
             strategy,
         }
     }
-    
+
     /// Table protection
     pub fn table(&self, table: Table) -> Result<PEPRelation> {
-        let (name, field_path) = self.protected_entity.iter()
+        let (name, field_path) = self
+            .protected_entity
+            .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::unprotected_table(table.path()))?;
         PEPRelation::try_from(
@@ -425,8 +431,20 @@ impl<'a> Protection<'a> {
     }
 }
 
-impl<'a> From<(&'a Hierarchy<Arc<Relation>>, Vec<(&str, Vec<(&str, &str, &str)>, &str)>, Strategy)> for Protection<'a> {
-    fn from(value: (&'a Hierarchy<Arc<Relation>>, Vec<(&str, Vec<(&str, &str, &str)>, &str)>, Strategy)) -> Self {
+impl<'a>
+    From<(
+        &'a Hierarchy<Arc<Relation>>,
+        Vec<(&str, Vec<(&str, &str, &str)>, &str)>,
+        Strategy,
+    )> for Protection<'a>
+{
+    fn from(
+        value: (
+            &'a Hierarchy<Arc<Relation>>,
+            Vec<(&str, Vec<(&str, &str, &str)>, &str)>,
+            Strategy,
+        ),
+    ) -> Self {
         let (relations, protected_entity, strategy) = value;
         let protected_entity: Vec<_> = protected_entity
             .into_iter()
