@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - support for filtering datatypes by columns and values [MR138](https://github.com/Qrlew/qrlew/pull/138)
 - Support for `HAVING` [MR141](https://github.com/Qrlew/qrlew/pull/141)
+- `names` filed in `Join::Builder` [MR153](https://github.com/Qrlew/qrlew/pull/153)
 ### Fixed
 - `filter` for `Map` and `Reduce` builders [MR137](https://github.com/Qrlew/qrlew/pull/137)
 - `expr::Function::Pointwise` [MR140](https://github.com/Qrlew/qrlew/pull/140)

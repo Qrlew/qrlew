@@ -107,7 +107,7 @@ fn is_suffix_of(left: &[String], right: &[String]) -> bool {
         .all(|(s, p)| s == p)
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub struct Hierarchy<T: Clone>(BTreeMap<Vec<String>, T>);
 
 impl<T: Clone> Hierarchy<T> {
