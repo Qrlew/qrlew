@@ -272,7 +272,7 @@ impl<'a> Protection<'a> {
     }
 
     /// Table protection
-    pub fn table(&self, table: Table) -> Result<PEPRelation> {
+    pub fn table(&self, table: &'a Table) -> Result<PEPRelation> {
         let (_, field_path) = self
             .protected_entity
             .iter()
@@ -280,18 +280,17 @@ impl<'a> Protection<'a> {
             .ok_or(Error::unprotected_table(table.path()))?;
         PEPRelation::try_from(
             Relation::from(table.clone())
-            .with_field_path(self.relations, field_path.clone())
-            .map_fields(|name, expr| {
-                if name == PE_ID {
-                    Expr::md5(Expr::cast_as_text(expr))
-                } else {
-                    expr
-                }
-            })
-            .insert_field(1, PE_WEIGHT, Expr::val(1))
+                .with_field_path(self.relations, field_path.clone())
+                .map_fields(|name, expr| {
+                    if name == PE_ID {
+                        Expr::md5(Expr::cast_as_text(expr))
+                    } else {
+                        expr
+                    }
+                })
+                .insert_field(1, PE_WEIGHT, Expr::val(1)),
         )
     }
-
 
     /// Map protection from another PEP relation
     pub fn map(&self, map: &'a Map, input: PEPRelation) -> Result<PEPRelation> {
@@ -578,8 +577,8 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let protected_left = protection.table(left.try_into().unwrap()).unwrap();
-        let protected_right = protection.table(right.try_into().unwrap()).unwrap();
+        let protected_left = protection.table(&left.try_into().unwrap()).unwrap();
+        let protected_right = protection.table(&right.try_into().unwrap()).unwrap();
         let protected_join = protection
             .join(&join, protected_left, protected_right)
             .unwrap();
@@ -640,7 +639,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let protected_table = protection.table(table.try_into().unwrap()).unwrap();
+        let protected_table = protection.table(&table.try_into().unwrap()).unwrap();
         let protected_join = protection
             .join(&join, protected_table.clone(), protected_table.clone())
             .unwrap();
