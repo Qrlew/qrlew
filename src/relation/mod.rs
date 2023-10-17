@@ -39,8 +39,8 @@ pub use builder::{
 pub use field::Field;
 pub use schema::Schema;
 
-pub const LEFT_INPUT_NAME: &str = "LEFT_NAME_";
-pub const RIGHT_INPUT_NAME: &str = "RIGHT_NAME_";
+pub const LEFT_INPUT_NAME: &str = "_LEFT_";
+pub const RIGHT_INPUT_NAME: &str = "_RIGHT_";
 
 // Error management
 
