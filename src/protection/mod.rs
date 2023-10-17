@@ -272,7 +272,7 @@ impl<'a> Protection<'a> {
     }
 
     /// Table protection
-    pub fn table(&self, table: Table) -> Result<PEPRelation> {
+    pub fn table(&self, table: &'a Table) -> Result<PEPRelation> {
         let (_, field_path) = self
             .protected_entity
             .iter()
