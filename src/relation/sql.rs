@@ -699,6 +699,7 @@ mod tests {
 
     #[test]
     fn test_display_values() {
+        namer::reset();
         let values: Relation = Relation::values()
             .name("my_values")
             .values([Value::from(3.), Value::from(4)])
