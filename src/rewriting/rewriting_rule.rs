@@ -915,7 +915,8 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     );
                     let relation = protection.table(table.clone()).unwrap().0;
                     // relation.with_name(table.name().into()).filter_fields(|name| !name.starts_with("_"))// TODO this is awfully ugly! change that quickly!
-                    table.clone().into()
+                    //table.clone().into()
+                    relation
                 }
                 (Property::DifferentiallyPrivate, _) => table.clone().into(),
                 (Property::Published, _) => table.clone().into(),
