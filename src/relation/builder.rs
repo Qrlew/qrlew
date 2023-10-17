@@ -4,13 +4,12 @@ use itertools::Itertools;
 
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Values, Variant, LEFT_INPUT_NAME, RIGHT_INPUT_NAME,
+    SetOperator, SetQuantifier, Table, Values, Variant
 };
 use crate::{
-    ast,
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    expr::{self, aggregate, AggregateColumn, Expr, Identifier, Split},
+    expr::{self, AggregateColumn, Expr, Identifier, Split},
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
     And,
 };
