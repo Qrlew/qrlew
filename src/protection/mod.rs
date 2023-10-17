@@ -8,9 +8,7 @@ use crate::{
     builder::{Ready, With, WithIterator},
     expr::{AggregateColumn, Expr},
     hierarchy::Hierarchy,
-    relation::{
-        Join, Map, Reduce, Relation, Table, Values, Variant as _,
-    },
+    relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
 };
 use protected_entity::{FieldPath, ProtectedEntity};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
@@ -282,15 +280,15 @@ impl<'a> Protection<'a> {
             .ok_or(Error::unprotected_table(table.path()))?;
         PEPRelation::try_from(
             Relation::from(table)
-            .with_field_path(self.relations, field_path.clone())
-            .map_fields(|name, expr| {
-                if name == PE_ID {
-                    Expr::md5(Expr::cast_as_text(expr))
-                } else {
-                    expr
-                }
-            })
-            .insert_field(1, PE_WEIGHT, Expr::val(1))
+                .with_field_path(self.relations, field_path.clone())
+                .map_fields(|name, expr| {
+                    if name == PE_ID {
+                        Expr::md5(Expr::cast_as_text(expr))
+                    } else {
+                        expr
+                    }
+                })
+                .insert_field(1, PE_WEIGHT, Expr::val(1)),
         )
     }
 
@@ -330,9 +328,7 @@ impl<'a> Protection<'a> {
     ) -> Result<PEPRelation> {
         // Create the protected join
         match self.strategy {
-            Strategy::Soft => {
-                Err(Error::not_protected_entity_preserving(join))
-            }
+            Strategy::Soft => Err(Error::not_protected_entity_preserving(join)),
             Strategy::Hard => {
                 let name = join.name();
                 let operator = join.operator().clone();
@@ -372,7 +368,6 @@ impl<'a> Protection<'a> {
                     }
                 });
                 let relation: Relation = builder.input(Arc::new(join.into())).build();
-
                 PEPRelation::try_from(relation)
             }
         }
@@ -386,7 +381,31 @@ impl<'a> Protection<'a> {
         left: Relation,
         right: PEPRelation,
     ) -> Result<PEPRelation> {
-        todo!()
+        let name = join.name();
+        let operator = join.operator().clone();
+        let names = join.names();
+        let names = names.with(vec![
+            (vec![Join::left_name(), PE_ID], PE_ID.to_string()),
+            (vec![Join::left_name(), PE_WEIGHT],PE_WEIGHT.to_string()),
+        ]);
+        let join: Join = Relation::join()
+            .names(names)
+            .operator(operator)
+            .left(Relation::from(left))
+            .right(Relation::from(right))
+            .build();
+        let mut builder = Relation::map().name(name);
+        builder = builder.with((PE_ID, Expr::col(PE_ID)));
+        builder = builder.with((PE_WEIGHT, Expr::col(PE_WEIGHT)));
+        builder = join.names().iter().fold(builder, |b, (p, n)| {
+                    if [PE_ID, PE_WEIGHT].contains(&p[1].as_str()) {
+                        b
+                    } else {
+                        b.with((n, Expr::col(n)))
+                    }
+                });
+                let relation: Relation = builder.input(Arc::new(join.into())).build();
+                PEPRelation::try_from(relation)
     }
 
     /// Join protection from 2 PEP relations
