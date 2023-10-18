@@ -11,6 +11,7 @@ use itertools::Itertools;
 
 use crate::{
     builder::{Ready, With},
+    synthetic_data::{SyntheticData, self},
     differential_privacy::budget::Budget,
     hierarchy::Hierarchy,
     protection::{protected_entity::ProtectedEntity, Protection},
@@ -47,6 +48,7 @@ impl fmt::Display for Property {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Parameters {
     None,
+    SyntheticData(SyntheticData),
     Budget(Budget),
     ProtectedEntity(ProtectedEntity),
 }
@@ -529,14 +531,16 @@ impl<'a> RelationWithRewritingRule<'a> {
 
 /// A basic rewriting rule setter
 struct BaseRewritingRulesSetter {
+    synthetic_data: SyntheticData,
     protected_entity: ProtectedEntity,
     budget: Budget,
 }
 // TODO implement this properly
 
 impl BaseRewritingRulesSetter {
-    pub fn new(protected_entity: ProtectedEntity, budget: Budget) -> BaseRewritingRulesSetter {
+    pub fn new(synthetic_data: SyntheticData, protected_entity: ProtectedEntity, budget: Budget) -> BaseRewritingRulesSetter {
         BaseRewritingRulesSetter {
+            synthetic_data,
             protected_entity,
             budget,
         }
@@ -547,7 +551,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
     fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
         vec![
             RewritingRule::new(vec![], Property::Private, Parameters::None),
-            RewritingRule::new(vec![], Property::SyntheticData, Parameters::None),
+            RewritingRule::new(vec![], Property::SyntheticData, Parameters::SyntheticData(self.synthetic_data.clone())),
             RewritingRule::new(
                 vec![],
                 Property::ProtectedEntityPreserving,
@@ -577,7 +581,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(
                 vec![Property::SyntheticData],
                 Property::SyntheticData,
-                Parameters::None,
+                Parameters::SyntheticData(self.synthetic_data.clone()),
             ),
         ]
     }
@@ -608,7 +612,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(
                 vec![Property::SyntheticData],
                 Property::Published,
-                Parameters::None,
+                Parameters::SyntheticData(self.synthetic_data.clone()),
             ),
         ]
     }
@@ -667,7 +671,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(
                 vec![Property::SyntheticData, Property::SyntheticData],
                 Property::SyntheticData,
-                Parameters::None,
+                Parameters::SyntheticData(self.synthetic_data.clone()),
             ),
         ]
     }
@@ -700,14 +704,14 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(
                 vec![Property::SyntheticData, Property::SyntheticData],
                 Property::SyntheticData,
-                Parameters::None,
+                Parameters::SyntheticData(self.synthetic_data.clone()),
             ),
         ]
     }
 
     fn values(&self, values: &'a Values) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![], Property::SyntheticData, Parameters::None),
+            RewritingRule::new(vec![], Property::SyntheticData, Parameters::SyntheticData(self.synthetic_data.clone())),
             RewritingRule::new(vec![], Property::Public, Parameters::None),
         ]
     }
@@ -904,6 +908,9 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         Arc::new(
             match (rewriting_rule.output(), rewriting_rule.parameters()) {
                 (Property::Private, _) => table.clone().into(),
+                (Property::SyntheticData, Parameters::SyntheticData(synthetic_data)) => {
+                    synthetic_data.table(table).unwrap().into()
+                }
                 (
                     Property::ProtectedEntityPreserving,
                     Parameters::ProtectedEntity(protected_entity),
@@ -1092,7 +1099,7 @@ mod tests {
         io::{postgresql, Database},
         protection::protected_entity,
         sql::parse,
-        Relation,
+        Relation, synthetic_data, expr::Identifier,
     };
 
     #[test]
@@ -1107,6 +1114,11 @@ mod tests {
             "SELECT order_id, price FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)",
         )
         .unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
         let protected_entity = ProtectedEntity::from(vec![
             (
                 "item_table",
@@ -1128,7 +1140,7 @@ mod tests {
         relation.display_dot().unwrap();
         // Add rewritting rules
         let relation_with_rules =
-            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(protected_entity, budget));
+            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(synthetic_data, protected_entity, budget));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules =
             relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
@@ -1156,6 +1168,11 @@ mod tests {
         FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
         )
         .unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
         let protected_entity = ProtectedEntity::from(vec![
             (
                 "item_table",
@@ -1177,7 +1194,7 @@ mod tests {
         relation.display_dot().unwrap();
         // Add rewritting rules
         let relation_with_rules =
-            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(protected_entity, budget));
+            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(synthetic_data, protected_entity, budget));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules =
             relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
@@ -1202,6 +1219,11 @@ mod tests {
         SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
         "#,
         ).unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
         let protected_entity = ProtectedEntity::from(vec![
             (
                 "item_table",
@@ -1223,7 +1245,7 @@ mod tests {
         relation.display_dot().unwrap();
         // Add rewritting rules
         let relation_with_rules =
-            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(protected_entity, budget));
+            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(synthetic_data, protected_entity, budget));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules =
             relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);

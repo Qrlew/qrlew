@@ -32,6 +32,7 @@ pub mod relation;
 pub mod rewriting;
 pub mod sampling_adjustment;
 pub mod sql;
+pub mod synthetic_data;
 pub mod types;
 pub mod visitor;
 

@@ -27,6 +27,9 @@ impl Error {
     pub fn unprotected_table(table: impl fmt::Display) -> Error {
         Error::NotProtectedEntityPreserving(format!("{} is not protected", table))
     }
+    pub fn other(value: impl fmt::Display) -> Error {
+        Error::Other(format!("{} is not protected", value))
+    }
 }
 
 impl fmt::Display for Error {
@@ -487,23 +490,6 @@ impl<'a>
             .map(|(table, protection, referred_field)| (table, protection, referred_field))
             .collect();
         Protection::new(relations, ProtectedEntity::from(protected_entity), strategy)
-    }
-}
-/// A visitor to compute Relation protection
-#[derive(Clone, Debug)]
-pub struct ProtectVisitor<F: Fn(&Table) -> Result<PEPRelation>> {
-    /// The protected entity definition
-    protect_tables: F,
-    /// Strategy used
-    strategy: Strategy,
-}
-
-impl<F: Fn(&Table) -> Result<PEPRelation>> ProtectVisitor<F> {
-    pub fn new(protect_tables: F, strategy: Strategy) -> Self {
-        ProtectVisitor {
-            protect_tables,
-            strategy,
-        }
     }
 }
 
