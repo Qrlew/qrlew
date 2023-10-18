@@ -1071,15 +1071,13 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "_PROTECTED_ENTITY_ID_",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "_PROTECTED_ENTITY_ID_",
             ),
-            ("user_table", vec![], "name", "_PROTECTED_ENTITY_ID_"),
+            ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -1122,15 +1120,13 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "_PROTECTED_ENTITY_ID_",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "_PROTECTED_ENTITY_ID_",
             ),
-            ("user_table", vec![], "name", "_PROTECTED_ENTITY_ID_"),
+            ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -1170,15 +1166,13 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "_PROTECTED_ENTITY_ID_",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "_PROTECTED_ENTITY_ID_",
             ),
-            ("user_table", vec![], "name", "_PROTECTED_ENTITY_ID_"),
+            ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();

@@ -11,7 +11,7 @@ use qrlew::{
     display::Dot,
     expr,
     io::{postgresql, Database},
-    protection::PE_ID,
+    protection::ProtectedEntity,
     relation::Variant as _,
     sql::parse,
     Relation, With,
