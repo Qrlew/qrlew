@@ -6,14 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.4.0] - 2023-10-19
 ### Added
 - support for filtering datatypes by columns and values [MR138](https://github.com/Qrlew/qrlew/pull/138)
 - Support for `HAVING` [MR141](https://github.com/Qrlew/qrlew/pull/141)
 - `names` filed in `Join::Builder` [MR153](https://github.com/Qrlew/qrlew/pull/153)
+- Added Budget split
+- Added Score
 ### Fixed
 - `filter` for `Map` and `Reduce` builders [MR137](https://github.com/Qrlew/qrlew/pull/137)
 - `expr::Function::Pointwise` [MR140](https://github.com/Qrlew/qrlew/pull/140)
 - protection for `Join` [MR147](https://github.com/Qrlew/qrlew/pull/147)
+- Fixed the rest of protection
 
 ## [0.3.8] - 2023-09-29
 ### Changed
