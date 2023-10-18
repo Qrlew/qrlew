@@ -572,7 +572,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(
                 vec![Property::ProtectedEntityPreserving],
                 Property::ProtectedEntityPreserving,
-                Parameters::None,
+                Parameters::ProtectedEntity(self.protected_entity.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData],
@@ -633,12 +633,12 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(
                 vec![Property::Published, Property::ProtectedEntityPreserving],
                 Property::ProtectedEntityPreserving,
-                Parameters::None,
+                Parameters::ProtectedEntity(self.protected_entity.clone()),
             ),
             RewritingRule::new(
                 vec![Property::ProtectedEntityPreserving, Property::Published],
                 Property::ProtectedEntityPreserving,
-                Parameters::None,
+                Parameters::ProtectedEntity(self.protected_entity.clone()),
             ),
             RewritingRule::new(
                 vec![
@@ -646,7 +646,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                     Property::ProtectedEntityPreserving,
                 ],
                 Property::ProtectedEntityPreserving,
-                Parameters::None,
+                Parameters::ProtectedEntity(self.protected_entity.clone()),
             ),
             RewritingRule::new(
                 vec![
@@ -654,7 +654,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                     Property::DifferentiallyPrivate,
                 ],
                 Property::ProtectedEntityPreserving,
-                Parameters::None,
+                Parameters::ProtectedEntity(self.protected_entity.clone()),
             ),
             RewritingRule::new(
                 vec![
@@ -662,7 +662,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                     Property::ProtectedEntityPreserving,
                 ],
                 Property::ProtectedEntityPreserving,
-                Parameters::None,
+                Parameters::ProtectedEntity(self.protected_entity.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData, Property::SyntheticData],
@@ -695,7 +695,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                     Property::ProtectedEntityPreserving,
                 ],
                 Property::ProtectedEntityPreserving,
-                Parameters::None,
+                Parameters::ProtectedEntity(self.protected_entity.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData, Property::SyntheticData],
@@ -911,11 +911,9 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     let protection = Protection::new(
                         self.0,
                         protected_entity.clone(),
-                        crate::protection::Strategy::Hard,
+                        crate::protection::Strategy::Soft,
                     );
-                    let relation = protection.table(table.clone()).unwrap().0;
-                    // relation.with_name(table.name().into()).filter_fields(|name| !name.starts_with("_"))// TODO this is awfully ugly! change that quickly!
-                    table.clone().into()
+                    protection.table(table).unwrap().into()
                 }
                 (Property::DifferentiallyPrivate, _) => table.clone().into(),
                 (Property::Published, _) => table.clone().into(),
@@ -932,10 +930,31 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         rewritten_input: Arc<Relation>,
     ) -> Arc<Relation> {
         Arc::new(
-            Relation::map()
-                .with(map.clone())
-                .input(rewritten_input)
-                .build(),
+            match (
+                rewriting_rule.inputs(),
+                rewriting_rule.output(),
+                rewriting_rule.parameters(),
+            ) {
+                (
+                    [Property::ProtectedEntityPreserving],
+                    Property::ProtectedEntityPreserving,
+                    Parameters::ProtectedEntity(protected_entity),
+                ) => {
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Soft,
+                    );
+                    protection
+                        .map(map, (*rewritten_input).clone().try_into().unwrap())
+                        .unwrap()
+                        .into()
+                }
+                _ => Relation::map()
+                    .with(map.clone())
+                    .input(rewritten_input)
+                    .build(),
+            },
         )
     }
 
@@ -946,10 +965,31 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         rewritten_input: Arc<Relation>,
     ) -> Arc<Relation> {
         Arc::new(
-            Relation::reduce()
-                .with(reduce.clone())
-                .input(rewritten_input)
-                .build(),
+            match (
+                rewriting_rule.inputs(),
+                rewriting_rule.output(),
+                rewriting_rule.parameters(),
+            ) {
+                (
+                    [Property::ProtectedEntityPreserving],
+                    Property::ProtectedEntityPreserving,
+                    Parameters::ProtectedEntity(protected_entity),
+                ) => {
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Hard,
+                    );
+                    protection
+                        .reduce(reduce, (*rewritten_input).clone().try_into().unwrap())
+                        .unwrap()
+                        .into()
+                }
+                _ => Relation::reduce()
+                    .with(reduce.clone())
+                    .input(rewritten_input)
+                    .build(),
+            },
         )
     }
 
@@ -960,20 +1000,64 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         rewritten_left: Arc<Relation>,
         rewritten_right: Arc<Relation>,
     ) -> Arc<Relation> {
-        // TODO this is awfully ugly! change that quickly!
-        // println!("DEBUG LEFT {}", rewritten_left.schema());
-        // println!("DEBUG LEFT {}", join.left().schema());
-        // println!("DEBUG RIGHT {}", rewritten_right.schema());
-        // println!("DEBUG RIGHT {}", join.right().schema());
-        let names: Vec<_> = join.schema().iter().map(|f| f.name().to_string()).collect();
-        // let left
         Arc::new(
-            Relation::join()
-                .with(join.clone())
-                // .left_names(names[0..rewritten_left])
-                .left(rewritten_left)
-                .right(rewritten_right)
-                .build(),
+            match (
+                rewriting_rule.inputs(),
+                rewriting_rule.output(),
+                rewriting_rule.parameters(),
+            ) {
+                (
+                    [Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving],
+                    Property::ProtectedEntityPreserving,
+                    Parameters::ProtectedEntity(protected_entity),
+                ) => {
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Hard,
+                    );
+                    protection
+                        .join(join, (*rewritten_left).clone().try_into().unwrap(), (*rewritten_right).clone().try_into().unwrap())
+                        .unwrap()
+                        .into()
+                }
+                (
+                    [Property::Published, Property::ProtectedEntityPreserving],
+                    Property::ProtectedEntityPreserving,
+                    Parameters::ProtectedEntity(protected_entity),
+                ) => {
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Hard,
+                    );
+                    protection
+                        .join_left_published(join, (*rewritten_left).clone().try_into().unwrap(), (*rewritten_right).clone().try_into().unwrap())
+                        .unwrap()
+                        .into()
+                }
+                (
+                    [Property::ProtectedEntityPreserving, Property::Published],
+                    Property::ProtectedEntityPreserving,
+                    Parameters::ProtectedEntity(protected_entity),
+                ) => {
+                    let protection = Protection::new(
+                        self.0,
+                        protected_entity.clone(),
+                        crate::protection::Strategy::Hard,
+                    );
+                    protection
+                        .join_right_published(join, (*rewritten_left).clone().try_into().unwrap(), (*rewritten_right).clone().try_into().unwrap())
+                        .unwrap()
+                        .into()
+                }
+                _ => Relation::join()
+                    .with(join.clone())
+                    // .left_names(names[0..rewritten_left])
+                    .left(rewritten_left)
+                    .right(rewritten_right)
+                    .build(),
+            },
         )
     }
 
@@ -1031,15 +1115,13 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "peid",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "peid",
             ),
-            ("user_table", vec![], "name", "peid"),
+            ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -1082,15 +1164,13 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "peid",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "peid",
             ),
-            ("user_table", vec![], "name", "peid"),
+            ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -1130,15 +1210,13 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "peid",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "peid",
             ),
-            ("user_table", vec![], "name", "peid"),
+            ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();

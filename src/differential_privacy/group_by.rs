@@ -176,7 +176,7 @@ mod tests {
         expr::AggregateColumn,
         hierarchy::Hierarchy,
         io::{postgresql, Database},
-        protection::{PE_ID, PE_WEIGHT},
+        protection::ProtectedEntity,
         relation::Schema,
     };
     use std::sync::Arc;
@@ -190,8 +190,8 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
-                    .with((PE_ID, DataType::integer_range(1..=100)))
-                    .with((PE_WEIGHT, DataType::float_interval(0., 1.)))
+                    .with((ProtectedEntity::protected_entity_id(), DataType::integer_range(1..=100)))
+                    .with((ProtectedEntity::protected_entity_weight(), DataType::float_interval(0., 1.)))
                     .build(),
             )
             .build();

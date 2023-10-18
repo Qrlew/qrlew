@@ -2,6 +2,11 @@ use colored::Colorize;
 use itertools::Itertools;
 use std::{fmt::Display, hash::Hash, ops::Deref};
 
+pub const PROTECTION_PREFIX: &str = "_PROTECTED_";
+pub const PROTECTION_COLUMNS: usize = 2;
+pub const PROTECTED_ENTITY_ID: &str = "_PROTECTED_ENTITY_ID_";
+pub const PROTECTED_ENTITY_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
+
 // A few utility objects
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
@@ -156,18 +161,16 @@ impl Display for ReferredField {
 
 /// A path to a field
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
-pub struct FieldPath {
+pub struct ProtectedEntityPath {
     path: Path,
-    referred_field: String,
-    referred_field_name: String,
+    protected_entity_field: String,
 }
 
-impl FieldPath {
-    pub fn new(path: Path, referred_field: String, referred_field_name: String) -> FieldPath {
-        FieldPath {
+impl ProtectedEntityPath {
+    pub fn new(path: Path, protected_entity_field: String) -> ProtectedEntityPath {
+        ProtectedEntityPath {
             path,
-            referred_field,
-            referred_field_name,
+            protected_entity_field,
         }
     }
 
@@ -176,50 +179,48 @@ impl FieldPath {
     }
 
     pub fn referred_field(&self) -> &str {
-        &self.referred_field
+        &self.protected_entity_field
     }
 
-    pub fn referred_field_name(&self) -> &str {
-        &self.referred_field_name
+    pub fn protected_entity_id() -> &'static str {
+        PROTECTED_ENTITY_ID
     }
 }
 
-impl Display for FieldPath {
+impl Display for ProtectedEntityPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{} {} {} AS {}",
             self.path,
             "→".yellow(),
-            self.referred_field,
-            self.referred_field_name
+            self.protected_entity_field,
+            ProtectedEntityPath::protected_entity_id(),
         )
     }
 }
 
-impl From<(Vec<(&str, &str, &str)>, &str, &str)> for FieldPath {
+impl From<(Vec<(&str, &str, &str)>, &str)> for ProtectedEntityPath {
     fn from(
-        (path, referred_field, referred_field_name): (Vec<(&str, &str, &str)>, &str, &str),
+        (path, referred_field): (Vec<(&str, &str, &str)>, &str),
     ) -> Self {
-        FieldPath::new(
+        ProtectedEntityPath::new(
             Path::from_iter(path),
             referred_field.into(),
-            referred_field_name.into(),
         )
     }
 }
 
-impl<'a> From<&'a FieldPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str) {
-    fn from(value: &'a FieldPath) -> Self {
+impl<'a> From<&'a ProtectedEntityPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a str) {
+    fn from(value: &'a ProtectedEntityPath) -> Self {
         (
             (&value.path).into(),
-            &value.referred_field,
-            &value.referred_field_name,
+            &value.protected_entity_field,
         )
     }
 }
 
-impl<'a> IntoIterator for FieldPath {
+impl<'a> IntoIterator for ProtectedEntityPath {
     type Item = ReferredField;
     type IntoIter = <Vec<ReferredField> as IntoIterator>::IntoIter;
 
@@ -230,14 +231,14 @@ impl<'a> IntoIterator for FieldPath {
         for step in self.path {
             if let Some(last_step) = &mut last_step {
                 field_path.push(ReferredField::new(
-                    last_step.referring_id.clone(),
-                    last_step.referred_relation.clone(),
-                    last_step.referred_id.clone(),
-                    step.referring_id.clone(),
-                    self.referred_field_name.clone(),
+                    last_step.referring_id.to_string(),
+                    last_step.referred_relation.to_string(),
+                    last_step.referred_id.to_string(),
+                    step.referring_id.to_string(),
+                    ProtectedEntityPath::protected_entity_id().to_string(),
                 ));
                 *last_step = Step::new(
-                    self.referred_field_name.clone(),
+                    ProtectedEntityPath::protected_entity_id().to_string(),
                     step.referred_relation,
                     step.referred_id,
                 );
@@ -250,8 +251,8 @@ impl<'a> IntoIterator for FieldPath {
                 last_step.referring_id,
                 last_step.referred_relation,
                 last_step.referred_id,
-                self.referred_field,
-                self.referred_field_name,
+                self.protected_entity_field,
+                ProtectedEntityPath::protected_entity_id().to_string(),
             ));
         }
         field_path.into_iter()
@@ -260,7 +261,25 @@ impl<'a> IntoIterator for FieldPath {
 
 /// Associate a PEID to each table
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ProtectedEntity(Vec<(String, FieldPath)>);
+pub struct ProtectedEntity(Vec<(String, ProtectedEntityPath)>);
+
+impl ProtectedEntity {
+    pub fn protected_prefix() -> &'static str {
+        PROTECTION_PREFIX
+    }
+
+    pub fn protected_columns() -> usize {
+        PROTECTION_COLUMNS
+    }
+
+    pub fn protected_entity_id() -> &'static str {
+        ProtectedEntityPath::protected_entity_id()
+    }
+
+    pub fn protected_entity_weight() -> &'static str {
+        PROTECTED_ENTITY_WEIGHT
+    }
+}
 
 impl Display for ProtectedEntity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -275,29 +294,28 @@ impl Display for ProtectedEntity {
 }
 
 impl Deref for ProtectedEntity {
-    type Target = Vec<(String, FieldPath)>;
+    type Target = Vec<(String, ProtectedEntityPath)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<ProtectedEntity> for Vec<(String, FieldPath)> {
+impl From<ProtectedEntity> for Vec<(String, ProtectedEntityPath)> {
     fn from(value: ProtectedEntity) -> Self {
         value.0
     }
 }
 
-impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>> for ProtectedEntity {
-    fn from(value: Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>) -> Self {
+impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for ProtectedEntity {
+    fn from(value: Vec<(&str, Vec<(&str, &str, &str)>, &str)>) -> Self {
         let mut result = vec![];
-        for (table, protection, referred_field, referred_field_name) in value {
+        for (table, protection, referred_field) in value {
             result.push((
                 table.into(),
-                FieldPath::new(
+                ProtectedEntityPath::new(
                     Path::from_iter(protection),
                     referred_field.into(),
-                    referred_field_name.into(),
                 ),
             ));
         }
@@ -306,7 +324,7 @@ impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>> for ProtectedEntity 
 }
 
 impl<'a> From<&'a ProtectedEntity>
-    for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str, &'a str)>
+    for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>
 {
     fn from(value: &'a ProtectedEntity) -> Self {
         value
@@ -316,7 +334,6 @@ impl<'a> From<&'a ProtectedEntity>
                     table.as_str(),
                     field_path.path().into(),
                     field_path.referred_field(),
-                    field_path.referred_field_name(),
                 )
             })
             .collect()
@@ -325,7 +342,7 @@ impl<'a> From<&'a ProtectedEntity>
 
 impl Hash for ProtectedEntity {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let vec_representation: Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)> = self.into();
+        let vec_representation: Vec<(&str, Vec<(&str, &str, &str)>, &str)> = self.into();
         vec_representation.hash(state);
     }
 }
@@ -364,13 +381,12 @@ mod tests {
     // Add some tests
     #[test]
     fn test_field_path() {
-        let field_path: FieldPath = (
+        let field_path: ProtectedEntityPath = (
             vec![
                 ("order_id", "order_table", "id"),
                 ("user_id", "user_table", "id"),
             ],
             "name",
-            "peid",
         )
             .into();
         println!("{}", field_path);
@@ -378,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_length_zero_field_path() {
-        let field_path: FieldPath = (vec![], "name", "peid").into();
+        let field_path: ProtectedEntityPath = (vec![], "name").into();
         println!("{}", field_path);
     }
 
@@ -393,15 +409,13 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "peid",
             ),
             (
                 "order_table",
                 vec![("user_id", "user_table", "id")],
                 "name",
-                "peid",
             ),
-            ("user_table", vec![], "name", "peid"),
+            ("user_table", vec![], "name"),
         ]);
         println!("{}", protected_entity);
     }

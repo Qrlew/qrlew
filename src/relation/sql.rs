@@ -172,14 +172,8 @@ fn table_factor(relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
     }
 }
 
-fn table_with_joins(
-    relation: ast::TableFactor,
-    joins: Vec<ast::Join>,
-) -> ast::TableWithJoins {
-    ast::TableWithJoins {
-        relation,
-        joins,
-    }
+fn table_with_joins(relation: ast::TableFactor, joins: Vec<ast::Join>) -> ast::TableWithJoins {
+    ast::TableWithJoins { relation, joins }
 }
 
 fn ctes_from_query(query: ast::Query) -> Vec<ast::Cte> {
