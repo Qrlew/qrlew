@@ -290,9 +290,9 @@ impl<'a> Protection<'a> {
     /// Map protection from another PEP relation
     pub fn map(&self, map: &'a Map, input: PEPRelation) -> Result<PEPRelation> {
         let relation: Relation = Relation::map()
-            .with(map.clone())
             .with((ProtectedEntity::protected_entity_id(), Expr::col(ProtectedEntity::protected_entity_id())))
             .with((ProtectedEntity::protected_entity_weight(), Expr::col(ProtectedEntity::protected_entity_weight())))
+            .with(map.clone())
             .input(Relation::from(input))
             .build();
         PEPRelation::try_from(relation)
@@ -367,7 +367,6 @@ impl<'a> Protection<'a> {
                     }
                 });
                 let relation: Relation = builder.input(Arc::new(join.into())).build();
-
                 PEPRelation::try_from(relation)
             }
         }
@@ -381,7 +380,32 @@ impl<'a> Protection<'a> {
         left: Relation,
         right: PEPRelation,
     ) -> Result<PEPRelation> {
-        todo!()
+        let name = join.name();
+        let operator = join.operator().clone();
+        let names = join.names();
+        let names = names.with(vec![
+            (vec![Join::right_name(), ProtectedEntity::protected_entity_id()], format!("_RIGHT{}", ProtectedEntity::protected_entity_id())),
+            (vec![Join::right_name(), ProtectedEntity::protected_entity_weight()], format!("_RIGHT{}", ProtectedEntity::protected_entity_weight())),
+        ]);
+        let join: Join = Relation::join()
+            .names(names)
+            .operator(operator)
+            .left(Relation::from(left))
+            .right(Relation::from(right))
+            .build();
+        let mut builder = Relation::map()
+            .name(name)
+            .with((ProtectedEntity::protected_entity_id(), Expr::col(format!("_RIGHT{}", ProtectedEntity::protected_entity_id()))))
+            .with((ProtectedEntity::protected_entity_weight(), Expr::col(format!("_RIGHT{}", ProtectedEntity::protected_entity_weight()))));
+        builder = join.names().iter().fold(builder, |b, (p, n)| {
+            if [ProtectedEntity::protected_entity_id(), ProtectedEntity::protected_entity_weight()].contains(&p[1].as_str()) {
+                b
+            } else {
+                b.with((n, Expr::col(n)))
+            }
+        });
+        let relation: Relation = builder.input(Arc::new(join.into())).build();
+        PEPRelation::try_from(relation)
     }
 
     /// Join protection from 2 PEP relations
@@ -392,7 +416,32 @@ impl<'a> Protection<'a> {
         left: PEPRelation,
         right: Relation,
     ) -> Result<PEPRelation> {
-        todo!()
+        let name = join.name();
+        let operator = join.operator().clone();
+        let names = join.names();
+        let names = names.with(vec![
+            (vec![Join::left_name(), ProtectedEntity::protected_entity_id()], format!("_LEFT{}", ProtectedEntity::protected_entity_id())),
+            (vec![Join::left_name(), ProtectedEntity::protected_entity_weight()], format!("_LEFT{}", ProtectedEntity::protected_entity_weight())),
+        ]);
+        let join: Join = Relation::join()
+            .names(names)
+            .operator(operator)
+            .left(Relation::from(left))
+            .right(Relation::from(right))
+            .build();
+        let mut builder = Relation::map()
+            .name(name)
+            .with((ProtectedEntity::protected_entity_id(), Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_id()))))
+            .with((ProtectedEntity::protected_entity_weight(), Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_weight()))));
+        builder = join.names().iter().fold(builder, |b, (p, n)| {
+            if [ProtectedEntity::protected_entity_id(), ProtectedEntity::protected_entity_weight()].contains(&p[1].as_str()) {
+                b
+            } else {
+                b.with((n, Expr::col(n)))
+            }
+        });
+        let relation: Relation = builder.input(Arc::new(join.into())).build();
+        PEPRelation::try_from(relation)
     }
 
     /// Set protection from 2 PEP relations
