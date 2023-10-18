@@ -901,6 +901,34 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
     }
 }
 
+/// Compute the number of DP ops
+struct BaseBudgetDispatcher;
+
+impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BaseBudgetDispatcher {
+    fn visit(&self, acceptor: &'a RelationWithRewritingRule<'a>, dependencies: Visited<'a, RelationWithRewritingRule<'a>, usize>) -> usize {
+        acceptor.inputs().iter().fold(match acceptor.attributes().output() {
+            Property::DifferentiallyPrivate => 1,
+            _ => 0,
+        }, |sum, rwrr| sum+dependencies.get(rwrr.deref()))
+    }
+}
+
+/// Compute the score
+struct BaseScore;
+
+impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
+    fn visit(&self, acceptor: &'a RelationWithRewritingRule<'a>, dependencies: Visited<'a, RelationWithRewritingRule<'a>, f64>) -> f64 {
+        acceptor.inputs().iter().fold(match acceptor.attributes().output() {
+            Property::SyntheticData => 1.,
+            Property::ProtectedEntityPreserving => 2.,
+            Property::DifferentiallyPrivate => 5.,
+            Property::Published => 1.,
+            Property::Public => 10.,
+            _ => 0.
+        }, |sum, rwrr| sum+dependencies.get(rwrr.deref()))
+    }
+}
+
 struct BaseRewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
 
 impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
@@ -1147,6 +1175,9 @@ mod tests {
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
             rwrr.display_dot().unwrap();
+            let num_dp = rwrr.accept(BaseBudgetDispatcher);
+            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
             rwrr.rewrite(BaseRewriter(&relations))
                 .display_dot()
                 .unwrap();
@@ -1201,6 +1232,9 @@ mod tests {
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
             rwrr.display_dot().unwrap();
+            let num_dp = rwrr.accept(BaseBudgetDispatcher);
+            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
             rwrr.rewrite(BaseRewriter(&relations))
                 .display_dot()
                 .unwrap();
@@ -1252,6 +1286,9 @@ mod tests {
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
             rwrr.display_dot().unwrap();
+            let num_dp = rwrr.accept(BaseBudgetDispatcher);
+            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
             rwrr.rewrite(BaseRewriter(&relations))
                 .display_dot()
                 .unwrap();
