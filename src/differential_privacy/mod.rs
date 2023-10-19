@@ -12,9 +12,8 @@ use crate::{
     builder::With,
     differential_privacy::private_query::PrivateQuery,
     expr,
-    protection::{self, PEPReduce, PEPRelation},
-    relation::{rewriting, Join, Map, Reduce, Relation, Table, Visitor},
-    visitor::Acceptor,
+    protection,
+    relation::{rewriting, Reduce, Relation},
     Ready,
 };
 use std::{error, fmt, ops::Deref, result};
@@ -113,22 +112,21 @@ impl From<(Relation, PrivateQuery)> for DPRelation {
     }
 }
 
-impl PEPReduce {
-    /// Compiles a protected Relation into DP:
-    ///     - Replace the grouping keys by their DP values
-    /// protected the grouping keys and the results of the aggregations
-    pub fn dp_compile(
+impl Reduce {
+    /// Compiles a `Reduce` into DP:
+    ///     - Protect the grouping keys
+    ///     - Add noise on the aggregations
+    pub fn differential_privacy(
         self,
         epsilon: f64,
         delta: f64,
         epsilon_tau_thresholding: f64,
         delta_tau_thresholding: f64,
     ) -> Result<DPRelation> {
-        let protected_entity_id = self.protected_entity_id().to_string();
         let mut private_query = PrivateQuery::null();
 
         // DP compile group by
-        let pep_reduce_with_dp_group_by = if self.group_by_names() == vec![protected_entity_id] {
+        let reduce_with_dp_group_by = if self.group_by().is_empty() {
             self
         } else {
             let (dp_grouping_values, private_query_group_by) = self
@@ -139,16 +137,16 @@ impl PEPReduce {
                 .clone()
                 .join_with_grouping_values(dp_grouping_values)?;
             let reduce: Reduce = Reduce::builder()
-                .with(self.deref().clone())
+                .with(self)
                 .input(input_relation_with_protected_group_by)
                 .build();
             private_query = private_query.compose(private_query_group_by);
-            PEPReduce::try_from(reduce)?
+            reduce
         };
 
         // DP compile aggregates
-        let (dp_relation, private_query_agg) = pep_reduce_with_dp_group_by
-            .dp_compile_aggregates(epsilon, delta)?
+        let (dp_relation, private_query_agg) = reduce_with_dp_group_by
+            .differential_privacy_aggregates(epsilon, delta)?
             .into();
         private_query = private_query.compose(private_query_agg);
         Ok((dp_relation, private_query).into())
@@ -169,151 +167,160 @@ mod tests {
         relation::{Schema, Variant},
         sql::parse,
         Relation,
+        protection::{Protection, Strategy}
     };
     use std::sync::Arc;
 
-    // #[test]
-    // fn test_dp_compile_reduce() {
-    //     let table: Relation = Relation::table()
-    //         .name("table")
-    //         .schema(
-    //             Schema::builder()
-    //                 .with(("a", DataType::integer_range(1..=10)))
-    //                 .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
-    //                 .with(("c", DataType::integer_range(5..=20)))
-    //                 .with(("id", DataType::integer_range(1..=100)))
-    //                 .build(),
-    //         )
-    //         .build();
-    //     let relations: Hierarchy<Arc<Relation>> = vec![("table", Arc::new(table.clone()))]
-    //         .into_iter()
-    //         .collect();
-    //     let (epsilon, delta) = (1., 1e-3);
-    //     let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+    #[test]
+    fn test_dp_compile_reduce_without_group_by() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
 
-    //     // Without GROUPBY
-    //     let relation: Relation = Relation::reduce()
-    //         .name("reduce_relation")
-    //         .with(("sum_a".to_string(), AggregateColumn::sum("a")))
-    //         .input(table.clone())
-    //         .build();
-    //     //relation.display_dot().unwrap();
-    //     let pep_relation =
-    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
-    //     let (dp_relation, private_query) = pep_relation
-    //         .dp_compile(
-    //             epsilon,
-    //             delta,
-    //             epsilon_tau_thresholding,
-    //             delta_tau_thresholding,
-    //         )
-    //         .unwrap()
-    //         .into();
-    //     dp_relation.display_dot().unwrap();
-    //     assert_eq!(
-    //         private_query,
-    //         PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
-    //     );
-    //     assert!(dp_relation
-    //         .data_type()
-    //         .is_subset_of(&DataType::structured([("sum_a", DataType::float())])));
+        let table = relations
+            .get(&["item_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let (epsilon, delta) = (1., 1e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
 
-    //     // With GROUPBY. Only one column with possible values
-    //     let relation: Relation = Relation::reduce()
-    //         .name("reduce_relation")
-    //         .with(("sum_a".to_string(), AggregateColumn::sum("a")))
-    //         .with(("b".to_string(), AggregateColumn::first("b")))
-    //         .group_by(expr!(b))
-    //         .input(table.clone())
-    //         .build();
-    //     let pep_relation =
-    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
-    //     let (dp_relation, private_query) = pep_relation
-    //         .dp_compile(
-    //             epsilon,
-    //             delta,
-    //             epsilon_tau_thresholding,
-    //             delta_tau_thresholding,
-    //         )
-    //         .unwrap()
-    //         .into();
-    //     dp_relation.display_dot().unwrap();
-    //     assert_eq!(
-    //         private_query,
-    //         PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
-    //     );
-    //     assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
-    //         ("sum_a", DataType::float()),
-    //         ("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))
-    //     ])));
+        // protect the inputs
+        let protection = Protection::from((
+            &relations,
+            vec![
+                (
+                    "item_table",
+                    vec![("order_id", "order_table", "id")],
+                    "date",
+                ),
+                ("order_table", vec![], "date"),
+            ],
+            Strategy::Hard,
+        ));
+        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let reduce = Reduce::new(
+            "my_reduce".to_string(),
+            vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
+            vec![],
+            pep_table.deref().clone().into()
+        );
+        let relation = Relation::from(reduce.clone());
+        relation.display_dot().unwrap();
 
-    //     // With GROUPBY. Only one column with tau-thresholding values
-    //     let relation: Relation = Relation::reduce()
-    //         .name("reduce_relation")
-    //         .with(("sum_a".to_string(), AggregateColumn::sum("a")))
-    //         .group_by(expr!(c))
-    //         .with(("c".to_string(), AggregateColumn::first("c")))
-    //         .input(table.clone())
-    //         .build();
-    //     let pep_relation =
-    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
-    //     //pep_relation.display_dot().unwrap();
-    //     let (dp_relation, private_query) = pep_relation
-    //         .dp_compile(
-    //             epsilon,
-    //             delta,
-    //             epsilon_tau_thresholding,
-    //             delta_tau_thresholding,
-    //         )
-    //         .unwrap()
-    //         .into();
-    //     assert_eq!(
-    //         private_query,
-    //         vec![
-    //             PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
-    //             PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
-    //         ]
-    //         .into()
-    //     );
-    //     assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
-    //         ("sum_a", DataType::float()),
-    //         ("c", DataType::integer_range(5..=20))
-    //     ])));
+        let (dp_relation, private_query) = reduce
+            .differential_privacy(
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding,
+            )
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+        );
+        assert!(dp_relation
+            .data_type()
+            .is_subset_of(&DataType::structured([("sum_a", DataType::float())])));
 
-    //     // With GROUPBY. Both tau-thresholding and possible values
-    //     let relation: Relation = Relation::reduce()
-    //         .name("reduce_relation")
-    //         .with(("sum_a".to_string(), AggregateColumn::sum("a")))
-    //         .group_by(expr!(c))
-    //         .group_by(expr!(b))
-    //         .with(("b".to_string(), AggregateColumn::first("b")))
-    //         .input(table.clone())
-    //         .build();
-    //     let pep_relation =
-    //         relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
-    //     //pep_relation.display_dot().unwrap();
-    //     let (dp_relation, private_query) = pep_relation
-    //         .dp_compile(
-    //             epsilon,
-    //             delta,
-    //             epsilon_tau_thresholding,
-    //             delta_tau_thresholding,
-    //         )
-    //         .unwrap()
-    //         .into();
-    //     assert_eq!(
-    //         private_query,
-    //         vec![
-    //             PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
-    //             PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
-    //         ]
-    //         .into()
-    //     );
-    //     assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
-    //         ("sum_a", DataType::float()),
-    //         ("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))
-    //     ])));
-    // }
+        // // With GROUPBY. Only one column with possible values
+        // let relation: Relation = Relation::reduce()
+        //     .name("reduce_relation")
+        //     .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+        //     .with(("b".to_string(), AggregateColumn::first("b")))
+        //     .group_by(expr!(b))
+        //     .input(table.clone())
+        //     .build();
+        // let pep_relation =
+        //     relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
+        // let (dp_relation, private_query) = pep_relation
+        //     .dp_compile(
+        //         epsilon,
+        //         delta,
+        //         epsilon_tau_thresholding,
+        //         delta_tau_thresholding,
+        //     )
+        //     .unwrap()
+        //     .into();
+        // dp_relation.display_dot().unwrap();
+        // assert_eq!(
+        //     private_query,
+        //     PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+        // );
+        // assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
+        //     ("sum_a", DataType::float()),
+        //     ("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))
+        // ])));
+
+        // // With GROUPBY. Only one column with tau-thresholding values
+        // let relation: Relation = Relation::reduce()
+        //     .name("reduce_relation")
+        //     .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+        //     .group_by(expr!(c))
+        //     .with(("c".to_string(), AggregateColumn::first("c")))
+        //     .input(table.clone())
+        //     .build();
+        // let pep_relation =
+        //     relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
+        // //pep_relation.display_dot().unwrap();
+        // let (dp_relation, private_query) = pep_relation
+        //     .dp_compile(
+        //         epsilon,
+        //         delta,
+        //         epsilon_tau_thresholding,
+        //         delta_tau_thresholding,
+        //     )
+        //     .unwrap()
+        //     .into();
+        // assert_eq!(
+        //     private_query,
+        //     vec![
+        //         PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
+        //         PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+        //     ]
+        //     .into()
+        // );
+        // assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
+        //     ("sum_a", DataType::float()),
+        //     ("c", DataType::integer_range(5..=20))
+        // ])));
+
+        // // With GROUPBY. Both tau-thresholding and possible values
+        // let relation: Relation = Relation::reduce()
+        //     .name("reduce_relation")
+        //     .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+        //     .group_by(expr!(c))
+        //     .group_by(expr!(b))
+        //     .with(("b".to_string(), AggregateColumn::first("b")))
+        //     .input(table.clone())
+        //     .build();
+        // let pep_relation =
+        //     relation.force_protect_from_field_paths(&relations, vec![("table", vec![], "id")]);
+        // //pep_relation.display_dot().unwrap();
+        // let (dp_relation, private_query) = pep_relation
+        //     .dp_compile(
+        //         epsilon,
+        //         delta,
+        //         epsilon_tau_thresholding,
+        //         delta_tau_thresholding,
+        //     )
+        //     .unwrap()
+        //     .into();
+        // assert_eq!(
+        //     private_query,
+        //     vec![
+        //         PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
+        //         PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+        //     ]
+        //     .into()
+        // );
+        // assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
+        //     ("sum_a", DataType::float()),
+        //     ("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))
+        // ])));
+    }
 
     // #[test]
     // fn test_dp_compile_map() {
@@ -633,4 +640,5 @@ mod tests {
     //         println!("{row}");
     //     }
     // }
+
 }

@@ -1,35 +1,27 @@
 use crate::{
     builder::Ready,
-    differential_privacy::{private_query, DPRelation, Error, PrivateQuery, Result},
+    differential_privacy::{private_query, DPRelation, PrivateQuery, Result},
     expr::{aggregate, Expr},
     namer,
-    protection::{PEPReduce, PEPRelation},
-    relation::{Relation, Variant as _},
+    protection::PEPRelation,
+    relation::{Relation, Reduce, Variant as _},
 };
+use super::Error;
 
 pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
 
-impl PEPReduce {
+
+impl Reduce {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs all the DP values of the `self` grouping keys
     ///     - `private_query` stores the invoked DP mechanisms
     pub fn dp_compile_group_by(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
-        let protected_entity_id = self.protected_entity_id();
-        let protected_entity_weight = self.protected_entity_weight();
 
-        let grouping_cols = self.group_by_names();
-        let input_relation = self.inputs()[0].clone();
-        if grouping_cols.len() > 1 {
-            PEPRelation::try_from(input_relation.filter_fields(|f| {
-                grouping_cols.contains(&f)
-                    || f == protected_entity_id
-                    || f == protected_entity_weight
-            }))?
-            .dp_values(epsilon, delta)
+        if self.group_by().is_empty() {
+            Err(Error::GroupingKeysError(format!("No grouping keys")))
         } else {
-            Err(Error::GroupingKeysError(format!(
-                "Cannot group by {protected_entity_id}"
-            )))
+            PEPRelation::try_from(self.inputs()[0].clone())?
+                .dp_values(epsilon, delta)
         }
     }
 }
