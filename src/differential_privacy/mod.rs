@@ -219,11 +219,19 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
-            PrivateQuery::gaussian_privacy_pars(epsilon, delta, 10.)
+            PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.)
         );
         assert!(dp_relation
             .data_type()
-            .is_subset_of(&DataType::structured([("sum_a", DataType::float())])));
+            .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
+
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
 
         // // With GROUPBY. Only one column with possible values
         // let relation: Relation = Relation::reduce()
