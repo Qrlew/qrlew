@@ -46,6 +46,11 @@ impl PEPRelation {
     /// (found by tau-thresholding) of the fields of the current `Relation`
     ///     - `private_query` stores the invoked DP mechanisms
     fn tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+        if epsilon == 0. || delta == 0. {
+            return Err(Error::BudgetError(format!(
+                "Not enough budget for tau-thresholding. Got: (espilon, delta) = ({epsilon}, {delta})"
+            )));
+        }
         // compute COUNT (DISTINCT ProtectedEntity::protected_entity_id()) GROUP BY columns
         let columns: Vec<String> = self
             .schema()
