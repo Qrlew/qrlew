@@ -29,7 +29,7 @@ impl Field {
 }
 
 impl Relation {
-    fn gaussian_mechanism(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
+    fn gaussian_mechanisms(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
         let number_of_agg = bounds.len() as f64;
         let noise_multipliers = bounds
             .into_iter()
@@ -55,61 +55,55 @@ impl Relation {
 
 impl PEPRelation {
     /// Builds a DPRelation wrapping a Relation::Reduce
-    /// whose `aggregates` are the noisy sums of each column in `named_sums`
+    /// whose `aggregates` are the noisy sums of each column in `sums`
     /// and the group by columns are defined by `group_by_names`
     /// The budget is equally splitted among the sums.
-    fn differential_privacy_sums(
+    fn differentially_private_sums(
         self,
-        named_sums: Vec<(String, String)>,
-        group_by_names: Vec<String>,
+        sums: Vec<&str>,
+        group_by_names: Vec<&str>,
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-        let input_values_bound = named_sums
+        let input_values_bound = sums
             .iter()
-            .map(|(_, c)| {
+            .map(|c| {
                 (
-                    c.as_str(),
-                    self.schema()[c.as_str()]
+                    *c,
+                    self.schema()[*c]
                         .data_type()
                         .absolute_upper_bound()
                         .unwrap_or(1.0),
                 )
             })
             .collect::<Vec<_>>();
-        let names: HashMap<&str, &str> = named_sums
-            .iter()
-            .map(|(s1, s2)| (s2.as_str(), s1.as_str()))
-            .collect();
 
         // Clip the relation
         let clipped_relation = self.deref().clone().l2_clipped_sums(
             self.protected_entity_id(),
-            group_by_names.iter().map(|s| s.as_str()).collect(),
+            group_by_names,
             input_values_bound.clone(),
         );
 
         let (dp_clipped_relation, private_query) = clipped_relation
-            .gaussian_mechanism(epsilon, delta, input_values_bound)
+            .gaussian_mechanisms(epsilon, delta, input_values_bound)
             .into();
-        let dp_clipped_relation =
-            dp_clipped_relation.rename_fields(|n, _| names.get(n).unwrap_or(&n).to_string());
 
         Ok(DPRelation::new(dp_clipped_relation, private_query))
     }
 
     /// Rewrite aggregations as sums and ass noise to that sums.
     /// The budget is equally splitted among the sums.
-    pub fn differential_privacy_aggregates(
+    pub fn differentially_private_aggregates(
         self,
         named_aggregates: Vec<(&str, AggregateColumn)>,
         group_by: &[Expr],
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-        let mut output = Map::builder();
+        let mut output_builder = Map::builder();
         let mut named_sums = vec![];
-        let mut input = Map::builder()
+        let mut input_builder = Map::builder()
             .with((
                 self.protected_entity_id(),
                 Expr::col(self.protected_entity_id()),
@@ -120,78 +114,98 @@ impl PEPRelation {
             ));
 
         let mut group_by_names = vec![];
-        for group_by_col in group_by {
-            if let Expr::Column(col) = group_by_col {
-                let name = col.to_string();
-                input = input.with((name.as_str(), group_by_col.clone()));
-                group_by_names.push(name);
-            } else {
-                return Err(super::Error::GroupingKeysError(
-                    "Do not support grouping by expression".to_string(),
-                ));
-            }
-        }
+        (input_builder, group_by_names) =
+            group_by
+                .into_iter()
+                .fold((input_builder, group_by_names), |(mut b, mut v), x| {
+                    if let Expr::Column(c) = x {
+                        b = b.with((c.last().unwrap(), x.clone()));
+                        v.push(c.last().unwrap());
+                    }
+                    (b, v)
+                });
 
-        let one_col = "_ONE_";
-        for (name, aggregate) in named_aggregates {
-            let colname = aggregate.column_name()?;
-            let sum_col = format!("_SUM_{}", colname);
-            let count_col = format!("_COUNT_{}", colname);
-            match aggregate.aggregate() {
-                aggregate::Aggregate::First => {
-                    assert!(group_by_names.contains(&(aggregate.column_name()?.to_string())));
-                    output = output.with((name, Expr::col(aggregate.column_name()?)))
+        (input_builder, named_sums, output_builder) = named_aggregates.into_iter().fold(
+            (input_builder, named_sums, output_builder),
+            |(mut input_b, mut sums, mut output_b), (name, aggregate)| {
+                let one_col = "_ONE_".to_string();
+                let colname = aggregate.column_name().unwrap().to_string();
+                let sum_col = format!("_SUM_{}", colname);
+                let count_col = format!("_COUNT_{}", colname);
+                match aggregate.aggregate() {
+                    aggregate::Aggregate::First => {
+                        assert!(group_by_names.contains(&colname.as_str()));
+                        output_b = output_b.with((name, Expr::col(colname.as_str())))
+                    }
+                    aggregate::Aggregate::Mean => {
+                        input_b = input_b
+                            .with((name, Expr::col(colname.as_str())))
+                            .with((one_col.as_str(), Expr::val(1.)));
+                        sums.push((count_col.clone(), one_col));
+                        sums.push((sum_col.clone(), colname));
+                        output_b = output_b.with((
+                            name,
+                            Expr::divide(
+                                Expr::col(sum_col),
+                                Expr::greatest(Expr::val(1.), Expr::col(count_col)),
+                            ),
+                        ))
+                    }
+                    aggregate::Aggregate::Count => {
+                        input_b = input_b.with((one_col.as_str(), Expr::val(1.)));
+                        sums.push((count_col.clone(), one_col));
+                        output_b = output_b.with((name, Expr::col(count_col)));
+                    }
+                    aggregate::Aggregate::Sum => {
+                        input_b = input_b.with((colname.as_str(), Expr::col(colname.as_str())));
+                        sums.push((sum_col.clone(), colname));
+                        output_b = output_b.with((name, Expr::col(sum_col)));
+                    }
+                    aggregate::Aggregate::Std => todo!(),
+                    aggregate::Aggregate::Var => todo!(),
+                    _ => (),
                 }
-                aggregate::Aggregate::Mean => {
-                    input = input
-                        .with((name, Expr::col(colname)))
-                        .with((one_col, Expr::val(1.)));
-                    named_sums.push((count_col.to_string(), one_col.to_string()));
-                    named_sums.push((sum_col.to_string(), aggregate.column_name()?.to_string()));
-                    output = output.with((
-                        name,
-                        Expr::divide(
-                            Expr::col(sum_col),
-                            Expr::greatest(Expr::val(1.), Expr::col(count_col)),
-                        ),
-                    ))
-                }
-                aggregate::Aggregate::Count => {
-                    input = input.with((one_col, Expr::val(1.)));
-                    named_sums.push((count_col.to_string(), one_col.to_string()));
-                    output = output.with((name, Expr::col(count_col)));
-                }
-                aggregate::Aggregate::Sum => {
-                    input = input.with((
-                        aggregate.column_name()?,
-                        Expr::col(aggregate.column_name()?),
-                    ));
-                    named_sums.push((sum_col.to_string(), aggregate.column_name()?.to_string()));
-                    output = output.with((name, Expr::col(sum_col)));
-                }
-                aggregate::Aggregate::Std => todo!(),
-                aggregate::Aggregate::Var => todo!(),
-                _ => (),
-            }
-        }
+                (input_b, sums, output_b)
+            },
+        );
 
-        let input: Relation = input.input(self.deref().clone()).build();
+        let input: Relation = input_builder.input(self.deref().clone()).build();
         let pep_input = PEPRelation::try_from(input)?;
 
-        let dp_sums =
-            pep_input.differential_privacy_sums(named_sums, group_by_names, epsilon, delta)?;
-        Ok(DPRelation::new(
-            output.input(dp_sums.relation().clone()).build(),
-            dp_sums.private_query().clone(),
-        ))
+        let (dp_relation, private_query) = pep_input
+            .differentially_private_sums(
+                named_sums
+                    .iter() // Convert &str to String
+                    .map(|(_, s)| s.as_str())
+                    .collect::<Vec<&str>>(),
+                group_by_names,
+                epsilon,
+                delta,
+            )?
+            .into();
+
+        let names: HashMap<String, String> =
+            named_sums.into_iter().map(|(s1, s2)| (s2, s1)).collect();
+
+        let dp_relation = output_builder
+            .input(
+                dp_relation
+                    .rename_fields(|n, _| names.get(n).unwrap_or(&n.to_string()).to_string()),
+            )
+            .build();
+        Ok(DPRelation::new(dp_relation, private_query))
     }
 }
 
 impl Reduce {
     /// Rewrite into DP the aggregations.
-    pub fn differential_privacy_aggregates(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    pub fn differentially_private_aggregates(
+        &self,
+        epsilon: f64,
+        delta: f64,
+    ) -> Result<DPRelation> {
         let pep_input = PEPRelation::try_from(self.input().clone())?;
-        pep_input.differential_privacy_aggregates(
+        pep_input.differentially_private_aggregates(
             self.named_aggregates()
                 .into_iter()
                 .map(|(n, agg)| (n, agg.clone()))
@@ -241,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn test_differential_privacy_sums_no_group_by() {
+    fn test_differentially_private_sums_no_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -278,15 +292,10 @@ mod tests {
 
         let dp_relation = PEPRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differential_privacy_sums(
-                vec![("_SUM_price".to_string(), "price".to_string())],
-                vec![],
-                epsilon,
-                delta,
-            )
+            .differentially_private_sums(vec!["price"], vec![], epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
-        matches!(dp_relation.data_type()["_SUM_price"], DataType::Float(_));
+        matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -298,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn test_differential_privacy_sums_with_group_by() {
+    fn test_differentially_private_sums_with_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -335,21 +344,14 @@ mod tests {
 
         let dp_relation = PEPRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differential_privacy_sums(
-                vec![("_SUM_price".to_string(), "price".to_string())],
-                vec!["item".to_string()],
-                epsilon,
-                delta,
-            )
+            .differentially_private_sums(vec!["price"], vec!["item"], epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 2);
-        assert!(dp_relation
+        assert_eq!(dp_relation.schema()[0].data_type(), DataType::text());
+        assert!(dp_relation.schema()[1]
             .data_type()
-            .is_subset_of(&DataType::structured(vec![
-                ("item", DataType::text()),
-                ("_SUM_price", DataType::float()),
-            ])));
+            .is_subset_of(&DataType::float()));
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -361,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn test_differential_privacy_aggregates() {
+    fn test_differentially_private_aggregates() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -400,7 +402,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differential_privacy_aggregates(epsilon, delta)
+            .differentially_private_aggregates(epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 3);
@@ -422,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn test_differential_privacy_aggregates_with_group_by() {
+    fn test_differentially_private_aggregates_with_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -461,7 +463,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differential_privacy_aggregates(epsilon, delta)
+            .differentially_private_aggregates(epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 3);
@@ -497,7 +499,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differential_privacy_aggregates(epsilon, delta)
+            .differentially_private_aggregates(epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 4);

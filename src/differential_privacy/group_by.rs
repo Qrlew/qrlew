@@ -14,7 +14,7 @@ impl Reduce {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs all the DP values of the `self` grouping keys
     ///     - `private_query` stores the invoked DP mechanisms
-    pub fn differential_privacy_group_by(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    pub fn differentially_private_group_by(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         if self.group_by().is_empty() {
             Err(Error::GroupingKeysError(format!("No grouping keys")))
         } else {
@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_differential_privacy_group_by_simple() {
+    fn test_differentially_private_group_by_simple() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -355,7 +355,7 @@ mod tests {
             .with(("sum_a".to_string(), AggregateColumn::sum("a")))
             .input(table.clone())
             .build();
-        let dp_reduce = reduce.differential_privacy_group_by(epsilon, delta);
+        let dp_reduce = reduce.differentially_private_group_by(epsilon, delta);
         assert!(dp_reduce.is_err());
 
         // With GROUPBY. Only one column with possible values
@@ -366,7 +366,7 @@ mod tests {
             .input(table.clone())
             .build();
         let (dp_relation, private_query) = reduce
-            .differential_privacy_group_by(epsilon, delta)
+            .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
@@ -384,7 +384,7 @@ mod tests {
             .input(table.clone())
             .build();
         let (dp_relation, private_query) = reduce
-            .differential_privacy_group_by(epsilon, delta)
+            .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
@@ -405,7 +405,7 @@ mod tests {
             .input(table.clone())
             .build();
         let (dp_relation, private_query) = reduce
-            .differential_privacy_group_by(epsilon, delta)
+            .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
@@ -464,7 +464,7 @@ mod tests {
             .build();
 
         let (dp_relation, private_query) = reduce
-            .differential_privacy_group_by(epsilon, delta)
+            .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
@@ -505,7 +505,7 @@ mod tests {
             .input(input)
             .build();
         let (dp_relation, private_query) = reduce
-            .differential_privacy_group_by(epsilon, delta)
+            .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
@@ -522,7 +522,7 @@ mod tests {
     }
 
     #[test]
-    fn test_differential_privacy_complex() {
+    fn test_differentially_private_complex() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let (epsilon, delta) = (1., 1e-3);
@@ -585,7 +585,7 @@ mod tests {
             .build();
 
         let (dp_relation, private_query) = reduce
-            .differential_privacy_group_by(epsilon, delta)
+            .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();

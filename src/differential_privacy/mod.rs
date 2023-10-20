@@ -115,7 +115,7 @@ impl Reduce {
     /// Compiles a `Reduce` into DP:
     ///     - Protect the grouping keys
     ///     - Add noise on the aggregations
-    pub fn differential_privacy(
+    pub fn differentially_private(
         self,
         epsilon: f64,
         delta: f64,
@@ -129,7 +129,7 @@ impl Reduce {
             self
         } else {
             let (dp_grouping_values, private_query_group_by) = self
-                .differential_privacy_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?
+                .differentially_private_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?
                 .into();
             let input_relation_with_protected_group_by = self
                 .input()
@@ -145,7 +145,7 @@ impl Reduce {
 
         // DP compile aggregates
         let (dp_relation, private_query_agg) = reduce_with_dp_group_by
-            .differential_privacy_aggregates(epsilon, delta)?
+            .differentially_private_aggregates(epsilon, delta)?
             .into();
         private_query = private_query.compose(private_query_agg);
         Ok((dp_relation, private_query).into())
@@ -203,7 +203,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, private_query) = reduce
-            .differential_privacy(
+            .differentially_private(
                 epsilon,
                 delta,
                 epsilon_tau_thresholding,
@@ -214,7 +214,7 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
-            PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.)
+            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
         );
         assert!(dp_relation
             .data_type()
@@ -277,7 +277,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, private_query) = reduce
-            .differential_privacy(
+            .differentially_private(
                 epsilon,
                 delta,
                 epsilon_tau_thresholding,
@@ -288,7 +288,7 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
-            PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.)
+            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
         );
         assert!(dp_relation
             .data_type()
@@ -347,7 +347,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, private_query) = reduce
-            .differential_privacy(
+            .differentially_private(
                 epsilon,
                 delta,
                 epsilon_tau_thresholding,
@@ -360,7 +360,7 @@ mod tests {
             private_query,
             vec![
                 PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
-                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.)
+                PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
             ]
             .into()
         );
@@ -430,7 +430,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, private_query) = reduce
-            .differential_privacy(
+            .differentially_private(
                 epsilon,
                 delta,
                 epsilon_tau_thresholding,
@@ -443,7 +443,7 @@ mod tests {
             private_query,
             vec![
                 PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
-                PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.)
+                PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
             ]
             .into()
         );

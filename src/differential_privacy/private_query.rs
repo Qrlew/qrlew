@@ -41,7 +41,11 @@ impl PrivateQuery {
         }
     }
 
-    pub fn gaussian_privacy_pars(epsilon: f64, delta: f64, sensitivity: f64) -> Self {
+    pub fn gaussian_from_epsilon_delta_sensitivity(
+        epsilon: f64,
+        delta: f64,
+        sensitivity: f64,
+    ) -> Self {
         PrivateQuery::Gaussian(gaussian_noise(epsilon, delta, sensitivity))
     }
 }
