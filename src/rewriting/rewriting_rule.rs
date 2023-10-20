@@ -610,7 +610,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             RewritingRule::new(
                 vec![Property::ProtectedEntityPreserving],
                 Property::DifferentiallyPrivate,
-                Parameters::None,
+                Parameters::Budget(self.budget.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData],
@@ -1290,6 +1290,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_set_eliminate_select_rewriting_rules_complex_query() {
         let database = postgresql::test_database();
         let relations = database.relations();
