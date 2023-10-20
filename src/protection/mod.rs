@@ -10,7 +10,7 @@ use crate::{
     hierarchy::Hierarchy,
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
 };
-pub use protected_entity::{ProtectedEntityPath, ProtectedEntity};
+pub use protected_entity::{ProtectedEntity, ProtectedEntityPath};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
 
 #[derive(Debug, Clone)]
@@ -92,7 +92,15 @@ impl TryFrom<Relation> for PEPRelation {
     type Error = Error;
 
     fn try_from(value: Relation) -> Result<Self> {
-        if value.schema().field(ProtectedEntity::protected_entity_id()).is_ok() && value.schema().field(ProtectedEntity::protected_entity_weight()).is_ok() {
+        if value
+            .schema()
+            .field(ProtectedEntity::protected_entity_id())
+            .is_ok()
+            && value
+                .schema()
+                .field(ProtectedEntity::protected_entity_weight())
+                .is_ok()
+        {
             Ok(PEPRelation(value))
         } else {
             Err(Error::NotProtectedEntityPreserving(
@@ -102,12 +110,6 @@ impl TryFrom<Relation> for PEPRelation {
                 )
             ))
         }
-    }
-}
-
-impl From<PEPReduce> for PEPRelation {
-    fn from(value: PEPReduce) -> Self {
-        PEPRelation::try_from(Relation::from(value.0)).unwrap()
     }
 }
 
@@ -201,54 +203,6 @@ impl Relation {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct PEPReduce(pub Reduce);
-
-impl PEPReduce {
-    pub fn protected_entity_id(&self) -> &str {
-        ProtectedEntity::protected_entity_id()
-    }
-
-    pub fn protected_entity_weight(&self) -> &str {
-        ProtectedEntity::protected_entity_weight()
-    }
-
-    pub fn has_non_protected_entity_id_group_by(&self) -> bool {
-        self.0.group_by().len() > 1
-    }
-}
-
-impl From<PEPReduce> for Reduce {
-    fn from(value: PEPReduce) -> Self {
-        value.0
-    }
-}
-
-impl TryFrom<Reduce> for PEPReduce {
-    type Error = Error;
-
-    fn try_from(value: Reduce) -> Result<Self> {
-        if value.schema().field(ProtectedEntity::protected_entity_id()).is_ok() && value.schema().field(ProtectedEntity::protected_entity_weight()).is_ok() {
-            Ok(PEPReduce(value))
-        } else {
-            Err(Error::NotProtectedEntityPreserving(
-                format!(
-                    "Cannot convert to PEPReduce a reduce that does not contains both {} and {} columns. \nGot: {}",
-                    ProtectedEntity::protected_entity_id(), ProtectedEntity::protected_entity_weight(), value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
-                )
-            ))
-        }
-    }
-}
-
-impl Deref for PEPReduce {
-    type Target = Reduce;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 /// Implements the protection of various relations
 pub struct Protection<'a> {
     relations: &'a Hierarchy<Arc<Relation>>,
@@ -293,8 +247,14 @@ impl<'a> Protection<'a> {
     /// Map protection from another PEP relation
     pub fn map(&self, map: &'a Map, input: PEPRelation) -> Result<PEPRelation> {
         let relation: Relation = Relation::map()
-            .with((ProtectedEntity::protected_entity_id(), Expr::col(ProtectedEntity::protected_entity_id())))
-            .with((ProtectedEntity::protected_entity_weight(), Expr::col(ProtectedEntity::protected_entity_weight())))
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                Expr::col(ProtectedEntity::protected_entity_id()),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                Expr::col(ProtectedEntity::protected_entity_weight()),
+            ))
             .with(map.clone())
             .input(Relation::from(input))
             .build();
@@ -308,7 +268,10 @@ impl<'a> Protection<'a> {
             Strategy::Hard => {
                 let relation: Relation = Relation::reduce()
                     .with_group_by_column(ProtectedEntity::protected_entity_id())
-                    .with((ProtectedEntity::protected_entity_weight(), AggregateColumn::sum(ProtectedEntity::protected_entity_weight())))
+                    .with((
+                        ProtectedEntity::protected_entity_weight(),
+                        AggregateColumn::sum(ProtectedEntity::protected_entity_weight()),
+                    ))
                     .with(reduce.clone())
                     .input(Relation::from(input))
                     .build();
@@ -332,14 +295,26 @@ impl<'a> Protection<'a> {
                 let operator = join.operator().clone();
                 let names = join.names();
                 let names = names.with(vec![
-                    (vec![Join::left_name(), ProtectedEntity::protected_entity_id()], format!("_LEFT{}", ProtectedEntity::protected_entity_id())),
                     (
-                        vec![Join::left_name(), ProtectedEntity::protected_entity_weight()],
+                        vec![Join::left_name(), ProtectedEntity::protected_entity_id()],
+                        format!("_LEFT{}", ProtectedEntity::protected_entity_id()),
+                    ),
+                    (
+                        vec![
+                            Join::left_name(),
+                            ProtectedEntity::protected_entity_weight(),
+                        ],
                         format!("_LEFT{}", ProtectedEntity::protected_entity_weight()),
                     ),
-                    (vec![Join::right_name(), ProtectedEntity::protected_entity_id()], format!("_RIGHT{}", ProtectedEntity::protected_entity_id())),
                     (
-                        vec![Join::right_name(), ProtectedEntity::protected_entity_weight()],
+                        vec![Join::right_name(), ProtectedEntity::protected_entity_id()],
+                        format!("_RIGHT{}", ProtectedEntity::protected_entity_id()),
+                    ),
+                    (
+                        vec![
+                            Join::right_name(),
+                            ProtectedEntity::protected_entity_weight(),
+                        ],
                         format!("_RIGHT{}", ProtectedEntity::protected_entity_weight()),
                     ),
                 ]);
@@ -354,16 +329,30 @@ impl<'a> Protection<'a> {
                     .right(Relation::from(right))
                     .build();
                 let mut builder = Relation::map().name(name);
-                builder = builder.with((ProtectedEntity::protected_entity_id(), Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_id()))));
+                builder = builder.with((
+                    ProtectedEntity::protected_entity_id(),
+                    Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_id())),
+                ));
                 builder = builder.with((
                     ProtectedEntity::protected_entity_weight(),
                     Expr::multiply(
-                        Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_weight())),
-                        Expr::col(format!("_RIGHT{}", ProtectedEntity::protected_entity_weight())),
+                        Expr::col(format!(
+                            "_LEFT{}",
+                            ProtectedEntity::protected_entity_weight()
+                        )),
+                        Expr::col(format!(
+                            "_RIGHT{}",
+                            ProtectedEntity::protected_entity_weight()
+                        )),
                     ),
                 ));
                 builder = join.names().iter().fold(builder, |b, (p, n)| {
-                    if [ProtectedEntity::protected_entity_id(), ProtectedEntity::protected_entity_weight()].contains(&p[1].as_str()) {
+                    if [
+                        ProtectedEntity::protected_entity_id(),
+                        ProtectedEntity::protected_entity_weight(),
+                    ]
+                    .contains(&p[1].as_str())
+                    {
                         b
                     } else {
                         b.with((n, Expr::col(n)))
@@ -387,8 +376,17 @@ impl<'a> Protection<'a> {
         let operator = join.operator().clone();
         let names = join.names();
         let names = names.with(vec![
-            (vec![Join::right_name(), ProtectedEntity::protected_entity_id()], format!("_RIGHT{}", ProtectedEntity::protected_entity_id())),
-            (vec![Join::right_name(), ProtectedEntity::protected_entity_weight()], format!("_RIGHT{}", ProtectedEntity::protected_entity_weight())),
+            (
+                vec![Join::right_name(), ProtectedEntity::protected_entity_id()],
+                format!("_RIGHT{}", ProtectedEntity::protected_entity_id()),
+            ),
+            (
+                vec![
+                    Join::right_name(),
+                    ProtectedEntity::protected_entity_weight(),
+                ],
+                format!("_RIGHT{}", ProtectedEntity::protected_entity_weight()),
+            ),
         ]);
         let join: Join = Relation::join()
             .names(names)
@@ -398,10 +396,24 @@ impl<'a> Protection<'a> {
             .build();
         let mut builder = Relation::map()
             .name(name)
-            .with((ProtectedEntity::protected_entity_id(), Expr::col(format!("_RIGHT{}", ProtectedEntity::protected_entity_id()))))
-            .with((ProtectedEntity::protected_entity_weight(), Expr::col(format!("_RIGHT{}", ProtectedEntity::protected_entity_weight()))));
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                Expr::col(format!("_RIGHT{}", ProtectedEntity::protected_entity_id())),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                Expr::col(format!(
+                    "_RIGHT{}",
+                    ProtectedEntity::protected_entity_weight()
+                )),
+            ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
-            if [ProtectedEntity::protected_entity_id(), ProtectedEntity::protected_entity_weight()].contains(&p[1].as_str()) {
+            if [
+                ProtectedEntity::protected_entity_id(),
+                ProtectedEntity::protected_entity_weight(),
+            ]
+            .contains(&p[1].as_str())
+            {
                 b
             } else {
                 b.with((n, Expr::col(n)))
@@ -423,8 +435,17 @@ impl<'a> Protection<'a> {
         let operator = join.operator().clone();
         let names = join.names();
         let names = names.with(vec![
-            (vec![Join::left_name(), ProtectedEntity::protected_entity_id()], format!("_LEFT{}", ProtectedEntity::protected_entity_id())),
-            (vec![Join::left_name(), ProtectedEntity::protected_entity_weight()], format!("_LEFT{}", ProtectedEntity::protected_entity_weight())),
+            (
+                vec![Join::left_name(), ProtectedEntity::protected_entity_id()],
+                format!("_LEFT{}", ProtectedEntity::protected_entity_id()),
+            ),
+            (
+                vec![
+                    Join::left_name(),
+                    ProtectedEntity::protected_entity_weight(),
+                ],
+                format!("_LEFT{}", ProtectedEntity::protected_entity_weight()),
+            ),
         ]);
         let join: Join = Relation::join()
             .names(names)
@@ -434,10 +455,24 @@ impl<'a> Protection<'a> {
             .build();
         let mut builder = Relation::map()
             .name(name)
-            .with((ProtectedEntity::protected_entity_id(), Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_id()))))
-            .with((ProtectedEntity::protected_entity_weight(), Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_weight()))));
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                Expr::col(format!("_LEFT{}", ProtectedEntity::protected_entity_id())),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                Expr::col(format!(
+                    "_LEFT{}",
+                    ProtectedEntity::protected_entity_weight()
+                )),
+            ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
-            if [ProtectedEntity::protected_entity_id(), ProtectedEntity::protected_entity_weight()].contains(&p[1].as_str()) {
+            if [
+                ProtectedEntity::protected_entity_id(),
+                ProtectedEntity::protected_entity_weight(),
+            ]
+            .contains(&p[1].as_str())
+            {
                 b
             } else {
                 b.with((n, Expr::col(n)))
@@ -502,7 +537,6 @@ mod tests {
         display::Dot,
         io::{postgresql, Database},
         relation::Variant,
-        sql::parse,
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -621,7 +655,10 @@ mod tests {
 
         let mut true_fields = vec![
             (ProtectedEntity::protected_entity_id(), DataType::text()),
-            (ProtectedEntity::protected_entity_weight(), DataType::integer_value(1)),
+            (
+                ProtectedEntity::protected_entity_weight(),
+                DataType::integer_value(1),
+            ),
         ];
         true_fields.extend(fields.into_iter());
         assert_eq!(
@@ -682,7 +719,10 @@ mod tests {
 
         let mut true_fields = vec![
             (ProtectedEntity::protected_entity_id(), DataType::text()),
-            (ProtectedEntity::protected_entity_weight(), DataType::integer_value(1)),
+            (
+                ProtectedEntity::protected_entity_weight(),
+                DataType::integer_value(1),
+            ),
         ];
         true_fields.extend(fields.into_iter());
         assert_eq!(

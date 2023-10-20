@@ -732,7 +732,7 @@ mod tests {
 
     #[test]
     fn test_with_computed_field() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         let table = relations.get(&["table_1".into()]).unwrap().as_ref().clone();
         let relation =
@@ -799,7 +799,7 @@ mod tests {
 
     #[test]
     fn test_sums_by_group() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
         let mut relation = relations
             .get(&["item_table".into()])
@@ -814,6 +814,13 @@ mod tests {
         // Print query after
         println!("After: {}", &ast::Query::from(&relation));
         relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("order_id", DataType::integer_interval(0, 100)),
+                ("price", DataType::float_interval(0., 15000.)),
+            ])
+        );
     }
 
     #[test]
@@ -1042,6 +1049,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
+
         // Compute l2 norm
         let clipped_relation =
             relation
@@ -1054,6 +1062,7 @@ mod tests {
         for row in database.query(query).unwrap() {
             println!("{row}");
         }
+
         // 100
         let norm = 100.;
         let clipped_relation_100 =
@@ -1066,6 +1075,7 @@ mod tests {
         {
             println!("{row}");
         }
+
         // 1000
         let norm = 1000.;
         let clipped_relation_1000 =
@@ -1086,6 +1096,7 @@ mod tests {
                     .query(&ast::Query::from(&clipped_relation_1000).to_string())
                     .unwrap()
         );
+
         // 10000
         let norm = 10000.;
         let clipped_relation_10000 =

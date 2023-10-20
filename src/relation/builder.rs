@@ -1154,6 +1154,38 @@ mod tests {
     }
 
     #[test]
+    fn test_map_reduce() {
+        let table: Relation = Relation::table()
+            .path(["db", "schema", "table"])
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_range(1.0..=1.1)))
+                    .with(("b", DataType::float_values([0.1, 1.0, 5.0, -1.0, -5.0])))
+                    .with(("c", DataType::float_range(0.0..=5.0)))
+                    .with(("d", DataType::float_values([0.0, 1.0, 2.0, -1.0])))
+                    .with(("x", DataType::float_range(0.0..=2.0)))
+                    .with(("y", DataType::float_range(0.0..=5.0)))
+                    .with(("z", DataType::float_range(9.0..=11.)))
+                    .with(("t", DataType::float_range(0.9..=1.1)))
+                    .build(),
+            )
+            .build();
+        let map: Relation = Map::builder()
+            .with(("a", Expr::col("a")))
+            .with(("b", Expr::col("b")))
+            .input(table)
+            .build();
+        let reduce: Relation = Relation::reduce()
+            .with(("S", AggregateColumn::sum("a")))
+            .with(("count", Expr::sum(Expr::val(1.))))
+            .group_by(Expr::col("b"))
+            .input(map)
+            .build();
+        println!("Reduce = {reduce}");
+        reduce.display_dot().unwrap();
+    }
+
+    #[test]
     fn test_join_building() {
         use crate::{
             ast,

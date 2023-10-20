@@ -201,22 +201,14 @@ impl Display for ProtectedEntityPath {
 }
 
 impl From<(Vec<(&str, &str, &str)>, &str)> for ProtectedEntityPath {
-    fn from(
-        (path, referred_field): (Vec<(&str, &str, &str)>, &str),
-    ) -> Self {
-        ProtectedEntityPath::new(
-            Path::from_iter(path),
-            referred_field.into(),
-        )
+    fn from((path, referred_field): (Vec<(&str, &str, &str)>, &str)) -> Self {
+        ProtectedEntityPath::new(Path::from_iter(path), referred_field.into())
     }
 }
 
 impl<'a> From<&'a ProtectedEntityPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a str) {
     fn from(value: &'a ProtectedEntityPath) -> Self {
-        (
-            (&value.path).into(),
-            &value.protected_entity_field,
-        )
+        ((&value.path).into(), &value.protected_entity_field)
     }
 }
 
@@ -313,19 +305,14 @@ impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for ProtectedEntity {
         for (table, protection, referred_field) in value {
             result.push((
                 table.into(),
-                ProtectedEntityPath::new(
-                    Path::from_iter(protection),
-                    referred_field.into(),
-                ),
+                ProtectedEntityPath::new(Path::from_iter(protection), referred_field.into()),
             ));
         }
         ProtectedEntity(result)
     }
 }
 
-impl<'a> From<&'a ProtectedEntity>
-    for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)>
-{
+impl<'a> From<&'a ProtectedEntity> for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)> {
     fn from(value: &'a ProtectedEntity) -> Self {
         value
             .iter()
@@ -410,11 +397,7 @@ mod tests {
                 ],
                 "name",
             ),
-            (
-                "order_table",
-                vec![("user_id", "user_table", "id")],
-                "name",
-            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
         println!("{}", protected_entity);

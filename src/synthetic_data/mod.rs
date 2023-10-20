@@ -68,12 +68,8 @@ pub struct SyntheticData {
 }
 
 impl SyntheticData {
-    pub fn new(
-        synthetic_paths: Hierarchy<Identifier>,
-    ) -> SyntheticData {
-        SyntheticData {
-            synthetic_paths,
-        }
+    pub fn new(synthetic_paths: Hierarchy<Identifier>) -> SyntheticData {
+        SyntheticData { synthetic_paths }
     }
 
     pub fn synthetic_prefix() -> &'static str {
@@ -83,8 +79,17 @@ impl SyntheticData {
     /// Table sd equivalent
     pub fn table(&self, table: &Table) -> Result<SDRelation> {
         let relation: Relation = Relation::table()
-            .name(format!("{}{}", SyntheticData::synthetic_prefix(), table.name()))
-            .path(self.synthetic_paths.get(table.path()).ok_or(Error::no_synthetic_data(table))?.clone())
+            .name(format!(
+                "{}{}",
+                SyntheticData::synthetic_prefix(),
+                table.name()
+            ))
+            .path(
+                self.synthetic_paths
+                    .get(table.path())
+                    .ok_or(Error::no_synthetic_data(table))?
+                    .clone(),
+            )
             .size(table.size().iter().last().ok_or(Error::other(table))?[0])
             .schema(table.schema().clone())
             .build();
