@@ -2,7 +2,7 @@ use crate::{
     builder::With,
     data_type::DataTyped,
     differential_privacy::private_query::PrivateQuery,
-    differential_privacy::{private_query, DPRelation, Result},
+    differential_privacy::{private_query, DPRelation, Error, Result},
     expr::{aggregate, AggregateColumn, Expr},
     protection::PEPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant as _},
@@ -65,6 +65,12 @@ impl PEPRelation {
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
+        if (epsilon == 0. || delta == 0.) && !sums.is_empty() {
+            return Err(Error::BudgetError(format!(
+                "Not enough budget for the aggregations. Got: (espilon, delta) = ({epsilon}, {delta})"
+            )));
+        }
+
         let input_values_bound = sums
             .iter()
             .map(|c| {

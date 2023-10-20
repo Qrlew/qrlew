@@ -22,6 +22,7 @@ pub enum Error {
     InvalidRelation(String),
     DPCompilationError(String),
     GroupingKeysError(String),
+    BudgetError(String),
     Other(String),
 }
 
@@ -37,6 +38,7 @@ impl fmt::Display for Error {
             Error::InvalidRelation(relation) => writeln!(f, "{relation} invalid."),
             Error::DPCompilationError(desc) => writeln!(f, "DPCompilationError: {}", desc),
             Error::GroupingKeysError(desc) => writeln!(f, "GroupingKeysError: {}", desc),
+            Error::BudgetError(desc) => writeln!(f, "BudgetError: {}", desc),
             Error::Other(err) => writeln!(f, "{}", err),
         }
     }

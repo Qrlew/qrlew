@@ -1033,6 +1033,17 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
             ) {
                 (
                     [Property::ProtectedEntityPreserving],
+                    Property::DifferentiallyPrivate,
+                    Parameters::Budget(budget),
+                ) => {
+                    let (dp_relation, _private_query) = budget
+                        .reduce(reduce, (*rewritten_input).clone().try_into().unwrap())
+                        .unwrap()
+                        .into();
+                    dp_relation
+                }
+                (
+                    [Property::ProtectedEntityPreserving],
                     Property::ProtectedEntityPreserving,
                     Parameters::ProtectedEntity(protected_entity),
                 ) => {
