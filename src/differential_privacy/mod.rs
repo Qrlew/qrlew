@@ -14,7 +14,7 @@ use crate::{
     expr,
     protection,
     relation::{rewriting, Reduce, Relation},
-    Ready,
+    Ready, display::Dot,
 };
 use std::{error, fmt, ops::Deref, result};
 
@@ -130,8 +130,10 @@ impl Reduce {
             self
         } else {
             let (dp_grouping_values, private_query_group_by) = self
-                .dp_compile_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?
+                .differential_privacy_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?
                 .into();
+            dp_grouping_values.display_dot();
+            self.input().clone().display_dot();
             let input_relation_with_protected_group_by = self
                 .input()
                 .clone()
@@ -164,7 +166,7 @@ mod tests {
         expr::{AggregateColumn, Expr},
         hierarchy::Hierarchy,
         io::{postgresql, Database},
-        relation::{Schema, Variant},
+        relation::{Map},
         sql::parse,
         Relation,
         protection::{Protection, Strategy}
@@ -232,7 +234,79 @@ mod tests {
             .unwrap()
             .iter()
             .map(ToString::to_string);
+    }
 
+
+    #[test]
+    fn test_dp_compile_reduce_group_by_possible_values() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["item_table".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let (epsilon, delta) = (1., 1e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+
+        // protect the inputs
+        let protection = Protection::from((
+            &relations,
+            vec![
+                (
+                    "item_table",
+                    vec![("order_id", "order_table", "id")],
+                    "date",
+                ),
+                ("order_table", vec![], "date"),
+            ],
+            Strategy::Hard,
+        ));
+        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let map: Map = Relation::map()
+            .with(("order_id", expr!(order_id)))
+            .with(("price", expr!(price)))
+            .filter(Expr::in_list(Expr::col("order_id"), Expr::list(vec![1, 2, 3, 4, 5])))
+            .input(pep_table.deref().clone())
+            .build();
+        let pep_map = protection.map(&map.try_into().unwrap(), pep_table).unwrap();
+
+
+        let reduce = Reduce::new(
+            "my_reduce".to_string(),
+            vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
+            vec![expr!(order_id)],
+            pep_map.deref().clone().into()
+        );
+        let relation = Relation::from(reduce.clone());
+        relation.display_dot().unwrap();
+
+        let (dp_relation, private_query) = reduce
+            .differential_privacy(
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding,
+            )
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            PrivateQuery::gaussian_privacy_pars(epsilon, delta, 50.)
+        );
+        assert!(dp_relation
+            .data_type()
+            .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
+
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
         // // With GROUPBY. Only one column with possible values
         // let relation: Relation = Relation::reduce()
         //     .name("reduce_relation")
