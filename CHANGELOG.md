@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
-- differantial privacy for the new formalism [MR155](https://github.com/Qrlew/qrlew/pull/155)
+- differential privacy for the new formalism [MR155](https://github.com/Qrlew/qrlew/pull/155)
 
 ## [0.4.0] - 2023-10-19
 ### Added
