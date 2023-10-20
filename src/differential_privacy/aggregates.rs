@@ -4,14 +4,11 @@ use crate::{
     differential_privacy::private_query::PrivateQuery,
     differential_privacy::{private_query, DPRelation, Result},
     expr::{aggregate, AggregateColumn, Expr},
+    protection::PEPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant as _},
-    DataType, Ready, protection::PEPRelation,
+    DataType, Ready,
 };
-use std::{
-    cmp,
-    collections::HashMap,
-    ops::Deref
-};
+use std::{cmp, collections::HashMap, ops::Deref};
 
 impl Field {
     pub fn clipping_value(self, multiplicity: i64) -> f64 {
@@ -36,7 +33,16 @@ impl Relation {
         let number_of_agg = bounds.len() as f64;
         let noise_multipliers = bounds
             .into_iter()
-            .map(|(name, bound)| (name, private_query::gaussian_noise(epsilon / number_of_agg, delta / number_of_agg, bound)))
+            .map(|(name, bound)| {
+                (
+                    name,
+                    private_query::gaussian_noise(
+                        epsilon / number_of_agg,
+                        delta / number_of_agg,
+                        bound,
+                    ),
+                )
+            })
             .collect::<Vec<_>>();
         let private_query = noise_multipliers
             .iter()
@@ -59,32 +65,35 @@ impl PEPRelation {
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-        let input_values_bound = named_sums.iter()
-            .map(|(n, c)| (
-                c.as_str(),
-                self.schema()[c.as_str()].data_type().absolute_upper_bound().unwrap_or(1.0)
-            ))
+        let input_values_bound = named_sums
+            .iter()
+            .map(|(_, c)| {
+                (
+                    c.as_str(),
+                    self.schema()[c.as_str()]
+                        .data_type()
+                        .absolute_upper_bound()
+                        .unwrap_or(1.0),
+                )
+            })
             .collect::<Vec<_>>();
-        let names: HashMap<&str, &str> = named_sums.iter()
+        let names: HashMap<&str, &str> = named_sums
+            .iter()
             .map(|(s1, s2)| (s2.as_str(), s1.as_str()))
             .collect();
 
         // Clip the relation
-        let clipped_relation = self.deref().clone()
-        .l2_clipped_sums(
+        let clipped_relation = self.deref().clone().l2_clipped_sums(
             self.protected_entity_id(),
             group_by_names.iter().map(|s| s.as_str()).collect(),
             input_values_bound.clone(),
         );
 
-
         let (dp_clipped_relation, private_query) = clipped_relation
             .gaussian_mechanism(epsilon, delta, input_values_bound)
             .into();
         let dp_clipped_relation =
-            dp_clipped_relation
-            .rename_fields(|n, _| names.get(n).unwrap_or(&n).to_string())
-            ;
+            dp_clipped_relation.rename_fields(|n, _| names.get(n).unwrap_or(&n).to_string());
 
         Ok(DPRelation::new(dp_clipped_relation, private_query))
     }
@@ -96,14 +105,19 @@ impl PEPRelation {
         named_aggregates: Vec<(&str, AggregateColumn)>,
         group_by: &[Expr],
         epsilon: f64,
-        delta: f64
+        delta: f64,
     ) -> Result<DPRelation> {
         let mut output = Map::builder();
         let mut named_sums = vec![];
         let mut input = Map::builder()
-            .with((self.protected_entity_id(), Expr::col(self.protected_entity_id())))
-            .with((self.protected_entity_weight(), Expr::col(self.protected_entity_weight())))
-            ;
+            .with((
+                self.protected_entity_id(),
+                Expr::col(self.protected_entity_id()),
+            ))
+            .with((
+                self.protected_entity_weight(),
+                Expr::col(self.protected_entity_weight()),
+            ));
 
         let mut group_by_names = vec![];
         for group_by_col in group_by {
@@ -112,7 +126,9 @@ impl PEPRelation {
                 input = input.with((name.as_str(), group_by_col.clone()));
                 group_by_names.push(name);
             } else {
-                return Err(super::Error::GroupingKeysError("Do not support grouping by expression".to_string()))
+                return Err(super::Error::GroupingKeysError(
+                    "Do not support grouping by expression".to_string(),
+                ));
             }
         }
 
@@ -125,12 +141,11 @@ impl PEPRelation {
                 aggregate::Aggregate::First => {
                     assert!(group_by_names.contains(&(aggregate.column_name()?.to_string())));
                     output = output.with((name, Expr::col(aggregate.column_name()?)))
-                },
+                }
                 aggregate::Aggregate::Mean => {
                     input = input
                         .with((name, Expr::col(colname)))
-                        .with((one_col, Expr::val(1.)))
-                        ;
+                        .with((one_col, Expr::val(1.)));
                     named_sums.push((count_col.to_string(), one_col.to_string()));
                     named_sums.push((sum_col.to_string(), aggregate.column_name()?.to_string()));
                     output = output.with((
@@ -147,7 +162,10 @@ impl PEPRelation {
                     output = output.with((name, Expr::col(count_col)));
                 }
                 aggregate::Aggregate::Sum => {
-                    input = input.with((aggregate.column_name()?, Expr::col(aggregate.column_name()?)));
+                    input = input.with((
+                        aggregate.column_name()?,
+                        Expr::col(aggregate.column_name()?),
+                    ));
                     named_sums.push((sum_col.to_string(), aggregate.column_name()?.to_string()));
                     output = output.with((name, Expr::col(sum_col)));
                 }
@@ -160,13 +178,8 @@ impl PEPRelation {
         let input: Relation = input.input(self.deref().clone()).build();
         let pep_input = PEPRelation::try_from(input)?;
 
-        let dp_sums = pep_input
-            .differential_privacy_sums(
-                named_sums,
-                group_by_names,
-                epsilon,
-                delta
-            )?;
+        let dp_sums =
+            pep_input.differential_privacy_sums(named_sums, group_by_names, epsilon, delta)?;
         Ok(DPRelation::new(
             output.input(dp_sums.relation().clone()).build(),
             dp_sums.private_query().clone(),
@@ -179,10 +192,13 @@ impl Reduce {
     pub fn differential_privacy_aggregates(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         let pep_input = PEPRelation::try_from(self.input().clone())?;
         pep_input.differential_privacy_aggregates(
-            self.named_aggregates().into_iter().map(|(n, agg)| (n, agg.clone())).collect(),
+            self.named_aggregates()
+                .into_iter()
+                .map(|(n, agg)| (n, agg.clone()))
+                .collect(),
             self.group_by(),
             epsilon,
-            delta
+            delta,
         )
     }
 }
@@ -196,9 +212,9 @@ mod tests {
         data_type::Variant,
         display::Dot,
         io::{postgresql, Database},
+        protection::{Protection, Strategy},
         sql::parse,
         Relation,
-        protection::{Protection, Strategy}
     };
     use std::ops::Deref;
 
@@ -255,7 +271,7 @@ mod tests {
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
             vec![],
-            pep_table.deref().clone().into()
+            pep_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -267,7 +283,8 @@ mod tests {
                 vec![],
                 epsilon,
                 delta,
-            ).unwrap();
+            )
+            .unwrap();
         dp_relation.display_dot().unwrap();
         matches!(dp_relation.data_type()["_SUM_price"], DataType::Float(_));
 
@@ -311,7 +328,7 @@ mod tests {
             "my_reduce".to_string(),
             vec![("my_sum_price".to_string(), AggregateColumn::sum("price"))],
             vec![Expr::col("item")],
-            pep_table.deref().clone().into()
+            pep_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -323,17 +340,16 @@ mod tests {
                 vec!["item".to_string()],
                 epsilon,
                 delta,
-            ).unwrap();
+            )
+            .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 2);
-        assert!(
-            dp_relation.data_type().is_subset_of(
-                &DataType::structured(vec![
-                    ("item", DataType::text()),
-                    ("_SUM_price", DataType::float()),
-                ])
-            )
-        );
+        assert!(dp_relation
+            .data_type()
+            .is_subset_of(&DataType::structured(vec![
+                ("item", DataType::text()),
+                ("_SUM_price", DataType::float()),
+            ])));
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -378,27 +394,23 @@ mod tests {
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
             vec![],
-            pep_table.deref().clone().into()
+            pep_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differential_privacy_aggregates(
-                epsilon,
-                delta,
-            ).unwrap();
+            .differential_privacy_aggregates(epsilon, delta)
+            .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 3);
-        assert!(
-            dp_relation.data_type().is_subset_of(
-                &DataType::structured(vec![
-                    ("count_price", DataType::float()),
-                    ("sum_price", DataType::float()),
-                    ("avg_price", DataType::float()),
-                ])
-            )
-        );
+        assert!(dp_relation
+            .data_type()
+            .is_subset_of(&DataType::structured(vec![
+                ("count_price", DataType::float()),
+                ("sum_price", DataType::float()),
+                ("avg_price", DataType::float()),
+            ])));
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -443,27 +455,23 @@ mod tests {
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
             vec![expr!(item)],
-            pep_table.deref().clone().into()
+            pep_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differential_privacy_aggregates(
-                epsilon,
-                delta,
-            ).unwrap();
+            .differential_privacy_aggregates(epsilon, delta)
+            .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 3);
-        assert!(
-            dp_relation.data_type().is_subset_of(
-                &DataType::structured(vec![
-                    ("count_price", DataType::float()),
-                    ("sum_price", DataType::float()),
-                    ("avg_price", DataType::float()),
-                ])
-            )
-        );
+        assert!(dp_relation
+            .data_type()
+            .is_subset_of(&DataType::structured(vec![
+                ("count_price", DataType::float()),
+                ("sum_price", DataType::float()),
+                ("avg_price", DataType::float()),
+            ])));
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -483,28 +491,24 @@ mod tests {
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
             vec![Expr::col("item")],
-            pep_table.deref().clone().into()
+            pep_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differential_privacy_aggregates(
-                epsilon,
-                delta,
-            ).unwrap();
+            .differential_privacy_aggregates(epsilon, delta)
+            .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 4);
-        assert!(
-            dp_relation.data_type().is_subset_of(
-                &DataType::structured(vec![
-                    ("count_price", DataType::float()),
-                    ("sum_price", DataType::float()),
-                    ("my_item", DataType::text()),
-                    ("avg_price", DataType::float()),
-                ])
-            )
-        );
+        assert!(dp_relation
+            .data_type()
+            .is_subset_of(&DataType::structured(vec![
+                ("count_price", DataType::float()),
+                ("sum_price", DataType::float()),
+                ("my_item", DataType::text()),
+                ("avg_price", DataType::float()),
+            ])));
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -513,11 +517,5 @@ mod tests {
             .unwrap()
             .iter()
             .map(ToString::to_string);
-
-    }
-
-    #[test]
-    fn test_differential_privacy_aggregates_with_join() {
-        todo!()
     }
 }

@@ -11,12 +11,12 @@ use itertools::Itertools;
 
 use crate::{
     builder::{Ready, With},
-    synthetic_data::{SyntheticData, self},
     differential_privacy::budget::Budget,
     hierarchy::Hierarchy,
     protection::{protected_entity::ProtectedEntity, Protection},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
+    synthetic_data::{self, SyntheticData},
     visitor::{Acceptor, Dependencies, Visited, Visitor},
 };
 
@@ -538,7 +538,11 @@ struct BaseRewritingRulesSetter {
 // TODO implement this properly
 
 impl BaseRewritingRulesSetter {
-    pub fn new(synthetic_data: SyntheticData, protected_entity: ProtectedEntity, budget: Budget) -> BaseRewritingRulesSetter {
+    pub fn new(
+        synthetic_data: SyntheticData,
+        protected_entity: ProtectedEntity,
+        budget: Budget,
+    ) -> BaseRewritingRulesSetter {
         BaseRewritingRulesSetter {
             synthetic_data,
             protected_entity,
@@ -551,7 +555,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
     fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
         vec![
             RewritingRule::new(vec![], Property::Private, Parameters::None),
-            RewritingRule::new(vec![], Property::SyntheticData, Parameters::SyntheticData(self.synthetic_data.clone())),
+            RewritingRule::new(
+                vec![],
+                Property::SyntheticData,
+                Parameters::SyntheticData(self.synthetic_data.clone()),
+            ),
             RewritingRule::new(
                 vec![],
                 Property::ProtectedEntityPreserving,
@@ -711,7 +719,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
 
     fn values(&self, values: &'a Values) -> Vec<RewritingRule> {
         vec![
-            RewritingRule::new(vec![], Property::SyntheticData, Parameters::SyntheticData(self.synthetic_data.clone())),
+            RewritingRule::new(
+                vec![],
+                Property::SyntheticData,
+                Parameters::SyntheticData(self.synthetic_data.clone()),
+            ),
             RewritingRule::new(vec![], Property::Public, Parameters::None),
         ]
     }
@@ -905,11 +917,18 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
 struct BaseBudgetDispatcher;
 
 impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BaseBudgetDispatcher {
-    fn visit(&self, acceptor: &'a RelationWithRewritingRule<'a>, dependencies: Visited<'a, RelationWithRewritingRule<'a>, usize>) -> usize {
-        acceptor.inputs().iter().fold(match acceptor.attributes().output() {
-            Property::DifferentiallyPrivate => 1,
-            _ => 0,
-        }, |sum, rwrr| sum+dependencies.get(rwrr.deref()))
+    fn visit(
+        &self,
+        acceptor: &'a RelationWithRewritingRule<'a>,
+        dependencies: Visited<'a, RelationWithRewritingRule<'a>, usize>,
+    ) -> usize {
+        acceptor.inputs().iter().fold(
+            match acceptor.attributes().output() {
+                Property::DifferentiallyPrivate => 1,
+                _ => 0,
+            },
+            |sum, rwrr| sum + dependencies.get(rwrr.deref()),
+        )
     }
 }
 
@@ -917,15 +936,22 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BaseBudgetDispatc
 struct BaseScore;
 
 impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
-    fn visit(&self, acceptor: &'a RelationWithRewritingRule<'a>, dependencies: Visited<'a, RelationWithRewritingRule<'a>, f64>) -> f64 {
-        acceptor.inputs().iter().fold(match acceptor.attributes().output() {
-            Property::SyntheticData => 1.,
-            Property::ProtectedEntityPreserving => 2.,
-            Property::DifferentiallyPrivate => 5.,
-            Property::Published => 1.,
-            Property::Public => 10.,
-            _ => 0.
-        }, |sum, rwrr| sum+dependencies.get(rwrr.deref()))
+    fn visit(
+        &self,
+        acceptor: &'a RelationWithRewritingRule<'a>,
+        dependencies: Visited<'a, RelationWithRewritingRule<'a>, f64>,
+    ) -> f64 {
+        acceptor.inputs().iter().fold(
+            match acceptor.attributes().output() {
+                Property::SyntheticData => 1.,
+                Property::ProtectedEntityPreserving => 2.,
+                Property::DifferentiallyPrivate => 5.,
+                Property::Published => 1.,
+                Property::Public => 10.,
+                _ => 0.,
+            },
+            |sum, rwrr| sum + dependencies.get(rwrr.deref()),
+        )
     }
 }
 
@@ -1052,7 +1078,11 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         crate::protection::Strategy::Hard,
                     );
                     protection
-                        .join(join, (*rewritten_left).clone().try_into().unwrap(), (*rewritten_right).clone().try_into().unwrap())
+                        .join(
+                            join,
+                            (*rewritten_left).clone().try_into().unwrap(),
+                            (*rewritten_right).clone().try_into().unwrap(),
+                        )
                         .unwrap()
                         .into()
                 }
@@ -1067,7 +1097,11 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         crate::protection::Strategy::Hard,
                     );
                     protection
-                        .join_left_published(join, (*rewritten_left).clone().try_into().unwrap(), (*rewritten_right).clone().try_into().unwrap())
+                        .join_left_published(
+                            join,
+                            (*rewritten_left).clone().try_into().unwrap(),
+                            (*rewritten_right).clone().try_into().unwrap(),
+                        )
                         .unwrap()
                         .into()
                 }
@@ -1082,7 +1116,11 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         crate::protection::Strategy::Hard,
                     );
                     protection
-                        .join_right_published(join, (*rewritten_left).clone().try_into().unwrap(), (*rewritten_right).clone().try_into().unwrap())
+                        .join_right_published(
+                            join,
+                            (*rewritten_left).clone().try_into().unwrap(),
+                            (*rewritten_right).clone().try_into().unwrap(),
+                        )
                         .unwrap()
                         .into()
                 }
@@ -1124,10 +1162,11 @@ mod tests {
         ast,
         builder::With,
         display::Dot,
+        expr::Identifier,
         io::{postgresql, Database},
         protection::protected_entity,
         sql::parse,
-        Relation, synthetic_data, expr::Identifier,
+        synthetic_data, Relation,
     };
 
     #[test]
@@ -1156,19 +1195,18 @@ mod tests {
                 ],
                 "name",
             ),
-            (
-                "order_table",
-                vec![("user_id", "user_table", "id")],
-                "name",
-            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules =
-            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(synthetic_data, protected_entity, budget));
+        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+            synthetic_data,
+            protected_entity,
+            budget,
+        ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules =
             relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
@@ -1213,19 +1251,18 @@ mod tests {
                 ],
                 "name",
             ),
-            (
-                "order_table",
-                vec![("user_id", "user_table", "id")],
-                "name",
-            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules =
-            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(synthetic_data, protected_entity, budget));
+        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+            synthetic_data,
+            protected_entity,
+            budget,
+        ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules =
             relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
@@ -1267,19 +1304,18 @@ mod tests {
                 ],
                 "name",
             ),
-            (
-                "order_table",
-                vec![("user_id", "user_table", "id")],
-                "name",
-            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules =
-            relation.set_rewriting_rules(BaseRewritingRulesSetter::new(synthetic_data, protected_entity, budget));
+        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+            synthetic_data,
+            protected_entity,
+            budget,
+        ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules =
             relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);

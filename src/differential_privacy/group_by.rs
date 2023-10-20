@@ -1,38 +1,41 @@
+use super::Error;
 use crate::{
-    builder::{With, WithIterator, Ready},
+    builder::{Ready, With, WithIterator},
     differential_privacy::{private_query, DPRelation, PrivateQuery, Result},
     expr::{aggregate, Expr},
     namer,
     protection::{PEPRelation, ProtectedEntity},
-    relation::{Relation, Reduce, Map, Variant as _},
+    relation::{Join, Reduce, Relation, Variant as _},
 };
-use super::Error;
 
 pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
-
 
 impl Reduce {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs all the DP values of the `self` grouping keys
     ///     - `private_query` stores the invoked DP mechanisms
     pub fn differential_privacy_group_by(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
-
         if self.group_by().is_empty() {
             Err(Error::GroupingKeysError(format!("No grouping keys")))
         } else {
             let relation: Relation = Relation::map()
                 .with_iter(
                     self.group_by()
-                    .into_iter()
-                    .map(|x| (x.to_string(), x.clone()))
-                    .collect::<Vec<_>>()
+                        .into_iter()
+                        .map(|x| (x.to_string(), x.clone()))
+                        .collect::<Vec<_>>(),
                 )
-                .with((ProtectedEntity::protected_entity_id(), Expr::col(ProtectedEntity::protected_entity_id())))
-                .with((ProtectedEntity::protected_entity_weight(), Expr::col(ProtectedEntity::protected_entity_weight())))
+                .with((
+                    ProtectedEntity::protected_entity_id(),
+                    Expr::col(ProtectedEntity::protected_entity_id()),
+                ))
+                .with((
+                    ProtectedEntity::protected_entity_weight(),
+                    Expr::col(ProtectedEntity::protected_entity_weight()),
+                ))
                 .input(self.input().clone())
                 .build();
-            PEPRelation::try_from(relation)?
-                .dp_values(epsilon, delta)
+            PEPRelation::try_from(relation)?.dp_values(epsilon, delta)
         }
     }
 }
@@ -139,27 +142,30 @@ impl Relation {
     }
 
     pub fn join_with_grouping_values(self, grouping_values: Relation) -> Result<Relation> {
-        let on: Vec<Expr> = grouping_values
+        let left = grouping_values;
+        let right = self;
+
+        let on: Vec<Expr> = left
             .schema()
             .iter()
             .map(|f| {
                 Expr::eq(
-                    Expr::qcol(self.name().to_string(), f.name().to_string()),
-                    Expr::qcol(grouping_values.name().to_string(), f.name().to_string()),
+                    Expr::qcol(Join::left_name(), f.name()),
+                    Expr::qcol(Join::right_name(), f.name()),
                 )
             })
             .collect();
 
-        let names = self
+        let names = right
             .schema()
             .iter()
             .map(|f| f.name().to_string())
             .collect::<Vec<_>>();
 
         let join_rel: Relation = Relation::join()
-            .right(self)
+            .right(right)
             .right_names(names.clone())
-            .left(grouping_values)
+            .left(left)
             .inner()
             .on_iter(on)
             .build();
@@ -174,10 +180,9 @@ mod tests {
     use crate::{
         ast,
         builder::With,
-        data_type::{DataType, DataTyped, Value, Date, Variant},
+        data_type::{DataType, DataTyped, Variant},
         display::Dot,
         expr::AggregateColumn,
-        hierarchy::Hierarchy,
         io::{postgresql, Database},
         protection::{ProtectedEntity, Protection, Strategy},
         relation::{Join, Schema},
@@ -193,8 +198,14 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
-                    .with((ProtectedEntity::protected_entity_id(), DataType::integer_range(1..=100)))
-                    .with((ProtectedEntity::protected_entity_weight(), DataType::float_interval(0., 1.)))
+                    .with((
+                        ProtectedEntity::protected_entity_id(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        ProtectedEntity::protected_entity_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
                     .build(),
             )
             .build();
@@ -226,8 +237,14 @@ mod tests {
                 Schema::builder()
                     .with(("a", DataType::integer_values([1, 2, 4, 6])))
                     .with(("b", DataType::float_values([1.2, 4.6, 7.8])))
-                    .with((ProtectedEntity::protected_entity_id(), DataType::integer_range(1..=100)))
-                    .with((ProtectedEntity::protected_entity_weight(), DataType::float_interval(0., 1.)))
+                    .with((
+                        ProtectedEntity::protected_entity_id(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        ProtectedEntity::protected_entity_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
                     .build(),
             )
             .build();
@@ -252,8 +269,14 @@ mod tests {
                 Schema::builder()
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::float_range(5.4..=20.)))
-                    .with((ProtectedEntity::protected_entity_id(), DataType::integer_range(1..=100)))
-                    .with((ProtectedEntity::protected_entity_weight(), DataType::float_interval(0., 1.)))
+                    .with((
+                        ProtectedEntity::protected_entity_id(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        ProtectedEntity::protected_entity_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
                     .build(),
             )
             .build();
@@ -277,8 +300,14 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=5)))
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
-                    .with((ProtectedEntity::protected_entity_id(), DataType::integer_range(1..=100)))
-                    .with((ProtectedEntity::protected_entity_weight(), DataType::float_interval(0., 1.)))
+                    .with((
+                        ProtectedEntity::protected_entity_id(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        ProtectedEntity::protected_entity_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
                     .build(),
             )
             .build();
@@ -299,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diffrential_privacy_group_by_simple() {
+    fn test_differential_privacy_group_by_simple() {
         let table: Relation = Relation::table()
             .name("table")
             .schema(
@@ -307,8 +336,14 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
-                    .with((ProtectedEntity::protected_entity_id(), DataType::integer_range(1..=100)))
-                    .with((ProtectedEntity::protected_entity_weight(), DataType::float_interval(0., 1.)))
+                    .with((
+                        ProtectedEntity::protected_entity_id(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        ProtectedEntity::protected_entity_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
                     .build(),
             )
             .build();
@@ -330,7 +365,10 @@ mod tests {
             .group_by(expr!(b))
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce.differential_privacy_group_by(epsilon, delta).unwrap().into();
+        let (dp_relation, private_query) = reduce
+            .differential_privacy_group_by(epsilon, delta)
+            .unwrap()
+            .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(private_query, PrivateQuery::null());
         assert_eq!(
@@ -345,14 +383,17 @@ mod tests {
             .group_by_iter(vec![expr!(a), expr!(c)])
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce.differential_privacy_group_by(epsilon, delta).unwrap().into();
+        let (dp_relation, private_query) = reduce
+            .differential_privacy_group_by(epsilon, delta)
+            .unwrap()
+            .into();
         assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
         assert_eq!(
             dp_relation.data_type(),
-            DataType::structured(
-                [("a", DataType::integer_range(1..=10)),
-                ("c", DataType::integer_range(5..=20))]
-            )
+            DataType::structured([
+                ("a", DataType::integer_range(1..=10)),
+                ("c", DataType::integer_range(5..=20))
+            ])
         );
 
         // With GROUPBY. Both tau-thresholding and possible values
@@ -363,7 +404,10 @@ mod tests {
             .group_by(expr!(b))
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce.differential_privacy_group_by(epsilon, delta).unwrap().into();
+        let (dp_relation, private_query) = reduce
+            .differential_privacy_group_by(epsilon, delta)
+            .unwrap()
+            .into();
         assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
         assert_eq!(
             dp_relation.data_type(),
@@ -383,8 +427,14 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::float_interval(1., 2.)))
-                    .with((ProtectedEntity::protected_entity_id(), DataType::integer_range(1..=100)))
-                    .with((ProtectedEntity::protected_entity_weight(), DataType::float_interval(0., 1.)))
+                    .with((
+                        ProtectedEntity::protected_entity_id(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        ProtectedEntity::protected_entity_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
                     .build(),
             )
             .build();
@@ -395,8 +445,14 @@ mod tests {
             .with(("a", expr!(a)))
             .with(("twice_b", expr!(2 * b)))
             .with(("c", expr!(3 * c)))
-            .with((ProtectedEntity::protected_entity_id(), Expr::col(ProtectedEntity::protected_entity_id())))
-            .with((ProtectedEntity::protected_entity_weight(), Expr::col(ProtectedEntity::protected_entity_weight())))
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                Expr::col(ProtectedEntity::protected_entity_id()),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                Expr::col(ProtectedEntity::protected_entity_weight()),
+            ))
             .input(table.clone())
             .build();
         let reduce: Reduce = Relation::reduce()
@@ -407,7 +463,10 @@ mod tests {
             .input(input)
             .build();
 
-        let (dp_relation, private_query) = reduce.differential_privacy_group_by(epsilon, delta).unwrap().into();
+        let (dp_relation, private_query) = reduce
+            .differential_privacy_group_by(epsilon, delta)
+            .unwrap()
+            .into();
         dp_relation.display_dot().unwrap();
         assert!(matches!(dp_relation, Relation::Join(_)));
         assert!(matches!(dp_relation.inputs()[0], &Relation::Values(_)));
@@ -428,8 +487,14 @@ mod tests {
             .with(("twice_b", expr!(2 * b)))
             .with(("c", expr!(3 * c)))
             .filter(Expr::in_list(Expr::col("c"), Expr::list(vec![1., 1.5])))
-            .with((ProtectedEntity::protected_entity_id(), Expr::col(ProtectedEntity::protected_entity_id())))
-            .with((ProtectedEntity::protected_entity_weight(), Expr::col(ProtectedEntity::protected_entity_weight())))
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                Expr::col(ProtectedEntity::protected_entity_id()),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                Expr::col(ProtectedEntity::protected_entity_weight()),
+            ))
             .input(table.clone())
             .build();
         let reduce: Reduce = Relation::reduce()
@@ -439,16 +504,19 @@ mod tests {
             .group_by(expr!(twice_b))
             .input(input)
             .build();
-        let (dp_relation, private_query) = reduce.differential_privacy_group_by(epsilon, delta).unwrap().into();
+        let (dp_relation, private_query) = reduce
+            .differential_privacy_group_by(epsilon, delta)
+            .unwrap()
+            .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(private_query, PrivateQuery::null());
         assert!(matches!(dp_relation.inputs()[0], &Relation::Values(_)));
         assert!(matches!(dp_relation.inputs()[1], &Relation::Values(_)));
         assert_eq!(
             dp_relation.data_type(),
-                DataType::structured([
-                    ("twice_b", DataType::integer_values([2, 4, 10, 12, 14, 16])),
-                    ("c", DataType::float_values([3., 4.5])),
+            DataType::structured([
+                ("twice_b", DataType::integer_values([2, 4, 10, 12, 14, 16])),
+                ("c", DataType::float_values([3., 4.5])),
             ])
         );
     }
@@ -481,11 +549,7 @@ mod tests {
         let protection = Protection::from((
             &relations,
             vec![
-                (
-                    "item_table",
-                    vec![("order_id", "order_table", "id")],
-                    "id",
-                ),
+                ("item_table", vec![("order_id", "order_table", "id")], "id"),
                 ("order_table", vec![], "id"),
             ],
             Strategy::Hard,
@@ -496,14 +560,19 @@ mod tests {
             .join(&join, protected_left, protected_right)
             .unwrap();
 
-
         let map: Relation = Relation::map()
             .name("map_relation")
             .with(("items", expr!(items)))
             .with(("twice_price", expr!(2 * price)))
             .with(("date", expr!(date)))
-            .with((ProtectedEntity::protected_entity_id(), Expr::col(ProtectedEntity::protected_entity_id())))
-            .with((ProtectedEntity::protected_entity_weight(), Expr::col(ProtectedEntity::protected_entity_weight())))
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                Expr::col(ProtectedEntity::protected_entity_id()),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                Expr::col(ProtectedEntity::protected_entity_weight()),
+            ))
             .input(protected_join.deref().clone())
             .build();
 
@@ -515,18 +584,17 @@ mod tests {
             .input(map)
             .build();
 
-        let (dp_relation, private_query) = reduce.differential_privacy_group_by(epsilon, delta).unwrap().into();
+        let (dp_relation, private_query) = reduce
+            .differential_privacy_group_by(epsilon, delta)
+            .unwrap()
+            .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
         matches!(dp_relation, Relation::Map(_));
-        assert!(
-            dp_relation.data_type().is_subset_of(
-                &DataType::structured([
-                    ("date", DataType::date()),
-                    ("items", DataType::text()),
-                ])
-            )
-        );
+        assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
+            ("date", DataType::date()),
+            ("items", DataType::text()),
+        ])));
         let dp_query = ast::Query::from(&dp_relation);
         _ = database.query(&dp_query.to_string()).unwrap();
     }
