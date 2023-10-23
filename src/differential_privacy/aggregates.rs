@@ -135,20 +135,20 @@ impl PEPRelation {
             (input_builder, named_sums, output_builder),
             |(mut input_b, mut sums, mut output_b), (name, aggregate)| {
                 let one_col = "_ONE_".to_string();
-                let colname = aggregate.column_name().unwrap().to_string();
-                let sum_col = format!("_SUM_{}", colname);
-                let count_col = format!("_COUNT_{}", colname);
+                let col_name = aggregate.column_name().unwrap().to_string();
+                let sum_col = format!("_SUM_{}", col_name);
+                let count_col = format!("_COUNT_{}", col_name);
                 match aggregate.aggregate() {
                     aggregate::Aggregate::First => {
-                        assert!(group_by_names.contains(&colname.as_str()));
-                        output_b = output_b.with((name, Expr::col(colname.as_str())))
+                        assert!(group_by_names.contains(&col_name.as_str()));
+                        output_b = output_b.with((name, Expr::col(col_name.as_str())))
                     }
                     aggregate::Aggregate::Mean => {
                         input_b = input_b
-                            .with((colname.as_str(), Expr::col(colname.as_str())))
+                            .with((col_name.as_str(), Expr::col(col_name.as_str())))
                             .with((one_col.as_str(), Expr::val(1.)));
                         sums.push((count_col.clone(), one_col));
-                        sums.push((sum_col.clone(), colname));
+                        sums.push((sum_col.clone(), col_name));
                         output_b = output_b.with((
                             name,
                             Expr::divide(
@@ -163,8 +163,8 @@ impl PEPRelation {
                         output_b = output_b.with((name, Expr::col(count_col)));
                     }
                     aggregate::Aggregate::Sum => {
-                        input_b = input_b.with((colname.as_str(), Expr::col(colname.as_str())));
-                        sums.push((sum_col.clone(), colname));
+                        input_b = input_b.with((col_name.as_str(), Expr::col(col_name.as_str())));
+                        sums.push((sum_col.clone(), col_name));
                         output_b = output_b.with((name, Expr::col(sum_col)));
                     }
                     aggregate::Aggregate::Std => todo!(),

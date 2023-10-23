@@ -659,10 +659,10 @@ impl Relation {
         red.ordered_reduce(grouping_exprs, aggregates_exprs)
     }
 
-    pub fn public_values_column(&self, colname: &str) -> Result<Relation> {
-        let data_type = self.schema().field(colname).unwrap().data_type();
+    pub fn public_values_column(&self, col_name: &str) -> Result<Relation> {
+        let data_type = self.schema().field(col_name).unwrap().data_type();
         let values: Vec<Value> = data_type.try_into()?;
-        Ok(Relation::values().name(colname).values(values).build())
+        Ok(Relation::values().name(col_name).values(values).build())
     }
 
     pub fn public_values(&self) -> Result<Relation> {
