@@ -11,7 +11,10 @@ use itertools::Itertools;
 
 use crate::{
     builder::{Ready, With},
-    differential_privacy::budget::Budget,
+    differential_privacy::{
+        budget::Budget,
+        private_query::{self, PrivateQuery},
+    },
     hierarchy::Hierarchy,
     protection::{protected_entity::ProtectedEntity, Protection},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
@@ -453,44 +456,89 @@ impl<'a> From<&'a RelationWithRewritingRule<'a>> for RelationWithRewritingRules<
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct RelationWithPrivateQuery {
+    relation: Arc<Relation>,
+    private_query: PrivateQuery,
+}
+
+impl RelationWithPrivateQuery {
+    pub fn relation(&self) -> &Relation {
+        self.relation.deref()
+    }
+
+    pub fn private_query(&self) -> &PrivateQuery {
+        &self.private_query
+    }
+}
+
+impl From<RelationWithPrivateQuery> for (Relation, PrivateQuery) {
+    fn from(value: RelationWithPrivateQuery) -> Self {
+        let RelationWithPrivateQuery {
+            relation,
+            private_query,
+        } = value;
+        (relation.deref().clone(), private_query)
+    }
+}
+
+impl From<(Arc<Relation>, PrivateQuery)> for RelationWithPrivateQuery {
+    fn from(value: (Arc<Relation>, PrivateQuery)) -> Self {
+        RelationWithPrivateQuery {
+            relation: value.0,
+            private_query: value.1,
+        }
+    }
+}
+
 /// A Visitor to rewrite a RelationWithRewritingRule
 pub trait RewriteVisitor<'a> {
-    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> Arc<Relation>;
+    fn table(
+        &self,
+        table: &'a Table,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery;
     fn map(
         &self,
         map: &'a Map,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: Arc<Relation>,
-    ) -> Arc<Relation>;
+        rewritten_input: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery;
     fn reduce(
         &self,
         reduce: &'a Reduce,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: Arc<Relation>,
-    ) -> Arc<Relation>;
+        rewritten_input: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery;
     fn join(
         &self,
         join: &'a Join,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: Arc<Relation>,
-        rewritten_right: Arc<Relation>,
-    ) -> Arc<Relation>;
+        rewritten_left: RelationWithPrivateQuery,
+        rewritten_right: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery;
     fn set(
         &self,
         set: &'a Set,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: Arc<Relation>,
-        rewritten_right: Arc<Relation>,
-    ) -> Arc<Relation>;
-    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> Arc<Relation>;
+        rewritten_left: RelationWithPrivateQuery,
+        rewritten_right: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery;
+    fn values(
+        &self,
+        values: &'a Values,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery;
 }
 /// Implement the visitor trait
-impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, Arc<Relation>> for V {
+impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, RelationWithPrivateQuery>
+    for V
+{
     fn visit(
         &self,
         acceptor: &'a RelationWithRewritingRule<'a>,
-        dependencies: Visited<'a, RelationWithRewritingRule<'a>, Arc<Relation>>,
-    ) -> Arc<Relation> {
+        dependencies: Visited<'a, RelationWithRewritingRule<'a>, RelationWithPrivateQuery>,
+    ) -> RelationWithPrivateQuery {
         match acceptor.relation() {
             Relation::Table(table) => self.table(table, acceptor.attributes()),
             Relation::Map(map) => self.map(
@@ -522,8 +570,11 @@ impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, Arc<R
 
 impl<'a> RelationWithRewritingRule<'a> {
     /// Rewrite the RelationWithRewritingRule
-    pub fn rewrite<V: RewriteVisitor<'a>>(&'a self, rewrite_visitor: V) -> Relation {
-        (*self.accept(rewrite_visitor)).clone()
+    pub fn rewrite<V: RewriteVisitor<'a>>(
+        &'a self,
+        rewrite_visitor: V,
+    ) -> RelationWithPrivateQuery {
+        self.accept(rewrite_visitor)
     }
 }
 
@@ -958,8 +1009,12 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
 struct BaseRewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
 
 impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
-    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> Arc<Relation> {
-        Arc::new(
+    fn table(
+        &self,
+        table: &'a Table,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery {
+        let relation = Arc::new(
             match (rewriting_rule.output(), rewriting_rule.parameters()) {
                 (Property::Private, _) => table.clone().into(),
                 (Property::SyntheticData, Parameters::SyntheticData(synthetic_data)) => {
@@ -981,16 +1036,18 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                 (Property::Public, _) => table.clone().into(),
                 _ => table.clone().into(),
             },
-        )
+        );
+        (relation, PrivateQuery::null()).into()
     }
 
     fn map(
         &self,
         map: &'a Map,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: Arc<Relation>,
-    ) -> Arc<Relation> {
-        Arc::new(
+        rewritten_input: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery {
+        let (relation_input, private_query_input) = rewritten_input.into();
+        let relation: Arc<Relation> = Arc::new(
             match (
                 rewriting_rule.inputs(),
                 rewriting_rule.output(),
@@ -1007,25 +1064,27 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         crate::protection::Strategy::Soft,
                     );
                     protection
-                        .map(map, (*rewritten_input).clone().try_into().unwrap())
+                        .map(map, relation_input.try_into().unwrap())
                         .unwrap()
                         .into()
                 }
                 _ => Relation::map()
                     .with(map.clone())
-                    .input(rewritten_input)
+                    .input(relation_input)
                     .build(),
             },
-        )
+        );
+        (relation, private_query_input).into()
     }
 
     fn reduce(
         &self,
         reduce: &'a Reduce,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: Arc<Relation>,
-    ) -> Arc<Relation> {
-        Arc::new(
+        rewritten_input: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery {
+        let (relation_input, mut private_query_input) = rewritten_input.into();
+        let relation = Arc::new(
             match (
                 rewriting_rule.inputs(),
                 rewriting_rule.output(),
@@ -1036,10 +1095,11 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     Property::DifferentiallyPrivate,
                     Parameters::Budget(budget),
                 ) => {
-                    let (dp_relation, _private_query) = budget
-                        .reduce(reduce, (*rewritten_input).clone().try_into().unwrap())
+                    let (dp_relation, private_query) = budget
+                        .reduce(reduce, relation_input.try_into().unwrap())
                         .unwrap()
                         .into();
+                    private_query_input = private_query_input.compose(private_query);
                     dp_relation
                 }
                 (
@@ -1053,26 +1113,29 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         crate::protection::Strategy::Hard,
                     );
                     protection
-                        .reduce(reduce, (*rewritten_input).clone().try_into().unwrap())
+                        .reduce(reduce, relation_input.try_into().unwrap())
                         .unwrap()
                         .into()
                 }
                 _ => Relation::reduce()
                     .with(reduce.clone())
-                    .input(rewritten_input)
+                    .input(relation_input)
                     .build(),
             },
-        )
+        );
+        (relation, private_query_input).into()
     }
 
     fn join(
         &self,
         join: &'a Join,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: Arc<Relation>,
-        rewritten_right: Arc<Relation>,
-    ) -> Arc<Relation> {
-        Arc::new(
+        rewritten_left: RelationWithPrivateQuery,
+        rewritten_right: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery {
+        let (relation_left, private_query_left) = rewritten_left.into();
+        let (relation_right, private_query_right) = rewritten_right.into();
+        let relation: Arc<Relation> = Arc::new(
             match (
                 rewriting_rule.inputs(),
                 rewriting_rule.output(),
@@ -1091,8 +1154,8 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     protection
                         .join(
                             join,
-                            (*rewritten_left).clone().try_into().unwrap(),
-                            (*rewritten_right).clone().try_into().unwrap(),
+                            relation_left.try_into().unwrap(),
+                            relation_right.try_into().unwrap(),
                         )
                         .unwrap()
                         .into()
@@ -1110,8 +1173,8 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     protection
                         .join_left_published(
                             join,
-                            (*rewritten_left).clone().try_into().unwrap(),
-                            (*rewritten_right).clone().try_into().unwrap(),
+                            relation_left.try_into().unwrap(),
+                            relation_right.try_into().unwrap(),
                         )
                         .unwrap()
                         .into()
@@ -1129,8 +1192,8 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     protection
                         .join_right_published(
                             join,
-                            (*rewritten_left).clone().try_into().unwrap(),
-                            (*rewritten_right).clone().try_into().unwrap(),
+                            relation_left.try_into().unwrap(),
+                            relation_right.try_into().unwrap(),
                         )
                         .unwrap()
                         .into()
@@ -1138,31 +1201,39 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                 _ => Relation::join()
                     .with(join.clone())
                     // .left_names(names[0..rewritten_left])
-                    .left(rewritten_left)
-                    .right(rewritten_right)
+                    .left(relation_left)
+                    .right(relation_right)
                     .build(),
             },
-        )
+        );
+        (relation, private_query_left.compose(private_query_right)).into()
     }
 
     fn set(
         &self,
         set: &'a Set,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: Arc<Relation>,
-        rewritten_right: Arc<Relation>,
-    ) -> Arc<Relation> {
-        Arc::new(
+        rewritten_left: RelationWithPrivateQuery,
+        rewritten_right: RelationWithPrivateQuery,
+    ) -> RelationWithPrivateQuery {
+        let (relation_left, private_query_left) = rewritten_left.into();
+        let (relation_right, private_query_right) = rewritten_right.into();
+        let relation: Arc<Relation> = Arc::new(
             Relation::set()
                 .with(set.clone())
-                .left(rewritten_left)
-                .right(rewritten_right)
+                .left(relation_left)
+                .right(relation_right)
                 .build(),
-        )
+        );
+        (relation, private_query_left.compose(private_query_right)).into()
     }
 
-    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> Arc<Relation> {
-        Arc::new(values.clone().into())
+    fn values(
+        &self,
+        values: &'a Values,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery {
+        (Arc::new(values.clone().into()), PrivateQuery::null()).into()
     }
 }
 
@@ -1227,7 +1298,13 @@ mod tests {
             let num_dp = rwrr.accept(BaseBudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
-            rwrr.rewrite(BaseRewriter(&relations))
+            let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
+            relation_with_private_query
+                .relation()
                 .display_dot()
                 .unwrap();
         }
@@ -1283,7 +1360,13 @@ mod tests {
             let num_dp = rwrr.accept(BaseBudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
-            rwrr.rewrite(BaseRewriter(&relations))
+            let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
+            relation_with_private_query
+                .relation()
                 .display_dot()
                 .unwrap();
         }
@@ -1337,7 +1420,13 @@ mod tests {
             let num_dp = rwrr.accept(BaseBudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
-            rwrr.rewrite(BaseRewriter(&relations))
+            let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
+            relation_with_private_query
+                .relation()
                 .display_dot()
                 .unwrap();
         }
