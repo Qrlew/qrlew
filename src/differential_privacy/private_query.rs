@@ -2,6 +2,8 @@ use statrs::{
     distribution::{ContinuousCDF, Normal},
     prec::F64_PREC,
 };
+use std::fmt;
+use itertools::Itertools;
 
 /// A Private Query
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +49,23 @@ impl PrivateQuery {
         sensitivity: f64,
     ) -> Self {
         PrivateQuery::Gaussian(gaussian_noise(epsilon, delta, sensitivity))
+    }
+}
+
+impl fmt::Display for PrivateQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PrivateQuery::Gaussian(n) => writeln!(f, "Gaussian ({})", n),
+            PrivateQuery::Laplace(n) => writeln!(f, "Laplace ({})", n),
+            PrivateQuery::EpsilonDelta(e, d) => writeln!(f, "EpsilonDelta ({}, {})", e, d),
+            PrivateQuery::Composed(v) => write!(
+                f,
+                "Composed ({})",
+                v.iter()
+                    .map(|pq| format!("{}", pq))
+                    .join(", ")
+            )
+        }
     }
 }
 
