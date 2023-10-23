@@ -11,7 +11,10 @@ use itertools::Itertools;
 
 use crate::{
     builder::{Ready, With},
-    differential_privacy::{budget::Budget, private_query::{PrivateQuery, self}},
+    differential_privacy::{
+        budget::Budget,
+        private_query::{self, PrivateQuery},
+    },
     hierarchy::Hierarchy,
     protection::{protected_entity::ProtectedEntity, Protection},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
@@ -105,7 +108,6 @@ pub type RelationWithRewritingRule<'a> =
 /// A Relation with a proven property attached
 pub type RelationWithProperty<'a> =
     super::relation_with_attributes::RelationWithAttributes<'a, Vec<RewritingRule>>;
-
 
 // TODO Write a rewrite method RelationWithRules -> Relation
 
@@ -454,14 +456,13 @@ impl<'a> From<&'a RelationWithRewritingRule<'a>> for RelationWithRewritingRules<
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct RelationWithPrivateQuery {
     relation: Arc<Relation>,
     private_query: PrivateQuery,
 }
 
-impl RelationWithPrivateQuery{
+impl RelationWithPrivateQuery {
     pub fn relation(&self) -> &Relation {
         self.relation.deref()
     }
@@ -473,7 +474,10 @@ impl RelationWithPrivateQuery{
 
 impl From<RelationWithPrivateQuery> for (Relation, PrivateQuery) {
     fn from(value: RelationWithPrivateQuery) -> Self {
-        let RelationWithPrivateQuery {relation, private_query} = value;
+        let RelationWithPrivateQuery {
+            relation,
+            private_query,
+        } = value;
         (relation.deref().clone(), private_query)
     }
 }
@@ -482,15 +486,18 @@ impl From<(Arc<Relation>, PrivateQuery)> for RelationWithPrivateQuery {
     fn from(value: (Arc<Relation>, PrivateQuery)) -> Self {
         RelationWithPrivateQuery {
             relation: value.0,
-            private_query: value.1
+            private_query: value.1,
         }
     }
 }
 
-
 /// A Visitor to rewrite a RelationWithRewritingRule
 pub trait RewriteVisitor<'a> {
-    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> RelationWithPrivateQuery;
+    fn table(
+        &self,
+        table: &'a Table,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery;
     fn map(
         &self,
         map: &'a Map,
@@ -517,10 +524,16 @@ pub trait RewriteVisitor<'a> {
         rewritten_left: RelationWithPrivateQuery,
         rewritten_right: RelationWithPrivateQuery,
     ) -> RelationWithPrivateQuery;
-    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> RelationWithPrivateQuery;
+    fn values(
+        &self,
+        values: &'a Values,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery;
 }
 /// Implement the visitor trait
-impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, RelationWithPrivateQuery> for V {
+impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, RelationWithPrivateQuery>
+    for V
+{
     fn visit(
         &self,
         acceptor: &'a RelationWithRewritingRule<'a>,
@@ -557,7 +570,10 @@ impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, Relat
 
 impl<'a> RelationWithRewritingRule<'a> {
     /// Rewrite the RelationWithRewritingRule
-    pub fn rewrite<V: RewriteVisitor<'a>>(&'a self, rewrite_visitor: V) -> RelationWithPrivateQuery {
+    pub fn rewrite<V: RewriteVisitor<'a>>(
+        &'a self,
+        rewrite_visitor: V,
+    ) -> RelationWithPrivateQuery {
         self.accept(rewrite_visitor)
     }
 }
@@ -993,7 +1009,11 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
 struct BaseRewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
 
 impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
-    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> RelationWithPrivateQuery {
+    fn table(
+        &self,
+        table: &'a Table,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery {
         let relation = Arc::new(
             match (rewriting_rule.output(), rewriting_rule.parameters()) {
                 (Property::Private, _) => table.clone().into(),
@@ -1208,11 +1228,14 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
         (relation, private_query_left.compose(private_query_right)).into()
     }
 
-    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> RelationWithPrivateQuery {
+    fn values(
+        &self,
+        values: &'a Values,
+        rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithPrivateQuery {
         (Arc::new(values.clone().into()), PrivateQuery::null()).into()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -1276,7 +1299,10 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
             let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
-            println!("PrivateQuery: {:?}", relation_with_private_query.private_query());
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
             relation_with_private_query
                 .relation()
                 .display_dot()
@@ -1335,7 +1361,10 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
             let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
-            println!("PrivateQuery: {:?}", relation_with_private_query.private_query());
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
             relation_with_private_query
                 .relation()
                 .display_dot()
@@ -1392,7 +1421,10 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
             let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
-            println!("PrivateQuery: {:?}", relation_with_private_query.private_query());
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
             relation_with_private_query
                 .relation()
                 .display_dot()

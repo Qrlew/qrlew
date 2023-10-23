@@ -1,9 +1,9 @@
+use itertools::Itertools;
 use statrs::{
     distribution::{ContinuousCDF, Normal},
     prec::F64_PREC,
 };
 use std::fmt;
-use itertools::Itertools;
 
 /// A Private Query
 #[derive(Clone, Debug, PartialEq)]
@@ -61,10 +61,8 @@ impl fmt::Display for PrivateQuery {
             PrivateQuery::Composed(v) => write!(
                 f,
                 "Composed ({})",
-                v.iter()
-                    .map(|pq| format!("{}", pq))
-                    .join(", ")
-            )
+                v.iter().map(|pq| format!("{}", pq)).join(", ")
+            ),
         }
     }
 }
