@@ -145,7 +145,7 @@ impl PEPRelation {
                     }
                     aggregate::Aggregate::Mean => {
                         input_b = input_b
-                            .with((name, Expr::col(colname.as_str())))
+                            .with((colname.as_str(), Expr::col(colname.as_str())))
                             .with((one_col.as_str(), Expr::val(1.)));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), colname));
