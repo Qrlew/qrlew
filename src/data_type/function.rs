@@ -1164,25 +1164,25 @@ pub fn multiply() -> impl Function {
 
 /// The division (the domain is partitionned)
 pub fn divide() -> impl Function {
-    Polymorphic::from((
+    Optional(Polymorphic::from((
         // Integer implementation
         PartitionnedMonotonic::piecewise_bivariate(
             [
                 (
-                    data_type::Integer::from_min(0),
-                    data_type::Integer::from_min(0),
+                    data_type::Integer::from_min(1),
+                    data_type::Integer::from_min(1),
                 ),
                 (
-                    data_type::Integer::from_min(0),
-                    data_type::Integer::from_max(0),
+                    data_type::Integer::from_min(1),
+                    data_type::Integer::from_max(-1),
                 ),
                 (
-                    data_type::Integer::from_max(0),
-                    data_type::Integer::from_min(0),
+                    data_type::Integer::from_max(-1),
+                    data_type::Integer::from_min(1),
                 ),
                 (
-                    data_type::Integer::from_max(0),
-                    data_type::Integer::from_max(0),
+                    data_type::Integer::from_max(-1),
+                    data_type::Integer::from_max(-1),
                 ),
             ],
             |x, y| x.saturating_div(y),
@@ -1191,25 +1191,25 @@ pub fn divide() -> impl Function {
         PartitionnedMonotonic::piecewise_bivariate(
             [
                 (
-                    data_type::Float::from_min(0.0),
-                    data_type::Float::from_min(0.0),
+                    data_type::Float::from_min(f64::MIN_POSITIVE),
+                    data_type::Float::from_min(f64::MIN_POSITIVE),
                 ),
                 (
-                    data_type::Float::from_min(0.0),
-                    data_type::Float::from_max(0.0),
+                    data_type::Float::from_min(f64::MIN_POSITIVE),
+                    data_type::Float::from_max(-1. * f64::MIN_POSITIVE),
                 ),
                 (
-                    data_type::Float::from_max(0.0),
-                    data_type::Float::from_min(0.0),
+                    data_type::Float::from_max(-1. * f64::MIN_POSITIVE),
+                    data_type::Float::from_min(f64::MIN_POSITIVE),
                 ),
                 (
-                    data_type::Float::from_max(0.0),
-                    data_type::Float::from_max(0.0),
+                    data_type::Float::from_max(-1. * f64::MIN_POSITIVE),
+                    data_type::Float::from_max(-1. * f64::MIN_POSITIVE),
                 ),
             ],
             |x, y| (x / y).clamp(<f64 as Bound>::min(), <f64 as Bound>::max()),
         ),
-    ))
+    )))
 }
 
 /// The modulo
@@ -2132,6 +2132,57 @@ mod tests {
         println!("Test mult");
         // Test a bivariate monotonic function
         let fun = multiply();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        // First test
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::from(data_type::Float::from_intervals([
+                [0., 2.],
+                [5., 5.],
+                [10., 10.],
+            ])),
+            DataType::float_interval(-3., 3.),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        // Two intervals accross 0
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::float_interval(-1., 10.),
+            DataType::float_interval(-1., 10.),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        // Test with values
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::float_values([0., 1., 3.]),
+            DataType::float_values([-5., 5.]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        // Test with values and thin intervals
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::float_values([-5., 1., 3.]),
+            DataType::float_interval(-1.1, -1.),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Float(_)));
+        // Test with integers
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer_values([-5, 1, 4]),
+            DataType::integer_interval(1, 3),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(matches!(im, DataType::Integer(_)));
+    }
+
+    #[test]
+    fn test_divide() {
+        println!("Test divide");
+        // Test a bivariate monotonic function
+        let fun = divide();
         println!("type = {}", fun);
         println!("domain = {}", fun.domain());
         println!("co_domain = {}", fun.co_domain());
