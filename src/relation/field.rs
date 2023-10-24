@@ -12,6 +12,16 @@ pub enum Constraint {
     ForeignKey,
 }
 
+impl fmt::Display for Constraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Constraint::Unique => write!(f, "UNIQUE"),
+            Constraint::PrimaryKey => write!(f, "PRIMARY_KEY"),
+            Constraint::ForeignKey => write!(f, "FOREIGN_KEY"),
+        }
+    }
+}
+
 /// A Field as in https://github.com/apache/arrow-datafusion/blob/5b23180cf75ea7155d7c35a40f224ce4d5ad7fb8/datafusion/src/logical_plan/dfschema.rs#L413
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Field {
@@ -86,7 +96,7 @@ impl Field {
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(constraint) = self.constraint {
-            write!(f, "{}: {} ({:?})", self.name, self.data_type, constraint)
+            write!(f, "{}: {} ({})", self.name, self.data_type, constraint)
         } else {
             write!(f, "{}: {}", self.name, self.data_type)
         }
@@ -96,6 +106,12 @@ impl fmt::Display for Field {
 impl<S: Into<String>, T: Into<DataType>> From<(S, T)> for Field {
     fn from(name_data_type: (S, T)) -> Self {
         Field::from_name_data_type(name_data_type.0, name_data_type.1)
+    }
+}
+
+impl<S: Into<String>, T: Into<DataType>> From<(S, T, Constraint)> for Field {
+    fn from(v: (S, T, Constraint)) -> Self {
+        Field::new(v.0.into(), v.1.into(), Some(v.2))
     }
 }
 

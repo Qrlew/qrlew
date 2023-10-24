@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Differential privacy in rules [MR156](https://github.com/Qrlew/qrlew/pull/156)
 - Method for dp rewritting: rewrite_with_differential_privacy [MR162](https://github.com/Qrlew/qrlew/pull/162)
+- computation of the size in the case of join where the constraint is unique [MR163](https://github.com/Qrlew/qrlew/pull/163)
 ### Fixed
 - differential privacy for the new formalism [MR155](https://github.com/Qrlew/qrlew/pull/155)
 - bug in differential privacy [MR158](https://github.com/Qrlew/qrlew/pull/158)

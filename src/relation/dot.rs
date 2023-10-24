@@ -38,12 +38,24 @@ impl fmt::Display for FieldDataTypes {
                 .map(|(field, expr)| {
                     let formated = format!(
                         "{}",
-                        shorten_string(&format!(
-                            "{} = {} ∈ {}",
-                            field.name(),
-                            dot::escape_html(&expr.to_string()),
-                            field.data_type()
-                        ))
+                        shorten_string(&
+                            if let Some(c) = field.constraint() {
+                                format!(
+                                    "{} = {} ∈ {} {}",
+                                    field.name(),
+                                    dot::escape_html(&expr.to_string()),
+                                    field.data_type(),
+                                    c
+                                )
+                            } else {
+                                format!(
+                                    "{} = {} ∈ {}",
+                                    field.name(),
+                                    dot::escape_html(&expr.to_string()),
+                                    field.data_type()
+                                )
+                            }
+                        )
                     );
                     // shorten_string(&formated).into_owned()
                     formated
@@ -452,8 +464,8 @@ mod tests {
     fn test_display_reduce() {
         namer::reset();
         let schema: Schema = vec![
-            ("a", DataType::integer_interval(1, 5)),
-            ("b", DataType::float_interval(-2., 2.)),
+            ("a", DataType::integer_interval(1, 5), Some(crate::relation::Constraint::PrimaryKey)),
+            ("b", DataType::float_interval(-2., 2.), None),
         ]
         .into_iter()
         .collect();

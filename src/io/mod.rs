@@ -18,7 +18,7 @@ use crate::{
     },
     expr::identifier::Identifier,
     hierarchy::Hierarchy,
-    relation::{builder::TableBuilder, schema::Schema, Relation, Table, Variant as _},
+    relation::{builder::TableBuilder, schema::Schema, Relation, Table, Variant as _, field::Constraint},
 };
 use std::{convert::Infallible, error, fmt, io, num, result, sync::Arc};
 
@@ -164,7 +164,7 @@ pub trait Database: Sized {
                 .schema(
                     Schema::empty()
                         .with(("id", DataType::integer_interval(0, 100)))
-                        .with(("name", DataType::text()))
+                        .with(("name", DataType::text(), Constraint::Unique))
                         .with((
                             "age",
                             DataType::optional(DataType::float_interval(0., 200.)),
