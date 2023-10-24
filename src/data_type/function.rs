@@ -2196,6 +2196,7 @@ mod tests {
             DataType::float_interval(-3., 3.),
         ]));
         let im = fun.super_image(&set).unwrap();
+        assert!(matches!(im, DataType::Optional(_)));
         println!("im({}) = {}", set, im);
         // Two intervals accross 0
         let set = DataType::from(Struct::from_data_types(&[
@@ -2203,6 +2204,7 @@ mod tests {
             DataType::float_interval(-1., 10.),
         ]));
         let im = fun.super_image(&set).unwrap();
+        assert!(matches!(im, DataType::Optional(_)));
         println!("im({}) = {}", set, im);
         // Test with values
         let set = DataType::from(Struct::from_data_types(&[
@@ -2210,6 +2212,7 @@ mod tests {
             DataType::float_values([-5., 5.]),
         ]));
         let im = fun.super_image(&set).unwrap();
+        assert!(matches!(im, DataType::Optional(_)));
         println!("im({}) = {}", set, im);
         // Test with values and thin intervals
         let set = DataType::from(Struct::from_data_types(&[
@@ -2217,6 +2220,7 @@ mod tests {
             DataType::float_interval(-1.1, -1.),
         ]));
         let im = fun.super_image(&set).unwrap();
+        assert!(matches!(im, DataType::Float(_)));
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Float(_)));
         // Test with integers
@@ -2225,6 +2229,7 @@ mod tests {
             DataType::integer_interval(1, 3),
         ]));
         let im = fun.super_image(&set).unwrap();
+        assert!(matches!(im, DataType::Integer(_)));
         println!("im({}) = {}", set, im);
         assert!(matches!(im, DataType::Integer(_)));
     }
