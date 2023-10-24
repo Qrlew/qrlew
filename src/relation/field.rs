@@ -74,6 +74,13 @@ impl Field {
     pub fn all_values(&self) -> bool {
         TryInto::<Vec<Value>>::try_into(self.data_type()).is_ok()
     }
+
+    pub fn is_unique(&self) -> bool {
+        match self.constraint() {
+            Some(Constraint::Unique) | Some(Constraint::PrimaryKey) => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for Field {
@@ -89,6 +96,12 @@ impl fmt::Display for Field {
 impl<S: Into<String>, T: Into<DataType>> From<(S, T)> for Field {
     fn from(name_data_type: (S, T)) -> Self {
         Field::from_name_data_type(name_data_type.0, name_data_type.1)
+    }
+}
+
+impl<S: Into<String>, T: Into<DataType>> From<(S, T, Option<Constraint>)> for Field {
+    fn from(v: (S, T, Option<Constraint>)) -> Self {
+        Field::new(v.0.into(), v.1.into(), v.2)
     }
 }
 

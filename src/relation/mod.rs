@@ -27,7 +27,7 @@ use crate::{
         self, function::Function, intervals::Bound, DataType, DataTyped, Integer, Struct, Value,
         Variant as _,
     },
-    expr::{self, AggregateColumn, Column, Expr, Identifier, Split},
+    expr::{self, AggregateColumn, Column, Expr, Identifier, Split, Function as ExprFunction, function},
     hierarchy::Hierarchy,
     namer,
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -36,7 +36,7 @@ pub use builder::{
     JoinBuilder, MapBuilder, ReduceBuilder, SetBuilder, TableBuilder, ValuesBuilder, WithInput,
     WithSchema, WithoutInput, WithoutSchema,
 };
-pub use field::Field;
+pub use field::{Constraint, Field};
 pub use schema::Schema;
 
 pub const LEFT_INPUT_NAME: &str = "_LEFT_";
@@ -723,6 +723,48 @@ impl JoinConstraint {
             JoinConstraint::None => JoinConstraint::None,
         }
     }
+
+    pub fn has_unique_constraint(&self, left_schema: &Schema, right_schema: &Schema) -> bool {
+
+        match self {
+            JoinConstraint::On(x) => {
+                match x {
+                    Expr::Function(f) if f.function() == function::Function::Eq => {
+                        let left = if let Expr::Column(c) = &f.arguments()[0] {
+                            left_schema.field(c.last().unwrap())
+                            .map(|f| f.is_unique())
+                            .unwrap_or(false)
+                        } else {
+                            false
+                        };
+                        let right = if let Expr::Column(c) = &f.arguments()[1] {
+                            left_schema.field(c.last().unwrap())
+                            .map(|f| f.is_unique())
+                            .unwrap_or(false)
+                        } else {
+                            false
+                        };
+                        left || right
+                    }
+                    _ => false
+
+                }
+            },
+            JoinConstraint::Using(v) => if v.len() != 1 {
+                false
+            } else {
+                let left = left_schema.field(v[0].last().unwrap())
+                    .map(|f| f.is_unique())
+                    .unwrap_or(false);
+                let right = right_schema.field(v[0].last().unwrap())
+                    .map(|f| f.is_unique())
+                    .unwrap_or(false);
+                left || right
+            },
+            JoinConstraint::Natural => false, // TODO
+            JoinConstraint::None => false,
+        }
+    }
 }
 
 impl From<(&JoinConstraint, &DataType)> for Expr {
@@ -819,24 +861,22 @@ impl Join {
 
     /// Compute the size of the join
     fn size(operator: &JoinOperator, left: &Relation, right: &Relation) -> Integer {
-        // TODO BUG here
         let left_size_max = left.size().max().cloned().unwrap_or(<i64 as Bound>::max());
         let right_size_max = right.size().max().cloned().unwrap_or(<i64 as Bound>::max());
-        // TODO Review this
         match operator {
-            JoinOperator::Inner(_) => {
-                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            JoinOperator::Inner(c) if c.has_unique_constraint(left.schema(), right.schema()) => {
+                left_size_max.min(right_size_max).into()
             }
-            JoinOperator::LeftOuter(_) => {
-                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            JoinOperator::LeftOuter(c) if c.has_unique_constraint(left.schema(), right.schema()) => {
+                left_size_max.into()
             }
-            JoinOperator::RightOuter(_) => {
-                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            JoinOperator::RightOuter(c) if c.has_unique_constraint(left.schema(), right.schema()) => {
+                right_size_max.into()
             }
-            JoinOperator::FullOuter(_) => {
-                Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
+            JoinOperator::FullOuter(c) if c.has_unique_constraint(left.schema(), right.schema()) => {
+                (left_size_max + right_size_max).into()
             }
-            JoinOperator::Cross => {
+            _ => {
                 Integer::from_interval(0, left_size_max.saturating_mul(right_size_max))
             }
         }
@@ -2177,5 +2217,91 @@ mod tests {
         // NONE
         let join_op = JoinOperator::RightOuter(JoinConstraint::None);
         assert_eq!(data_type.filter_by_join_operator(&join_op), data_type);
+    }
+
+    #[test]
+    fn test_build_join_with_unique_constraint() {
+        namer::reset();
+        let schema1: Schema = vec![
+            ("a", DataType::integer(), Some(Constraint::Unique)),
+            ("b", DataType::float_interval(-2., 2.), None),
+        ]
+        .into_iter()
+        .collect();
+        let table1: Arc<Relation> = Arc::new(
+            Relation::table()
+                .name("table1")
+                .schema(schema1.clone())
+                .size(1000)
+                .build(),
+        );
+
+        let schema2: Schema = vec![
+            ("a", DataType::integer()),
+            ("c", DataType::float_interval(-2., 2.)),
+        ]
+        .into_iter()
+        .collect();
+        let table2: Arc<Relation> = Arc::new(
+            Relation::table()
+                .name("table2")
+                .schema(schema2.clone())
+                .size(20)
+                .build(),
+        );
+
+        let join: Join = Relation::join()
+                .name("join")
+                .inner()
+                .on_eq("a", "a")
+                .left(table1.clone())
+                .right(table2.clone())
+                .build();
+        assert_eq!(join.size(), &Integer::from(20));
+
+        let join: Join = Relation::join()
+                .name("join")
+                .inner()
+                .on_eq("a", "a")
+                .left(table2.clone())
+                .right(table1.clone())
+                .build();
+        assert_eq!(join.size(), &Integer::from(20));
+
+        let join: Join = Relation::join()
+                .name("join")
+                .left_outer()
+                .on_eq("a", "a")
+                .left(table2.clone())
+                .right(table1.clone())
+                .build();
+        assert_eq!(join.size(), &Integer::from(20));
+
+        let join: Join = Relation::join()
+                .name("join")
+                .right_outer()
+                .on_eq("a", "a")
+                .left(table2.clone())
+                .right(table1.clone())
+                .build();
+        assert_eq!(join.size(), &Integer::from(100));
+
+        let join: Join = Relation::join()
+                .name("join")
+                .full_outer()
+                .on_eq("a", "a")
+                .left(table2.clone())
+                .right(table1.clone())
+                .build();
+        assert_eq!(join.size(), &Integer::from(120));
+
+        let join: Join = Relation::join()
+                .name("join")
+                .full_outer()
+                .on_eq("b", "a")
+                .left(table2.clone())
+                .right(table1.clone())
+                .build();
+        assert_eq!(join.size(), &Integer::from(2000));
     }
 }
