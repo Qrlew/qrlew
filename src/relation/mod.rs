@@ -904,7 +904,7 @@ impl Join {
         operator: &JoinOperator,
     ) -> Schema {
         let (left_schema, right_schema) = operator.filtered_schemas(left, right);
-        let is_unique = operator.has_unique_constraint(left.schema(), right.schema());
+        let has_unique = operator.has_unique_constraint(left.schema(), right.schema());
         let left_fields = left_names
             .into_iter()
             .zip(left_schema.iter())
@@ -912,7 +912,7 @@ impl Join {
                 Field::new(
                     name,
                     field.data_type(),
-                    if is_unique
+                    if has_unique
                         && (matches!(operator, JoinOperator::Inner(_))
                             || matches!(operator, JoinOperator::LeftOuter(_)))
                     {
@@ -929,7 +929,7 @@ impl Join {
                 Field::new(
                     name,
                     field.data_type(),
-                    if is_unique
+                    if has_unique
                         && (matches!(operator, JoinOperator::Inner(_))
                             || matches!(operator, JoinOperator::RightOuter(_)))
                     {

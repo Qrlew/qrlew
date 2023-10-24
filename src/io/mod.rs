@@ -166,7 +166,7 @@ pub trait Database: Sized {
                 .schema(
                     Schema::empty()
                         .with(("id", DataType::integer_interval(0, 100)))
-                        .with(("name".to_string(), DataType::text(), Constraint::Unique))
+                        .with(("name", DataType::text(), Constraint::Unique))
                         .with((
                             "age",
                             DataType::optional(DataType::float_interval(0., 200.)),
