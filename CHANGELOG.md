@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.4.1] - 2023-10-24
 ### Added
 - Differential privacy in rules [MR156](https://github.com/Qrlew/qrlew/pull/156)
 - Method for dp rewritting: rewrite_with_differential_privacy [MR162](https://github.com/Qrlew/qrlew/pull/162)
@@ -15,7 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bug in differential privacy [MR158](https://github.com/Qrlew/qrlew/pull/158)
 ### Added
 - `rewriting_rul.RewriteVisitor` outputs a `RelationWithPrivateQuery` [MR157](https://github.com/Qrlew/qrlew/pull/157)
-
 
 ## [0.4.0] - 2023-10-19
 ### Added
