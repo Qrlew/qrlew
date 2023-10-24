@@ -1173,34 +1173,4 @@ mod tests {
             DataType::structured(vec![("my_sum", DataType::float().try_empty().unwrap())])
         );
     }
-
-    #[test]
-    fn test_distinct() {
-        let query = parse("SELECT DISTINCT a AS a, b AS bFROM table_1;").unwrap();
-        let schema_1: Schema = vec![
-            ("a", DataType::integer_interval(0, 10)),
-            ("b", DataType::float_interval(0., 10.)),
-        ]
-        .into_iter()
-        .collect();
-        let table_1 = Relation::table()
-            .name("table_1")
-            .schema(schema_1.clone())
-            .size(100)
-            .build();
-        let relation = Relation::try_from(QueryWithRelations::new(
-            &query,
-            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
-        ))
-        .unwrap();
-        println!("relation = {relation}");
-        let schema_2: Schema = vec![
-            ("a", DataType::integer_interval(0, 10), Constraint::Unique),
-            ("b", DataType::float_interval(0., 10.), Constraint::Unique),
-        ]
-        .into_iter()
-        .collect();
-        assert_eq!(relation.schema(), &schema_2
-        );
-    }
 }

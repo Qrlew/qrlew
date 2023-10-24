@@ -139,7 +139,7 @@ impl Relation {
             .filter(|name| name != &referred_field_name)
             .collect();
         let join: Relation = Relation::join()
-            .inner()
+            .right_outer()
             .on(Expr::eq(
                 Expr::qcol(Join::right_name(), &referring_id),
                 Expr::qcol(Join::left_name(), &referred_id),
@@ -535,8 +535,9 @@ mod tests {
         ast,
         data_type::{DataType, DataTyped},
         display::Dot,
+        expr::Identifier,
         io::{postgresql, Database},
-        relation::Variant,
+        relation::{Constraint, Schema, Variant},
     };
     use colored::Colorize;
     use itertools::Itertools;
@@ -738,5 +739,67 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .join("\n");
+    }
+
+    #[test]
+    fn test_protection_unique() {
+        let table1: Table = Relation::table()
+            .schema(
+                Schema::empty()
+                    .with(("id".to_string(), DataType::text()))
+                    .with(("a", DataType::float(), Constraint::Unique)),
+            )
+            .name("table1")
+            .size(10)
+            .build();
+        let table2: Table = Relation::table()
+            .schema(
+                Schema::empty()
+                    .with(("a", DataType::float()))
+                    .with(("b", DataType::integer())),
+            )
+            .name("table2")
+            .size(2)
+            .build();
+        let table3: Table = Relation::table()
+            .schema(
+                Schema::empty()
+                    .with(("b", DataType::integer(), Constraint::Unique))
+                    .with(("c", DataType::float())),
+            )
+            .name("table3")
+            .size(70)
+            .build();
+        let tables = vec![table1, table2, table3];
+        let relations: Hierarchy<Arc<Relation>> = tables
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into()))) // Tables can be accessed from their name or path
+            .chain(
+                tables
+                    .iter()
+                    .map(|t| (t.path().clone(), Arc::new(t.clone().into()))),
+            )
+            .collect();
+
+        let protection = Protection::from((
+            &relations,
+            vec![
+                ("table1", vec![], "id"),
+                ("table2", vec![("a", "table1", "a")], "id"),
+                (
+                    "table3",
+                    vec![("b", "table2", "b"), ("a", "table1", "a")],
+                    "id",
+                ),
+            ],
+            Strategy::Hard,
+        ));
+        for table in tables {
+            let protected_table = protection
+                .table(&table.clone().try_into().unwrap())
+                .unwrap();
+            protected_table.deref().display_dot().unwrap();
+            assert_eq!(protected_table.size().max(), table.size().max());
+        }
     }
 }
