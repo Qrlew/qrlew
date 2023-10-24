@@ -578,6 +578,33 @@ impl<'a> RelationWithRewritingRule<'a> {
     }
 }
 
+pub fn rewrite_with_differential_privacy(
+    relation: Relation,
+    relations: Hierarchy<Arc<Relation>>,
+    synthetic_data: SyntheticData,
+    protected_entity: ProtectedEntity,
+    budget: Budget,
+) -> RelationWithPrivateQuery {
+    let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+        synthetic_data,
+        protected_entity,
+        budget,
+    ));
+    let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+    relation_with_rules
+        .select_rewriting_rules(BaseRewritingRulesSelector)
+        .into_iter()
+        .map(|rwrr| {
+            (
+                rwrr.rewrite(BaseRewriter(&relations)),
+                rwrr.accept(BaseScore),
+            )
+        })
+        .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
+        .map(|(relation, _)| relation)
+        .unwrap()
+}
+
 // # Implement various rewriting rules visitors
 
 /// A basic rewriting rule setter
@@ -1247,6 +1274,7 @@ mod tests {
         expr::Identifier,
         io::{postgresql, Database},
         protection::protected_entity,
+        relation,
         sql::parse,
         synthetic_data, Relation,
     };
@@ -1429,5 +1457,46 @@ mod tests {
                 .display_dot()
                 .unwrap();
         }
+    }
+
+    #[test]
+    fn test_rewrite_with_differential_privacy() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let protected_entity = ProtectedEntity::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        let relation_with_private_query = rewrite_with_differential_privacy(
+            relation,
+            relations,
+            synthetic_data,
+            protected_entity,
+            budget,
+        );
+        relation_with_private_query
+            .relation()
+            .display_dot()
+            .unwrap();
+        println!(
+            "PrivateQuery = {}",
+            relation_with_private_query.private_query()
+        );
     }
 }
