@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - differential privacy for the new formalism [MR155](https://github.com/Qrlew/qrlew/pull/155)
 - bug in differential privacy [MR158](https://github.com/Qrlew/qrlew/pull/158)
-- divide function data_type [MR159](https://github.com/Qrlew/qrlew/pull/159)
+- divide function data_type [MR161](https://github.com/Qrlew/qrlew/pull/161)
 ### Added
 - `rewriting_rul.RewriteVisitor` outputs a `RelationWithPrivateQuery` [MR157](https://github.com/Qrlew/qrlew/pull/157)
 
