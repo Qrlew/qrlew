@@ -139,7 +139,7 @@ impl Relation {
             .filter(|name| name != &referred_field_name)
             .collect();
         let join: Relation = Relation::join()
-            .right_outer()
+            .inner()
             .on(Expr::eq(
                 Expr::qcol(Join::right_name(), &referring_id),
                 Expr::qcol(Join::left_name(), &referred_id),
@@ -759,7 +759,7 @@ mod tests {
                     .with(("b", DataType::integer())),
             )
             .name("table2")
-            .size(2)
+            .size(20)
             .build();
         let table3: Table = Relation::table()
             .schema(
@@ -799,7 +799,6 @@ mod tests {
                 .table(&table.clone().try_into().unwrap())
                 .unwrap();
             protected_table.deref().display_dot().unwrap();
-            assert_eq!(protected_table.size().max(), table.size().max());
         }
     }
 }
