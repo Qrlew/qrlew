@@ -762,11 +762,11 @@ mod tests {
             .size(20)
             .build();
         let table3: Table = Relation::table()
-            .schema(
-                Schema::empty()
-                    .with(("b", DataType::integer()))
-                    .with(("c", DataType::float(), Constraint::Unique))
-            )
+            .schema(Schema::empty().with(("b", DataType::integer())).with((
+                "c",
+                DataType::float(),
+                Constraint::Unique,
+            )))
             .name("table3")
             .size(70)
             .build();

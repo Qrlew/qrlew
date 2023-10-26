@@ -692,7 +692,7 @@ impl JoinOperator {
             | JoinOperator::LeftOuter(c)
             | JoinOperator::RightOuter(c)
             | JoinOperator::FullOuter(c) => c.has_unique_constraint(left_schema, right_schema),
-            JoinOperator::Cross => (false, false)
+            JoinOperator::Cross => (false, false),
         }
     }
 }
@@ -774,7 +774,11 @@ impl JoinConstraint {
         }
     }
 
-    pub fn has_unique_constraint(&self, left_schema: &Schema, right_schema: &Schema) -> (bool, bool) {
+    pub fn has_unique_constraint(
+        &self,
+        left_schema: &Schema,
+        right_schema: &Schema,
+    ) -> (bool, bool) {
         match self {
             JoinConstraint::On(x) => match x {
                 Expr::Function(f) if f.function() == function::Function::Eq => {
@@ -806,9 +810,9 @@ impl JoinConstraint {
                     }
                     (left, right)
                 }
-                _ => (false, false)
+                _ => (false, false),
             },
-            JoinConstraint::Using(v) if v.len() == 1  => {
+            JoinConstraint::Using(v) if v.len() == 1 => {
                 let left = left_schema
                     .field(v[0].last().unwrap())
                     .map(|f| f.is_unique())
@@ -819,7 +823,7 @@ impl JoinConstraint {
                     .unwrap_or(false);
                 (left, right)
             }
-            _ => (false, false)
+            _ => (false, false),
         }
     }
 }
@@ -905,7 +909,8 @@ impl Join {
         operator: &JoinOperator,
     ) -> Schema {
         let (left_schema, right_schema) = operator.filtered_schemas(left, right);
-        let (left_is_unique, right_is_unique) = operator.has_unique_constraint(left.schema(), right.schema());
+        let (left_is_unique, right_is_unique) =
+            operator.has_unique_constraint(left.schema(), right.schema());
         let left_fields = left_names
             .into_iter()
             .zip(left_schema.iter())
@@ -913,8 +918,7 @@ impl Join {
                 Field::new(
                     name,
                     field.data_type(),
-                    if right_is_unique
-                    {
+                    if right_is_unique {
                         field.constraint()
                     } else {
                         None
@@ -928,8 +932,7 @@ impl Join {
                 Field::new(
                     name,
                     field.data_type(),
-                    if left_is_unique
-                    {
+                    if left_is_unique {
                         field.constraint()
                     } else {
                         None
