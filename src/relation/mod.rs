@@ -774,6 +774,13 @@ impl JoinConstraint {
         }
     }
 
+
+    /// Returns a tuple of bool where
+    /// the first (resp. second) item is `true` if
+    /// - the current `JoinConstraint` is an `On`
+    ///     - the wrapped expression if of type `(Column(_) = Column(_))` AND
+    ///     - the field of column belonging to the left (resp. right) relation has a `Unique` or `PrimaryKey` constraint
+    /// - the current `JoinConstraint`` is a `Using`: the field of column belonging to the left (resp. right) relation has a `Unique` or `PrimaryKey` constraint
     pub fn has_unique_constraint(
         &self,
         left_schema: &Schema,
@@ -782,30 +789,30 @@ impl JoinConstraint {
         match self {
             JoinConstraint::On(x) => match x {
                 Expr::Function(f) if f.function() == function::Function::Eq => {
-                    let is_unique_fields = Hierarchy::from_iter(
+                    let fields_with_unique_or_primary_key_constraint = Hierarchy::from_iter(
                         left_schema
                             .iter()
-                            .map(|f| (vec![Join::left_name(), f.name()], f.is_unique()))
+                            .map(|f| (vec![Join::left_name(), f.name()], f.has_unique_or_primary_key_constraint()))
                             .chain(
                                 right_schema
                                     .iter()
-                                    .map(|f| (vec![Join::right_name(), f.name()], f.is_unique())),
+                                    .map(|f| (vec![Join::right_name(), f.name()], f.has_unique_or_primary_key_constraint())),
                             ),
                     );
                     let mut left = false;
                     let mut right = false;
                     if let Expr::Column(c) = &f.arguments()[0] {
-                        if is_unique_fields.get_key_value(c).unwrap().0[0] == Join::left_name() {
-                            left = is_unique_fields[c.as_slice()]
+                        if fields_with_unique_or_primary_key_constraint.get_key_value(c).unwrap().0[0] == Join::left_name() {
+                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
                         } else {
-                            right = is_unique_fields[c.as_slice()]
+                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
                         }
                     }
                     if let Expr::Column(c) = &f.arguments()[1] {
-                        if is_unique_fields.get_key_value(c).unwrap().0[0] == Join::left_name() {
-                            left = is_unique_fields[c.as_slice()]
+                        if fields_with_unique_or_primary_key_constraint.get_key_value(c).unwrap().0[0] == Join::left_name() {
+                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
                         } else {
-                            right = is_unique_fields[c.as_slice()]
+                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
                         }
                     }
                     (left, right)
@@ -815,11 +822,11 @@ impl JoinConstraint {
             JoinConstraint::Using(v) if v.len() == 1 => {
                 let left = left_schema
                     .field(v[0].last().unwrap())
-                    .map(|f| f.is_unique())
+                    .map(|f| f.has_unique_or_primary_key_constraint())
                     .unwrap_or(false);
                 let right = right_schema
                     .field(v[0].last().unwrap())
-                    .map(|f| f.is_unique())
+                    .map(|f| f.has_unique_or_primary_key_constraint())
                     .unwrap_or(false);
                 (left, right)
             }
@@ -2439,5 +2446,123 @@ mod tests {
             .build();
         join.display_dot().unwrap();
         println!("{}", join.schema());
+    }
+
+    #[test]
+    fn test_constraint_fields_in_joins() {
+        namer::reset();
+        let schema1: Schema = vec![
+            ("a", DataType::float(), Some(Constraint::Unique)),
+            ("b", DataType::float(), None),
+            ("c", DataType::float(), Some(Constraint::Unique)),
+        ]
+        .into_iter()
+        .collect();
+        let table1: Arc<Relation> = Arc::new(
+            Relation::table()
+                .name("table1")
+                .schema(schema1.clone())
+                .size(1000)
+                .build(),
+        );
+
+        let schema2: Schema = vec![
+            ("a", DataType::float(), None),
+            ("d", DataType::float(), Some(Constraint::Unique)),
+            ("e", DataType::float(), Some(Constraint::Unique)),
+        ]
+        .into_iter()
+        .collect();
+        let table2: Arc<Relation> = Arc::new(
+            Relation::table()
+                .name("table2")
+                .schema(schema2.clone())
+                .size(20)
+                .build(),
+        );
+
+        // the joining columns are not unique
+        let join: Join = Relation::join()
+            .name("join")
+            .inner()
+            .on_eq("b", "a")
+            .left(table1.clone())
+            .right(table2.clone())
+            .left_names(vec!["a1", "b", "c"])
+            .right_names(vec!["a2", "d", "e"])
+            .build();
+        let correct_schema: Schema = vec![
+            ("a1", DataType::float(), None),
+            ("b", DataType::float(), None),
+            ("c", DataType::float(), None),
+            ("a2", DataType::float(), None),
+            ("d", DataType::float(), None),
+            ("e", DataType::float(), None)
+        ].into_iter()
+        .collect();
+        assert_eq!(join.schema(), &correct_schema);
+
+        // the left joining column is unique
+        let join: Join = Relation::join()
+            .name("join")
+            .inner()
+            .on_eq("a", "a")
+            .left(table1.clone())
+            .right(table2.clone())
+            .left_names(vec!["a1", "b", "c"])
+            .right_names(vec!["a2", "d", "e"])
+            .build();
+        let correct_schema: Schema = vec![
+            ("a1", DataType::float(), None),
+            ("b", DataType::float(), None),
+            ("c", DataType::float(), None),
+            ("a2", DataType::float(), None),
+            ("d", DataType::float(), Some(Constraint::Unique)),
+            ("e", DataType::float(), Some(Constraint::Unique)),
+        ].into_iter()
+        .collect();
+        assert_eq!(join.schema(), &correct_schema);
+
+        // the right joining column is unique
+        let join: Join = Relation::join()
+            .name("join")
+            .inner()
+            .on_eq("b", "d")
+            .left(table1.clone())
+            .right(table2.clone())
+            .left_names(vec!["a1", "b", "c"])
+            .right_names(vec!["a2", "d", "e"])
+            .build();
+        let correct_schema: Schema = vec![
+            ("a1", DataType::float(), Some(Constraint::Unique)),
+            ("b", DataType::float(), None),
+            ("c", DataType::float(), Some(Constraint::Unique)),
+            ("a2", DataType::float(), None),
+            ("d", DataType::float(), None),
+            ("e", DataType::float(), None)
+        ].into_iter()
+        .collect();
+        assert_eq!(join.schema(), &correct_schema);
+
+        // the joining columns are  unique
+        let join: Join = Relation::join()
+            .name("join")
+            .inner()
+            .on_eq("a", "d")
+            .left(table1.clone())
+            .right(table2.clone())
+            .left_names(vec!["a1", "b", "c"])
+            .right_names(vec!["a2", "d", "e"])
+            .build();
+        let correct_schema: Schema = vec![
+            ("a1", DataType::float(), Some(Constraint::Unique)),
+            ("b", DataType::float(), None),
+            ("c", DataType::float(), Some(Constraint::Unique)),
+            ("a2", DataType::float(), None),
+            ("d", DataType::float(), Some(Constraint::Unique)),
+            ("e", DataType::float(), Some(Constraint::Unique)),
+        ].into_iter()
+        .collect();
+        assert_eq!(join.schema(), &correct_schema);
     }
 }

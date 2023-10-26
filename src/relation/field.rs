@@ -85,7 +85,7 @@ impl Field {
         TryInto::<Vec<Value>>::try_into(self.data_type()).is_ok()
     }
 
-    pub fn is_unique(&self) -> bool {
+    pub fn has_unique_or_primary_key_constraint(&self) -> bool {
         match self.constraint() {
             Some(Constraint::Unique) | Some(Constraint::PrimaryKey) => true,
             _ => false,
