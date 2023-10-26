@@ -56,7 +56,6 @@ impl fmt::Display for FieldDataTypes {
                             )
                         })
                     );
-                    // shorten_string(&formated).into_owned()
                     formated
                 })
                 .join("<br/>")
