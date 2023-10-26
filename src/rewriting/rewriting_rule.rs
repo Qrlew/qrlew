@@ -578,14 +578,14 @@ impl<'a> RelationWithRewritingRule<'a> {
     }
 }
 
-pub fn rewrite_with_differential_privacy(
-    relation: Relation,
-    relations: Hierarchy<Arc<Relation>>,
+impl Relation {
+    pub fn rewrite_with_differential_privacy<'a>(&'a self, 
+    relations: &'a Hierarchy<Arc<Relation>>,
     synthetic_data: SyntheticData,
     protected_entity: ProtectedEntity,
     budget: Budget,
 ) -> RelationWithPrivateQuery {
-    let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+    let relation_with_rules = self.set_rewriting_rules(BaseRewritingRulesSetter::new(
         synthetic_data,
         protected_entity,
         budget,
@@ -596,14 +596,17 @@ pub fn rewrite_with_differential_privacy(
         .into_iter()
         .map(|rwrr| {
             (
-                rwrr.rewrite(BaseRewriter(&relations)),
+                rwrr.rewrite(BaseRewriter(relations)),
                 rwrr.accept(BaseScore),
             )
         })
         .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
         .map(|(relation, _)| relation)
         .unwrap()
+    }
+    
 }
+
 
 // # Implement various rewriting rules visitors
 
@@ -1483,9 +1486,8 @@ mod tests {
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = rewrite_with_differential_privacy(
-            relation,
-            relations,
+        let relation_with_private_query = relation.rewrite_with_differential_privacy(
+            &relations,
             synthetic_data,
             protected_entity,
             budget,
