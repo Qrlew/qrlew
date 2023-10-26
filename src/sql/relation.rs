@@ -609,7 +609,7 @@ mod tests {
         builder::Ready,
         data_type::{DataType, DataTyped, Variant},
         display::Dot,
-        relation::schema::Schema,
+        relation::{schema::Schema, Constraint},
     };
 
     #[test]
