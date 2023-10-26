@@ -913,7 +913,7 @@ impl Join {
                 Field::new(
                     name,
                     field.data_type(),
-                    if left_is_unique
+                    if right_is_unique
                     {
                         field.constraint()
                     } else {
@@ -928,7 +928,7 @@ impl Join {
                 Field::new(
                     name,
                     field.data_type(),
-                    if right_is_unique
+                    if left_is_unique
                     {
                         field.constraint()
                     } else {

@@ -755,7 +755,7 @@ mod tests {
         let table2: Table = Relation::table()
             .schema(
                 Schema::empty()
-                    .with(("a", DataType::float()))
+                    .with(("a", DataType::float(), Constraint::Unique))
                     .with(("b", DataType::integer())),
             )
             .name("table2")
@@ -764,8 +764,8 @@ mod tests {
         let table3: Table = Relation::table()
             .schema(
                 Schema::empty()
-                    .with(("b", DataType::integer(), Constraint::Unique))
-                    .with(("c", DataType::float())),
+                    .with(("b", DataType::integer()))
+                    .with(("c", DataType::float(), Constraint::Unique))
             )
             .name("table3")
             .size(70)
