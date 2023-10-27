@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2023-10-27
+### Fixed
+- gaussian noise [MR169](https://github.com/Qrlew/qrlew/pull/169)
+
 ## [0.4.1] - 2023-10-24
 ### Added
 - Differential privacy in rules [MR156](https://github.com/Qrlew/qrlew/pull/156)

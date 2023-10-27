@@ -579,7 +579,8 @@ impl<'a> RelationWithRewritingRule<'a> {
 }
 
 impl Relation {
-    pub fn rewrite_with_differential_privacy<'a>(&'a self, 
+    pub fn rewrite_with_differential_privacy<'a>(
+        &'a self,
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: SyntheticData,
         protected_entity: ProtectedEntity,
@@ -590,7 +591,8 @@ impl Relation {
             protected_entity,
             budget,
         ));
-        let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        let relation_with_rules =
+            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
         relation_with_rules
             .select_rewriting_rules(BaseRewritingRulesSelector)
             .into_iter()
@@ -604,9 +606,7 @@ impl Relation {
             .map(|(relation, _)| relation)
             .unwrap()
     }
-    
 }
-
 
 // # Implement various rewriting rules visitors
 
