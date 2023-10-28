@@ -189,6 +189,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::function::Function::Case => ast::Expr::Case {
                 operand: None,
@@ -215,6 +217,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             expr::function::Function::CastAsText => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::text().into(),
+                format: None,
             },
             expr::function::Function::CastAsFloat => todo!(),
             expr::function::Function::CastAsInteger => todo!(),
@@ -240,6 +243,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Max => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident {
@@ -253,6 +258,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Median => todo!(),
             expr::aggregate::Aggregate::NUnique => todo!(),
@@ -272,6 +279,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::List => todo!(),
             expr::aggregate::Aggregate::Count => ast::Expr::Function(ast::Function {
@@ -286,6 +295,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Quantile(_) => todo!(),
             expr::aggregate::Aggregate::Quantiles(_) => todo!(),
@@ -301,6 +312,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::AggGroups => todo!(),
             expr::aggregate::Aggregate::Std => ast::Expr::Function(ast::Function {
@@ -315,6 +328,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Var => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident {
@@ -328,6 +343,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
         }
     }

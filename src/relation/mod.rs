@@ -69,6 +69,9 @@ impl Error {
     pub fn invalid_conversion(from: impl fmt::Display, to: impl fmt::Display) -> Error {
         Error::InvalidConversion(format!("Invalid conversion from {} to {}", from, to))
     }
+    pub fn other(value: impl fmt::Display) -> Error {
+        Error::Other(format!("Error with {}", value))
+    }
 }
 
 impl fmt::Display for Error {
@@ -1131,6 +1134,7 @@ pub enum SetQuantifier {
     None,
     ByName,
     AllByName,
+    DistinctByName,
 }
 
 impl fmt::Display for SetQuantifier {
@@ -1144,6 +1148,7 @@ impl fmt::Display for SetQuantifier {
                 SetQuantifier::None => "NONE",
                 SetQuantifier::ByName => "BY NAME",
                 SetQuantifier::AllByName => "ALL BY NAME",
+                SetQuantifier::DistinctByName => "DISTINCT BY NAME",
             }
         )
     }
@@ -1266,7 +1271,8 @@ impl fmt::Display for Set {
             SetQuantifier::All
             | SetQuantifier::Distinct
             | SetQuantifier::ByName
-            | SetQuantifier::AllByName => {
+            | SetQuantifier::AllByName
+            | SetQuantifier::DistinctByName => {
                 format!("{} {}", self.operator, self.quantifier)
             }
             SetQuantifier::None => format!("{}", self.operator),

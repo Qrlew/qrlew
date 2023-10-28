@@ -2,10 +2,135 @@ pub mod dot;
 pub mod relation_with_attributes;
 pub mod rewriting_rule;
 
+use itertools::Itertools;
 pub use relation_with_attributes::RelationWithAttributes;
 pub use rewriting_rule::{
-    Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule,
+    Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule, RelationWithPrivateQuery
 };
+
+use std::{error, result, fmt, sync::Arc};
+
+use crate::{
+    builder::{Ready, With},
+    differential_privacy::{
+        budget::Budget,
+        private_query::{self, PrivateQuery},
+    },
+    hierarchy::Hierarchy,
+    protection::{protected_entity::ProtectedEntity, Protection},
+    expr::Identifier,
+    relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
+    synthetic_data::{self, SyntheticData},
+    visitor::{Acceptor, Dependencies, Visited, Visitor},
+};
+
+use rewriting_rule::{
+    BaseRewritingRulesSetter,
+    BaseRewritingRulesEliminator,
+    BaseRewritingRulesSelector,
+    BaseRewriter,
+    BaseScore,
+};
+
+#[derive(Debug)]
+pub enum Error {
+    UnreachableProperty(String),
+    Other(String),
+}
+
+impl Error {
+    pub fn unreachable_property(property: impl fmt::Display) -> Error {
+        Error::UnreachableProperty(format!("{} is unreachable", property))
+    }
+    pub fn other(value: impl fmt::Display) -> Error {
+        Error::Other(format!("Error with {}", value))
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::UnreachableProperty(desc) => writeln!(f, "UnreachableProperty: {}", desc),
+            Error::Other(err) => writeln!(f, "{}", err),
+        }
+    }
+}
+
+impl error::Error for Error {}
+
+impl From<crate::io::Error> for Error {
+    fn from(err: crate::io::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+pub type Result<T> = result::Result<T, Error>;
+
+impl Relation {
+    /// Rewrite the query so that the protected entity is tracked through the query.
+    pub fn rewrite_as_protected_entity_preserving<'a>(
+        &'a self,
+        relations: &'a Hierarchy<Arc<Relation>>,
+        protected_entity: ProtectedEntity,
+    ) -> Result<RelationWithPrivateQuery> {
+        let budget = Budget::new(1., 1e-5);// TODO Have specific rewriter
+        let synthetic_data = SyntheticData::new(relations.iter().map(|(path, _)| (path, Identifier::from(path.clone()))).collect());
+        let relation_with_rules = self.set_rewriting_rules(BaseRewritingRulesSetter::new(
+            synthetic_data,
+            protected_entity,
+            budget,
+        ));
+        let relation_with_rules =
+            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        relation_with_rules
+            .select_rewriting_rules(BaseRewritingRulesSelector)
+            .into_iter()
+            .filter_map(|rwrr| {
+                match rwrr.attributes().output() {
+                    Property::Public | Property::ProtectedEntityPreserving => Some((
+                        rwrr.rewrite(BaseRewriter::new(relations)),
+                        rwrr.accept(BaseScore),
+                    )),
+                    property => None,
+                }
+            })
+            .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
+            .map(|(relation, _)| relation)
+            .ok_or_else(|| Error::unreachable_property("protected_entity_preserving"))
+    }
+    /// Rewrite the query so that it is differentially private.
+    pub fn rewrite_with_differential_privacy<'a>(
+        &'a self,
+        relations: &'a Hierarchy<Arc<Relation>>,
+        synthetic_data: SyntheticData,
+        protected_entity: ProtectedEntity,
+        budget: Budget,
+    ) -> Result<RelationWithPrivateQuery> {
+        let relation_with_rules = self.set_rewriting_rules(BaseRewritingRulesSetter::new(
+            synthetic_data,
+            protected_entity,
+            budget,
+        ));
+        let relation_with_rules =
+            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        relation_with_rules
+            .select_rewriting_rules(BaseRewritingRulesSelector)
+            .into_iter()
+            .filter_map(|rwrr| {
+                match rwrr.attributes().output() {
+                    Property::Public | Property::Published | Property::DifferentiallyPrivate => Some((
+                        rwrr.rewrite(BaseRewriter::new(relations)),
+                        rwrr.accept(BaseScore),
+                    )),
+                    property => None,
+                }
+            })
+            .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
+            .map(|(relation, _)| relation)
+            .ok_or_else(|| Error::unreachable_property("differential_privacy"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
@@ -15,6 +140,7 @@ mod tests {
         ast,
         builder::With,
         display::Dot,
+        expr::Identifier,
         io::{postgresql, Database},
         sql::parse,
         Relation,
@@ -43,5 +169,77 @@ mod tests {
         let relation_with_rules: rewriting_rule::RelationWithRewritingRules =
             relation.with_default_attributes();
         println!("{:#?}", relation_with_rules);
+    }
+
+    #[test]
+    fn test_rewrite_with_differential_privacy() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let protected_entity = ProtectedEntity::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        let relation_with_private_query = relation.rewrite_with_differential_privacy(
+            &relations,
+            synthetic_data,
+            protected_entity,
+            budget,
+        ).unwrap();
+        relation_with_private_query
+            .relation()
+            .display_dot()
+            .unwrap();
+        println!(
+            "PrivateQuery = {}",
+            relation_with_private_query.private_query()
+        );
+    }
+
+    #[test]
+    fn test_rewrite_as_protected_entity_preserving() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse("SELECT order_id, price FROM item_table").unwrap();
+        let protected_entity = ProtectedEntity::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        let relation_with_private_query = relation.rewrite_as_protected_entity_preserving(
+            &relations,
+            protected_entity,
+        ).unwrap();
+        relation_with_private_query
+            .relation()
+            .display_dot()
+            .unwrap();
+        println!(
+            "PrivateQuery = {}",
+            relation_with_private_query.private_query()
+        );
     }
 }
