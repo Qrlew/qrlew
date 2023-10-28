@@ -49,7 +49,8 @@ impl Relation {
             .map(|(_, n)| PrivateQuery::Gaussian(*n))
             .collect::<Vec<_>>()
             .into();
-        DPRelation::new(self.add_gaussian_noise(noise_multipliers), private_query)
+        // DPRelation::new(self.add_gaussian_noise(noise_multipliers), private_query)
+        DPRelation::new(self.add_clipped_gaussian_noise(noise_multipliers), private_query)
     }
 }
 
@@ -98,7 +99,7 @@ impl PEPRelation {
         Ok(DPRelation::new(dp_clipped_relation, private_query))
     }
 
-    /// Rewrite aggregations as sums and ass noise to that sums.
+    /// Rewrite aggregations as sums and add noise to that sums.
     /// The budget is equally splitted among the sums.
     pub fn differentially_private_aggregates(
         self,

@@ -1382,9 +1382,16 @@ mod tests {
         let relations = database.relations();
         let query = parse(r#"
         WITH order_avg_price (order_id, avg_price) AS (SELECT order_id, avg(price) AS avg_price FROM item_table GROUP BY order_id),
-        order_sum_abs_price (order_id, sum_abs_price) AS (SELECT order_id, 2*sum(abs(price)) AS sum_abs_price FROM item_table GROUP BY order_id),
-        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price-order_avg_price.avg_price)/(0.1+abs(order_sum_abs_price.sum_abs_price)) AS normalized_price
+        order_sum_abs_price (order_id, sum_abs_price) AS (SELECT order_id, sum(abs(price)) AS sum_abs_price FROM item_table GROUP BY order_id),
+        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price-order_avg_price.avg_price)/(0.1+order_sum_abs_price.sum_abs_price) AS normalized_price
             FROM item_table JOIN order_avg_price ON item_table.order_id=order_avg_price.order_id JOIN order_sum_abs_price ON item_table.order_id=order_sum_abs_price.order_id)
+        SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
+        "#,
+        ).unwrap();
+        let query = parse(r#"
+        WITH order_avg_price (order_id, avg_price) AS (SELECT order_id, avg(price) AS avg_price FROM item_table GROUP BY order_id),
+        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price/(0.1+order_avg_price.avg_price)) AS normalized_price
+            FROM item_table JOIN order_avg_price ON item_table.order_id=order_avg_price.order_id)
         SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
         "#,
         ).unwrap();

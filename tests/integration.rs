@@ -1,6 +1,6 @@
 //! # Integration tests
 //!
-//! Various queries are tested against their compiled to Relation + decompiled counterpart.
+//! Various queries are tested against their version rewriten to Relation + re-rewriten.
 
 use colored::Colorize;
 use itertools::Itertools;

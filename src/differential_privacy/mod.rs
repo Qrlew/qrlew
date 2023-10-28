@@ -114,7 +114,7 @@ impl From<(Relation, PrivateQuery)> for DPRelation {
 }
 
 impl Reduce {
-    /// Compiles a `Reduce` into DP:
+    /// Rewrite a `Reduce` into DP:
     ///     - Protect the grouping keys
     ///     - Add noise on the aggregations
     pub fn differentially_private(
@@ -126,7 +126,7 @@ impl Reduce {
     ) -> Result<DPRelation> {
         let mut private_query = PrivateQuery::null();
 
-        // DP compile group by
+        // DP rewrite group by
         let reduce_with_dp_group_by = if self.group_by().is_empty() {
             self
         } else {
@@ -145,7 +145,7 @@ impl Reduce {
             reduce
         };
 
-        // DP compile aggregates
+        // DP rewrite aggregates
         let (dp_relation, private_query_agg) = reduce_with_dp_group_by
             .differentially_private_aggregates(epsilon, delta)?
             .into();
@@ -169,7 +169,7 @@ mod tests {
     };
 
     #[test]
-    fn test_dp_compile_reduce_without_group_by() {
+    fn test_dp_rewrite_reduce_without_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dp_compile_reduce_group_by_possible_values() {
+    fn test_dp_rewrite_reduce_group_by_possible_values() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -306,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dp_compile_reduce_group_by_tau_thresholding() {
+    fn test_dp_rewrite_reduce_group_by_tau_thresholding() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -380,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dp_compile_reduce_group_by_possible_both() {
+    fn test_dp_rewrite_reduce_group_by_possible_both() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
