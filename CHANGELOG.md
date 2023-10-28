@@ -7,13 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2023-10-27
+### Changed
+- added clipped noise [MR171](https://github.com/Qrlew/qrlew/pull/171)
+
 ## [0.4.4] - 2023-10-27
 ### Fixed
 - changed PEP compilation
 
 ## [0.4.3] - 2023-10-27
 ### Fixed
-- added rewrite_as_pep [MR169](https://github.com/Qrlew/qrlew/pull/169)
+- added rewrite_as_pep [MR170](https://github.com/Qrlew/qrlew/pull/170)
 - Updates sqlparser version
 
 ## [0.4.2] - 2023-10-27

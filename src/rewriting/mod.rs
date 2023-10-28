@@ -147,7 +147,7 @@ mod tests {
     };
 
     #[test]
-    fn test_compile() {
+    fn test_rewrite() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
