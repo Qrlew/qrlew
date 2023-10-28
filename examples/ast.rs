@@ -68,6 +68,7 @@ fn build_ast() -> Result<(), &'static str> {
         offset: None,
         fetch: None,
         locks: vec![],
+        limit_by: vec![],
     };
     println!("{}\n", query);
     // A CTE

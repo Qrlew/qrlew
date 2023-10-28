@@ -1,7 +1,7 @@
 //! For now a simple definition of Property
 use std::{
     collections::HashSet,
-    fmt::{self, Arguments},
+    fmt,
     marker::PhantomData,
     ops::Deref,
     sync::Arc,
@@ -578,40 +578,10 @@ impl<'a> RelationWithRewritingRule<'a> {
     }
 }
 
-impl Relation {
-    pub fn rewrite_with_differential_privacy<'a>(
-        &'a self,
-        relations: &'a Hierarchy<Arc<Relation>>,
-        synthetic_data: SyntheticData,
-        protected_entity: ProtectedEntity,
-        budget: Budget,
-    ) -> RelationWithPrivateQuery {
-        let relation_with_rules = self.set_rewriting_rules(BaseRewritingRulesSetter::new(
-            synthetic_data,
-            protected_entity,
-            budget,
-        ));
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
-        relation_with_rules
-            .select_rewriting_rules(BaseRewritingRulesSelector)
-            .into_iter()
-            .map(|rwrr| {
-                (
-                    rwrr.rewrite(BaseRewriter(relations)),
-                    rwrr.accept(BaseScore),
-                )
-            })
-            .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
-            .map(|(relation, _)| relation)
-            .unwrap()
-    }
-}
-
 // # Implement various rewriting rules visitors
 
 /// A basic rewriting rule setter
-struct BaseRewritingRulesSetter {
+pub struct BaseRewritingRulesSetter {
     synthetic_data: SyntheticData,
     protected_entity: ProtectedEntity,
     budget: Budget,
@@ -811,7 +781,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
 }
 
 /// A basic rewriting rule eliminator
-struct BaseRewritingRulesEliminator; // TODO implement this properly
+pub struct BaseRewritingRulesEliminator; // TODO implement this properly
 
 impl<'a> MapRewritingRulesVisitor<'a> for BaseRewritingRulesEliminator {
     fn table(&self, table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
@@ -918,7 +888,7 @@ impl<'a> MapRewritingRulesVisitor<'a> for BaseRewritingRulesEliminator {
 }
 
 /// A basic rewriting rule selector
-struct BaseRewritingRulesSelector; // TODO implement this properly
+pub struct BaseRewritingRulesSelector; // TODO implement this properly
 
 impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
     fn table(&self, table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
@@ -995,7 +965,7 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
 }
 
 /// Compute the number of DP ops
-struct BaseBudgetDispatcher;
+pub struct BaseBudgetDispatcher;
 
 impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BaseBudgetDispatcher {
     fn visit(
@@ -1014,7 +984,7 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BaseBudgetDispatc
 }
 
 /// Compute the score
-struct BaseScore;
+pub struct BaseScore;
 
 impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
     fn visit(
@@ -1036,7 +1006,13 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
     }
 }
 
-struct BaseRewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
+pub struct BaseRewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
+
+impl<'a> BaseRewriter<'a> {
+    pub fn new(relations: &'a Hierarchy<Arc<Relation>>) -> BaseRewriter<'a> {
+        BaseRewriter(relations)
+    }
+}
 
 impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
     fn table(
@@ -1271,15 +1247,12 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
 mod tests {
     use super::*;
     use crate::{
-        ast,
         builder::With,
         display::Dot,
         expr::Identifier,
         io::{postgresql, Database},
-        protection::protected_entity,
-        relation,
         sql::parse,
-        synthetic_data, Relation,
+        Relation,
     };
 
     #[test]
@@ -1460,45 +1433,5 @@ mod tests {
                 .display_dot()
                 .unwrap();
         }
-    }
-
-    #[test]
-    fn test_rewrite_with_differential_privacy() {
-        let database = postgresql::test_database();
-        let relations = database.relations();
-        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
-            (vec!["item_table"], Identifier::from("item_table")),
-            (vec!["order_table"], Identifier::from("order_table")),
-            (vec!["user_table"], Identifier::from("user_table")),
-        ]));
-        let protected_entity = ProtectedEntity::from(vec![
-            (
-                "item_table",
-                vec![
-                    ("order_id", "order_table", "id"),
-                    ("user_id", "user_table", "id"),
-                ],
-                "name",
-            ),
-            ("order_table", vec![("user_id", "user_table", "id")], "name"),
-            ("user_table", vec![], "name"),
-        ]);
-        let budget = Budget::new(1., 1e-3);
-        let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation.rewrite_with_differential_privacy(
-            &relations,
-            synthetic_data,
-            protected_entity,
-            budget,
-        );
-        relation_with_private_query
-            .relation()
-            .display_dot()
-            .unwrap();
-        println!(
-            "PrivateQuery = {}",
-            relation_with_private_query.private_query()
-        );
     }
 }

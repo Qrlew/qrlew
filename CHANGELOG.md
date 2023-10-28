@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2023-10-27
+### Fixed
+- added rewrite_as_pep [MR169](https://github.com/Qrlew/qrlew/pull/169)
+- Updates sqlparser version
+
 ## [0.4.2] - 2023-10-27
 ### Fixed
 - gaussian noise [MR169](https://github.com/Qrlew/qrlew/pull/169)
