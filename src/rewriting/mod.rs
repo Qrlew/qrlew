@@ -71,10 +71,10 @@ impl Relation {
     pub fn rewrite_as_protected_entity_preserving<'a>(
         &'a self,
         relations: &'a Hierarchy<Arc<Relation>>,
+        synthetic_data: SyntheticData,
         protected_entity: ProtectedEntity,
+        budget: Budget,
     ) -> Result<RelationWithPrivateQuery> {
-        let budget = Budget::new(1., 1e-5);// TODO Have specific rewriter
-        let synthetic_data = SyntheticData::new(relations.iter().map(|(path, _)| (path, Identifier::from(path.clone()))).collect());
         let relation_with_rules = self.set_rewriting_rules(BaseRewritingRulesSetter::new(
             synthetic_data,
             protected_entity,
@@ -216,6 +216,11 @@ mod tests {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse("SELECT order_id, price FROM item_table").unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
         let protected_entity = ProtectedEntity::from(vec![
             (
                 "item_table",
@@ -228,10 +233,13 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
+        let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_private_query = relation.rewrite_as_protected_entity_preserving(
             &relations,
+            synthetic_data,
             protected_entity,
+            budget,
         ).unwrap();
         relation_with_private_query
             .relation()
