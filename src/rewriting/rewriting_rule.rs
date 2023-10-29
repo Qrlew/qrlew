@@ -1388,9 +1388,10 @@ mod tests {
         SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
         "#,
         ).unwrap();
+        // Fail when using item_table.price - order_avg_price.avg_price
         let query = parse(r#"
         WITH order_avg_price (order_id, avg_price) AS (SELECT order_id, avg(price) AS avg_price FROM item_table GROUP BY order_id),
-        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price/(0.1+order_avg_price.avg_price)) AS normalized_price
+        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price + order_avg_price.avg_price) AS normalized_price
             FROM item_table JOIN order_avg_price ON item_table.order_id=order_avg_price.order_id)
         SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
         "#,
