@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2023-10-27
+### Fixed
+- fixed clipped noise
+
 ## [0.4.5] - 2023-10-27
 ### Changed
 - added clipped noise [MR171](https://github.com/Qrlew/qrlew/pull/171)

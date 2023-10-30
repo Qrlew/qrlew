@@ -389,7 +389,9 @@ impl Relation {
         self.sums_by_group(entities_groups, values.clone())
             .map_fields(|field_name, expr| {
                 if values.contains(&field_name) {
-                    Expr::pow(expr, Expr::val(2))
+                    // TODO Remove abs
+                    // Abs is here to signal a positive number
+                    Expr::abs(Expr::multiply(expr.clone(), expr))
                 } else {
                     expr
                 }
