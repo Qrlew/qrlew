@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2023-11-06
+### Fixed
+- Do not split budget in half when the query has no GROUP BY. Use all the budget in the aggregations.
+
 ## [0.4.6] - 2023-10-27
 ### Fixed
 - fixed clipped noise

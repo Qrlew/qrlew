@@ -5,10 +5,11 @@ pub mod rewriting_rule;
 use itertools::Itertools;
 pub use relation_with_attributes::RelationWithAttributes;
 pub use rewriting_rule::{
-    Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule, RelationWithPrivateQuery
+    Property, RelationWithPrivateQuery, RelationWithRewritingRule, RelationWithRewritingRules,
+    RewritingRule,
 };
 
-use std::{error, result, fmt, sync::Arc};
+use std::{error, fmt, result, sync::Arc};
 
 use crate::{
     builder::{Ready, With},
@@ -16,20 +17,17 @@ use crate::{
         budget::Budget,
         private_query::{self, PrivateQuery},
     },
+    expr::Identifier,
     hierarchy::Hierarchy,
     protection::{protected_entity::ProtectedEntity, Protection},
-    expr::Identifier,
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     synthetic_data::{self, SyntheticData},
     visitor::{Acceptor, Dependencies, Visited, Visitor},
 };
 
 use rewriting_rule::{
-    BaseRewritingRulesSetter,
-    BaseRewritingRulesEliminator,
-    BaseRewritingRulesSelector,
-    BaseRewriter,
-    BaseScore,
+    BaseRewriter, BaseRewritingRulesEliminator, BaseRewritingRulesSelector,
+    BaseRewritingRulesSetter, BaseScore,
 };
 
 #[derive(Debug)]
@@ -85,14 +83,12 @@ impl Relation {
         relation_with_rules
             .select_rewriting_rules(BaseRewritingRulesSelector)
             .into_iter()
-            .filter_map(|rwrr| {
-                match rwrr.attributes().output() {
-                    Property::Public | Property::ProtectedEntityPreserving => Some((
-                        rwrr.rewrite(BaseRewriter::new(relations)),
-                        rwrr.accept(BaseScore),
-                    )),
-                    property => None,
-                }
+            .filter_map(|rwrr| match rwrr.attributes().output() {
+                Property::Public | Property::ProtectedEntityPreserving => Some((
+                    rwrr.rewrite(BaseRewriter::new(relations)),
+                    rwrr.accept(BaseScore),
+                )),
+                property => None,
             })
             .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
             .map(|(relation, _)| relation)
@@ -116,14 +112,12 @@ impl Relation {
         relation_with_rules
             .select_rewriting_rules(BaseRewritingRulesSelector)
             .into_iter()
-            .filter_map(|rwrr| {
-                match rwrr.attributes().output() {
-                    Property::Public | Property::Published | Property::DifferentiallyPrivate => Some((
-                        rwrr.rewrite(BaseRewriter::new(relations)),
-                        rwrr.accept(BaseScore),
-                    )),
-                    property => None,
-                }
+            .filter_map(|rwrr| match rwrr.attributes().output() {
+                Property::Public | Property::Published | Property::DifferentiallyPrivate => Some((
+                    rwrr.rewrite(BaseRewriter::new(relations)),
+                    rwrr.accept(BaseScore),
+                )),
+                property => None,
             })
             .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
             .map(|(relation, _)| relation)
@@ -195,12 +189,9 @@ mod tests {
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation.rewrite_with_differential_privacy(
-            &relations,
-            synthetic_data,
-            protected_entity,
-            budget,
-        ).unwrap();
+        let relation_with_private_query = relation
+            .rewrite_with_differential_privacy(&relations, synthetic_data, protected_entity, budget)
+            .unwrap();
         relation_with_private_query
             .relation()
             .display_dot()
@@ -235,12 +226,14 @@ mod tests {
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation.rewrite_as_protected_entity_preserving(
-            &relations,
-            synthetic_data,
-            protected_entity,
-            budget,
-        ).unwrap();
+        let relation_with_private_query = relation
+            .rewrite_as_protected_entity_preserving(
+                &relations,
+                synthetic_data,
+                protected_entity,
+                budget,
+            )
+            .unwrap();
         relation_with_private_query
             .relation()
             .display_dot()

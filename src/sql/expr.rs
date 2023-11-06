@@ -115,9 +115,21 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 right,
             } => Dependencies::from([left.as_ref(), right.as_ref()]),
             ast::Expr::UnaryOp { op: _, expr } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::Cast { expr, data_type: _, format: _ } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::TryCast { expr, data_type: _, format: _ } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::SafeCast { expr, data_type: _, format: _ } => Dependencies::from([expr.as_ref()]),
+            ast::Expr::Cast {
+                expr,
+                data_type: _,
+                format: _,
+            } => Dependencies::from([expr.as_ref()]),
+            ast::Expr::TryCast {
+                expr,
+                data_type: _,
+                format: _,
+            } => Dependencies::from([expr.as_ref()]),
+            ast::Expr::SafeCast {
+                expr,
+                data_type: _,
+                format: _,
+            } => Dependencies::from([expr.as_ref()]),
             ast::Expr::AtTimeZone {
                 timestamp,
                 time_zone: _,
@@ -221,7 +233,12 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 opt_search_modifier,
             } => Dependencies::empty(),
             ast::Expr::IntroducedString { introducer, value } => Dependencies::empty(),
-            ast::Expr::RLike { negated, expr, pattern, regexp } => todo!(),
+            ast::Expr::RLike {
+                negated,
+                expr,
+                pattern,
+                regexp,
+            } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
         }
@@ -350,9 +367,21 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 todo!()
             }
             ast::Expr::UnaryOp { op, expr } => self.unary_op(op, dependencies.get(expr).clone()),
-            ast::Expr::Cast { expr, data_type, format: _ } => todo!(),
-            ast::Expr::TryCast { expr, data_type, format: _ } => todo!(),
-            ast::Expr::SafeCast { expr, data_type, format: _ } => todo!(),
+            ast::Expr::Cast {
+                expr,
+                data_type,
+                format: _,
+            } => todo!(),
+            ast::Expr::TryCast {
+                expr,
+                data_type,
+                format: _,
+            } => todo!(),
+            ast::Expr::SafeCast {
+                expr,
+                data_type,
+                format: _,
+            } => todo!(),
             ast::Expr::AtTimeZone {
                 timestamp,
                 time_zone,
@@ -453,7 +482,12 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 opt_search_modifier,
             } => todo!(),
             ast::Expr::IntroducedString { introducer, value } => todo!(),
-            ast::Expr::RLike { negated, expr, pattern, regexp } => todo!(),
+            ast::Expr::RLike {
+                negated,
+                expr,
+                pattern,
+                regexp,
+            } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
         }

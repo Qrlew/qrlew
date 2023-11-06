@@ -50,7 +50,10 @@ impl Relation {
             .collect::<Vec<_>>()
             .into();
         // DPRelation::new(self.add_gaussian_noise(noise_multipliers), private_query)
-        DPRelation::new(self.add_clipped_gaussian_noise(noise_multipliers), private_query)
+        DPRelation::new(
+            self.add_clipped_gaussian_noise(noise_multipliers),
+            private_query,
+        )
     }
 }
 

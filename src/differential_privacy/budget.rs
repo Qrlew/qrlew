@@ -39,7 +39,12 @@ impl Budget {
             .input(Relation::from(input))
             .build();
 
-        let (epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding) = self.split_half();
+        let (epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding) =
+            if reduce.group_by().is_empty() {
+                (self.epsilon, self.delta, 0., 0.)
+            } else {
+                self.split_half()
+            };
         reduce.differentially_private(
             epsilon,
             delta,
