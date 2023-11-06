@@ -1542,6 +1542,7 @@ impl Ready<Relation> for ValuesBuilder {
 mod tests {
     use super::{schema::Schema, *};
     use crate::{builder::With, data_type::DataType, display::Dot};
+    use crate::{ast};
 
     #[test]
     fn test_table() {
@@ -1570,8 +1571,13 @@ mod tests {
                 DataType::from(data_type::Float::from_values(vec![1., 2., 10.]))
             )])
         );
+
         assert_eq!(values.size(), &Integer::from(3 as i64));
         println!("{}", values);
+
+        let relation: Relation = values.into();
+        let query = ast::Query::from(&relation);
+        println!("{}", query);
     }
 
     #[test]

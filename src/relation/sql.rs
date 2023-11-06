@@ -1,4 +1,6 @@
 //! Methods to convert Relations to ast::Query
+use serde::de::value;
+
 use super::{
     Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
     SetOperator, SetQuantifier, Table, Values, Variant as _, Visitor,
@@ -7,13 +9,21 @@ use crate::{
     ast,
     data_type::{DataType, DataTyped},
     expr::{identifier::Identifier, Expr},
-    visitor::Acceptor,
+    visitor::Acceptor, dialect_translation::{IntoDialectTranslator, postgres::PostgresTranslator},
 };
 use std::{collections::HashSet, convert::TryFrom, iter::Iterator, ops::Deref};
 
 /// A simple Relation -> ast::Query conversion Visitor using CTE
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct FromRelationVisitor;
+pub struct FromRelationVisitor<T: IntoDialectTranslator> {
+    translator: T
+}
+
+impl<T: IntoDialectTranslator> FromRelationVisitor<T> {
+    pub fn new(translator: T) -> Self {
+        FromRelationVisitor { translator }
+    }
+}
 
 impl TryFrom<Identifier> for ast::Ident {
     type Error = Error;
@@ -228,7 +238,7 @@ fn set_operation(
     }
 }
 
-impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
+impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisitor<T> {
     fn table(&self, table: &'a Table) -> ast::Query {
         query(
             vec![],
@@ -260,12 +270,12 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     .into_iter()
                     .zip(map.schema.clone())
                     .map(|(expr, field)| ast::SelectItem::ExprWithAlias {
-                        expr: ast::Expr::from(&expr),
+                        expr: self.translator.expr(&expr),
                         alias: field.name().into(),
                     })
                     .collect(),
                 table_with_joins(table_factor(map.input.as_ref().into(), None), vec![]),
-                map.filter.as_ref().map(ast::Expr::from),
+                map.filter.as_ref().map(|expr| self.translator.expr(expr)),
                 ast::GroupByExpr::Expressions(vec![]),
                 map.order_by
                     .iter()
@@ -310,14 +320,14 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     .into_iter()
                     .zip(reduce.schema.clone())
                     .map(|(aggregate, field)| ast::SelectItem::ExprWithAlias {
-                        expr: ast::Expr::from(aggregate.deref()),
+                        expr: self.translator.expr(aggregate.deref()),
                         alias: field.name().into(),
                     })
                     .collect(),
                 table_with_joins(table_factor(reduce.input.as_ref().into(), None), vec![]),
                 None,
                 ast::GroupByExpr::Expressions(
-                    reduce.group_by.iter().map(ast::Expr::from).collect(),
+                    reduce.group_by.iter().map(|epxr| self.translator.expr(epxr)).collect(),
                 ),
                 vec![],
                 None,
@@ -483,7 +493,8 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
 /// Based on the FromRelationVisitor implement the From trait
 impl From<&Relation> for ast::Query {
     fn from(value: &Relation) -> Self {
-        value.accept(FromRelationVisitor)
+        let dialect_translator = PostgresTranslator;
+        value.accept(FromRelationVisitor::new(dialect_translator))
     }
 }
 

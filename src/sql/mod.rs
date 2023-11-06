@@ -112,10 +112,11 @@ mod tests {
         builder::With,
         display::Dot,
         io::{postgresql, Database},
-        relation::Relation,
+        relation::Relation, DataType,
     };
     use colored::Colorize;
     use itertools::Itertools;
+    use sqlparser::dialect::BigQueryDialect;
     #[ignore]
     #[test]
     fn test_display() {
@@ -138,5 +139,42 @@ mod tests {
             let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
             relation.display_dot();
         }
+    }
+
+    #[test]
+    fn test_render() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = r#"
+        SELECT y FROM table_2 GROUP BY y
+        "#;
+        // let paresed = parse_with_dialect(query, BigQueryDialect).unwrap();
+        // println!("PARSED: \n{}\n", paresed);
+        // let qwith_rel = paresed.with(&relations);
+        // let relation = Relation::try_from(qwith_rel).unwrap();
+        let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
+        println!("Relation: \n{}\n", relation);
+        let new_query = ast::Query::from(&relation);
+        println!("FINAL: \n{}\n", new_query)
+    }
+
+    #[test]
+    fn test_values() {
+        // let values = Values::new(
+        //     "values".to_string(),
+        //     vec![Value::from(1.0), Value::from(2.0), Value::from(10)],
+        // );
+        // assert_eq!(
+        //     values.data_type(),
+        //     DataType::structured(vec![(
+        //         "values",
+        //         DataType::from(data_type::Float::from_values(vec![1., 2., 10.]))
+        //     )])
+        // );
+        // let relation: Relation = values.into();
+        // let query = ast::Query::from(&relation);
+        // assert_eq!(values.size(), &Integer::from(3 as i64));
+        // println!("{}", values);
+        // println!("QUERY: {}")
     }
 }
