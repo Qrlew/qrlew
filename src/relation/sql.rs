@@ -190,6 +190,7 @@ fn ctes_from_query(query: ast::Query) -> Vec<ast::Cte> {
     query.with.map(|with| with.cte_tables).unwrap_or_default()
 }
 
+// This builds CTEs in a dialect dependent way (alias not supported in Bigquery)
 fn cte(name: ast::Ident, columns: Vec<ast::Ident>, query: ast::Query) -> ast::Cte {
     ast::Cte {
         alias: ast::TableAlias { name, columns },

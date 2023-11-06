@@ -9,7 +9,7 @@ use sqlparser::{
     dialect::{BigQueryDialect, Dialect, PostgreSqlDialect},
 };
 
-use crate::sql::{self, parse, parse_with_dialect};
+use crate::{sql::{self, parse, parse_with_dialect}, Relation, relation::Variant};
 use crate::{
     data_type::function::cast,
     expr::{self, Function},
@@ -44,11 +44,41 @@ pub mod postgres;
 // Function mappings:
 // Query construction: TOP -> LIMIT, CTE column aliases,
 
-/// Trait for mapping sarus to ast objects
+/// Trait for building ast parts from sarus objects
 pub trait IntoDialectTranslator {
     type D: Dialect;
 
+    // Not sure why we need a method to return the Dialect when passing from a relation to a Query
     fn dialect(&self) -> Self::D;
+
+    fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
+       value.iter().map(ast::Ident::new).collect()
+    }
+
+    fn table_factor(&self, relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
+        let alias = alias.map(|s| ast::TableAlias {
+            name: s.into(),
+            columns: vec![],
+        });
+        match relation {
+            Relation::Table(table) => ast::TableFactor::Table {
+                name: ast::ObjectName(self.identifier(table.path())),
+                alias,
+                args: None,
+                with_hints: vec![],
+                version: None,
+                partitions: vec![],
+            },
+            relation => ast::TableFactor::Table {
+                name: ast::ObjectName(self.identifier(&(relation.name().into()))),
+                alias,
+                args: None,
+                with_hints: vec![],
+                version: None,
+                partitions: vec![],
+            },
+        }
+    }
 
     fn expr(&self, expr: &expr::Expr) -> ast::Expr {
         match expr {
@@ -61,16 +91,11 @@ pub trait IntoDialectTranslator {
     }
 
     fn from_column(&self, ident: &expr::Identifier) -> ast::Expr {
-        let idents_as_vec = ident.deref();
-        if idents_as_vec.len() > 1 {
-            ast::Expr::CompoundIdentifier(
-                idents_as_vec
-                    .iter()
-                    .map(|name| ast::Ident::from(&name[..]))
-                    .collect(),
-            )
+        let ast_iden = self.identifier(ident);
+        if ast_iden.len() > 1 {
+            ast::Expr::CompoundIdentifier(ast_iden)
         } else {
-            ast::Expr::Identifier(ast::Ident::from(&idents_as_vec[0][..]))
+            ast::Expr::Identifier(ast_iden[0].clone())
         }
     }
 
@@ -125,99 +150,99 @@ pub trait IntoDialectTranslator {
             },
             // Binary operator
             expr::function::Function::Plus => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Plus,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Minus => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Minus,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Multiply => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Multiply,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Divide => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Divide,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Modulo => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Modulo,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::StringConcat => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::StringConcat,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Gt => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Gt,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Lt => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Lt,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::GtEq => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::GtEq,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::LtEq => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::LtEq,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Eq => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Eq,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::NotEq => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::NotEq,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::And => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::And,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Or => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Or,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::Xor => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::Xor,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::BitwiseOr => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::BitwiseOr,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::BitwiseAnd => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::BitwiseAnd,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::BitwiseXor => ast::Expr::BinaryOp {
-                left: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[0])))),
+                left: Box::new(ast::Expr::Nested(Box::new(self.expr(args[0])))),
                 op: ast::BinaryOperator::BitwiseXor,
-                right: Box::new(ast::Expr::Nested(Box::new(self.expr(&args[1])))),
+                right: Box::new(ast::Expr::Nested(Box::new(self.expr(args[1])))),
             },
             expr::function::Function::InList => {
-                if let ast::Expr::Tuple(t) = self.expr(&args[1]) {
+                if let ast::Expr::Tuple(t) = self.expr(args[1]) {
                     ast::Expr::InList {
-                        expr: Box::new(self.expr(&args[0])),
+                        expr: Box::new(self.expr(args[0])),
                         list: t.clone(),
                         negated: false,
                     }
@@ -226,28 +251,28 @@ pub trait IntoDialectTranslator {
                 }
             }
             // Unary Functions
-            expr::function::Function::Exp => self.from_exp(&args[0]),
-            expr::function::Function::Ln => self.from_ln(&args[0]),
-            expr::function::Function::Log => self.from_log(&args[0]),
-            expr::function::Function::Abs => self.from_abs(&args[0]),
-            expr::function::Function::Sin => self.from_sin(&args[0]),
-            expr::function::Function::Cos => self.from_cos(&args[0]),
-            expr::function::Function::Sqrt => self.from_sqrt(&args[0]),
-            expr::function::Function::CharLength => self.from_char_length(&args[0]),
-            expr::function::Function::Lower => self.from_lower(&args[0]),
-            expr::function::Function::Upper => self.from_upper(&args[0]),
-            expr::function::Function::Md5 => self.from_md5(&args[0]),
+            expr::function::Function::Exp => self.from_exp(args[0]),
+            expr::function::Function::Ln => self.from_ln(args[0]),
+            expr::function::Function::Log => self.from_log(args[0]),
+            expr::function::Function::Abs => self.from_abs(args[0]),
+            expr::function::Function::Sin => self.from_sin(args[0]),
+            expr::function::Function::Cos => self.from_cos(args[0]),
+            expr::function::Function::Sqrt => self.from_sqrt(args[0]),
+            expr::function::Function::CharLength => self.from_char_length(args[0]),
+            expr::function::Function::Lower => self.from_lower(args[0]),
+            expr::function::Function::Upper => self.from_upper(args[0]),
+            expr::function::Function::Md5 => self.from_md5(args[0]),
 
             // nary Functions
             expr::function::Function::Pow => self.from_pow(args),
-            expr::function::Function::Case => todo!(),
+            expr::function::Function::Case => self.from_case(args),
             expr::function::Function::Concat(_) => self.from_concat(args),
             expr::function::Function::Position => self.from_position(args),
 
-            expr::function::Function::CastAsText => todo!(),
-            expr::function::Function::CastAsFloat => todo!(),
-            expr::function::Function::CastAsInteger => todo!(),
-            expr::function::Function::CastAsDateTime => todo!(),
+            expr::function::Function::CastAsText => self.from_cast_as_text(args[0]),
+            expr::function::Function::CastAsFloat => self.from_cast_as_float(args[0]),
+            expr::function::Function::CastAsInteger => self.from_cast_as_integer(args[0]),
+            expr::function::Function::CastAsDateTime => self.from_cast_as_date_time(args[0]),
             expr::function::Function::Least => self.from_least(args),
             expr::function::Function::Greatest => self.from_greatest(args),
             // zero arg
