@@ -42,7 +42,7 @@ jobs:
                 docker volume ls
                 CONTAINER_NAME=$(docker ps --filter "ancestor=postgres" --format "{{.Names}}")
                 echo "Container Name: $CONTAINER_NAME"
-                docker exec -i "$CONTAINER_NAME" PGPASSWORD=qrlew-test  psql -U postgres -h localhost -p 5432 -c "SELECT datname FROM pg_database;"
+                docker exec -i "$CONTAINER_NAME" psql -U postgres -h localhost -p 5432 -c "SELECT datname FROM pg_database;"
             - name: Build
               run: cargo build --verbose
             - name: Run tests
