@@ -39,7 +39,8 @@ jobs:
                 docker ps -a
                 docker network ls
                 docker volume ls
-                # Add more relevant Docker commands to help debug the issue
+                docker exec -it postgres psql -U postgres -h localhost -c "SELECT datname FROM pg_database;"
+                docker exec -it postgres psql -U postgres -h localhost -d qrlew-test -c "\dt"
 
             - name: Build
               run: cargo build --verbose
