@@ -40,8 +40,10 @@ jobs:
                 docker ps -a
                 docker network ls
                 docker volume ls
-                docker exec -it postgres psql -U postgres -h localhost -c "SELECT datname FROM pg_database;"
-                docker exec -it postgres psql -U postgres -h localhost -d qrlew-test -c "\dt"
+                CONTAINER_NAME=$(docker ps --filter "ancestor=postgres" --format "{{.Names}}")
+                echo "Container Name: $CONTAINER_NAME"
+                docker exec -it "$CONTAINER_NAME" psql -U postgres -h localhost -c "SELECT datname FROM pg_database;"
+                docker exec -it "$CONTAINER_NAME"  psql -U postgres -h localhost -d qrlew-test -c "\dt"
 
             - name: Build
               run: cargo build --verbose
