@@ -34,6 +34,12 @@ jobs:
 
         steps:
             - uses: actions/checkout@v3
+            - name: Debug Docker
+              run: docker ps -a
+                docker network ls
+                docker volume ls
+                # Add more relevant Docker commands to help debug the issue
+
             - name: Build
               run: cargo build --verbose
             - name: Run tests
