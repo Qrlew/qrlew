@@ -514,10 +514,21 @@ impl Relation {
             // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
             .with_iter(self.schema().iter().map(|f| {
                 if name_sigmas.contains_key(&f.name()) {
-                    let float_data_type: data_type::Float = f.data_type().into_data_type(&DataType::float()).unwrap().try_into().unwrap();
+                    let float_data_type: data_type::Float = f
+                        .data_type()
+                        .into_data_type(&DataType::float())
+                        .unwrap()
+                        .try_into()
+                        .unwrap();
                     (
                         f.name(),
-                        Expr::least(Expr::val(*float_data_type.max().unwrap()), Expr::greatest(Expr::val(*float_data_type.min().unwrap()), Expr::col(f.name()).add_gaussian_noise(name_sigmas[f.name()]))),
+                        Expr::least(
+                            Expr::val(*float_data_type.max().unwrap()),
+                            Expr::greatest(
+                                Expr::val(*float_data_type.min().unwrap()),
+                                Expr::col(f.name()).add_gaussian_noise(name_sigmas[f.name()]),
+                            ),
+                        ),
                     )
                 } else {
                     (f.name(), Expr::col(f.name()))

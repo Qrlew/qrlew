@@ -1,11 +1,5 @@
 //! For now a simple definition of Property
-use std::{
-    collections::HashSet,
-    fmt,
-    marker::PhantomData,
-    ops::Deref,
-    sync::Arc,
-};
+use std::{collections::HashSet, fmt, marker::PhantomData, ops::Deref, sync::Arc};
 
 use itertools::Itertools;
 
