@@ -95,7 +95,7 @@ pub fn try_some_times<T, F: Fn() -> Result<T>>(max_retry: usize, f: F) -> Result
                 return Ok(value);
             }
             Err(err) => {
-                thread::sleep(time::Duration::from_millis(100));
+                thread::sleep(time::Duration::from_secs(1));
                 num_retry += 1;
                 log::info!("Retrying {num_retry} times.");
                 println!("Retrying {num_retry} times.");

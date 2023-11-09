@@ -175,7 +175,7 @@ impl fmt::Debug for Database {
 
 impl DatabaseTrait for Database {
     fn new(name: String, tables: Vec<Table>) -> Result<Self> {
-        try_some_times(100, || Database::try_get_existing(name.clone(), tables.clone()))
+        try_some_times(10, || Database::try_get_existing(name.clone(), tables.clone()))
             .or_else(|_| Database::try_get_container(name, tables))
     }
 
