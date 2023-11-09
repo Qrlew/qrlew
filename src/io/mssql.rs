@@ -10,9 +10,16 @@ use crate::{
     namer,
     relation::{Table, Variant as _},
 };
-use std::{env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time, ops::Deref};
-use sqlx::{self, Type, mssql::{self, Mssql, MssqlTypeInfo, MssqlValueRef, MssqlRow}, Decode, ValueRef as _, Encode, TypeInfo, FromRow, Row, any::{Any, AnyTypeInfo}};
 use sqlx::MssqlConnection;
+use sqlx::{
+    self,
+    any::{Any, AnyTypeInfo},
+    mssql::{self, Mssql, MssqlRow, MssqlTypeInfo, MssqlValueRef},
+    Decode, Encode, FromRow, Row, Type, TypeInfo, ValueRef as _,
+};
+use std::{
+    env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
+};
 
 use sqlx::{mssql::MssqlConnectOptions, Connection};
 
@@ -31,12 +38,11 @@ pub struct Database {
     name: String,
     tables: Vec<Table>,
     connection: MssqlConnection,
-    drop: bool
+    drop: bool,
 }
 
 /// Only one thread start a container
 pub static MSSQL_CONTAINER: Mutex<bool> = Mutex::new(false);
-
 
 impl Database {
     fn db() -> String {
@@ -58,7 +64,6 @@ impl Database {
         env::var("MSSQL_PASSWORD").unwrap_or(PASSWORD.into())
     }
 
-    
     /// A postgresql instance must exist
     /// `docker run --name qrlew-test -p 5432:5432 -e POSTGRES_PASSWORD=qrlew-test -d postgres`
     fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
@@ -189,16 +194,18 @@ impl DatabaseTrait for Database {
     // Implement necessary methods as per your trait definition...
 }
 
-
 async fn async_query(query: &str, connection: &mut MssqlConnection) -> Result<Vec<value::List>> {
-    let rows = sqlx::query(query)
-            .fetch_all(connection)
-            .await?;
+    let rows = sqlx::query(query).fetch_all(connection).await?;
 
     Ok(rows
         .iter()
-        .map(|row: &MssqlRow|{
-            let values: Vec<SqlValue> = (0..row.len()).map(|i|{let val: SqlValue = row.get(i); val}).collect();
+        .map(|row: &MssqlRow| {
+            let values: Vec<SqlValue> = (0..row.len())
+                .map(|i| {
+                    let val: SqlValue = row.get(i);
+                    val
+                })
+                .collect();
             value::List::from_iter(values.into_iter().map(|v| v.try_into().expect("Convert")))
         })
         .collect())
@@ -261,7 +268,6 @@ impl TryFrom<SqlValue> for Value {
     }
 }
 
-
 impl Decode<'_, mssql::Mssql> for SqlValue {
     fn decode(value: MssqlValueRef<'_>) -> std::result::Result<Self, sqlx::error::BoxDynError> {
         let binding = value.type_info();
@@ -269,10 +275,10 @@ impl Decode<'_, mssql::Mssql> for SqlValue {
         print!("\nDECODE\n");
         match type_info.name() {
             "BIT" => Ok(Value::from(<bool as Decode<Mssql>>::decode(value)?).try_into()?),
-            "INT" => Ok(Value::from((<i32 as Decode<Mssql>>::decode(value)? ) as i64).try_into()?),
+            "INT" => Ok(Value::from((<i32 as Decode<Mssql>>::decode(value)?) as i64).try_into()?),
             "BIGINT" => Ok(Value::from(<i64 as Decode<Mssql>>::decode(value)?).try_into()?),
             "BINARY" => todo!(),
-            "CHAR" =>  Ok(Value::from(<String as Decode<Mssql>>::decode(value)?).try_into()?),
+            "CHAR" => Ok(Value::from(<String as Decode<Mssql>>::decode(value)?).try_into()?),
             "DATE" => todo!(),
             "DATETIME" => todo!(),
             "DATETIME2" => todo!(),
@@ -298,26 +304,37 @@ impl Decode<'_, mssql::Mssql> for SqlValue {
             "VARBINARY" => todo!(),
             "VARCHAR" => Ok(Value::from(<String as Decode<Mssql>>::decode(value)?).try_into()?),
             "XML" => todo!(),
-            _ => Err(Box::new(sqlx::Error::Decode(format!(
-                "Unhandled type: {}",
-                type_info.name()
-            ).into()))),
+            _ => Err(Box::new(sqlx::Error::Decode(
+                format!("Unhandled type: {}", type_info.name()).into(),
+            ))),
         }
     }
 }
 
 impl Encode<'_, mssql::Mssql> for SqlValue {
-    fn encode_by_ref(&self, buf: &mut <mssql::Mssql as sqlx::database::HasArguments<'_>>::ArgumentBuffer) -> sqlx::encode::IsNull {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <mssql::Mssql as sqlx::database::HasArguments<'_>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
         print!("\nencode\n");
         match self {
-            SqlValue::Boolean(b) => {buf.push(if *b.deref() { 1 } else { 0 }); sqlx::encode::IsNull::No},
-            SqlValue::Integer(i) => {buf.extend(i.deref().to_le_bytes()); sqlx::encode::IsNull::No},
-            SqlValue::Float(f) => {buf.extend(f.deref().to_le_bytes()); sqlx::encode::IsNull::No},
+            SqlValue::Boolean(b) => {
+                buf.push(if *b.deref() { 1 } else { 0 });
+                sqlx::encode::IsNull::No
+            }
+            SqlValue::Integer(i) => {
+                buf.extend(i.deref().to_le_bytes());
+                sqlx::encode::IsNull::No
+            }
+            SqlValue::Float(f) => {
+                buf.extend(f.deref().to_le_bytes());
+                sqlx::encode::IsNull::No
+            }
             SqlValue::Text(t) => <&str as Encode<Mssql>>::encode_by_ref(&&t.deref()[..], buf),
             SqlValue::Optional(o) => {
                 let value = o.clone().map(|v| v.as_ref().clone());
                 <&Option<SqlValue> as Encode<Mssql>>::encode_by_ref(&&value, buf)
-            },
+            }
             SqlValue::Date(_) => todo!(),
             SqlValue::Time(_) => todo!(),
             SqlValue::DateTime(_) => todo!(),
@@ -342,7 +359,6 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
 }
 
 impl Type<mssql::Mssql> for SqlValue {
-    
     fn type_info() -> <mssql::Mssql as sqlx::Database>::TypeInfo {
         println!("\ntype_info for Value\n");
         <String as Type<Mssql>>::type_info()
@@ -354,10 +370,9 @@ impl Type<mssql::Mssql> for SqlValue {
     }
 }
 
-
-use tiberius::{self, Client, Config, AuthMethod};
-use tokio_util::compat::TokioAsyncWriteCompatExt;
+use tiberius::{self, AuthMethod, Client, Config};
 use tokio::net::TcpStream;
+use tokio_util::compat::TokioAsyncWriteCompatExt;
 // use async_std::net::TcpStream;
 
 impl From<tiberius::error::Error> for Error {
@@ -373,7 +388,7 @@ pub fn test_database() -> Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     // This attribute is necessary to use async code in tests
     #[tokio::test]
     async fn test_mssql_connection() -> Result<()> {
@@ -384,16 +399,20 @@ mod tests {
         // Establish a connection to the database.
         let mut connection = MssqlConnection::connect_with(&connection_options).await?;
 
-        let sql_query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
+        let sql_query =
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
         // Execute a query.
-        let rows = sqlx::query(sql_query)
-            .fetch_all(&mut connection)
-            .await?;
+        let rows = sqlx::query(sql_query).fetch_all(&mut connection).await?;
 
-        let rows_as_vec: Vec<value::List>= rows
+        let rows_as_vec: Vec<value::List> = rows
             .iter()
-            .map(|row: &MssqlRow|{
-                let values: Vec<SqlValue> = (0..row.len()).map(|i|{let val: SqlValue = row.get(i); val}).collect();
+            .map(|row: &MssqlRow| {
+                let values: Vec<SqlValue> = (0..row.len())
+                    .map(|i| {
+                        let val: SqlValue = row.get(i);
+                        val
+                    })
+                    .collect();
                 value::List::from_iter(values.into_iter().map(|v| v.try_into().expect("Convert")))
             })
             .collect();
@@ -401,7 +420,7 @@ mod tests {
         //let b2: Value = rows[0].try_get(0)?;
         //let b2: Value = rows[0].get(0);
         // let val = Value::from(b);
-        
+
         println!("{:#?}", rows_as_vec);
         // let coverted_rows: Result<Vec<value::List>> = rows
         // .into_iter()
@@ -438,7 +457,6 @@ mod tests {
     //     let mut client = Client::connect(config, tcp.compat_write()).await?;
     //     Ok(())
     // }
-
 
     // #[test]
     // fn database_display() -> Result<()> {
