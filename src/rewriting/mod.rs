@@ -118,7 +118,7 @@ impl Relation {
             .into_iter()
             .filter_map(|rwrr| {
                 match rwrr.attributes().output() {
-                    Property::Public | Property::Published | Property::DifferentiallyPrivate => Some((
+                    Property::Public | Property::Published | Property::DifferentiallyPrivate | Property::SyntheticData => Some((
                         rwrr.rewrite(BaseRewriter::new(relations)),
                         rwrr.accept(BaseScore),
                     )),
