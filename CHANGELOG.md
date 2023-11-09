@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.8] - 2023-11-09
+### Fixed
+- Retries in postgres
+
 ## [0.4.7] - 2023-11-09
 ### Fixed
 - DP can be SD

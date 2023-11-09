@@ -1,7 +1,7 @@
 //! An object creating a docker container and releasing it after use
 //!
 
-use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
+use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED, try_some_times};
 use crate::{
     data_type::{
         generator::Generator,
@@ -175,7 +175,7 @@ impl fmt::Debug for Database {
 
 impl DatabaseTrait for Database {
     fn new(name: String, tables: Vec<Table>) -> Result<Self> {
-        Database::try_get_existing(name.clone(), tables.clone())
+        try_some_times(5, || Database::try_get_existing(name.clone(), tables.clone()))
             .or_else(|_| Database::try_get_container(name, tables))
     }
 

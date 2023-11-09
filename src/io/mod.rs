@@ -22,7 +22,7 @@ use crate::{
         builder::TableBuilder, field::Constraint, schema::Schema, Relation, Table, Variant as _,
     },
 };
-use std::{convert::Infallible, error, fmt, io, num, result, sync::Arc};
+use std::{convert::Infallible, error, fmt, io, num, result, sync::Arc, thread, time};
 
 const DATA_GENERATION_SEED: u64 = 1234;
 
@@ -85,6 +85,26 @@ impl From<data_type::value::Error> for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+/// A utility function to try many times
+pub fn try_some_times<T, F: Fn() -> Result<T>>(max_retry: usize, f: F) -> Result<T> {
+    let mut num_retry: usize = 0;
+    loop {
+        match f() {
+            Ok(value) => {
+                return Ok(value);
+            }
+            Err(err) => {
+                thread::sleep(time::Duration::from_millis(100));
+                num_retry += 1;
+                log::info!("Retrying {num_retry} times.");
+                if num_retry > max_retry {
+                    return Err(err);
+                }
+            }
+        }
+    }
+}
 
 pub trait Database: Sized {
     const MAX_SIZE: usize = 1 << 14;
