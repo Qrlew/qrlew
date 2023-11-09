@@ -25,57 +25,9 @@ impl<T: IntoDialectTranslator> FromRelationVisitor<T> {
     }
 }
 
-impl TryFrom<Identifier> for ast::Ident {
-    type Error = Error;
-
-    fn try_from(value: Identifier) -> Result<Self> {
-        if value.len() == 1 {
-            Ok(ast::Ident::new(value.head()?))
-        } else {
-            Err(Error::invalid_conversion(value, "ast::Ident"))
-        }
-    }
-}
-
 impl From<Identifier> for ast::ObjectName {
     fn from(value: Identifier) -> Self {
         ast::ObjectName(value.into_iter().map(|s| ast::Ident::new(s)).collect())
-    }
-}
-
-impl From<JoinConstraint> for ast::JoinConstraint {
-    fn from(value: JoinConstraint) -> Self {
-        match value {
-            JoinConstraint::On(expr) => ast::JoinConstraint::On(ast::Expr::from(&expr)),
-            JoinConstraint::Using(idents) => ast::JoinConstraint::Using(
-                idents
-                    .into_iter()
-                    .map(|ident| ident.try_into().unwrap())
-                    .collect(),
-            ),
-            JoinConstraint::Natural => ast::JoinConstraint::Natural,
-            JoinConstraint::None => ast::JoinConstraint::None,
-        }
-    }
-}
-
-impl From<JoinOperator> for ast::JoinOperator {
-    fn from(value: JoinOperator) -> Self {
-        match value {
-            JoinOperator::Inner(join_constraint) => {
-                ast::JoinOperator::Inner(join_constraint.into())
-            }
-            JoinOperator::LeftOuter(join_constraint) => {
-                ast::JoinOperator::LeftOuter(join_constraint.into())
-            }
-            JoinOperator::RightOuter(join_constraint) => {
-                ast::JoinOperator::RightOuter(join_constraint.into())
-            }
-            JoinOperator::FullOuter(join_constraint) => {
-                ast::JoinOperator::FullOuter(join_constraint.into())
-            }
-            JoinOperator::Cross => ast::JoinOperator::CrossJoin,
-        }
     }
 }
 
@@ -101,47 +53,6 @@ impl From<SetQuantifier> for ast::SetQuantifier {
     }
 }
 
-/// Build a Query from simple elements
-/// Have a look at: https://docs.rs/sqlparser/latest/sqlparser/ast/struct.Query.html
-/// Also this can help: https://www.postgresql.org/docs/current/sql-select.html
-fn query(
-    with: Vec<ast::Cte>,
-    projection: Vec<ast::SelectItem>,
-    from: ast::TableWithJoins,
-    selection: Option<ast::Expr>,
-    group_by: ast::GroupByExpr,
-    order_by: Vec<ast::OrderByExpr>,
-    limit: Option<ast::Expr>,
-) -> ast::Query {
-    ast::Query {
-        with: (!with.is_empty()).then_some(ast::With {
-            recursive: false,
-            cte_tables: with,
-        }),
-        body: Box::new(ast::SetExpr::Select(Box::new(ast::Select {
-            distinct: None,
-            top: None,
-            projection,
-            into: None,
-            from: vec![from],
-            lateral_views: vec![],
-            selection,
-            group_by,
-            cluster_by: vec![],
-            distribute_by: vec![],
-            sort_by: vec![],
-            having: None,
-            qualify: None,
-            named_window: vec![],
-        }))),
-        order_by,
-        limit,
-        offset: None,
-        fetch: None,
-        locks: vec![],
-    }
-}
-
 fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
     ast::Query {
         with: None,
@@ -157,46 +68,12 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
     }
 }
 
-fn table_factor(relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
-    let alias = alias.map(|s| ast::TableAlias {
-        name: s.into(),
-        columns: vec![],
-    });
-    match relation {
-        Relation::Table(table) => ast::TableFactor::Table {
-            name: table.path().clone().into(),
-            alias,
-            args: None,
-            with_hints: vec![],
-            version: None,
-            partitions: vec![],
-        },
-        relation => ast::TableFactor::Table {
-            name: Identifier::from(relation.name()).into(),
-            alias,
-            args: None,
-            with_hints: vec![],
-            version: None,
-            partitions: vec![],
-        },
-    }
-}
-
 fn table_with_joins(relation: ast::TableFactor, joins: Vec<ast::Join>) -> ast::TableWithJoins {
     ast::TableWithJoins { relation, joins }
 }
 
 fn ctes_from_query(query: ast::Query) -> Vec<ast::Cte> {
     query.with.map(|with| with.cte_tables).unwrap_or_default()
-}
-
-// This builds CTEs in a dialect dependent way (alias not supported in Bigquery)
-fn cte(name: ast::Ident, columns: Vec<ast::Ident>, query: ast::Query) -> ast::Cte {
-    ast::Cte {
-        alias: ast::TableAlias { name, columns },
-        query: Box::new(query),
-        from: None,
-    }
 }
 
 fn all() -> Vec<ast::SelectItem> {
@@ -241,12 +118,12 @@ fn set_operation(
 
 impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisitor<T> {
     fn table(&self, table: &'a Table) -> ast::Query {
-        query(
+        self.translator.query(
             vec![],
             vec![ast::SelectItem::Wildcard(
                 ast::WildcardAdditionalOptions::default(),
             )],
-            table_with_joins(table_factor(&table.clone().into(), None), vec![]),
+            table_with_joins(self.translator.table_factor(&table.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -258,13 +135,13 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
         // Pull the existing CTEs
         let mut input_ctes = ctes_from_query(input);
         // Add input query to CTEs
-        input_ctes.push(cte(
+        input_ctes.push(self.translator.cte(
             map.name().into(),
             map.schema()
                 .iter()
                 .map(|field| ast::Ident::from(field.name()))
                 .collect(),
-            query(
+                self.translator.query(
                 vec![],
                 map.projection
                     .clone()
@@ -275,7 +152,7 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(table_factor(map.input.as_ref().into(), None), vec![]),
+                table_with_joins(self.translator.table_factor(map.input.as_ref().into(), None), vec![]),
                 map.filter.as_ref().map(|expr| self.translator.expr(expr)),
                 ast::GroupByExpr::Expressions(vec![]),
                 map.order_by
@@ -290,10 +167,10 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
                     .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
             ),
         ));
-        query(
+        self.translator.query(
             input_ctes,
             all(),
-            table_with_joins(table_factor(&map.clone().into(), None), vec![]),
+            table_with_joins(self.translator.table_factor(&map.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -306,14 +183,14 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
         // Pull the existing CTEs
         let mut input_ctes = ctes_from_query(input);
         // Add input query to CTEs
-        input_ctes.push(cte(
+        input_ctes.push(self.translator.cte(
             reduce.name().into(),
             reduce
                 .schema()
                 .iter()
                 .map(|field| ast::Ident::from(field.name()))
                 .collect(),
-            query(
+            self.translator.query(
                 vec![],
                 reduce
                     .aggregate
@@ -325,7 +202,7 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
                         alias: field.name().into(),
                     })
                     .collect(),
-                table_with_joins(table_factor(reduce.input.as_ref().into(), None), vec![]),
+                table_with_joins(self.translator.table_factor(reduce.input.as_ref().into(), None), vec![]),
                 None,
                 ast::GroupByExpr::Expressions(
                     reduce.group_by.iter().map(|epxr| self.translator.expr(epxr)).collect(),
@@ -334,10 +211,10 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
                 None,
             ),
         ));
-        query(
+        self.translator.query(
             input_ctes,
             all(),
-            table_with_joins(table_factor(&reduce.clone().into(), None), vec![]),
+            table_with_joins(self.translator.table_factor(&reduce.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -360,23 +237,23 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
             }
         });
         // Add input query to CTEs
-        input_ctes.push(cte(
+        input_ctes.push(self.translator.cte(
             join.name().into(),
             join.schema()
                 .iter()
                 .map(|field| ast::Ident::from(field.name()))
                 .collect(),
-            query(
+            self.translator.query(
                 vec![],
                 all(),
                 table_with_joins(
-                    table_factor(join.left.as_ref().into(), Some(Join::left_name())),
+                    self.translator.table_factor(join.left.as_ref().into(), Some(Join::left_name())),
                     vec![ast::Join {
-                        relation: table_factor(
+                        relation: self.translator.table_factor(
                             join.right.as_ref().into(),
                             Some(Join::right_name()),
                         ),
-                        join_operator: join.operator.clone().into(),
+                        join_operator: self.translator.join_operator(&join.operator),
                     }],
                 ),
                 None,
@@ -385,10 +262,10 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
                 None,
             ),
         ));
-        query(
+        self.translator.query(
             input_ctes,
             all(),
-            table_with_joins(table_factor(&join.clone().into(), None), vec![]),
+            table_with_joins(self.translator.table_factor(&join.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -411,7 +288,7 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
             }
         });
         // Add input query to CTEs
-        input_ctes.push(cte(
+        input_ctes.push(self.translator.cte(
             set.name().into(),
             set.schema()
                 .iter()
@@ -425,10 +302,10 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
                 select_from_query(right),
             ),
         ));
-        query(
+        self.translator.query(
             input_ctes,
             all(),
-            table_with_joins(table_factor(&set.clone().into(), None), vec![]),
+            table_with_joins(self.translator.table_factor(&set.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
@@ -465,7 +342,7 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
             },
             joins: vec![],
         };
-        let cte_query = query(
+        let cte_query = self.translator.query(
             vec![],
             all(),
             from,
@@ -474,15 +351,15 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
             vec![],
             None,
         );
-        let input_ctes = vec![cte(
+        let input_ctes = vec![self.translator.cte(
             values.name().into(),
             vec![values.name().into()],
             cte_query,
         )];
-        query(
+        self.translator.query(
             input_ctes,
             all(),
-            table_with_joins(table_factor(&values.clone().into(), None), vec![]),
+            table_with_joins(self.translator.table_factor(&values.clone().into(), None), vec![]),
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],

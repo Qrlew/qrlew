@@ -9,7 +9,7 @@ use sqlparser::{
     dialect::{BigQueryDialect, Dialect, PostgreSqlDialect},
 };
 
-use crate::{sql::{self, parse, parse_with_dialect}, Relation, relation::Variant};
+use crate::{sql::{self, parse, parse_with_dialect}, Relation, relation::{Variant, JoinConstraint, JoinOperator}};
 use crate::{
     data_type::function::cast,
     expr::{self, Function},
@@ -44,22 +44,77 @@ pub mod postgres;
 // Function mappings:
 // Query construction: TOP -> LIMIT, CTE column aliases,
 
-/// Trait for building ast parts from sarus objects
+// pub trait IntoDialectTranslator {
+
+// }
+
+/// Trait for building dialect dependent AST parts with default implementations 
 pub trait IntoDialectTranslator {
     type D: Dialect;
 
     // Not sure why we need a method to return the Dialect when passing from a relation to a Query
     fn dialect(&self) -> Self::D;
 
+    /// Build a Query from simple elements
+    /// Have a look at: https://docs.rs/sqlparser/latest/sqlparser/ast/struct.Query.html
+    /// Also this can help: https://www.postgresql.org/docs/current/sql-select.html
+    fn query(
+        &self,
+        with: Vec<ast::Cte>,
+        projection: Vec<ast::SelectItem>,
+        from: ast::TableWithJoins,
+        selection: Option<ast::Expr>,
+        group_by: ast::GroupByExpr,
+        order_by: Vec<ast::OrderByExpr>,
+        limit: Option<ast::Expr>,
+    ) -> ast::Query {
+        ast::Query {
+            with: (!with.is_empty()).then_some(ast::With {
+                recursive: false,
+                cte_tables: with,
+            }),
+            body: Box::new(ast::SetExpr::Select(Box::new(ast::Select {
+                distinct: None,
+                top: None,
+                projection,
+                into: None,
+                from: vec![from],
+                lateral_views: vec![],
+                selection,
+                group_by,
+                cluster_by: vec![],
+                distribute_by: vec![],
+                sort_by: vec![],
+                having: None,
+                qualify: None,
+                named_window: vec![],
+            }))),
+            order_by,
+            limit,
+            offset: None,
+            fetch: None,
+            locks: vec![],
+        }
+    }
+
+    fn cte(&self, name: ast::Ident, columns: Vec<ast::Ident>, query: ast::Query) -> ast::Cte {
+        ast::Cte {
+            alias: ast::TableAlias { name, columns },
+            query: Box::new(query),
+            from: None,
+        }
+    }
+
     fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
        value.iter().map(ast::Ident::new).collect()
     }
 
     fn table_factor(&self, relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
-        let alias = alias.map(|s| ast::TableAlias {
-            name: s.into(),
-            columns: vec![],
-        });
+        let alias = alias.map(|s|ast::TableAlias {
+                name: self.identifier(&(s.into()))[0].clone(),
+                columns: vec![],
+            }
+        );
         match relation {
             Relation::Table(table) => ast::TableFactor::Table {
                 name: ast::ObjectName(self.identifier(table.path())),
@@ -77,6 +132,38 @@ pub trait IntoDialectTranslator {
                 version: None,
                 partitions: vec![],
             },
+        }
+    }
+
+    fn join_constraint(&self, value: &JoinConstraint) -> ast::JoinConstraint {
+        match value {
+            JoinConstraint::On(expr) => ast::JoinConstraint::On(self.expr(expr)),
+            JoinConstraint::Using(idents) => ast::JoinConstraint::Using(
+                idents
+                .into_iter()
+                .map(|ident| self.identifier(&ident)[0].clone())
+                .collect(),
+            ),
+            JoinConstraint::Natural => ast::JoinConstraint::Natural,
+            JoinConstraint::None => ast::JoinConstraint::None,
+        }
+    }
+
+    fn join_operator(&self, value: &JoinOperator) -> ast::JoinOperator {
+        match value {
+            JoinOperator::Inner(join_constraint) => {
+                ast::JoinOperator::Inner(self.join_constraint(join_constraint))
+            }
+            JoinOperator::LeftOuter(join_constraint) => {
+                ast::JoinOperator::LeftOuter(self.join_constraint(join_constraint))
+            }
+            JoinOperator::RightOuter(join_constraint) => {
+                ast::JoinOperator::RightOuter(self.join_constraint(join_constraint))
+            }
+            JoinOperator::FullOuter(join_constraint) => {
+                ast::JoinOperator::FullOuter(self.join_constraint(join_constraint))
+            }
+            JoinOperator::Cross => ast::JoinOperator::CrossJoin,
         }
     }
 
@@ -452,6 +539,14 @@ pub trait IntoDialectTranslator {
         let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
         case_builder(ast_exprs)
     }
+}
+
+/// Build Sarus Relatioin from dialect speciific AST
+pub trait IntoRelationTranslator {
+    type D: Dialect;
+
+    // Not sure why we need a method to return the Dialect when passing from a relation to a Query
+    fn dialect(&self) -> Self::D;
 }
 
 // Function expression builders

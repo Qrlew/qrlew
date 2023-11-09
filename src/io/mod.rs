@@ -8,6 +8,8 @@
 pub mod postgresql;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
+// #[cfg(feature = "mssql")]
+pub mod mssql;
 
 use crate::{
     builder::{Ready, With},

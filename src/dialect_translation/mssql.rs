@@ -12,6 +12,12 @@ impl IntoDialectTranslator for MSSQLTranslator {
         MsSqlDialect {}
     }
 
+    /// Identifiers are back quoted
+    fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
+        let quoting_char: char = '`';
+        value.iter().map(|i|ast::Ident::with_quote(quoting_char, i)).collect()
+    }
+
     /// Converting LN to LOG
     fn from_ln(&self, expr: &expr::Expr) -> ast::Expr {
         let ast_expr = self.expr(expr);
@@ -90,6 +96,53 @@ impl IntoDialectTranslator for MSSQLTranslator {
             special: false,
             order_by: vec![],
         })
+    }
+
+    /// MSSQL queries don't support LIMIT but TOP in the SELECT statement instated
+    fn query(
+        &self,
+        with: Vec<ast::Cte>,
+        projection: Vec<ast::SelectItem>,
+        from: ast::TableWithJoins,
+        selection: Option<ast::Expr>,
+        group_by: ast::GroupByExpr,
+        order_by: Vec<ast::OrderByExpr>,
+        limit: Option<ast::Expr>,
+    ) -> ast::Query {
+        let top = limit.map(|e|{
+            ast::Top{
+                with_ties: false,
+                percent: false,
+                quantity: Some(e),
+            }
+        });
+        ast::Query {
+            with: (!with.is_empty()).then_some(ast::With {
+                recursive: false,
+                cte_tables: with,
+            }),
+            body: Box::new(ast::SetExpr::Select(Box::new(ast::Select {
+                distinct: None,
+                top,
+                projection,
+                into: None,
+                from: vec![from],
+                lateral_views: vec![],
+                selection,
+                group_by,
+                cluster_by: vec![],
+                distribute_by: vec![],
+                sort_by: vec![],
+                having: None,
+                qualify: None,
+                named_window: vec![],
+            }))),
+            order_by,
+            limit: None,
+            offset: None,
+            fetch: None,
+            locks: vec![],
+        }
     }
 }
 
@@ -173,6 +226,16 @@ mod tests {
     fn test_translation() {
         let input_sql = r#"
         SELECT 3 AS tre, True AS bool, 'sasa' AS str1, CONCAT(1, 2, 3) AS conc, ABS(col) AS abs_col
+        "#;
+        //let query = parse(input_sql).unwrap();
+        let query = parse(input_sql).unwrap();
+        println!("{:?}", query)
+    }
+
+    #[test]
+    fn test_join() {
+        let input_sql = r#"
+        SELECT * FROM tab1 JOIN tab2 USING(tab1.col1)
         "#;
         //let query = parse(input_sql).unwrap();
         let query = parse(input_sql).unwrap();
