@@ -83,6 +83,11 @@ impl From<data_type::value::Error> for Error {
         Error::Other(err.to_string())
     }
 }
+impl From<r2d2::Error> for Error {
+    fn from(err: r2d2::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
 
 pub type Result<T> = result::Result<T, Error>;
 
