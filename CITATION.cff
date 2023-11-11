@@ -39,6 +39,7 @@ keywords:
   - privacy
   - SQL
   - rewriting
+  - rust
 license: Apache-2.0
 commit: 7fc58b19b1dd70a99feccd0243024b991995e036
 version: v0.4.11
