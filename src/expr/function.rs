@@ -190,9 +190,6 @@ impl Function {
             Arity::Nary(n) => DataType::structured_from_data_types(&sets[0..n]),
             Arity::Varying => DataType::structured_from_data_types(sets),
         };
-        println!("\n\nset = {set}");
-        println!("self = {}", self);
-        println!("implementation::function(self) = {}", implementation::function(self));
         Ok(implementation::function(self).super_image(&set)?)
     }
 

@@ -1889,7 +1889,10 @@ mod tests {
             "expression super image = {}",
             expression.super_image(&set).unwrap()
         );
-        assert_eq!(expression.super_image(&set).unwrap(), DataType::float_interval(0., 10.));
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_interval(0., 5.).super_union(&DataType::float_value(20.)).unwrap()
+        );
     }
 
     #[test]

@@ -940,12 +940,10 @@ impl Function for Coalesce {
     }
 
     fn super_image(&self, set: &DataType) -> Result<DataType> {
-        println!("set = {}", set);
         if !set.is_subset_of(&self.domain()) {
             Err(Error::set_out_of_range(set, self.domain()))
         } else {
             if let DataType::Struct(struct_data_type) = set {
-                println!("struct = {}", struct_data_type);
                 let data_type_1 = struct_data_type.field_from_index(0).1.as_ref().clone();
                 let data_type_2 = struct_data_type.field_from_index(1).1.as_ref().clone();
 
