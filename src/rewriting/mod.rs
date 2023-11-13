@@ -26,8 +26,8 @@ use crate::{
 };
 
 use rewriting_rule::{
-    BaseRewriter, BaseRewritingRulesEliminator, BaseRewritingRulesSelector,
-    BaseRewritingRulesSetter, BaseScore,
+    Rewriter, RewritingRulesEliminator, RewritingRulesSelector,
+    RewritingRulesSetter, Score,
 };
 
 #[derive(Debug)]
@@ -73,20 +73,21 @@ impl Relation {
         protected_entity: ProtectedEntity,
         budget: Budget,
     ) -> Result<RelationWithPrivateQuery> {
-        let relation_with_rules = self.set_rewriting_rules(BaseRewritingRulesSetter::new(
+        let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
+            relations,
             synthetic_data,
             protected_entity,
             budget,
         ));
         let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+            relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules
-            .select_rewriting_rules(BaseRewritingRulesSelector)
+            .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
                 Property::Public | Property::ProtectedEntityPreserving => Some((
-                    rwrr.rewrite(BaseRewriter::new(relations)),
-                    rwrr.accept(BaseScore),
+                    rwrr.rewrite(Rewriter::new(relations)),
+                    rwrr.accept(Score),
                 )),
                 property => None,
             })
@@ -102,20 +103,21 @@ impl Relation {
         protected_entity: ProtectedEntity,
         budget: Budget,
     ) -> Result<RelationWithPrivateQuery> {
-        let relation_with_rules = self.set_rewriting_rules(BaseRewritingRulesSetter::new(
+        let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
+            relations,
             synthetic_data,
             protected_entity,
             budget,
         ));
         let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+            relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules
-            .select_rewriting_rules(BaseRewritingRulesSelector)
+            .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
                 Property::Public | Property::Published | Property::DifferentiallyPrivate => Some((
-                    rwrr.rewrite(BaseRewriter::new(relations)),
-                    rwrr.accept(BaseScore),
+                    rwrr.rewrite(Rewriter::new(relations)),
+                    rwrr.accept(Score),
                 )),
                 property => None,
             })
