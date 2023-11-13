@@ -1,4 +1,8 @@
-use crate::{expr, relation::sql::FromRelationVisitor, visitor::Acceptor, Relation};
+use crate::{
+    expr::{self, Function as _},
+    relation::{sql::FromRelationVisitor, Relation, Table, Variant as _},
+    visitor::Acceptor,
+    data_type::{DataType, DataTyped as _}};
 
 use super::IntoDialectTranslator;
 use sqlparser::{ast, dialect::MsSqlDialect};
@@ -144,6 +148,68 @@ impl IntoDialectTranslator for MSSQLTranslator {
             locks: vec![],
         }
     }
+
+    fn create(&self, table: &Table) -> ast::Statement {
+        ast::Statement::CreateTable {
+            or_replace: false,
+            temporary: false,
+            external: false,
+            global: None,
+            if_not_exists: false,
+            transient: false,
+            name: table.path().clone().into(),
+            columns: table
+                .schema()
+                .iter()
+                .map(|f| ast::ColumnDef {
+                    name: f.name().into(),
+                     // Need to override some convertions
+                    data_type: {translate_data_type(f.data_type())},
+                    collation: None,
+                    options: if let DataType::Optional(_) = f.data_type() {
+                        vec![]
+                    } else {
+                        vec![ast::ColumnOptionDef {
+                            name: None,
+                            option: ast::ColumnOption::NotNull,
+                        }]
+                    },
+                })
+                .collect(),
+            constraints: vec![],
+            hive_distribution: ast::HiveDistributionStyle::NONE,
+            hive_formats: None,
+            table_properties: vec![],
+            with_options: vec![],
+            file_format: None,
+            location: None,
+            query: None,
+            without_rowid: false,
+            like: None,
+            clone: None,
+            engine: None,
+            default_charset: None,
+            collation: None,
+            on_commit: None,
+            on_cluster: None,
+            order_by: None,
+            strict: false,
+            comment: None,
+            auto_increment_offset: None,
+        }
+    }
+}
+
+// method to override DataType -> ast::DataType
+fn translate_data_type(dtype: DataType) -> ast::DataType {
+    match dtype {
+        // It seems to be a bug in sqlx such that when using Varchar for text when pushing data to sql it fails
+        //DataType::Text(_) => ast::DataType::Text,
+        DataType::Text(_) => ast::DataType::Varchar(Some(ast::CharacterLength{length: 8000 as u64, unit: None})),
+        //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL, 
+        DataType::Optional(o) => translate_data_type(o.data_type().clone()),
+        _ => dtype.into()
+    }
 }
 
 pub struct RelationWithMSSQLTranslator<'a>(pub &'a Relation, pub MSSQLTranslator);
@@ -284,7 +350,6 @@ mod tests {
         print!("TRANSLATED: \n{}\n", query);
     }
 
-    //
     #[test]
     fn test_md5() {
         let input_sql = r#"

@@ -9,7 +9,7 @@ use sqlparser::{
     dialect::{BigQueryDialect, Dialect, PostgreSqlDialect},
 };
 
-use crate::{sql::{self, parse, parse_with_dialect}, Relation, relation::{Variant, JoinConstraint, JoinOperator}};
+use crate::{sql::{self, parse, parse_with_dialect}, Relation, relation::{Variant, JoinConstraint, JoinOperator, Table}, DataType, data_type::DataTyped};
 use crate::{
     data_type::function::cast,
     expr::{self, Function},
@@ -22,6 +22,7 @@ pub mod hive;
 pub mod mssql;
 pub mod mysql;
 pub mod postgres;
+pub mod sqlite;
 
 // Should they implement methods for converting from Generic to Dialect and vice-versa.
 // Relations are dialect agnostic objects
@@ -94,6 +95,84 @@ pub trait IntoDialectTranslator {
             offset: None,
             fetch: None,
             locks: vec![],
+        }
+    }
+
+    fn create(&self, table: &Table) -> ast::Statement {
+        ast::Statement::CreateTable {
+            or_replace: false,
+            temporary: false,
+            external: false,
+            global: None,
+            if_not_exists: true,
+            transient: false,
+            name: table.path().clone().into(),
+            columns: table
+                .schema()
+                .iter()
+                .map(|f| ast::ColumnDef {
+                    name: f.name().into(),
+                    data_type: f.data_type().into(),
+                    collation: None,
+                    options: if let DataType::Optional(_) = f.data_type() {
+                        vec![]
+                    } else {
+                        vec![ast::ColumnOptionDef {
+                            name: None,
+                            option: ast::ColumnOption::NotNull,
+                        }]
+                    },
+                })
+                .collect(),
+            constraints: vec![],
+            hive_distribution: ast::HiveDistributionStyle::NONE,
+            hive_formats: None,
+            table_properties: vec![],
+            with_options: vec![],
+            file_format: None,
+            location: None,
+            query: None,
+            without_rowid: false,
+            like: None,
+            clone: None,
+            engine: None,
+            default_charset: None,
+            collation: None,
+            on_commit: None,
+            on_cluster: None,
+            order_by: None,
+            strict: false,
+            comment: None,
+            auto_increment_offset: None,
+        }
+    }
+
+    fn insert(&self, prefix: &str, table: &Table) -> ast::Statement {
+        ast::Statement::Insert {
+            or: None,
+            into: true,
+            table_name: table.path().clone().into(),
+            columns: table.schema().iter().map(|f| f.name().into()).collect(),
+            overwrite: false,
+            source: Box::new(ast::Query {
+                with: None,
+                body: Box::new(ast::SetExpr::Values(ast::Values {
+                    explicit_row: false,
+                    rows: vec![(1..=table.schema().len())
+                        .map(|i| ast::Expr::Value(ast::Value::Placeholder(format!("{prefix}{i}"))))
+                        .collect()],
+                })),
+                order_by: vec![],
+                limit: None,
+                offset: None,
+                fetch: None,
+                locks: vec![],
+            }),
+            partitioned: None,
+            after_columns: vec![],
+            table: false,
+            on: None,
+            returning: None,
         }
     }
 

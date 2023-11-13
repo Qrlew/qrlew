@@ -378,82 +378,12 @@ impl From<&Relation> for ast::Query {
 
 impl Table {
     /// Build the CREATE TABLE statement
-    pub fn create(&self) -> ast::Statement {
-        ast::Statement::CreateTable {
-            or_replace: false,
-            temporary: false,
-            external: false,
-            global: None,
-            if_not_exists: true,
-            transient: false,
-            name: self.path().clone().into(),
-            columns: self
-                .schema()
-                .iter()
-                .map(|f| ast::ColumnDef {
-                    name: f.name().into(),
-                    data_type: f.data_type().into(),
-                    collation: None,
-                    options: if let DataType::Optional(_) = f.data_type() {
-                        vec![]
-                    } else {
-                        vec![ast::ColumnOptionDef {
-                            name: None,
-                            option: ast::ColumnOption::NotNull,
-                        }]
-                    },
-                })
-                .collect(),
-            constraints: vec![],
-            hive_distribution: ast::HiveDistributionStyle::NONE,
-            hive_formats: None,
-            table_properties: vec![],
-            with_options: vec![],
-            file_format: None,
-            location: None,
-            query: None,
-            without_rowid: false,
-            like: None,
-            clone: None,
-            engine: None,
-            default_charset: None,
-            collation: None,
-            on_commit: None,
-            on_cluster: None,
-            order_by: None,
-            strict: false,
-            comment: None,
-            auto_increment_offset: None,
-        }
+    pub fn create<T: IntoDialectTranslator>(&self, translator: T) -> ast::Statement {
+        translator.create(self)
     }
 
-    pub fn insert(&self, prefix: char) -> ast::Statement {
-        ast::Statement::Insert {
-            or: None,
-            into: true,
-            table_name: self.path().clone().into(),
-            columns: self.schema().iter().map(|f| f.name().into()).collect(),
-            overwrite: false,
-            source: Box::new(ast::Query {
-                with: None,
-                body: Box::new(ast::SetExpr::Values(ast::Values {
-                    explicit_row: false,
-                    rows: vec![(1..=self.schema().len())
-                        .map(|i| ast::Expr::Value(ast::Value::Placeholder(format!("{prefix}{i}"))))
-                        .collect()],
-                })),
-                order_by: vec![],
-                limit: None,
-                offset: None,
-                fetch: None,
-                locks: vec![],
-            }),
-            partitioned: None,
-            after_columns: vec![],
-            table: false,
-            on: None,
-            returning: None,
-        }
+    pub fn insert<T: IntoDialectTranslator>(&self, prefix: &str, translator: T) -> ast::Statement {
+        translator.insert(prefix, self)
     }
 }
 
