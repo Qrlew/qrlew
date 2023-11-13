@@ -6,7 +6,7 @@ use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, DataType, DataTyped, Variant as _},
     expr::{self, aggregate, Aggregate, Expr, Value},
-    io, namer, relation,
+    io, namer, relation, display::Dot,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -355,7 +355,6 @@ impl Relation {
     }
     /// Sum values for each group.
     /// Groups form the basis of a vector space, the sums are the coordinates.
-    /// TODO: add coalesce ??
     pub fn sums_by_group(self, groups: Vec<&str>, values: Vec<&str>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
         reduce = groups
@@ -366,11 +365,8 @@ impl Relation {
                 .into_iter()
                 .map(|c| (
                     c,
-                    Expr::coalesce(
-                        Expr::sum(Expr::col(c.to_string())),
-                        Expr::val(0.)
-                    )
-                )),
+                    Expr::sum(Expr::col(c.to_string()))
+                ))
         );
         reduce.build()
     }
@@ -478,12 +474,11 @@ impl Relation {
                 expr
             }
         });
-        // let clipped_relation = self.scale(
-        //     entities,
-        //     value_clippings.keys().cloned().collect(),
-        //     scaling_factors,
-        // );
-        let clipped_relation = self;
+        let clipped_relation = self.scale(
+            entities,
+            value_clippings.keys().cloned().collect(),
+            scaling_factors,
+        );
         clipped_relation.sums_by_group(groups, value_clippings.keys().cloned().collect())
     }
 
@@ -1898,4 +1893,5 @@ mod tests {
             names_aggs
         );
     }
+
 }

@@ -459,6 +459,58 @@ mod tests {
         _ = database.query(query).unwrap();
     }
 
+
+    #[test]
+    fn test_differentially_private_output_all_grouping_keys_simple() {
+        // test the results contains all the possible keys
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
+        let input: Relation = Relation::map()
+            .name("map_relation")
+            .with(("income", expr!(income)))
+            .with(("city", expr!(city)))
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                expr!(id),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                expr!(id),
+            ))
+            .filter(
+                Expr::in_list(
+                    Expr::col("city"),
+                    Expr::list(vec!["Paris".to_string(), "London".to_string()]),
+                )
+            )
+            .input(table.clone())
+            .build();
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("city".to_string(), AggregateColumn::first("city")))
+            .with(("count_income".to_string(), AggregateColumn::count("income")))
+            .group_by(expr!(city))
+            .input(input)
+            .build();
+        let (dp_relation, private_query) = reduce
+        .differentially_private(
+            10.,
+            1e-5,
+            1.,
+            1e-2,
+        )
+            .unwrap()
+            .into();
+        println!("{}", private_query);
+        dp_relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        let results = database
+            .query(query)
+            .unwrap();
+        println!("{:?}", results);
+    }
+
     #[test]
     fn test_differentially_private_output_all_grouping_keys() {
         // test the results contains all the possible keys
@@ -497,7 +549,7 @@ mod tests {
             .build();
         let (dp_relation, private_query) = reduce
         .differentially_private(
-            1.,
+            10.,
             1e-5,
             1.,
             1e-2,
