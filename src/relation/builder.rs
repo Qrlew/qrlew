@@ -887,14 +887,16 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
         let operator = self
             .operator
             .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
-        Ok(Join::new(
-            name,
-            left_names,
-            right_names,
-            operator,
-            self.left.0,
-            self.right.0,
-        ))
+        Ok(
+            Join::new(
+                name,
+                left_names,
+                right_names,
+                operator,
+                self.left.0,
+                self.right.0,
+            )
+        )
     }
 }
 

@@ -116,11 +116,17 @@ impl PEPRelation {
         let mut input_builder = Map::builder()
             .with((
                 self.protected_entity_id(),
-                Expr::col(self.protected_entity_id()),
+                Expr::coalesce(
+                    Expr::cast_as_text(Expr::col(self.protected_entity_id())),
+                    Expr::val(self.protected_entity_null_id().to_string())
+                ),
             ))
             .with((
                 self.protected_entity_weight(),
-                Expr::col(self.protected_entity_weight()),
+                Expr::coalesce(
+                    Expr::col(self.protected_entity_weight()),
+                    Expr::val(0.)
+                )
             ));
 
         let mut group_by_names = vec![];

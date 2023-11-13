@@ -964,4 +964,5 @@ mod tests {
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("(not (a in (3, 4, 5)))"));
     }
+
 }
