@@ -179,7 +179,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Upper
             | expr::function::Function::Random(_)
             | expr::function::Function::Least
-            | expr::function::Function::Greatest => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Greatest
+            | expr::function::Function::Coalesce => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
@@ -470,5 +471,14 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {}", gen_expr.to_string());
         assert_eq!(gen_expr.to_string(), "a IN (4, 5)".to_string(),);
+    }
+
+    #[test]
+    fn test_coalesce() {
+        let str_expr = "Coalesce(a, 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("ast::expr = {ast_expr}");
+        println!("ast::expr = {:?}", ast_expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
     }
 }
