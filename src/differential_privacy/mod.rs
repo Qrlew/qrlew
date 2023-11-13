@@ -230,11 +230,7 @@ mod tests {
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
         println!("{query}");
-        _ = database
-            .query(query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string);
+        _ = database.query(query).unwrap();
     }
 
     #[test]
@@ -304,11 +300,7 @@ mod tests {
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
         println!("{query}");
-        _ = database
-            .query(query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string);
+        _ = database.query(query).unwrap();
     }
 
     #[test]
@@ -378,11 +370,7 @@ mod tests {
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
         println!("{query}");
-        _ = database
-            .query(query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string);
+        _ = database.query(query).unwrap();
     }
 
     #[test]
@@ -468,11 +456,7 @@ mod tests {
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
         println!("{query}");
-        _ = database
-            .query(query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string);
+        _ = database.query(query).unwrap();
     }
 
     #[test]

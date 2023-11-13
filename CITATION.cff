@@ -1,0 +1,46 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Qrlew
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Nicolas
+    family-names: Grislain
+    email: ng@sarus.tech
+    affiliation: Sarus Technologies
+    orcid: 'https://orcid.org/0000-0002-3577-0588'
+  - given-names: Victoria
+    name-particle: de
+    family-names: Sainte Agathe
+    email: vdsa@sarus.tech
+    affiliation: Sarus Technologies
+  - given-names: Andi
+    family-names: Cuko
+    email: ac@sarus.tech
+    affiliation: Sarus Technologies
+  - name: Sarus Technologies
+    address: 128 rue la Boétie
+    city: Paris
+    country: FR
+    post-code: '75008'
+    email: contact@sarus.tech
+    website: 'https://sarus.tech'
+identifiers:
+  - type: url
+    value: 'https://github.com/Qrlew'
+abstract: Open source SQL manipulation framework written in Rust
+keywords:
+  - differential privacy
+  - privacy preserving analytics
+  - privacy
+  - SQL
+  - rewriting
+  - rust
+license: Apache-2.0
+commit: 7fc58b19b1dd70a99feccd0243024b991995e036
+version: v0.4.11
+date-released: '2023-11-11'
