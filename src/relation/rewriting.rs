@@ -472,12 +472,13 @@ impl Relation {
                 expr
             }
         });
-        let clipped_relation = self.scale(
-            entities,
-            value_clippings.keys().cloned().collect(),
-            scaling_factors,
-        );
-        clipped_relation.sums_by_group(groups, value_clippings.keys().cloned().collect())
+        // let clipped_relation = self.scale(
+        //     entities,
+        //     value_clippings.keys().cloned().collect(),
+        //     scaling_factors,
+        // );
+        //clipped_relation.sums_by_group(groups, value_clippings.keys().cloned().collect())
+        self
     }
 
     /// Clip sums in the first `Reduce`s found

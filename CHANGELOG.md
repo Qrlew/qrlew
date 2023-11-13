@@ -6,19 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-<<<<<<< HEAD
 ### Fixed
-<<<<<<< HEAD
-- All the possible grouping keys must be output by `differential_privacy.group_by.join_with_grouping_values`[MR177](https://github.com/Qrlew/qrlew/pull/170)
-- If no tau-thresholding, the budget is transferred to the aggregations [MR177](https://github.com/Qrlew/qrlew/pull/170)
-- Adding values of the grouping keys must not modify the size of the table [MR177](https://github.com/Qrlew/qrlew/pull/170)
-=======
-- `DataType`` propagation in joins: if their is not INNEr or CROSS contraint, then the output `DataType`s must be optional [MR179](https://github.com/Qrlew/qrlew/pull/179)
->>>>>>> fix_datatype_in_joins
-=======
+- `DataType` propagation in joins: if their is not INNEr or CROSS contraint, then the output `DataType`s must be optional [MR179](https://github.com/Qrlew/qrlew/pull/179)
 ### Added
 - Implemented `Coalesce` [MR178](https://github.com/Qrlew/qrlew/pull/178)
->>>>>>> implement_coalesce
 
 ## [0.4.10] - 2023-11-09
 ### Fixed
