@@ -1280,6 +1280,14 @@ pub fn string_concat() -> impl Function {
     )
 }
 
+pub fn rtrim() -> impl Function {
+    Pointwise::univariate(
+        data_type::Text::default(),
+        data_type::Text::default(),
+        |a| a.trim_end_matches(pat).into(),
+    )
+}
+
 pub fn concat(n: usize) -> impl Function {
     Pointwise::variadic(vec![DataType::Any; n], data_type::Text::default(), |v| {
         v.into_iter().map(|v| v.to_string()).join("")

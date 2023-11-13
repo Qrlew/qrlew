@@ -742,6 +742,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "pow" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "md5" => Expr::md5(flat_args[0].clone()),
+            "coalesce" => {
+                let (first, vec) = flat_args
+                .split_first()
+                .unwrap();
+                vec.iter()
+                .fold(first.clone(), |acc, x| Expr::coalesce(acc, x.clone()))
+            }
             // string functions
             "lower" => Expr::lower(flat_args[0].clone()),
             "upper" => Expr::upper(flat_args[0].clone()),
@@ -974,8 +981,17 @@ mod tests {
         for (x, t) in ast_expr.iter_with(DisplayVisitor) {
             println!("{x} ({t})");
         }
-        // let true_expr = Expr::in_list(Expr::col("a"), Expr::list([3, 4, 5]));
-        // assert_eq!(true_expr.to_string(), expr.to_string());
-        // #assert_eq!(expr.to_string(), String::from("(a in (3, 4, 5))"));
+        let true_expr = Expr::coalesce(
+            Expr::coalesce(
+                Expr::coalesce(
+                    Expr::col("col1"),
+                    Expr::col("col2")
+                ),
+                Expr::col("col3")
+            ),
+            Expr::val("default".to_string())
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("coalesce(coalesce(coalesce(col1, col2), col3), default)"));
     }
 }
