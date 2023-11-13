@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
-- `DataType` propagation in joins: if their is not INNEr or CROSS contraint, then the output `DataType`s must be optional [MR179](https://github.com/Qrlew/qrlew/pull/179)
+- `DataType`` propagation in joins: if their is not INNEr or CROSS contraint, then the output `DataType`s must be optional [MR179](https://github.com/Qrlew/qrlew/pull/179)
+- Dp query should release all the possible values of the grouping keys. [MR180](https://github.com/Qrlew/qrlew/pull/180)
 ### Added
 - Implemented `Coalesce` [MR178](https://github.com/Qrlew/qrlew/pull/178)
 

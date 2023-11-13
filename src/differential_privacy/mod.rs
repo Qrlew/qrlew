@@ -172,7 +172,7 @@ mod tests {
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
         protection::{Protection, Strategy},
-        relation::{Map, Relation, Variant},
+        relation::{Map, Relation, Variant, Schema, Field},
         protection::ProtectedEntity,
     };
 
@@ -471,6 +471,20 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
+        let new_schema: Schema = table.schema()
+            .iter()
+            .map(|f| if f.name() == "city" {
+                Field::from_name_data_type("city", DataType::text())
+            } else {
+                f.clone()
+            })
+            .collect();
+        let table:Relation = Relation::table()
+            .path(["large_user_table"])
+            .name("more_users")
+            .size(100000)
+            .schema(new_schema)
+            .build();
         let input: Relation = Relation::map()
             .name("map_relation")
             .with(("income", expr!(income)))
@@ -527,6 +541,20 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
+        let new_schema: Schema = table.schema()
+            .iter()
+            .map(|f| if f.name() == "city" {
+                Field::from_name_data_type("city", DataType::text())
+            } else {
+                f.clone()
+            })
+            .collect();
+        let table:Relation = Relation::table()
+            .path(["large_user_table"])
+            .name("more_users")
+            .size(100000)
+            .schema(new_schema)
+            .build();
         let input: Relation = Relation::map()
             .name("map_relation")
             .with(("income", expr!(income)))
@@ -573,5 +601,10 @@ mod tests {
             .query(query)
             .unwrap();
         println!("{:?}", results);
+        let city_keys: HashSet<_> = results.iter()
+            .map(|row| row.to_vec().clone()[0].clone().to_string())
+            .collect();
+        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()].into_iter().collect();
+        assert_eq!(city_keys, correct_keys);
     }
 }
