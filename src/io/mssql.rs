@@ -10,17 +10,19 @@ use crate::{
         value::{self, Value, Variant},
         DataTyped, List,
     },
+    dialect_translation::mssql::MSSQLTranslator,
     namer,
-    relation::{Table, Variant as _}, dialect_translation::mssql::MSSQLTranslator,
+    relation::{Table, Variant as _},
 };
 use colored::Colorize;
 use rand::{rngs::StdRng, SeedableRng};
-use sqlx::{MssqlConnection, Connection, mssql::{MssqlArguments, MssqlQueryResult}};
 use sqlx::{
     self,
-    mssql::{self, Mssql, MssqlRow, MssqlValueRef, MssqlConnectOptions},
-    Decode, Encode, Row, Type, TypeInfo, ValueRef as _,
-    query::Query
+    mssql::{
+        self, Mssql, MssqlArguments, MssqlConnectOptions, MssqlQueryResult, MssqlRow, MssqlValueRef,
+    },
+    query::Query,
+    Connection, Decode, Encode, MssqlConnection, Row, Type, TypeInfo, ValueRef as _,
 };
 use std::{
     env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
@@ -72,17 +74,17 @@ impl Database {
     fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
         log::info!("Try to get an existing DB");
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let mut connection = rt.block_on(async_connect(
-            &format!(
-                "mssql://{}:{}@localhost:{}/master?encrypt=false",
-                Database::user(),
-                Database::password(),
-                Database::port(),
-            ),
-        ))?;
+        let mut connection = rt.block_on(async_connect(&format!(
+            "mssql://{}:{}@localhost:{}/master?encrypt=false",
+            Database::user(),
+            Database::password(),
+            Database::port(),
+        )))?;
 
-        let find_tables_query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'public'";
-        let table_names: Vec<String> = rt.block_on(async_query(find_tables_query, &mut connection))?
+        let find_tables_query =
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'public'";
+        let table_names: Vec<String> = rt
+            .block_on(async_query(find_tables_query, &mut connection))?
             .iter()
             .map(|r| {
                 let val_as_str: String = r.to_vec()[0].clone().try_into().unwrap();
@@ -95,7 +97,8 @@ impl Database {
                 tables: vec![],
                 connection,
                 drop: false,
-            }.with_tables(tables)
+            }
+            .with_tables(tables)
         } else {
             Ok(Database {
                 name,
@@ -109,7 +112,7 @@ impl Database {
     // /// Get a Database from a container
     fn try_get_container(name: String, tables: Vec<Table>) -> Result<Self> {
         let mut mssql_container = MSSQL_CONTAINER.lock().unwrap();
-    
+
         if !*mssql_container {
             // A new container will be started
             *mssql_container = true;
@@ -168,14 +171,12 @@ impl Database {
             }
 
             let rt = tokio::runtime::Runtime::new().unwrap();
-            let connection = rt.block_on(async_connect(
-                &format!(
-                    "mssql://{}:{}@localhost:{}/master?encrypt=false",
-                    Database::user(),
-                    Database::password(),
-                    Database::port(),
-                ),
-            ))?;
+            let connection = rt.block_on(async_connect(&format!(
+                "mssql://{}:{}@localhost:{}/master?encrypt=false",
+                Database::user(),
+                Database::password(),
+                Database::port(),
+            )))?;
             Ok(Database {
                 name,
                 tables: vec![],
@@ -230,14 +231,15 @@ impl DatabaseTrait for Database {
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
         let ins_stat = &table.insert("@p", MSSQLTranslator).to_string();
-    
+
         for _ in 1..size {
-            let structured: value::Struct = table.schema().data_type().generate(&mut rng).try_into()?;
+            let structured: value::Struct =
+                table.schema().data_type().generate(&mut rng).try_into()?;
             let values: Result<Vec<SqlValue>> = structured
                 .into_iter()
                 .map(|(_, v)| (**v).clone().try_into())
                 .collect();
-            let values = values?; 
+            let values = values?;
             let mut insert_query = sqlx::query(&ins_stat[..]);
             for value in &values {
                 insert_query = insert_query.bind(value);
@@ -253,7 +255,10 @@ impl DatabaseTrait for Database {
     }
 }
 
-async fn async_query(query_str: &str, connection: &mut MssqlConnection) -> Result<Vec<value::List>> {
+async fn async_query(
+    query_str: &str,
+    connection: &mut MssqlConnection,
+) -> Result<Vec<value::List>> {
     let rows = sqlx::query(query_str).fetch_all(connection).await?;
 
     Ok(rows
@@ -270,7 +275,10 @@ async fn async_query(query_str: &str, connection: &mut MssqlConnection) -> Resul
         .collect())
 }
 
-async fn async_execute(query: Query<'_, mssql::Mssql, MssqlArguments>, connection: &mut MssqlConnection) -> Result<MssqlQueryResult> {
+async fn async_execute(
+    query: Query<'_, mssql::Mssql, MssqlArguments>,
+    connection: &mut MssqlConnection,
+) -> Result<MssqlQueryResult> {
     Ok(query.execute(connection).await?)
 }
 
@@ -278,7 +286,6 @@ async fn async_connect(connection_string: &str) -> Result<MssqlConnection> {
     let connection_options = MssqlConnectOptions::from_str(connection_string)?;
     Ok(MssqlConnection::connect_with(&connection_options).await?)
 }
-
 
 #[derive(Debug, Clone)]
 enum SqlValue {
@@ -343,7 +350,9 @@ impl Decode<'_, mssql::Mssql> for SqlValue {
         let type_info = binding.as_ref();
         match type_info.name() {
             "BIT" => Ok(Value::from(<bool as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "INT" => Ok(Value::from((<i32 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?),
+            "INT" => {
+                Ok(Value::from((<i32 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?)
+            }
             "BIGINT" => Ok(Value::from(<i64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
             "BINARY" => todo!(),
             "CHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
@@ -358,7 +367,9 @@ impl Decode<'_, mssql::Mssql> for SqlValue {
             "NCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
             "NTEXT" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
             "NUMERIC" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "NVARCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+            "NVARCHAR" => {
+                Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+            }
             "REAL" => todo!(),
             "SMALLDATETIME" => todo!(),
             "SMALLINT" => todo!(),
@@ -390,9 +401,7 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
                 buf.push(if *b.deref() { 1 } else { 0 });
                 sqlx::encode::IsNull::No
             }
-            SqlValue::Integer(i) => {
-                <i64 as Encode<'_, Mssql>>::encode_by_ref(i.deref(), buf)
-            }
+            SqlValue::Integer(i) => <i64 as Encode<'_, Mssql>>::encode_by_ref(i.deref(), buf),
             SqlValue::Float(f) => {
                 println!("SqlValue::Float encode_by_ref");
                 buf.extend(f.deref().to_le_bytes());
@@ -401,13 +410,11 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
             SqlValue::Text(t) => {
                 println!("SqlValue::Text encode_by_ref");
                 <String as Encode<'_, Mssql>>::encode_by_ref(t.deref(), buf)
-            },
-            SqlValue::Optional(o) => {
-                o
+            }
+            SqlValue::Optional(o) => o
                 .as_ref()
                 .map(|v| <&SqlValue as Encode<'_, Mssql>>::encode_by_ref(&&**v, buf))
-                .unwrap_or( sqlx::encode::IsNull::Yes)
-            }
+                .unwrap_or(sqlx::encode::IsNull::Yes),
             SqlValue::Date(_) => todo!(),
             SqlValue::Time(_) => todo!(),
             SqlValue::DateTime(_) => todo!(),
@@ -422,10 +429,10 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
             SqlValue::Integer(i) => Some(<i64 as Type<Mssql>>::type_info()),
             SqlValue::Float(f) => Some(<f64 as Type<Mssql>>::type_info()),
             SqlValue::Text(t) => <String as Encode<'_, mssql::Mssql>>::produces(t.deref()),
-            SqlValue::Optional(o) =>{
+            SqlValue::Optional(o) => {
                 let value = o.clone().map(|v| v.as_ref().clone());
                 <&Option<SqlValue> as Encode<'_, Mssql>>::produces(&&value)
-            },
+            }
             SqlValue::Date(_) => todo!(),
             SqlValue::Time(_) => todo!(),
             SqlValue::DateTime(_) => todo!(),
@@ -451,12 +458,14 @@ pub fn test_database() -> Database {
     Database::new(DB.into(), Database::test_tables()).expect("Database")
 }
 
-
 #[cfg(test)]
 mod tests {
     use sqlx::Executor;
 
-    use crate::{relation::{TableBuilder, Schema}, DataType, Ready as _};
+    use crate::{
+        relation::{Schema, TableBuilder},
+        DataType, Ready as _,
+    };
 
     use super::*;
 
@@ -503,12 +512,12 @@ mod tests {
             .path(["table_2"])
             .name("table_2")
             .size(5)
-            .schema(Schema::empty()
-                .with(("f", DataType::float_interval(0.0, 10.0)))
-                .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
-                .with(("x", DataType::integer_interval(0, 100)))
-                .with(("y", DataType::optional(DataType::text())))
-                // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
+            .schema(
+                Schema::empty()
+                    .with(("f", DataType::float_interval(0.0, 10.0)))
+                    .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
+                    .with(("x", DataType::integer_interval(0, 100)))
+                    .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
             )
             .build();
 
@@ -522,13 +531,14 @@ mod tests {
         let _ = sqlx::query(&create_stat[..]).execute(&mut conn).await?;
 
         for _ in 1..100 {
-            let structured: value::Struct = table.schema().data_type().generate(&mut rng).try_into()?;
+            let structured: value::Struct =
+                table.schema().data_type().generate(&mut rng).try_into()?;
             let values: Result<Vec<SqlValue>> = structured
                 .into_iter()
                 .map(|(_, v)| (**v).clone().try_into())
                 .collect();
             let values = values?;
-            println!("{:?}", values); 
+            println!("{:?}", values);
             let mut insert_query = sqlx::query(&ins_stat[..]);
             for value in &values {
                 insert_query = insert_query.bind(value);
@@ -545,7 +555,7 @@ mod tests {
         let connection_string = "mssql://SA:MyPass@word@localhost:1433/master?encrypt=false";
         let connection_options = MssqlConnectOptions::from_str(connection_string)?;
         let mut conn = MssqlConnection::connect_with(&connection_options).await?;
-        let _ = conn.execute("CREATE TABLE users (id FLOAT);",).await?;
+        let _ = conn.execute("CREATE TABLE users (id FLOAT);").await?;
 
         for index in 1..=2_i32 {
             let done = sqlx::query("INSERT INTO users (id) VALUES (@p1)")
