@@ -32,6 +32,7 @@ pub enum Function {
     BitwiseAnd,
     BitwiseXor,
     InList,
+    Coalesce,
     // Functions
     Exp,
     Ln,
@@ -120,6 +121,7 @@ impl Function {
             | Function::Position
             | Function::Least
             | Function::Greatest
+            | Function::Coalesce
             // Ternary Function
             | Function::Case
             // Nary Function
@@ -171,7 +173,7 @@ impl Function {
             | Function::CastAsInteger
             | Function::CastAsDateTime => Arity::Unary,
             // Binary Function
-            Function::Pow | Function::Position | Function::Least | Function::Greatest => {
+            Function::Pow | Function::Position | Function::Least | Function::Greatest | Function::Coalesce => {
                 Arity::Nary(2)
             }
             // Ternary Function
@@ -251,6 +253,7 @@ impl fmt::Display for Function {
             Function::Position => "position",
             Function::Least => "least",
             Function::Greatest => "greatest",
+            Function::Coalesce => "coalesce",
             // Ternary Functions
             Function::Case => "case",
             // Nary Functions
