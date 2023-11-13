@@ -7,6 +7,7 @@ use crate::{
     data_type::{self, DataType, DataTyped, Variant as _},
     expr::{self, aggregate, Aggregate, Expr, Value},
     io, namer, relation,
+    display::Dot,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -412,7 +413,7 @@ impl Relation {
         // TODO fix this
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
-            .right_outer()
+            .inner()
             .on_eq(entities, entities)
             .left_names(
                 self.fields()
@@ -471,6 +472,8 @@ impl Relation {
                 expr
             }
         });
+        self.display_dot().unwrap();
+        panic!();
         let clipped_relation = self.scale(
             entities,
             value_clippings.keys().cloned().collect(),
@@ -509,6 +512,7 @@ impl Relation {
     /// Add gaussian noise of a given standard deviation to the given columns, while keeping the column min and max
     pub fn add_clipped_gaussian_noise(self, name_sigmas: Vec<(&str, f64)>) -> Relation {
         let name_sigmas: HashMap<&str, f64> = name_sigmas.into_iter().collect();
+        self.display_dot().unwrap();
         Relation::map()
             // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
             .with_iter(self.schema().iter().map(|f| {
