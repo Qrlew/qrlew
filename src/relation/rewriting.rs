@@ -13,7 +13,6 @@ use std::{
     convert::Infallible,
     error, fmt,
     num::ParseFloatError,
-    ops::{self, Deref},
     result,
     sync::Arc,
 };
@@ -413,7 +412,7 @@ impl Relation {
         // TODO fix this
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
-            .inner()
+            .right_outer()
             .on_eq(entities, entities)
             .left_names(
                 self.fields()
