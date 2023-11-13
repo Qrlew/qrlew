@@ -1047,6 +1047,57 @@ impl Function for InList {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Coalesce;
+
+impl fmt::Display for Coalesce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "coalesce")
+    }
+}
+
+impl Function for Coalesce {
+    fn domain(&self) -> DataType {
+        DataType::from(data_type::Struct::from_data_types(&[
+            DataType::Any,
+            DataType::Any,
+        ]))
+    }
+
+    fn super_image(&self, set: &DataType) -> Result<DataType> {
+        if !set.is_subset_of(&self.domain()) {
+            Err(Error::set_out_of_range(set, self.domain()))
+        } else {
+            if let DataType::Struct(struct_data_type) = set {
+                let data_type_1 = struct_data_type.field_from_index(0).1.as_ref().clone();
+                let data_type_2 = struct_data_type.field_from_index(1).1.as_ref().clone();
+
+                Ok(
+                    if let DataType::Optional(o) = data_type_1 {
+                        o.data_type().super_union(&data_type_2)?
+                    } else {
+                        data_type_1
+                    }
+                )
+            } else {
+                Err(Error::set_out_of_range(set, self.domain()))
+            }
+        }
+    }
+
+    fn value(&self, arg: &Value) -> Result<Value> {
+        if let Value::Struct(struct_values) = arg {
+            if struct_values.field_from_index(0).1 == Arc::new(Value::none()) {
+                Ok(struct_values.field_from_index(1).1.as_ref().clone())
+            } else {
+                Ok(struct_values.field_from_index(0).1.as_ref().clone())
+            }
+        } else {
+            Err(Error::argument_out_of_range(arg, self.domain()))
+        }
+    }
+}
+
 /*
 We list here all the functions to expose
 */
@@ -1588,6 +1639,11 @@ pub fn in_list() -> impl Function {
         InList(data_type::Float::default().into()),
         InList(data_type::Text::default().into()),
     ))
+}
+
+// Coalesce function
+pub fn coalesce() -> impl Function {
+    Coalesce
 }
 
 /*
@@ -2942,5 +2998,47 @@ mod tests {
                 .super_union(&DataType::integer_interval(10, 100))
                 .unwrap()
         );
+    }
+
+
+    #[test]
+    fn test_coalesce() {
+        println!("Test coalesce");
+        let fun = coalesce();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer(),
+            DataType::text()
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::optional(DataType::integer()),
+            DataType::text()
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::optional(DataType::integer_interval(1, 5)),
+            DataType::integer_value(20)
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert_eq!(im, DataType::integer_interval(1, 5).super_union(&DataType::integer_value(20)).unwrap());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::optional(DataType::integer()),
+            DataType::optional(DataType::text())
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::optional(DataType::text()));
     }
 }

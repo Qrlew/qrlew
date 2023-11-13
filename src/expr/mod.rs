@@ -332,7 +332,8 @@ impl_binary_function_constructors!(
     Position,
     InList,
     Least,
-    Greatest
+    Greatest,
+    Coalesce
 );
 
 /// Implement ternary function constructors
@@ -2744,5 +2745,42 @@ mod tests {
         let x = Expr::val(-5.);
         let v = Value::try_from(x).unwrap();
         assert_eq!(v, Value::from(-5.));
+    }
+
+    #[test]
+    fn test_coalesce() {
+        let expression = Expr::coalesce(
+            Expr::col("x".to_string()),
+            Expr::col("y".to_string()),
+        );
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("x", DataType::float_interval(1., 10.)),
+            ("y", DataType::float_values([-2., 0.5])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(expression.super_image(&set).unwrap(), DataType::float_interval(1., 10.));
+
+        let expression = Expr::coalesce(
+            Expr::col("column_a".to_string()),
+            Expr::val(20.)
+        );
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("column_a", DataType::optional(DataType::float_interval(0., 5.))),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_interval(0., 5.).super_union(&DataType::float_value(20.)).unwrap()
+        );
     }
 }
