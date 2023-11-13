@@ -683,7 +683,6 @@ mod tests {
         let city_keys = results.iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
             .collect::<Vec<_>>();
-        println!("{:?}", city_keys);
         assert_eq!(city_keys[0], "London".to_string());
         assert_eq!(city_keys[1], "Paris".to_string());
 
@@ -699,6 +698,7 @@ mod tests {
         let city_keys = results.iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
             .collect::<Vec<_>>();
+        println!("{:?}", city_keys);
         assert_eq!(city_keys[0], "Paris".to_string());
         assert_eq!(city_keys.last().unwrap(), &"London".to_string());
         assert_eq!(input_relation_with_protected_group_by.size(), &Integer::from_interval(0, 100000))
