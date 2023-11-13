@@ -472,8 +472,6 @@ impl Relation {
                 expr
             }
         });
-        self.display_dot().unwrap();
-        panic!();
         let clipped_relation = self.scale(
             entities,
             value_clippings.keys().cloned().collect(),

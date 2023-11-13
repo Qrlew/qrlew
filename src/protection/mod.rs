@@ -69,6 +69,10 @@ impl PEPRelation {
         ProtectedEntity::protected_entity_id()
     }
 
+    pub fn protected_entity_null_id(&self) -> &str {
+        ProtectedEntity::protected_entity_null_id()
+    }
+
     pub fn protected_entity_weight(&self) -> &str {
         ProtectedEntity::protected_entity_weight()
     }

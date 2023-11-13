@@ -162,6 +162,7 @@ impl Reduce {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use super::*;
     use crate::{
         ast,
@@ -512,7 +513,12 @@ mod tests {
         let results = database
             .query(query)
             .unwrap();
-        println!("{:?}", results);
+        println!("results = {:?}", results);
+        let city_keys: HashSet<_> = results.iter()
+            .map(|row| row.to_vec().clone()[0].clone().to_string())
+            .collect();
+        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()].into_iter().collect();
+        assert_eq!(city_keys, correct_keys);
     }
 
     #[test]

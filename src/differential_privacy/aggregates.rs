@@ -7,6 +7,7 @@ use crate::{
     protection::PEPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
+    display::Dot,
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 
@@ -116,11 +117,17 @@ impl PEPRelation {
         let mut input_builder = Map::builder()
             .with((
                 self.protected_entity_id(),
-                Expr::col(self.protected_entity_id()),
+                Expr::coalesce(
+                    Expr::cast_as_text(Expr::col(self.protected_entity_id())),
+                    Expr::val(self.protected_entity_null_id().to_string())
+                ),
             ))
             .with((
                 self.protected_entity_weight(),
-                Expr::col(self.protected_entity_weight()),
+                Expr::coalesce(
+                    Expr::col(self.protected_entity_weight()),
+                    Expr::val(0.)
+                )
             ));
 
         let mut group_by_names = vec![];
