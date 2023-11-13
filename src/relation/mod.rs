@@ -936,8 +936,12 @@ impl Join {
         let (left_schema, right_schema) = operator.filtered_schemas(left, right);
         let (left_is_unique, right_is_unique) =
             operator.has_unique_constraint(left.schema(), right.schema());
-        let transform_datatype_in_optional = match operator {
-            JoinOperator::Inner(_) | JoinOperator::Cross=> false,
+        let transform_datatype_in_optional_left: bool = match operator {
+            JoinOperator::LeftOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross=> false,
+            _ => true,
+        };
+        let transform_datatype_in_optional_right = match operator {
+            JoinOperator::RightOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross=> false,
             _ => true,
         };
         let left_fields = left_names
@@ -946,7 +950,7 @@ impl Join {
             .map(|(name, field)| {
                 Field::new(
                     name,
-                    if transform_datatype_in_optional {DataType::optional(field.data_type())} else {field.data_type()},
+                    if transform_datatype_in_optional_left {DataType::optional(field.data_type())} else {field.data_type()},
                     if right_is_unique {
                         field.constraint()
                     } else {
@@ -960,7 +964,7 @@ impl Join {
             .map(|(name, field)| {
                 Field::new(
                     name,
-                    if transform_datatype_in_optional {DataType::optional(field.data_type())} else {field.data_type()},
+                    if transform_datatype_in_optional_right {DataType::optional(field.data_type())} else {field.data_type()},
                     if left_is_unique {
                         field.constraint()
                     } else {
