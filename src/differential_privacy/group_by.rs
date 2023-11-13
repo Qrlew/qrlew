@@ -211,7 +211,11 @@ mod tests {
         protection::{ProtectedEntity, Protection, Strategy},
         relation::{Join, Schema, Field},
     };
-    use std::ops::Deref;
+    use std::{
+        ops::Deref,
+        collections::HashSet
+    };
+
 
     #[test]
     fn test_tau_thresholding_values() {
@@ -680,11 +684,11 @@ mod tests {
         let results = database
             .query(query)
             .unwrap();
-        let city_keys = results.iter()
+        let city_keys: HashSet<_> = results.iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
-            .collect::<Vec<_>>();
-        assert_eq!(city_keys[0], "London".to_string());
-        assert_eq!(city_keys[1], "Paris".to_string());
+            .collect();
+        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()].into_iter().collect();
+        assert_eq!(city_keys, correct_keys);
 
         let input_relation_with_protected_group_by = reduce
             .input()
@@ -695,12 +699,11 @@ mod tests {
         let results = database
             .query(query)
             .unwrap();
-        let city_keys = results.iter()
+        let city_keys: HashSet<_>  = results.iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
-            .collect::<Vec<_>>();
+            .collect();
         println!("{:?}", city_keys);
-        assert_eq!(city_keys[0], "Paris".to_string());
-        assert_eq!(city_keys.last().unwrap(), &"London".to_string());
-        assert_eq!(input_relation_with_protected_group_by.size(), &Integer::from_interval(0, 100000))
+        assert_eq!(city_keys, correct_keys);
+        assert_eq!(input_relation_with_protected_group_by.size(), &Integer::from_interval(0, 100000));
     }
 }
