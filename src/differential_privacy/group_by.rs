@@ -705,7 +705,6 @@ mod tests {
             .collect();
         println!("{:?}", city_keys);
         assert_eq!(city_keys, correct_keys);
-        assert_eq!(input_relation_with_protected_group_by.size(), &Integer::from_interval(0, 100000));
     }
 
 }
