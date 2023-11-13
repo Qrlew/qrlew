@@ -585,31 +585,31 @@ mod tests {
         // assert!(relation.schema()[0].name() != "peid");
     }
 
-    // #[test]
-    // fn test_table_protection_from_field_paths() {
-    //     let database = postgresql::test_database();
-    //     let relations = database.relations();
-    //     let table = relations
-    //         .get(&["item_table".into()])
-    //         .unwrap()
-    //         .as_ref()
-    //         .clone();
-    //     let protection = Protection::from((
-    //         &relations,
-    //         vec![(
-    //             "item_table",
-    //             vec![("order_id", "order_table", "id")],
-    //             "date",
-    //         )],
-    //         Strategy::Soft,
-    //     ));
-    //     // Table
-    //     let table = protection.table(table.try_into().unwrap()).unwrap();
-    //     table.display_dot().unwrap();
-    //     println!("Schema protected = {}", table.schema());
-    //     println!("Query protected = {}", ast::Query::from(&*table));
-    //     assert_eq!(table.schema()[0].name(), ProtectedEntity::protected_entity_id())
-    // }
+    #[test]
+    fn test_table_protection_from_field_paths() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let table = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let protection = Protection::from((
+            &relations,
+            vec![(
+                "item_table",
+                vec![("order_id", "order_table", "id")],
+                "date",
+            )],
+            Strategy::Soft,
+        ));
+        // Table
+        let table = protection.table(&table.try_into().unwrap()).unwrap();
+        table.display_dot().unwrap();
+        println!("Schema protected = {}", table.schema());
+        println!("Query protected = {}", ast::Query::from(&*table));
+        assert_eq!(table.schema()[0].name(), ProtectedEntity::protected_entity_id())
+    }
 
     #[test]
     fn test_join_protection() {
