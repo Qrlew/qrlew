@@ -3,7 +3,7 @@ use crate::{
     builder::{Ready, With, WithIterator},
     differential_privacy::{private_query, DPRelation, PrivateQuery, Result},
     expr::{aggregate, Expr},
-    namer,
+    namer::{self, name_from_content},
     protection::{PEPRelation, ProtectedEntity},
     relation::{Join, Reduce, Relation, Variant as _},
 };
@@ -166,12 +166,31 @@ impl Relation {
             .iter()
             .map(|f| f.name().to_string())
             .collect::<Vec<_>>();
+        let left_names = left
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect::<Vec<_>>();
+        let right_names = right
+            .schema()
+            .iter()
+            .map(|f| {
+                let name = f.name().to_string();
+                if left_names.contains(&name) {
+                    name_from_content("left_".to_string(), f)
+                } else {
+                    name
+                }
+            })
+            .collect::<Vec<_>>();
 
         let join_rel: Relation = Relation::join()
+            .size(right.size().clone())
             .right(right)
-            .right_names(names.clone())
+            .right_names(right_names.clone())
             .left(left)
-            .inner()
+            .left_names(left_names.clone())
+            .left_outer()
             .on_iter(on)
             .build();
 
@@ -185,7 +204,7 @@ mod tests {
     use crate::{
         ast,
         builder::With,
-        data_type::{DataType, DataTyped, Variant},
+        data_type::{DataType, DataTyped, Variant, Value, Integer},
         display::Dot,
         expr::AggregateColumn,
         io::{postgresql, Database},
@@ -602,5 +621,72 @@ mod tests {
         ])));
         let dp_query = ast::Query::from(&dp_relation);
         _ = database.query(&dp_query.to_string()).unwrap();
+    }
+
+    #[test]
+    fn test_differentially_private_output_all_grouping_keys() {
+        // test the results contains all the keys asked by the user (i.e. in the WHERE )
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
+        let input: Relation = Relation::map()
+            .name("map_relation")
+            .with(("income", expr!(income)))
+            .with(("city", expr!(city)))
+            .with(("age", expr!(age)))
+            .with((
+                ProtectedEntity::protected_entity_id(),
+                expr!(id),
+            ))
+            .with((
+                ProtectedEntity::protected_entity_weight(),
+                expr!(id),
+            ))
+            .filter(
+                Expr::in_list(
+                    Expr::col("city"),
+                    Expr::list(vec!["Paris".to_string(), "London".to_string()]),
+                )
+            )
+            .input(table.clone())
+            .build();
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_income".to_string(), AggregateColumn::sum("income")))
+            .group_by(expr!(city))
+            .group_by(expr!(age))
+            .input(input)
+            .build();
+        let (dp_relation, _) = reduce
+            .differentially_private_group_by(1., 1e-2)
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        let results = database
+            .query(query)
+            .unwrap();
+        let city_keys = results.iter()
+            .map(|row| row.to_vec().clone()[0].clone().to_string())
+            .collect::<Vec<_>>();
+        println!("{:?}", city_keys);
+        assert_eq!(city_keys[0], "London".to_string());
+        assert_eq!(city_keys[1], "Paris".to_string());
+
+        let input_relation_with_protected_group_by = reduce
+            .input()
+            .clone()
+            .join_with_grouping_values(dp_relation).unwrap();
+        input_relation_with_protected_group_by.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&input_relation_with_protected_group_by).to_string();
+        let results = database
+            .query(query)
+            .unwrap();
+        let city_keys = results.iter()
+            .map(|row| row.to_vec().clone()[0].clone().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(city_keys[0], "Paris".to_string());
+        assert_eq!(city_keys.last().unwrap(), &"London".to_string());
+        assert_eq!(input_relation_with_protected_group_by.size(), &Integer::from_interval(0, 100000))
     }
 }

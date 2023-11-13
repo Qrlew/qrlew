@@ -145,6 +145,12 @@ impl Reduce {
             reduce
         };
 
+        let (epsilon, delta) = if private_query.is_null() {
+            (epsilon + epsilon_tau_thresholding, delta + delta_tau_thresholding)
+        } else {
+            (epsilon, delta)
+        };
+
         // DP rewrite aggregates
         let (dp_relation, private_query_agg) = reduce_with_dp_group_by
             .differentially_private_aggregates(epsilon, delta)?
@@ -179,7 +185,7 @@ mod tests {
             .deref()
             .clone();
         let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (1., 2e-3);
 
         // protect the inputs
         let protection = Protection::from((
@@ -216,7 +222,7 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
-            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
+            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon + epsilon_tau_thresholding, delta + delta_tau_thresholding, 50.)
         );
         assert!(dp_relation
             .data_type()
@@ -286,7 +292,11 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
-            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
+            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+                epsilon + epsilon_tau_thresholding,
+                delta + delta_tau_thresholding,
+                50.
+            )
         );
         assert!(dp_relation
             .data_type()

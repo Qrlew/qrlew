@@ -724,7 +724,7 @@ mod tests {
         let query = ast::Query::from(&join);
         assert_eq!(
             query.to_string(),
-            "WITH my_values (my_values) AS (SELECT * FROM (VALUES (3), (4)) AS my_values (my_values)), join_zs1x (field_gu2a, field_b8x4) AS (SELECT * FROM my_values AS _LEFT_ CROSS JOIN table AS _RIGHT_) SELECT * FROM join_zs1x".to_string()
+            "WITH my_values (my_values) AS (SELECT * FROM (VALUES (3), (4)) AS my_values (my_values)), join_smp1 (field_gu2a, field_b8x4) AS (SELECT * FROM my_values AS _LEFT_ CROSS JOIN table AS _RIGHT_) SELECT * FROM join_smp1".to_string()
         );
     }
 }
