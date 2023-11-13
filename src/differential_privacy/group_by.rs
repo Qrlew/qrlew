@@ -204,12 +204,12 @@ mod tests {
     use crate::{
         ast,
         builder::With,
-        data_type::{DataType, DataTyped, Variant, Value, Integer},
+        data_type::{DataType, DataTyped, Variant, Integer},
         display::Dot,
         expr::AggregateColumn,
         io::{postgresql, Database},
         protection::{ProtectedEntity, Protection, Strategy},
-        relation::{Join, Schema},
+        relation::{Join, Schema, Field},
     };
     use std::ops::Deref;
 
@@ -629,6 +629,20 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
         let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
+        let new_schema: Schema = table.schema()
+            .iter()
+            .map(|f| if f.name() == "city" {
+                Field::from_name_data_type("city", DataType::text())
+            } else {
+                f.clone()
+            })
+            .collect();
+        let table:Relation = Relation::table()
+            .path(["large_user_table"])
+            .name("more_users")
+            .size(100000)
+            .schema(new_schema)
+            .build();
         let input: Relation = Relation::map()
             .name("map_relation")
             .with(("income", expr!(income)))
