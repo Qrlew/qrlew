@@ -187,8 +187,6 @@ impl Relation {
             .collect::<Vec<_>>();
 
         let join_rel: Relation = Relation::join()
-            // we force the size of the relation to be equal to the `self Relation`
-            .size(right.size().clone())
             .right(right)
             .right_names(right_names.clone())
             .left(left)

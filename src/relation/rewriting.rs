@@ -7,7 +7,6 @@ use crate::{
     data_type::{self, DataType, DataTyped, Variant as _, function::Function},
     expr::{self, aggregate, Aggregate, Expr, Value},
     io, namer, relation,
-    display::Dot,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -510,7 +509,6 @@ impl Relation {
     /// Add gaussian noise of a given standard deviation to the given columns, while keeping the column min and max
     pub fn add_clipped_gaussian_noise(self, name_sigmas: Vec<(&str, f64)>) -> Relation {
         let name_sigmas: HashMap<&str, f64> = name_sigmas.into_iter().collect();
-        self.display_dot().unwrap();
         Relation::map()
             // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
             .with_iter(self.schema().iter().map(|f| {
