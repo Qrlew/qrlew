@@ -980,6 +980,11 @@ impl Join {
         Integer::from_interval(0, max)
     }
 
+    pub fn force_size(mut self, size: Integer) -> Self {
+        self.size = size;
+        self
+    }
+
     /// Iterate over fields and input names
     pub fn field_inputs<'a>(&'a self) -> impl Iterator<Item = (String, Identifier)> + 'a {
         let field_identifiers = self.schema().iter().map(|f| f.name().to_string());

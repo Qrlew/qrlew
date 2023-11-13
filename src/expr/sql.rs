@@ -179,7 +179,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Upper
             | expr::function::Function::Random(_)
             | expr::function::Function::Least
-            | expr::function::Function::Greatest => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Greatest
+            | expr::function::Function::Coalesce => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()

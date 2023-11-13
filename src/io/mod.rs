@@ -220,11 +220,7 @@ pub trait Database: Sized {
                         ))
                         .with((
                             "city",
-                            DataType::text_values([
-                                "Paris".into(),
-                                "New-York".into(),
-                                "Rome".into(),
-                            ]),
+                            DataType::text(),
                         ))
                         .with(("income", DataType::float_interval(100.0, 200000.0))),
                 )

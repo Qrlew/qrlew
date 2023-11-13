@@ -648,6 +648,7 @@ pub struct JoinBuilder<RequireLeftInput, RequireRightInput> {
     operator: Option<JoinOperator>,
     left: RequireLeftInput,
     right: RequireRightInput,
+    size: Option<Integer>,
 }
 
 impl JoinBuilder<WithoutInput, WithoutInput> {
@@ -679,6 +680,11 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
 
     pub fn inner(mut self) -> Self {
         self.operator = Some(JoinOperator::Inner(JoinConstraint::Natural));
+        self
+    }
+
+    pub fn size<I: Into<Integer>>(mut self, size: I) -> Self {
+        self.size = Some(size.into());
         self
     }
 
@@ -808,6 +814,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
             left: WithInput(input.into()),
             right: self.right,
             names: self.names,
+            size: self.size,
         }
     }
 
@@ -823,6 +830,7 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
             left: self.left,
             right: WithInput(input.into()),
             names: self.names,
+            size: self.size,
         }
     }
 }
@@ -887,14 +895,20 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
         let operator = self
             .operator
             .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
-        Ok(Join::new(
+        let join = Join::new(
             name,
             left_names,
             right_names,
             operator,
             self.left.0,
             self.right.0,
-        ))
+        );
+        let join = if let Some(size) = self.size {
+            join.force_size(size)
+        } else {
+            join
+        };
+        Ok(join)
     }
 }
 

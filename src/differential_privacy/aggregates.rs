@@ -6,7 +6,7 @@ use crate::{
     expr::{aggregate, AggregateColumn, Expr},
     protection::PEPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant as _},
-    DataType, Ready,
+    DataType, Ready, display::Dot,
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 
@@ -111,6 +111,7 @@ impl PEPRelation {
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
+        self.display_dot();
         let mut output_builder = Map::builder();
         let mut named_sums = vec![];
         let mut input_builder = Map::builder()

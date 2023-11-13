@@ -41,7 +41,7 @@ macro_rules! function_implementations {
 
 // All functions:
 // Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, CharLength, Lower, Upper, Md5
-// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position, Concat, Greatest, Least
+// Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position, Concat, Greatest, Least, Coalesce
 // Ternary: Case, Position
 // Nary: Concat
 function_implementations!(
@@ -71,7 +71,8 @@ function_implementations!(
         Upper,
         InList,
         Least,
-        Greatest
+        Greatest,
+        Coalesce
     ],
     [Case, Position],
     x,

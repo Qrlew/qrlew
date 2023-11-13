@@ -66,13 +66,14 @@ impl Database {
     /// `docker run --name qrlew-test -p 5432:5432 -e POSTGRES_PASSWORD=qrlew-test -d postgres`
     fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
         log::info!("Try to get an existing DB");
+        let params = format!(
+            "host=localhost port={} user={} password={}",
+            Database::port(),
+            Database::user(),
+            Database::password(),
+        );
         let mut client = postgres::Client::connect(
-            &format!(
-                "host=localhost port={} user={} password={}",
-                Database::port(),
-                Database::user(),
-                Database::password()
-            ),
+            &params,
             postgres::NoTls,
         )?;
         let table_names: Vec<String> = client
@@ -89,8 +90,7 @@ impl Database {
                 tables: vec![],
                 client,
                 drop: false,
-            }
-            .with_tables(tables)
+            }.with_tables(tables)
         } else {
             Ok(Database {
                 name,

@@ -13,7 +13,6 @@ use std::{
     convert::Infallible,
     error, fmt,
     num::ParseFloatError,
-    ops::{self, Deref},
     result,
     sync::Arc,
 };
@@ -356,6 +355,7 @@ impl Relation {
     }
     /// Sum values for each group.
     /// Groups form the basis of a vector space, the sums are the coordinates.
+    /// TODO: add coalesce ??
     pub fn sums_by_group(self, groups: Vec<&str>, values: Vec<&str>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
         reduce = groups
@@ -364,7 +364,13 @@ impl Relation {
         reduce = reduce.with_iter(
             values
                 .into_iter()
-                .map(|c| (c, Expr::sum(Expr::col(c.to_string())))),
+                .map(|c| (
+                    c,
+                    Expr::coalesce(
+                        Expr::sum(Expr::col(c.to_string())),
+                        Expr::val(0.)
+                    )
+                )),
         );
         reduce.build()
     }
@@ -413,7 +419,7 @@ impl Relation {
         // TODO fix this
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
-            .inner()
+            .right_outer()
             .on_eq(entities, entities)
             .left_names(
                 self.fields()
@@ -442,7 +448,7 @@ impl Relation {
     }
 
     /// For each coordinate, rescale the columns by 1 / greatest(1, norm_l2/C)
-    /// where the l2 norm is computed for each elecment of `vectors`
+    /// where the l2 norm is computed for each element of `vectors`
     /// The `self` relation must contain the vectors, base and coordinates columns
     pub fn l2_clipped_sums(
         self,
@@ -472,11 +478,12 @@ impl Relation {
                 expr
             }
         });
-        let clipped_relation = self.scale(
-            entities,
-            value_clippings.keys().cloned().collect(),
-            scaling_factors,
-        );
+        // let clipped_relation = self.scale(
+        //     entities,
+        //     value_clippings.keys().cloned().collect(),
+        //     scaling_factors,
+        // );
+        let clipped_relation = self;
         clipped_relation.sums_by_group(groups, value_clippings.keys().cloned().collect())
     }
 
@@ -732,13 +739,15 @@ impl Relation {
                 )
             );
         }
-        Ok(Relation::join()
+        Ok(
+            Relation::join()
             .left(self.clone())
             .right(right.clone())
             .cross()
             .left_names(left_names)
             .right_names(right_names)
-            .build())
+            .build()
+        )
     }
 }
 
