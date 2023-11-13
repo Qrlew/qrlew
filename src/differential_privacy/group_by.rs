@@ -146,6 +146,8 @@ impl Relation {
         Ok(relation_with_private_values.public_values()?)
     }
 
+    /// We join the `self` `Relation` with the `grouping_values Relation`;
+    /// We use a `LEFT OUTER` join for guaranteeing that all the possible grouping keys are released
     pub fn join_with_grouping_values(self, grouping_values: Relation) -> Result<Relation> {
         let left = grouping_values;
         let right = self;
@@ -185,6 +187,7 @@ impl Relation {
             .collect::<Vec<_>>();
 
         let join_rel: Relation = Relation::join()
+            // we force the size of the relation to be equal to the `self Relation`
             .size(right.size().clone())
             .right(right)
             .right_names(right_names.clone())

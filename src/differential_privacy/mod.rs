@@ -145,6 +145,8 @@ impl Reduce {
             reduce
         };
 
+        // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
+        // not been spent, allocate it to the aggregations.
         let (epsilon, delta) = if private_query.is_null() {
             (epsilon + epsilon_tau_thresholding, delta + delta_tau_thresholding)
         } else {
@@ -185,7 +187,7 @@ mod tests {
             .deref()
             .clone();
         let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (1., 2e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
 
         // protect the inputs
         let protection = Protection::from((
