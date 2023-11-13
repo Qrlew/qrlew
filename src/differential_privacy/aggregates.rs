@@ -7,7 +7,6 @@ use crate::{
     protection::PEPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
-    display::Dot,
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 
