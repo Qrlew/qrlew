@@ -266,6 +266,7 @@ pub trait Visitor<'a, T: Clone> {
     ) -> T;
     fn position(&self, expr: T, r#in: T) -> T;
     fn in_list(&self, expr: T, list: Vec<T>) -> T;
+    fn trim(&self, expr: T, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<T>) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -404,7 +405,19 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 trim_where,
                 trim_what,
                 trim_characters,
-            } => todo!(),
+            } => {
+                let trim_what = match (trim_what, trim_characters) {
+                    (None, None) => None,
+                    (Some(x), None) => Some(x.as_ref()),
+                    (None, Some(v)) => todo!(),
+                    _ => todo!()
+                };
+                self.trim(
+                    dependencies.get(expr).clone(),
+                    trim_where,
+                    trim_what.map(|x| dependencies.get(x).clone()),
+                )
+            },
             ast::Expr::Overlay {
                 expr,
                 overlay_what,
@@ -586,6 +599,16 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
             list.into_iter().map(|x| format!("{x}")).join(", ")
         )
     }
+
+    fn trim(&self, expr: String, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<String>) -> String {
+        format!(
+            "TRIM ({} {} FROM {})",
+            trim_where.map(|w| w.to_string()).unwrap_or("".to_string()),
+            expr,
+            trim_what.unwrap_or("".to_string()),
+        )
+
+    }
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -742,6 +765,28 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "pow" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "md5" => Expr::md5(flat_args[0].clone()),
+            "coalesce" => {
+                let (first, vec) = flat_args
+                .split_first()
+                .unwrap();
+                vec.iter()
+                .fold(first.clone(), |acc, x| Expr::coalesce(acc, x.clone()))
+            },
+            "ltrim" => self.trim(
+                Ok(flat_args[0].clone()),
+                &Some(ast::TrimWhereField::Leading),
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone()))
+            )?,
+            "rtrim" => self.trim(
+                Ok(flat_args[0].clone()),
+                &Some(ast::TrimWhereField::Trailing),
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone()))
+            )?,
+            "btrim" => self.trim(
+                Ok(flat_args[0].clone()),
+                &Some(ast::TrimWhereField::Both),
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone()))
+            )?,
             // string functions
             "lower" => Expr::lower(flat_args[0].clone()),
             "upper" => Expr::upper(flat_args[0].clone()),
@@ -798,6 +843,17 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             })
             .collect();
         Ok(Expr::in_list(expr?, Expr::val(Value::list(list?))))
+    }
+
+    fn trim(&self, expr: Result<Expr>, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<Result<Expr>>) -> Result<Expr> {
+        let trim_what = trim_what.unwrap_or(Ok(Expr::val(" ".to_string())));
+        Ok(
+            match trim_where {
+                Some(ast::TrimWhereField::Leading) => Expr::ltrim(expr?, trim_what?),
+                Some(ast::TrimWhereField::Trailing) => Expr::rtrim(expr?, trim_what?),
+                Some(ast::TrimWhereField::Both) | None => Expr::ltrim(Expr::rtrim(expr?, trim_what.clone()?), trim_what?),
+            }
+        )
     }
 }
 
@@ -965,4 +1021,140 @@ mod tests {
         assert_eq!(expr.to_string(), String::from("(not (a in (3, 4, 5)))"));
     }
 
+    #[test]
+    fn test_coalesce() {
+        let ast_expr: ast::Expr = parse_expr("coalesce(col1, col2, col3, 'default')").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::coalesce(
+            Expr::coalesce(
+                Expr::coalesce(
+                    Expr::col("col1"),
+                    Expr::col("col2")
+                ),
+                Expr::col("col3")
+            ),
+            Expr::val("default".to_string())
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("coalesce(coalesce(coalesce(col1, col2), col3), default)"));
+    }
+
+    #[test]
+    fn test_trim() {
+        // TODO: TRIM(LEADING|TRAILING|BOTH FROM string) does not work in SQLParser
+
+        // TRIM(LEADING 'a' FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(LEADING 'a' FROM col1)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(col1, a)"));
+
+        // LTRIM(string, "a")
+        let ast_expr: ast::Expr = parse_expr("LTRIM(col1, 'a')").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(col1, a)"));
+
+        // TRIM(TRAILING "a" FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(TRAILING 'a' FROM col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("rtrim(col1, a)"));
+
+        // RTRIM(string, "a")
+        let ast_expr: ast::Expr = parse_expr("RTRIM(col1, 'a')").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("rtrim(col1, a)"));
+
+
+        // TRIM(BOTH "a" FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(BOTH 'a' FROM col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
+            Expr::val("a".to_string())
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
+
+        // BTRIM(string, "a")
+        let ast_expr: ast::Expr = parse_expr("BTRIM(col1, 'a')").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
+            Expr::val("a".to_string())
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
+
+        // TRIM(string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val(" ".to_string())),
+            Expr::val(" ".to_string())
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1,  ),  )"));
+
+        // TRIM("a" FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM('a' FROM col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
+            Expr::val("a".to_string())
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
+    }
 }

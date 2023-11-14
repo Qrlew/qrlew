@@ -6,13 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-## [0.4.12] - 2023-11-09
 
+## [0.4.13] - 2023-11-14
+## Added
+- `TRIM` function [MR183](https://github.com/Qrlew/qrlew/pull/183)
+
+## [0.4.12] - 2023-11-09
 ### Fixed
 - Dp query should release all the possible values of the grouping keys. [MR180](https://github.com/Qrlew/qrlew/pull/180)
 - `DataType`` propagation in joins: if their is not INNER or CROSS contraint, then the output `DataType`s must be optional [MR179](https://github.com/Qrlew/qrlew/pull/179)
 ### Added
 - Implemented `Coalesce` [MR178](https://github.com/Qrlew/qrlew/pull/178)
+- `TRIM` function [MR183](https://github.com/Qrlew/qrlew/pull/183)
 ### Changed
 - If no tau-thresholding, the budget is transferred to the aggregations [MR180](https://github.com/Qrlew/qrlew/pull/180)
 - Allow public tables [MR182](https://github.com/Qrlew/qrlew/pull/182)

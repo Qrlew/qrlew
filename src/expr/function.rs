@@ -56,6 +56,8 @@ pub enum Function {
     CastAsDateTime,
     Least,
     Greatest,
+    Rtrim,
+    Ltrim,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -122,6 +124,8 @@ impl Function {
             | Function::Least
             | Function::Greatest
             | Function::Coalesce
+            | Function::Rtrim
+            | Function::Ltrim
             // Ternary Function
             | Function::Case
             // Nary Function
@@ -173,7 +177,13 @@ impl Function {
             | Function::CastAsInteger
             | Function::CastAsDateTime => Arity::Unary,
             // Binary Function
-            Function::Pow | Function::Position | Function::Least | Function::Greatest | Function::Coalesce => {
+            Function::Pow
+            | Function::Position
+            | Function::Least
+            | Function::Greatest
+            | Function::Coalesce
+            | Function::Rtrim
+            | Function::Ltrim => {
                 Arity::Nary(2)
             }
             // Ternary Function
@@ -254,6 +264,8 @@ impl fmt::Display for Function {
             Function::Least => "least",
             Function::Greatest => "greatest",
             Function::Coalesce => "coalesce",
+            Function::Rtrim => "rtrim",
+            Function::Ltrim => "ltrim",
             // Ternary Functions
             Function::Case => "case",
             // Nary Functions

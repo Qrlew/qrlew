@@ -71,7 +71,9 @@ function_implementations!(
         Upper,
         InList,
         Least,
-        Greatest
+        Greatest,
+        Rtrim,
+        Ltrim
     ],
     [Case, Position],
     x,
