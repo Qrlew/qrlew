@@ -1281,10 +1281,18 @@ pub fn string_concat() -> impl Function {
 }
 
 pub fn rtrim() -> impl Function {
-    Pointwise::univariate(
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Text::default()),
         data_type::Text::default(),
+        |a, b| a.as_str().trim_end_matches(b.as_str()).into(),
+    )
+}
+
+pub fn ltrim() -> impl Function {
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Text::default()),
         data_type::Text::default(),
-        |a| a.trim_end_matches(pat).into(),
+        |a, b| a.as_str().trim_start_matches(b.as_str()).into(),
     )
 }
 
@@ -3048,5 +3056,65 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::optional(DataType::text()));
+    }
+
+    #[test]
+    fn test_rtrim() {
+        println!("Test rtrim");
+        let fun = rtrim();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::text()
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["aba".to_string(), "aa".to_string(), "baaa".to_string(), "ba".to_string(), "mc".to_string()]),
+            DataType::text_values(["a".to_string(),"c".to_string()]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["".to_string(), "aa".to_string(), "ab".to_string(), "aba".to_string(), "b".to_string(), "ba".to_string(), "baaa".to_string(), "m".to_string(), "mc".to_string()]));
+
+        let arg = Value::text("sarusss".to_string()) & Value::text("s".to_string());
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, Value::from("saru".to_string()));
+    }
+
+    #[test]
+    fn test_ltrim() {
+        println!("Test ltrim");
+        let fun = ltrim();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::text()
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["aba".to_string(), "aa".to_string(), "baaa".to_string(), "ba".to_string(), "mc".to_string()]),
+            DataType::text_values(["a".to_string(),"c".to_string()]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["".to_string(), "aa".to_string(), "aba".to_string(), "ba".to_string(), "baaa".to_string(), "mc".to_string()]));
+
+        let arg = Value::text("sarus".to_string()) & Value::text("s".to_string());
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, Value::from("arus".to_string()));
     }
 }

@@ -333,7 +333,9 @@ impl_binary_function_constructors!(
     InList,
     Least,
     Greatest,
-    Coalesce
+    Coalesce,
+    Rtrim,
+    Ltrim
 );
 
 /// Implement ternary function constructors
@@ -2781,6 +2783,27 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::float_interval(0., 5.).super_union(&DataType::float_value(20.)).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_rtrim() {
+        let expression = Expr::rtrim(
+            Expr::col("col1".to_string()),
+            Expr::val("a".to_string()),
+        );
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::text_values(["aaa".to_string(), "aba".to_string(), "bbb".to_string(), "abb".to_string(), "bba".to_string()])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::text_values(["".to_string(), "ab".to_string(), "abb".to_string(), "bb".to_string(), "bbb ".to_string()])
         );
     }
 }
