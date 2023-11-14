@@ -4,7 +4,7 @@
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
-    data_type::{self, DataType, DataTyped, Variant as _},
+    data_type::{self, DataType, DataTyped, Variant as _, function::Function},
     expr::{self, aggregate, Aggregate, Expr, Value},
     io, namer, relation,
 };
@@ -13,7 +13,6 @@ use std::{
     convert::Infallible,
     error, fmt,
     num::ParseFloatError,
-    ops::{self, Deref},
     result,
     sync::Arc,
 };
@@ -514,8 +513,9 @@ impl Relation {
             // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
             .with_iter(self.schema().iter().map(|f| {
                 if name_sigmas.contains_key(&f.name()) {
-                    let float_data_type: data_type::Float = f
-                        .data_type()
+                    let x = Expr::coalesce(Expr::col(f.name()), Expr::val(0.));
+                    let float_data_type: data_type::Float = x.super_image(&f.data_type())
+                        .unwrap()
                         .into_data_type(&DataType::float())
                         .unwrap()
                         .try_into()
@@ -526,7 +526,7 @@ impl Relation {
                             Expr::val(*float_data_type.max().unwrap()),
                             Expr::greatest(
                                 Expr::val(*float_data_type.min().unwrap()),
-                                Expr::col(f.name()).add_gaussian_noise(name_sigmas[f.name()]),
+                                x.add_gaussian_noise(name_sigmas[f.name()]),
                             ),
                         ),
                     )

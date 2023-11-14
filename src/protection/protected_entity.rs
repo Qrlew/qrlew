@@ -5,6 +5,7 @@ use std::{fmt::Display, hash::Hash, ops::Deref};
 pub const PROTECTION_PREFIX: &str = "_PROTECTED_";
 pub const PROTECTION_COLUMNS: usize = 2;
 pub const PROTECTED_ENTITY_ID: &str = "_PROTECTED_ENTITY_ID_";
+pub const PROTECTED_ENTITY_NULL_ID: &str = "_PROTECTED_ENTITY_NULL_";
 pub const PROTECTED_ENTITY_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
 
 // A few utility objects
@@ -185,6 +186,10 @@ impl ProtectedEntityPath {
     pub fn protected_entity_id() -> &'static str {
         PROTECTED_ENTITY_ID
     }
+
+    pub fn protected_entity_null_id() -> &'static str {
+        PROTECTED_ENTITY_NULL_ID
+    }
 }
 
 impl Display for ProtectedEntityPath {
@@ -266,6 +271,10 @@ impl ProtectedEntity {
 
     pub fn protected_entity_id() -> &'static str {
         ProtectedEntityPath::protected_entity_id()
+    }
+
+    pub fn protected_entity_null_id() -> &'static str {
+        ProtectedEntityPath::protected_entity_null_id()
     }
 
     pub fn protected_entity_weight() -> &'static str {

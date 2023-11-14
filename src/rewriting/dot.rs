@@ -170,6 +170,19 @@ mod tests {
     };
 
     #[test]
+    fn test_query() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        println!("{relations}");
+        let query = parse(
+            "SELECT a, count(abs(10*a+b)) AS x FROM table_1 WHERE b>-0.1 AND a IN (1,2,3) GROUP BY a",
+        )
+        .unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
     fn test_set_rewriting_rules() {
         let database = postgresql::test_database();
         let relations = database.relations();

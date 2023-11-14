@@ -21,7 +21,7 @@ impl Expr {
     /// Gaussian noise based on [Box Muller transform](https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform)
     pub fn add_gaussian_noise(self, sigma: f64) -> Self {
         Expr::plus(
-            Expr::coalesce(self, Expr::val(0.)),
+            self,
             Expr::multiply(Expr::val(sigma), Expr::gaussian_noise()),
         )
     }
