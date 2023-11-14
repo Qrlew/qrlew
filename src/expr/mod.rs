@@ -2803,7 +2803,7 @@ mod tests {
         );
         assert_eq!(
             expression.super_image(&set).unwrap(),
-            DataType::text_values(["".to_string(), "ab".to_string(), "abb".to_string(), "bb".to_string(), "bbb ".to_string()])
+            DataType::text_values(["".to_string(), "ab".to_string(), "abb".to_string(), "bb".to_string(), "bbb".to_string()])
         );
     }
 }
