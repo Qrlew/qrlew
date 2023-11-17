@@ -282,6 +282,46 @@ impl Pointwise {
             }),
         )
     }
+
+    /// Build trivariate pointwise function
+    pub fn trivariate<A: Variant, B: Variant, C: Variant, D: Variant>(
+        domain: (A, B, C),
+        co_domain: D,
+        value: impl Fn(
+                <A::Element as value::Variant>::Wrapped,
+                <B::Element as value::Variant>::Wrapped,
+                <C::Element as value::Variant>::Wrapped
+            ) -> <D::Element as value::Variant>::Wrapped
+            + Sync
+            + Send
+            + 'static,
+    ) -> Self
+    where
+        <A::Element as value::Variant>::Wrapped: TryFrom<Value>,
+        <B::Element as value::Variant>::Wrapped: TryFrom<Value>,
+        <C::Element as value::Variant>::Wrapped: TryFrom<Value>,
+        <<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
+        <<B::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<B::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
+        <<C::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<C::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
+        <D::Element as value::Variant>::Wrapped: Into<Value>,
+    {
+        let domain = data_type::Struct::from_data_types(&[domain.0.into(), domain.1.into(), domain.2.into()]);
+        Self::new(
+            domain.into(),
+            co_domain.into(),
+            Arc::new(move |ab| {
+                let abc = value::Struct::try_from(ab).unwrap();
+                let a = <A::Element as value::Variant>::Wrapped::try_from(abc[0].as_ref().clone());
+                let b = <B::Element as value::Variant>::Wrapped::try_from(abc[1].as_ref().clone());
+                let c = <C::Element as value::Variant>::Wrapped::try_from(abc[2].as_ref().clone());
+                Ok(a.map(|a| b.map(|b| c.map( |c| value(a, b, c).into())))???)
+            }),
+        )
+    }
+
     /// Build variadic pointwise function
     pub fn variadic<D: Variant, C: Variant>(
         domain: Vec<D>,
@@ -1296,10 +1336,37 @@ pub fn ltrim() -> impl Function {
     )
 }
 
+pub fn substr() -> impl Function {
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Integer::default()),
+        data_type::Text::default(),
+        |a, b| {
+            let start = b as usize;
+            a.as_str().get(start..).unwrap_or("").to_string()
+        }
+    )
+}
+
+pub fn substr_with_size() -> impl Function {
+    Pointwise::trivariate(
+        (data_type::Text::default(), data_type::Integer::default(), data_type::Integer::default()),
+        data_type::Text::default(),
+        |a, b, c| {
+            let start = b as usize;
+            let end = cmp::min((b + c) as usize, a.len());
+            a.as_str().get(start..end).unwrap_or("").to_string()
+        }
+    )
+}
+
 pub fn concat(n: usize) -> impl Function {
-    Pointwise::variadic(vec![DataType::Any; n], data_type::Text::default(), |v| {
-        v.into_iter().map(|v| v.to_string()).join("")
-    })
+    Pointwise::variadic(
+        vec![DataType::Any; n],
+        data_type::Text::default(),
+        |v| {
+            v.into_iter().map(|v| v.to_string()).join("")
+        }
+    )
 }
 
 pub fn md5() -> impl Function {
@@ -3116,5 +3183,63 @@ mod tests {
         let val = fun.value(&arg).unwrap();
         println!("val({}) = {}", arg, val);
         assert_eq!(val, Value::from("arus".to_string()));
+    }
+
+    #[test]
+    fn test_substr() {
+        println!("Test substr");
+        let fun = substr();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::integer(),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["abcdefg".to_string(), "hijklmno".to_string()]),
+            DataType::integer_values([3, 6, 10]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::text_values(["".to_string(), "defg".to_string(), "g".to_string(), "klmno".to_string(), "no".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_substr_with_size() {
+        println!("Test substr_with_size");
+        let fun = substr_with_size();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::integer(),
+            DataType::integer()
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["abcdefg".to_string(), "hijklmno".to_string()]),
+            DataType::integer_values([3, 6, 10]),
+            DataType::integer_value(2)
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::text_values(["".to_string(), "de".to_string(), "g".to_string(), "kl".to_string(), "no".to_string()])
+        );
     }
 }

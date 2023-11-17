@@ -335,7 +335,8 @@ impl_binary_function_constructors!(
     Greatest,
     Coalesce,
     Rtrim,
-    Ltrim
+    Ltrim,
+    Substr
 );
 
 /// Implement ternary function constructors
@@ -363,7 +364,7 @@ macro_rules! impl_ternary_function_constructors {
     };
 }
 
-impl_ternary_function_constructors!(Case);
+impl_ternary_function_constructors!(Case, SubstrWithSize);
 
 /// Implement nary function constructors
 macro_rules! impl_nary_function_constructors {
@@ -2804,6 +2805,49 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::text_values(["".to_string(), "ab".to_string(), "abb".to_string(), "bb".to_string(), "bbb".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_substr() {
+        let expression = Expr::substr(
+            Expr::col("col1".to_string()),
+            Expr::val("2".to_string()),
+        );
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::optional(DataType::text_values(["abcdefg".to_string(), "hijkl".to_string()]))),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::optional(DataType::text())
+        );
+    }
+
+    #[test]
+    fn test_substr_with_size() {
+        let expression = Expr::substr_with_size(
+            Expr::col("col1".to_string()),
+            Expr::val("2".to_string()),
+            Expr::val("4".to_string()),
+        );
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::text_values(["abcdefg".to_string(), "hijkl".to_string()])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::optional(DataType::text())
         );
     }
 }
