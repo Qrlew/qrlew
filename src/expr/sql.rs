@@ -224,9 +224,36 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 data_type: DataType::text().into(),
                 format: None,
             },
-            expr::function::Function::CastAsFloat => todo!(),
-            expr::function::Function::CastAsInteger => todo!(),
-            expr::function::Function::CastAsDateTime => todo!(),
+            expr::function::Function::CastAsFloat => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::float().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsInteger => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::integer().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsBoolean => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::boolean().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsDateTime => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::date_time().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsDate => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::date().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsTime => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::time().into(),
+                format: None,
+            },
         }
     }
     // TODO implement this properly
@@ -530,4 +557,15 @@ mod tests {
     }
 
 
+    #[test]
+    fn test_cast() {
+        let str_expr = "cast(a as text)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+    }
 }

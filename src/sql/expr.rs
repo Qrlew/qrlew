@@ -4,7 +4,7 @@
 
 use super::{Error, Result};
 use crate::{
-    builder::{With, WithContext, WithoutContext},
+    builder::{WithContext, WithoutContext},
     expr::{identifier::Identifier, Expr, Value},
     hierarchy::{Hierarchy, Path},
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -268,6 +268,13 @@ pub trait Visitor<'a, T: Clone> {
     fn in_list(&self, expr: T, list: Vec<T>) -> T;
     fn trim(&self, expr: T, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<T>) -> T;
     fn substring(&self, expr: T, substring_from: Option<T>, substring_for: Option<T>) -> T;
+    fn cast_as_text(&self, expr: T) -> T;
+    fn cast_as_float(&self, expr: T) -> T;
+    fn cast_as_integer(&self, expr: T) -> T;
+    fn cast_as_boolean(&self, expr: T) -> T;
+    fn cast_as_datetime(&self, expr: T) -> T;
+    fn cast_as_date(&self, expr: T) -> T;
+    fn cast_as_time(&self, expr: T) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -373,7 +380,80 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 data_type,
                 format: _,
-            } => todo!(),
+            } => match data_type {
+                //Text
+                ast::DataType::Character(_)
+                | ast::DataType::Char(_)
+                | ast::DataType::CharacterVarying(_)
+                |ast::DataType::CharVarying(_)
+                | ast::DataType::Varchar(_)
+                | ast::DataType::Nvarchar(_)
+                | ast::DataType::Uuid
+                | ast::DataType::CharacterLargeObject(_)
+                | ast::DataType::CharLargeObject(_)
+                | ast::DataType::Clob(_)
+                | ast::DataType::Text
+                | ast::DataType::String(_) => self.cast_as_text(dependencies.get(expr).clone()),
+                // Integer
+                //Bytes
+                ast::DataType::Binary(_)
+                | ast::DataType::Varbinary(_)
+                | ast::DataType::Blob(_)
+                | ast::DataType::Bytes(_) => todo!(),
+                //Float
+                ast::DataType::Numeric(_)
+                | ast::DataType::Decimal(_)
+                | ast::DataType::BigNumeric(_)
+                | ast::DataType::BigDecimal(_)
+                | ast::DataType::Dec(_)
+                | ast::DataType::Float(_)
+                | ast::DataType::Float4
+                | ast::DataType::Float64
+                | ast::DataType::Real
+                | ast::DataType::Float8
+                | ast::DataType::Double
+                | ast::DataType::DoublePrecision => self.cast_as_float(dependencies.get(expr).clone()),
+                // Integer
+                ast::DataType::TinyInt(_)
+                | ast::DataType::UnsignedTinyInt(_)
+                | ast::DataType::Int2(_)
+                | ast::DataType::UnsignedInt2(_)
+                | ast::DataType::SmallInt(_)
+                | ast::DataType::UnsignedSmallInt(_)
+                | ast::DataType::MediumInt(_)
+                | ast::DataType::UnsignedMediumInt(_)
+                | ast::DataType::Int(_)
+                | ast::DataType::Int4(_)
+                | ast::DataType::Int64
+                | ast::DataType::Integer(_)
+                | ast::DataType::UnsignedInt(_)
+                | ast::DataType::UnsignedInt4(_)
+                | ast::DataType::UnsignedInteger(_)
+                | ast::DataType::BigInt(_)
+                | ast::DataType::UnsignedBigInt(_)
+                | ast::DataType::Int8(_)
+                | ast::DataType::UnsignedInt8(_) => self.cast_as_integer(dependencies.get(expr).clone()),
+                // Boolean
+                ast::DataType::Bool
+                | ast::DataType::Boolean => self.cast_as_boolean(dependencies.get(expr).clone()),
+                // Date
+                ast::DataType::Date => todo!(),
+                // Time
+                ast::DataType::Time(_, _) => todo!(),
+                // DateTime
+                ast::DataType::Datetime(_)
+                | ast::DataType::Timestamp(_, _) => todo!(),
+
+                ast::DataType::Interval => todo!(),
+                ast::DataType::JSON => todo!(),
+                ast::DataType::Regclass => todo!(),
+                ast::DataType::Bytea => todo!(),
+                ast::DataType::Custom(_, _) => todo!(),
+                ast::DataType::Array(_) => todo!(),
+                ast::DataType::Enum(_) => todo!(),
+                ast::DataType::Set(_) => todo!(),
+                ast::DataType::Struct(_) => todo!(),
+            },
             ast::Expr::TryCast {
                 expr,
                 data_type,
