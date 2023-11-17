@@ -58,6 +58,8 @@ pub enum Function {
     Greatest,
     Rtrim,
     Ltrim,
+    Substr,
+    SubstrWithSize,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -126,8 +128,10 @@ impl Function {
             | Function::Coalesce
             | Function::Rtrim
             | Function::Ltrim
+            | Function::Substr
             // Ternary Function
             | Function::Case
+            | Function::SubstrWithSize
             // Nary Function
             | Function::Concat(_) => Style::Function,
         }
@@ -183,11 +187,12 @@ impl Function {
             | Function::Greatest
             | Function::Coalesce
             | Function::Rtrim
-            | Function::Ltrim => {
+            | Function::Ltrim
+            | Function::Substr => {
                 Arity::Nary(2)
             }
             // Ternary Function
-            Function::Case => Arity::Nary(3),
+            Function::Case | Function::SubstrWithSize => Arity::Nary(3),
             // Nary Function
             Function::Concat(_) => Arity::Varying,
         }
@@ -266,8 +271,10 @@ impl fmt::Display for Function {
             Function::Coalesce => "coalesce",
             Function::Rtrim => "rtrim",
             Function::Ltrim => "ltrim",
+            Function::Substr => "substr",
             // Ternary Functions
             Function::Case => "case",
+            Function::SubstrWithSize => "substr",
             // Nary Functions
             Function::Concat(_) => "concat",
         })

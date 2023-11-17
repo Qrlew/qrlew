@@ -267,6 +267,7 @@ pub trait Visitor<'a, T: Clone> {
     fn position(&self, expr: T, r#in: T) -> T;
     fn in_list(&self, expr: T, list: Vec<T>) -> T;
     fn trim(&self, expr: T, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<T>) -> T;
+    fn substring(&self, expr: T, substring_from: Option<T>, substring_for: Option<T>) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -399,7 +400,11 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 substring_from,
                 substring_for,
                 special,
-            } => todo!(),
+            } => self.substring(
+                dependencies.get(expr).clone(),
+                substring_from.as_ref().map(|x| dependencies.get(x.as_ref()).clone()),
+                substring_for.as_ref().map(|x| dependencies.get(x.as_ref()).clone()),
+            ),
             ast::Expr::Trim {
                 expr,
                 trim_where,
@@ -609,6 +614,15 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         )
 
     }
+
+    fn substring(&self, expr: String, substring_from: Option<String>, substring_for: Option<String>) -> String {
+        format!(
+            "SUBSTRING ({} {} {})",
+            expr,
+            substring_from.map(|s| format!("FROM {}", s)).unwrap_or("".to_string()),
+            substring_for.map(|s| format!("FOR {}", s)).unwrap_or("".to_string()),
+        )
+    }
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -792,6 +806,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "upper" => Expr::upper(flat_args[0].clone()),
             "char_length" => Expr::char_length(flat_args[0].clone()),
             "concat" => Expr::concat(flat_args.clone()),
+            "substr" => {
+                if flat_args.len() > 2 {
+                    Expr::substr_with_size(flat_args[0].clone(), flat_args[1].clone(), flat_args[2].clone())
+                } else {
+                    Expr::substr(flat_args[0].clone(), flat_args[1].clone())
+                }
+            }
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
@@ -854,6 +875,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 Some(ast::TrimWhereField::Both) | None => Expr::ltrim(Expr::rtrim(expr?, trim_what.clone()?), trim_what?),
             }
         )
+    }
+
+    fn substring(&self, expr: Result<Expr>, substring_from: Option<Result<Expr>>, substring_for: Option<Result<Expr>>) -> Result<Expr> {
+        let substring_from = substring_from.unwrap_or(Ok(Expr::val(0)));
+        substring_for
+        .map(|x| Ok(Expr::substr_with_size(expr.clone()?, substring_from.clone()?, x?)))
+        .unwrap_or(Ok(Expr::substr(expr.clone()?, substring_from.clone()?)))
     }
 }
 

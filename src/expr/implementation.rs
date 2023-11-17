@@ -73,9 +73,10 @@ function_implementations!(
         Least,
         Greatest,
         Rtrim,
-        Ltrim
+        Ltrim,
+        Substr
     ],
-    [Case, Position],
+    [Case, Position, SubstrWithSize],
     x,
     {
         match x {

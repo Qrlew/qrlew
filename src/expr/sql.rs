@@ -182,7 +182,9 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Greatest
             | expr::function::Function::Coalesce
             | expr::function::Function::Rtrim
-            | expr::function::Function::Ltrim => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Ltrim
+            | expr::function::Function::Substr
+            | expr::function::Function::SubstrWithSize => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
@@ -483,4 +485,49 @@ mod tests {
         println!("ast::expr = {:?}", ast_expr);
         assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
     }
+
+    #[test]
+    fn test_substr() {
+        let str_expr = "substr(a, 5, 2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "\nsubstr(a, 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "\nsubstring(a from 5 for 2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, parse_expr("substr(a, 5, 2)").unwrap());
+
+        let str_expr = "\nsubstring(a from 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, parse_expr("substr(a, 5)").unwrap());
+
+        let str_expr = "\nsubstring(a for 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, parse_expr("substr(a, 0, 5)").unwrap());
+    }
+
+
 }
