@@ -184,7 +184,11 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Rtrim
             | expr::function::Function::Ltrim
             | expr::function::Function::Substr
-            | expr::function::Function::SubstrWithSize => ast::Expr::Function(ast::Function {
+            | expr::function::Function::SubstrWithSize
+            | expr::function::Function::Ceil
+            | expr::function::Function::Floor
+            | expr::function::Function::Round
+            | expr::function::Function::Trunc => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
@@ -529,5 +533,15 @@ mod tests {
         assert_eq!(gen_expr, parse_expr("substr(a, 0, 5)").unwrap());
     }
 
+    #[test]
+    fn test_ceil() {
+        let str_expr = "ceil(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
 
 }

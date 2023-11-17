@@ -1729,6 +1729,48 @@ pub fn coalesce() -> impl Function {
     Coalesce
 }
 
+// Ceil function
+pub fn ceil() -> impl Function {
+    Pointwise::univariate(
+        data_type::Float::default(),
+        DataType::integer(),
+        |a| a.ceil().into(),
+    )
+}
+
+// Floor function
+pub fn floor() -> impl Function {
+    Pointwise::univariate(
+        data_type::Float::default(),
+        DataType::integer(),
+        |a| a.floor().into(),
+    )
+}
+
+// Round function
+pub fn round() -> impl Function {
+    Pointwise::bivariate(
+        (data_type::Float::default(), data_type::Integer::default()),
+        DataType::float(),
+        |a, b| {
+            let multiplier = 10.0_f64.powi(b as i32);
+            ((a * multiplier).round() / multiplier).into()
+        }
+    )
+}
+
+// Trunc function
+pub fn trunc() -> impl Function {
+    Pointwise::bivariate(
+        (data_type::Float::default(), data_type::Integer::default()),
+        DataType::float(),
+        |a, b| {
+            let multiplier = 10.0_f64.powi(b as i32);
+            ((a * multiplier).trunc() / multiplier).into()
+        }
+    )
+}
+
 /*
 Aggregation functions
  */
@@ -3241,5 +3283,93 @@ mod tests {
             im,
             DataType::text_values(["".to_string(), "de".to_string(), "g".to_string(), "kl".to_string(), "no".to_string()])
         );
+    }
+
+    #[test]
+    fn test_ceil() {
+        println!("Test ceil");
+        let fun = ceil();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::float_values([9., 9.1, 9.5, 10.5]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([9, 10, 11]));
+
+        let set = DataType::integer_values([9, 10]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([9, 10]));
+    }
+
+    #[test]
+    fn test_floor() {
+        println!("Test floor");
+        let fun = floor();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::float_values([9., 9.1, 9.5, 10.5]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([9, 10]));
+
+        let set = DataType::integer_values([9, 10]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([9, 10]));
+    }
+
+    #[test]
+    fn test_round() {
+        println!("Test round");
+        let fun = round();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::float_values([8.1, 9.16, 10.226, 11.333]),
+            DataType::integer_values([0, 2]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_values([8., 9., 10., 11., 8.1, 9.16, 10.23, 11.33]));
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer_values([9, 10]),
+            DataType::integer_values([0, 2]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([9, 10]));
+    }
+
+    #[test]
+    fn test_trunc() {
+        println!("Test trunc");
+        let fun = trunc();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::float_values([8.1, 9.16, 10.226, 11.333]),
+            DataType::integer_values([0, 2]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_values([8., 9., 10., 11., 8.1, 9.16, 10.22, 11.33]));
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer_values([9, 10]),
+            DataType::integer_values([0, 2]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([9, 10]));
     }
 }

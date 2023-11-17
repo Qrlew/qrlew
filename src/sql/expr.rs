@@ -389,8 +389,8 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 time_zone,
             } => todo!(),
             ast::Expr::Extract { field, expr } => todo!(),
-            ast::Expr::Ceil { expr, field } => todo!(),
-            ast::Expr::Floor { expr, field } => todo!(),
+            ast::Expr::Ceil { expr, field } => self.ceil(dependencies.get(expr).clone(), field),
+            ast::Expr::Floor { expr, field } => self.floor(dependencies.get(expr).clone(), field),
             ast::Expr::Position { expr, r#in } => self.position(
                 dependencies.get(expr).clone(),
                 dependencies.get(r#in).clone(),
