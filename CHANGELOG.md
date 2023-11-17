@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
-- `SUBSTR` function [MR184](https://github.com/Qrlew/qrlew/pull/184)
+- `SUBSTR` function [MR186](https://github.com/Qrlew/qrlew/pull/186)
 
 ## [0.4.13] - 2023-11-14
 ## Added
