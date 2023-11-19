@@ -112,7 +112,7 @@ impl TryFrom<Relation> for PUPRelation {
         } else {
             Err(Error::NotPrivacyUnitPreserving(
                 format!(
-                    "Cannot convert to PEPRelation a relation that does not contains both {} and {} columns. \nGot: {}",
+                    "Cannot convert to PUPRelation a relation that does not contains both {} and {} columns. \nGot: {}",
                     PrivacyUnit::privacy_unit(), PrivacyUnit::privacy_unit_weight(), value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
                 )
             ))
@@ -251,7 +251,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         )
     }
 
-    /// Map privacy tracking from another PEP relation
+    /// Map privacy tracking from another PUP relation
     pub fn map(&self, map: &'a Map, input: PUPRelation) -> Result<PUPRelation> {
         let relation: Relation = Relation::map()
             .with((
@@ -268,7 +268,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Reduce privacy tracking from another PEP relation
+    /// Reduce privacy tracking from another PUP relation
     pub fn reduce(&self, reduce: &'a Reduce, input: PUPRelation) -> Result<PUPRelation> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(reduce.name())),
@@ -287,7 +287,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         }
     }
 
-    /// Join privacy tracking from 2 PEP relations
+    /// Join privacy tracking from 2 PUP relations
     pub fn join(
         &self,
         join: &'a crate::relation::Join,
@@ -371,7 +371,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         }
     }
 
-    /// Join privacy tracking from 2 PEP relations
+    /// Join privacy tracking from 2 PUP relations
     pub fn join_left_published(
         //TODO this need to be cleaned (really)
         &self,
@@ -430,7 +430,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Join privacy tracking from 2 PEP relations
+    /// Join privacy tracking from 2 PUP relations
     pub fn join_right_published(
         //TODO this need to be cleaned (really)
         &self,
@@ -489,7 +489,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Set privacy tracking from 2 PEP relations
+    /// Set privacy tracking from 2 PUP relations
     pub fn set(
         &self,
         set: &'a crate::relation::Set,

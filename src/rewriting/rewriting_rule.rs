@@ -33,7 +33,7 @@ impl fmt::Display for Property {
         match self {
             Property::Private => write!(f, "Priv"),
             Property::SyntheticData => write!(f, "SD"),
-            Property::PrivacyUnitPreserving => write!(f, "PEP"),
+            Property::PrivacyUnitPreserving => write!(f, "PUP"),
             Property::DifferentiallyPrivate => write!(f, "DP"),
             Property::Published => write!(f, "Pubd"),
             Property::Public => write!(f, "Pub"),

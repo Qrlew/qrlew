@@ -95,7 +95,7 @@ impl PUPRelation {
 
     /// Returns a DPRelation whose:
     ///     - first field is a Relation whose outputs are
-    /// (epsilon, delta)-DP values of grouping keys of the current PEPRelation,
+    /// (epsilon, delta)-DP values of grouping keys of the current PUPRelation,
     ///     - second field is a PrivateQuery corresponding the used mechanisms
     /// The (epsilon, delta)-DP values are found by:
     ///     - Using the propagated public values of the grouping columns when they exist

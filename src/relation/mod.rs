@@ -234,7 +234,7 @@ impl OrderBy {
 
 /// Map Relation
 /// Maps, project, filter, sort, limit
-/// Basically, it can pack many PEP transforms and propagates the range of variables
+/// Basically, it can pack many PUP transforms and propagates the range of variables
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Map {
     /// The name of the output
