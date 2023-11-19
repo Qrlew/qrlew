@@ -30,6 +30,10 @@ impl Field {
 
 impl Relation {
     fn gaussian_mechanisms(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
+        if epsilon>1. {
+            // Cf. Theorem A.1. in (Dwork, Roth et al. 2014)
+            log::warn!("Warning, epsilon>1 the gaussian mechanism applied will not be exactly epsilon,delta-DP!")
+        }
         let number_of_agg = bounds.len() as f64;
         let noise_multipliers = bounds
             .into_iter()

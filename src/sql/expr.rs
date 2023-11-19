@@ -665,7 +665,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 
     fn wildcard(&self) -> Result<Expr> {
-        todo!()
+        Ok(Expr::val(1))
     }
 
     fn identifier(&self, ident: &'a ast::Ident) -> Result<Expr> {
