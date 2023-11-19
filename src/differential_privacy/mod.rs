@@ -148,7 +148,10 @@ impl Reduce {
         // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
         // not been spent, allocate it to the aggregations.
         let (epsilon, delta) = if private_query.is_null() {
-            (epsilon + epsilon_tau_thresholding, delta + delta_tau_thresholding)
+            (
+                epsilon + epsilon_tau_thresholding,
+                delta + delta_tau_thresholding,
+            )
         } else {
             (epsilon, delta)
         };
@@ -164,7 +167,6 @@ impl Reduce {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use super::*;
     use crate::{
         ast,
@@ -173,10 +175,11 @@ mod tests {
         display::Dot,
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
-        privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
-        relation::{Map, Relation, Variant, Schema, Field},
         privacy_unit_tracking::PrivacyUnit,
+        privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
+        relation::{Field, Map, Relation, Schema, Variant},
     };
+    use std::collections::HashSet;
 
     #[test]
     fn test_dp_rewrite_reduce_without_group_by() {
@@ -204,7 +207,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
@@ -226,7 +231,11 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             private_query,
-            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon + epsilon_tau_thresholding, delta + delta_tau_thresholding, 50.)
+            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+                epsilon + epsilon_tau_thresholding,
+                delta + delta_tau_thresholding,
+                50.
+            )
         );
         assert!(dp_relation
             .data_type()
@@ -263,7 +272,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         let map: Map = Relation::map()
             .with(("order_id", expr!(order_id)))
             .with(("price", expr!(price)))
@@ -273,7 +284,9 @@ mod tests {
             ))
             .input(pup_table.deref().clone())
             .build();
-        let pup_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
+        let pup_map = privacy_unit_tracking
+            .map(&map.try_into().unwrap(), pup_table)
+            .unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -337,13 +350,17 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         let map: Map = Relation::map()
             .with(("order_id", expr!(order_id)))
             .with(("price", expr!(price)))
             .input(pup_table.deref().clone())
             .build();
-        let pup_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
+        let pup_map = privacy_unit_tracking
+            .map(&map.try_into().unwrap(), pup_table)
+            .unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -407,7 +424,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         let map: Map = Relation::map()
             .with(("order_id", expr!(order_id)))
             .with(("item", expr!(item)))
@@ -418,7 +437,9 @@ mod tests {
             ))
             .input(pup_table.deref().clone())
             .build();
-        let pup_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
+        let pup_map = privacy_unit_tracking
+            .map(&map.try_into().unwrap(), pup_table)
+            .unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -472,16 +493,23 @@ mod tests {
         // test the results contains all the possible keys
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
-        let new_schema: Schema = table.schema()
+        let table = relations
+            .get(&["large_user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let new_schema: Schema = table
+            .schema()
             .iter()
-            .map(|f| if f.name() == "city" {
-                Field::from_name_data_type("city", DataType::text())
-            } else {
-                f.clone()
+            .map(|f| {
+                if f.name() == "city" {
+                    Field::from_name_data_type("city", DataType::text())
+                } else {
+                    f.clone()
+                }
             })
             .collect();
-        let table:Relation = Relation::table()
+        let table: Relation = Relation::table()
             .path(["large_user_table"])
             .name("more_users")
             .size(100000)
@@ -491,20 +519,12 @@ mod tests {
             .name("map_relation")
             .with(("income", expr!(income)))
             .with(("city", expr!(city)))
-            .with((
-                PrivacyUnit::privacy_unit(),
-                expr!(id),
+            .with((PrivacyUnit::privacy_unit(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit_weight(), expr!(id)))
+            .filter(Expr::in_list(
+                Expr::col("city"),
+                Expr::list(vec!["Paris".to_string(), "London".to_string()]),
             ))
-            .with((
-                PrivacyUnit::privacy_unit_weight(),
-                expr!(id),
-            ))
-            .filter(
-                Expr::in_list(
-                    Expr::col("city"),
-                    Expr::list(vec!["Paris".to_string(), "London".to_string()]),
-                )
-            )
             .input(table.clone())
             .build();
         let reduce: Reduce = Relation::reduce()
@@ -515,25 +535,21 @@ mod tests {
             .input(input)
             .build();
         let (dp_relation, private_query) = reduce
-        .differentially_private(
-            10.,
-            1e-5,
-            1.,
-            1e-2,
-        )
+            .differentially_private(10., 1e-5, 1., 1e-2)
             .unwrap()
             .into();
         println!("{}", private_query);
         dp_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&dp_relation).to_string();
-        let results = database
-            .query(query)
-            .unwrap();
+        let results = database.query(query).unwrap();
         println!("results = {:?}", results);
-        let city_keys: HashSet<_> = results.iter()
+        let city_keys: HashSet<_> = results
+            .iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
             .collect();
-        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()].into_iter().collect();
+        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()]
+            .into_iter()
+            .collect();
         assert_eq!(city_keys, correct_keys);
     }
 
@@ -542,16 +558,23 @@ mod tests {
         // test the results contains all the possible keys
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
-        let new_schema: Schema = table.schema()
+        let table = relations
+            .get(&["large_user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let new_schema: Schema = table
+            .schema()
             .iter()
-            .map(|f| if f.name() == "city" {
-                Field::from_name_data_type("city", DataType::text())
-            } else {
-                f.clone()
+            .map(|f| {
+                if f.name() == "city" {
+                    Field::from_name_data_type("city", DataType::text())
+                } else {
+                    f.clone()
+                }
             })
             .collect();
-        let table:Relation = Relation::table()
+        let table: Relation = Relation::table()
             .path(["large_user_table"])
             .name("more_users")
             .size(100000)
@@ -562,20 +585,12 @@ mod tests {
             .with(("income", expr!(income)))
             .with(("city", expr!(city)))
             .with(("age", expr!(age)))
-            .with((
-                PrivacyUnit::privacy_unit(),
-                expr!(id),
+            .with((PrivacyUnit::privacy_unit(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit_weight(), expr!(id)))
+            .filter(Expr::in_list(
+                Expr::col("city"),
+                Expr::list(vec!["Paris".to_string(), "London".to_string()]),
             ))
-            .with((
-                PrivacyUnit::privacy_unit_weight(),
-                expr!(id),
-            ))
-            .filter(
-                Expr::in_list(
-                    Expr::col("city"),
-                    Expr::list(vec!["Paris".to_string(), "London".to_string()]),
-                )
-            )
             .input(table.clone())
             .build();
         let reduce: Reduce = Relation::reduce()
@@ -588,25 +603,21 @@ mod tests {
             .input(input)
             .build();
         let (dp_relation, private_query) = reduce
-        .differentially_private(
-            10.,
-            1e-5,
-            1.,
-            1e-2,
-        )
+            .differentially_private(10., 1e-5, 1., 1e-2)
             .unwrap()
             .into();
         println!("{}", private_query);
         dp_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&dp_relation).to_string();
-        let results = database
-            .query(query)
-            .unwrap();
+        let results = database.query(query).unwrap();
         println!("{:?}", results);
-        let city_keys: HashSet<_> = results.iter()
+        let city_keys: HashSet<_> = results
+            .iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
             .collect();
-        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()].into_iter().collect();
+        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()]
+            .into_iter()
+            .collect();
         assert_eq!(city_keys, correct_keys);
     }
 }

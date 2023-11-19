@@ -528,6 +528,4 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         assert_eq!(gen_expr, parse_expr("substr(a, 0, 5)").unwrap());
     }
-
-
 }

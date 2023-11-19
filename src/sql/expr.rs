@@ -402,8 +402,12 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 special,
             } => self.substring(
                 dependencies.get(expr).clone(),
-                substring_from.as_ref().map(|x| dependencies.get(x.as_ref()).clone()),
-                substring_for.as_ref().map(|x| dependencies.get(x.as_ref()).clone()),
+                substring_from
+                    .as_ref()
+                    .map(|x| dependencies.get(x.as_ref()).clone()),
+                substring_for
+                    .as_ref()
+                    .map(|x| dependencies.get(x.as_ref()).clone()),
             ),
             ast::Expr::Trim {
                 expr,
@@ -415,14 +419,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                     (None, None) => None,
                     (Some(x), None) => Some(x.as_ref()),
                     (None, Some(v)) => todo!(),
-                    _ => todo!()
+                    _ => todo!(),
                 };
                 self.trim(
                     dependencies.get(expr).clone(),
                     trim_where,
                     trim_what.map(|x| dependencies.get(x).clone()),
                 )
-            },
+            }
             ast::Expr::Overlay {
                 expr,
                 overlay_what,
@@ -605,22 +609,35 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         )
     }
 
-    fn trim(&self, expr: String, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<String>) -> String {
+    fn trim(
+        &self,
+        expr: String,
+        trim_where: &Option<ast::TrimWhereField>,
+        trim_what: Option<String>,
+    ) -> String {
         format!(
             "TRIM ({} {} FROM {})",
             trim_where.map(|w| w.to_string()).unwrap_or("".to_string()),
             expr,
             trim_what.unwrap_or("".to_string()),
         )
-
     }
 
-    fn substring(&self, expr: String, substring_from: Option<String>, substring_for: Option<String>) -> String {
+    fn substring(
+        &self,
+        expr: String,
+        substring_from: Option<String>,
+        substring_for: Option<String>,
+    ) -> String {
         format!(
             "SUBSTRING ({} {} {})",
             expr,
-            substring_from.map(|s| format!("FROM {}", s)).unwrap_or("".to_string()),
-            substring_for.map(|s| format!("FOR {}", s)).unwrap_or("".to_string()),
+            substring_from
+                .map(|s| format!("FROM {}", s))
+                .unwrap_or("".to_string()),
+            substring_for
+                .map(|s| format!("FOR {}", s))
+                .unwrap_or("".to_string()),
         )
     }
 }
@@ -780,26 +797,24 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "md5" => Expr::md5(flat_args[0].clone()),
             "coalesce" => {
-                let (first, vec) = flat_args
-                .split_first()
-                .unwrap();
+                let (first, vec) = flat_args.split_first().unwrap();
                 vec.iter()
-                .fold(first.clone(), |acc, x| Expr::coalesce(acc, x.clone()))
-            },
+                    .fold(first.clone(), |acc, x| Expr::coalesce(acc, x.clone()))
+            }
             "ltrim" => self.trim(
                 Ok(flat_args[0].clone()),
                 &Some(ast::TrimWhereField::Leading),
-                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone()))
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone())),
             )?,
             "rtrim" => self.trim(
                 Ok(flat_args[0].clone()),
                 &Some(ast::TrimWhereField::Trailing),
-                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone()))
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone())),
             )?,
             "btrim" => self.trim(
                 Ok(flat_args[0].clone()),
                 &Some(ast::TrimWhereField::Both),
-                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone()))
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone())),
             )?,
             // string functions
             "lower" => Expr::lower(flat_args[0].clone()),
@@ -808,7 +823,11 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "concat" => Expr::concat(flat_args.clone()),
             "substr" => {
                 if flat_args.len() > 2 {
-                    Expr::substr_with_size(flat_args[0].clone(), flat_args[1].clone(), flat_args[2].clone())
+                    Expr::substr_with_size(
+                        flat_args[0].clone(),
+                        flat_args[1].clone(),
+                        flat_args[2].clone(),
+                    )
                 } else {
                     Expr::substr(flat_args[0].clone(), flat_args[1].clone())
                 }
@@ -866,22 +885,38 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         Ok(Expr::in_list(expr?, Expr::val(Value::list(list?))))
     }
 
-    fn trim(&self, expr: Result<Expr>, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<Result<Expr>>) -> Result<Expr> {
+    fn trim(
+        &self,
+        expr: Result<Expr>,
+        trim_where: &Option<ast::TrimWhereField>,
+        trim_what: Option<Result<Expr>>,
+    ) -> Result<Expr> {
         let trim_what = trim_what.unwrap_or(Ok(Expr::val(" ".to_string())));
-        Ok(
-            match trim_where {
-                Some(ast::TrimWhereField::Leading) => Expr::ltrim(expr?, trim_what?),
-                Some(ast::TrimWhereField::Trailing) => Expr::rtrim(expr?, trim_what?),
-                Some(ast::TrimWhereField::Both) | None => Expr::ltrim(Expr::rtrim(expr?, trim_what.clone()?), trim_what?),
+        Ok(match trim_where {
+            Some(ast::TrimWhereField::Leading) => Expr::ltrim(expr?, trim_what?),
+            Some(ast::TrimWhereField::Trailing) => Expr::rtrim(expr?, trim_what?),
+            Some(ast::TrimWhereField::Both) | None => {
+                Expr::ltrim(Expr::rtrim(expr?, trim_what.clone()?), trim_what?)
             }
-        )
+        })
     }
 
-    fn substring(&self, expr: Result<Expr>, substring_from: Option<Result<Expr>>, substring_for: Option<Result<Expr>>) -> Result<Expr> {
+    fn substring(
+        &self,
+        expr: Result<Expr>,
+        substring_from: Option<Result<Expr>>,
+        substring_for: Option<Result<Expr>>,
+    ) -> Result<Expr> {
         let substring_from = substring_from.unwrap_or(Ok(Expr::val(0)));
         substring_for
-        .map(|x| Ok(Expr::substr_with_size(expr.clone()?, substring_from.clone()?, x?)))
-        .unwrap_or(Ok(Expr::substr(expr.clone()?, substring_from.clone()?)))
+            .map(|x| {
+                Ok(Expr::substr_with_size(
+                    expr.clone()?,
+                    substring_from.clone()?,
+                    x?,
+                ))
+            })
+            .unwrap_or(Ok(Expr::substr(expr.clone()?, substring_from.clone()?)))
     }
 }
 
@@ -1060,16 +1095,16 @@ mod tests {
         }
         let true_expr = Expr::coalesce(
             Expr::coalesce(
-                Expr::coalesce(
-                    Expr::col("col1"),
-                    Expr::col("col2")
-                ),
-                Expr::col("col3")
+                Expr::coalesce(Expr::col("col1"), Expr::col("col2")),
+                Expr::col("col3"),
             ),
-            Expr::val("default".to_string())
+            Expr::val("default".to_string()),
         );
         assert_eq!(true_expr.to_string(), expr.to_string());
-        assert_eq!(expr.to_string(), String::from("coalesce(coalesce(coalesce(col1, col2), col3), default)"));
+        assert_eq!(
+            expr.to_string(),
+            String::from("coalesce(coalesce(coalesce(col1, col2), col3), default)")
+        );
     }
 
     #[test]
@@ -1124,7 +1159,6 @@ mod tests {
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("rtrim(col1, a)"));
 
-
         // TRIM(BOTH "a" FROM string)
         let ast_expr: ast::Expr = parse_expr("TRIM(BOTH 'a' FROM col1)").unwrap();
         println!("\nast::expr = {ast_expr}");
@@ -1135,7 +1169,7 @@ mod tests {
         }
         let true_expr = Expr::ltrim(
             Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
-            Expr::val("a".to_string())
+            Expr::val("a".to_string()),
         );
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
@@ -1150,7 +1184,7 @@ mod tests {
         }
         let true_expr = Expr::ltrim(
             Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
-            Expr::val("a".to_string())
+            Expr::val("a".to_string()),
         );
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
@@ -1165,7 +1199,7 @@ mod tests {
         }
         let true_expr = Expr::ltrim(
             Expr::rtrim(Expr::col("col1"), Expr::val(" ".to_string())),
-            Expr::val(" ".to_string())
+            Expr::val(" ".to_string()),
         );
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1,  ),  )"));
@@ -1180,7 +1214,7 @@ mod tests {
         }
         let true_expr = Expr::ltrim(
             Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
-            Expr::val("a".to_string())
+            Expr::val("a".to_string()),
         );
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));

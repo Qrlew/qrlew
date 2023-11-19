@@ -600,27 +600,32 @@ impl<'a> RewritingRulesSetter<'a> {
 
 impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
     fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
-        if self.privacy_unit.iter()
+        if self
+            .privacy_unit
+            .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
-            .is_some() {
-                vec![
-                    RewritingRule::new(vec![], Property::Private, Parameters::None),
-                    RewritingRule::new(
-                        vec![],
-                        Property::SyntheticData,
-                        Parameters::SyntheticData(self.synthetic_data.clone()),
-                    ),
-                    RewritingRule::new(
-                        vec![],
-                        Property::PrivacyUnitPreserving,
-                        Parameters::PrivacyUnit(self.privacy_unit.clone()),
-                    ),
-                ]
-            } else {
-                vec![
-                    RewritingRule::new(vec![], Property::Public, Parameters::None),
-                ]
-            }
+            .is_some()
+        {
+            vec![
+                RewritingRule::new(vec![], Property::Private, Parameters::None),
+                RewritingRule::new(
+                    vec![],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(self.synthetic_data.clone()),
+                ),
+                RewritingRule::new(
+                    vec![],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(self.privacy_unit.clone()),
+                ),
+            ]
+        } else {
+            vec![RewritingRule::new(
+                vec![],
+                Property::Public,
+                Parameters::None,
+            )]
+        }
     }
 
     fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
@@ -1029,10 +1034,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 (Property::SyntheticData, Parameters::SyntheticData(synthetic_data)) => {
                     synthetic_data.table(table).unwrap().into()
                 }
-                (
-                    Property::PrivacyUnitPreserving,
-                    Parameters::PrivacyUnit(privacy_unit),
-                ) => {
+                (Property::PrivacyUnitPreserving, Parameters::PrivacyUnit(privacy_unit)) => {
                     let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
@@ -1298,8 +1300,7 @@ mod tests {
             budget,
         ));
         relation_with_rules.display_dot().unwrap();
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
             rwrr.display_dot().unwrap();
@@ -1361,8 +1362,7 @@ mod tests {
             budget,
         ));
         relation_with_rules.display_dot().unwrap();
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
             rwrr.display_dot().unwrap();
@@ -1421,8 +1421,7 @@ mod tests {
             budget,
         ));
         relation_with_rules.display_dot().unwrap();
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
         for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
             rwrr.display_dot().unwrap();

@@ -57,9 +57,7 @@ impl PUPRelation {
             .iter()
             .cloned()
             .filter_map(|f| {
-                if f.name() == self.privacy_unit()
-                    || f.name() == self.privacy_unit_weight()
-                {
+                if f.name() == self.privacy_unit() || f.name() == self.privacy_unit_weight() {
                     None
                 } else {
                     Some(f.name().to_string())
@@ -205,18 +203,14 @@ mod tests {
     use crate::{
         ast,
         builder::With,
-        data_type::{DataType, DataTyped, Variant, Integer},
+        data_type::{DataType, DataTyped, Integer, Variant},
         display::Dot,
         expr::AggregateColumn,
         io::{postgresql, Database},
         privacy_unit_tracking::{PrivacyUnit, PrivacyUnitTracking, Strategy},
-        relation::{Join, Schema, Field},
+        relation::{Field, Join, Schema},
     };
-    use std::{
-        ops::Deref,
-        collections::HashSet
-    };
-
+    use std::{collections::HashSet, ops::Deref};
 
     #[test]
     fn test_tau_thresholding_values() {
@@ -583,8 +577,12 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_left = privacy_unit_tracking.table(&left.try_into().unwrap()).unwrap();
-        let pup_right = privacy_unit_tracking.table(&right.try_into().unwrap()).unwrap();
+        let pup_left = privacy_unit_tracking
+            .table(&left.try_into().unwrap())
+            .unwrap();
+        let pup_right = privacy_unit_tracking
+            .table(&right.try_into().unwrap())
+            .unwrap();
         let pup_join = privacy_unit_tracking
             .join(&join, pup_left, pup_right)
             .unwrap();
@@ -633,16 +631,23 @@ mod tests {
         // test the results contains all the keys asked by the user (i.e. in the WHERE )
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let table = relations.get(&["large_user_table".into()]).unwrap().as_ref().clone();
-        let new_schema: Schema = table.schema()
+        let table = relations
+            .get(&["large_user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let new_schema: Schema = table
+            .schema()
             .iter()
-            .map(|f| if f.name() == "city" {
-                Field::from_name_data_type("city", DataType::text())
-            } else {
-                f.clone()
+            .map(|f| {
+                if f.name() == "city" {
+                    Field::from_name_data_type("city", DataType::text())
+                } else {
+                    f.clone()
+                }
             })
             .collect();
-        let table:Relation = Relation::table()
+        let table: Relation = Relation::table()
             .path(["large_user_table"])
             .name("more_users")
             .size(100000)
@@ -653,20 +658,12 @@ mod tests {
             .with(("income", expr!(income)))
             .with(("city", expr!(city)))
             .with(("age", expr!(age)))
-            .with((
-                PrivacyUnit::privacy_unit(),
-                expr!(id),
+            .with((PrivacyUnit::privacy_unit(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit_weight(), expr!(id)))
+            .filter(Expr::in_list(
+                Expr::col("city"),
+                Expr::list(vec!["Paris".to_string(), "London".to_string()]),
             ))
-            .with((
-                PrivacyUnit::privacy_unit_weight(),
-                expr!(id),
-            ))
-            .filter(
-                Expr::in_list(
-                    Expr::col("city"),
-                    Expr::list(vec!["Paris".to_string(), "London".to_string()]),
-                )
-            )
             .input(table.clone())
             .build();
         let reduce: Reduce = Relation::reduce()
@@ -682,29 +679,32 @@ mod tests {
             .into();
         dp_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&dp_relation).to_string();
-        let results = database
-            .query(query)
-            .unwrap();
-        let city_keys: HashSet<_> = results.iter()
+        let results = database.query(query).unwrap();
+        let city_keys: HashSet<_> = results
+            .iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
             .collect();
-        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()].into_iter().collect();
+        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()]
+            .into_iter()
+            .collect();
         assert_eq!(city_keys, correct_keys);
 
         let input_relation_with_privacy_tracked_group_by = reduce
             .input()
             .clone()
-            .join_with_grouping_values(dp_relation).unwrap();
-        input_relation_with_privacy_tracked_group_by.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&input_relation_with_privacy_tracked_group_by).to_string();
-        let results = database
-            .query(query)
+            .join_with_grouping_values(dp_relation)
             .unwrap();
-        let city_keys: HashSet<_>  = results.iter()
+        input_relation_with_privacy_tracked_group_by
+            .display_dot()
+            .unwrap();
+        let query: &str =
+            &ast::Query::from(&input_relation_with_privacy_tracked_group_by).to_string();
+        let results = database.query(query).unwrap();
+        let city_keys: HashSet<_> = results
+            .iter()
             .map(|row| row.to_vec().clone()[0].clone().to_string())
             .collect();
         println!("{:?}", city_keys);
         assert_eq!(city_keys, correct_keys);
     }
-
 }

@@ -26,8 +26,7 @@ use crate::{
 };
 
 use rewriting_rule::{
-    Rewriter, RewritingRulesEliminator, RewritingRulesSelector,
-    RewritingRulesSetter, Score,
+    Rewriter, RewritingRulesEliminator, RewritingRulesSelector, RewritingRulesSetter, Score,
 };
 
 #[derive(Debug)]
@@ -79,16 +78,14 @@ impl Relation {
             privacy_unit,
             budget,
         ));
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
-                Property::Public | Property::PrivacyUnitPreserving => Some((
-                    rwrr.rewrite(Rewriter::new(relations)),
-                    rwrr.accept(Score),
-                )),
+                Property::Public | Property::PrivacyUnitPreserving => {
+                    Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
+                }
                 property => None,
             })
             .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
@@ -109,16 +106,14 @@ impl Relation {
             privacy_unit,
             budget,
         ));
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
-                Property::Public | Property::Published | Property::DifferentiallyPrivate => Some((
-                    rwrr.rewrite(Rewriter::new(relations)),
-                    rwrr.accept(Score),
-                )),
+                Property::Public | Property::Published | Property::DifferentiallyPrivate => {
+                    Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
+                }
                 property => None,
             })
             .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
@@ -229,12 +224,7 @@ mod tests {
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_private_query = relation
-            .rewrite_as_privacy_unit_preserving(
-                &relations,
-                synthetic_data,
-                privacy_unit,
-                budget,
-            )
+            .rewrite_as_privacy_unit_preserving(&relations, synthetic_data, privacy_unit, budget)
             .unwrap();
         relation_with_private_query
             .relation()

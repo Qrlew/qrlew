@@ -314,7 +314,10 @@ impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for PrivacyUnit {
         for (table, privacy_unit_tracking, referred_field) in value {
             result.push((
                 table.into(),
-                PrivacyUnitPath::new(Path::from_iter(privacy_unit_tracking), referred_field.into()),
+                PrivacyUnitPath::new(
+                    Path::from_iter(privacy_unit_tracking),
+                    referred_field.into(),
+                ),
             ));
         }
         PrivacyUnit(result)

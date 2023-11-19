@@ -118,15 +118,12 @@ impl PUPRelation {
                 self.privacy_unit(),
                 Expr::coalesce(
                     Expr::cast_as_text(Expr::col(self.privacy_unit())),
-                    Expr::val(self.privacy_unit_default().to_string())
+                    Expr::val(self.privacy_unit_default().to_string()),
                 ),
             ))
             .with((
                 self.privacy_unit_weight(),
-                Expr::coalesce(
-                    Expr::col(self.privacy_unit_weight()),
-                    Expr::val(0.)
-                )
+                Expr::coalesce(Expr::col(self.privacy_unit_weight()), Expr::val(0.)),
             ));
 
         let mut group_by_names = vec![];
@@ -295,7 +292,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -343,7 +342,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -395,7 +396,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![
@@ -452,7 +455,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![

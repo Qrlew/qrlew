@@ -99,10 +99,7 @@ impl TryFrom<Relation> for PUPRelation {
     type Error = Error;
 
     fn try_from(value: Relation) -> Result<Self> {
-        if value
-            .schema()
-            .field(PrivacyUnit::privacy_unit())
-            .is_ok()
+        if value.schema().field(PrivacyUnit::privacy_unit()).is_ok()
             && value
                 .schema()
                 .field(PrivacyUnit::privacy_unit_weight())
@@ -307,10 +304,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                         format!("_LEFT{}", PrivacyUnit::privacy_unit()),
                     ),
                     (
-                        vec![
-                            Join::left_name(),
-                            PrivacyUnit::privacy_unit_weight(),
-                        ],
+                        vec![Join::left_name(), PrivacyUnit::privacy_unit_weight()],
                         format!("_LEFT{}", PrivacyUnit::privacy_unit_weight()),
                     ),
                     (
@@ -318,10 +312,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                         format!("_RIGHT{}", PrivacyUnit::privacy_unit()),
                     ),
                     (
-                        vec![
-                            Join::right_name(),
-                            PrivacyUnit::privacy_unit_weight(),
-                        ],
+                        vec![Join::right_name(), PrivacyUnit::privacy_unit_weight()],
                         format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight()),
                     ),
                 ]);
@@ -343,14 +334,8 @@ impl<'a> PrivacyUnitTracking<'a> {
                 builder = builder.with((
                     PrivacyUnit::privacy_unit_weight(),
                     Expr::multiply(
-                        Expr::col(format!(
-                            "_LEFT{}",
-                            PrivacyUnit::privacy_unit_weight()
-                        )),
-                        Expr::col(format!(
-                            "_RIGHT{}",
-                            PrivacyUnit::privacy_unit_weight()
-                        )),
+                        Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_weight())),
+                        Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight())),
                     ),
                 ));
                 builder = join.names().iter().fold(builder, |b, (p, n)| {
@@ -388,10 +373,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                 format!("_RIGHT{}", PrivacyUnit::privacy_unit()),
             ),
             (
-                vec![
-                    Join::right_name(),
-                    PrivacyUnit::privacy_unit_weight(),
-                ],
+                vec![Join::right_name(), PrivacyUnit::privacy_unit_weight()],
                 format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight()),
             ),
         ]);
@@ -409,10 +391,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
-                Expr::col(format!(
-                    "_RIGHT{}",
-                    PrivacyUnit::privacy_unit_weight()
-                )),
+                Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight())),
             ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
             if [
@@ -447,10 +426,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                 format!("_LEFT{}", PrivacyUnit::privacy_unit()),
             ),
             (
-                vec![
-                    Join::left_name(),
-                    PrivacyUnit::privacy_unit_weight(),
-                ],
+                vec![Join::left_name(), PrivacyUnit::privacy_unit_weight()],
                 format!("_LEFT{}", PrivacyUnit::privacy_unit_weight()),
             ),
         ]);
@@ -468,10 +444,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
-                Expr::col(format!(
-                    "_LEFT{}",
-                    PrivacyUnit::privacy_unit_weight()
-                )),
+                Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_weight())),
             ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
             if [
@@ -529,7 +502,9 @@ impl<'a>
         let (relations, privacy_unit, strategy) = value;
         let privacy_unit: Vec<_> = privacy_unit
             .into_iter()
-            .map(|(table, privacy_tracking, referred_field)| (table, privacy_tracking, referred_field))
+            .map(|(table, privacy_tracking, referred_field)| {
+                (table, privacy_tracking, referred_field)
+            })
             .collect();
         PrivacyUnitTracking::new(relations, PrivacyUnit::from(privacy_unit), strategy)
     }
@@ -607,7 +582,9 @@ mod tests {
             Strategy::Soft,
         ));
         // Table
-        let table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         table.display_dot().unwrap();
         println!("Schema privacy_tracked = {}", table.schema());
         println!("Query privacy tracked = {}", ast::Query::from(&*table));
@@ -648,8 +625,12 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_left = privacy_unit_tracking.table(&left.try_into().unwrap()).unwrap();
-        let pup_right = privacy_unit_tracking.table(&right.try_into().unwrap()).unwrap();
+        let pup_left = privacy_unit_tracking
+            .table(&left.try_into().unwrap())
+            .unwrap();
+        let pup_right = privacy_unit_tracking
+            .table(&right.try_into().unwrap())
+            .unwrap();
         let pup_join = privacy_unit_tracking
             .join(&join, pup_left, pup_right)
             .unwrap();
@@ -713,7 +694,9 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
         let pup_join = privacy_unit_tracking
             .join(&join, pup_table.clone(), pup_table.clone())
             .unwrap();
