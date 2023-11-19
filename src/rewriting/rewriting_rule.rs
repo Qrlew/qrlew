@@ -1329,7 +1329,7 @@ mod tests {
         }
         let query = parse(
             "SELECT order_id, sum(price) AS sum_price,
-        count(price) AS count_price,
+        count(*) AS count_price,
         avg(price) AS mean_price
         FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
         )
