@@ -251,6 +251,8 @@ where
     type Output = T;
 
     fn index(&self, index: P) -> &Self::Output {
+        println!("DEBUG hierarchy {}", self);
+        println!("DEBUG hierarchy index {}", index.cloned().into_iter().join(", "));
         self.get(&index.path()).unwrap()
     }
 }

@@ -203,7 +203,8 @@ impl PUPRelation {
 
         let names: HashMap<String, String> =
             named_sums.into_iter().map(|(s1, s2)| (s2, s1)).collect();
-
+        println!("DEBUG names {names:?}");
+        // DEBUG Looking for _COUNT_field_n9r3 but another variable 
         let dp_relation = output_builder
             .input(
                 dp_relation
