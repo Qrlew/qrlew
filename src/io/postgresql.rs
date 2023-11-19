@@ -11,18 +11,19 @@ use crate::{
     namer,
     relation::{Table, Variant as _},
 };
-use std::{env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time, ops::Deref};
+use std::{
+    env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
+};
 
 use colored::Colorize;
-use rand::{rngs::StdRng, SeedableRng};
-use rust_decimal::{prelude::ToPrimitive, Decimal};
 use postgres::{
     self,
     types::{FromSql, ToSql, Type},
 };
-use r2d2_postgres::{postgres::NoTls, PostgresConnectionManager};
 use r2d2::Pool;
-
+use r2d2_postgres::{postgres::NoTls, PostgresConnectionManager};
+use rand::{rngs::StdRng, SeedableRng};
+use rust_decimal::{prelude::ToPrimitive, Decimal};
 
 const DB: &str = "qrlew-test";
 const PORT: usize = 5432;
@@ -78,12 +79,11 @@ impl Database {
                 Database::port(),
                 Database::user(),
                 Database::password()
-            ).parse()?,
+            )
+            .parse()?,
             NoTls,
         );
-        Ok(r2d2::Pool::builder()
-            .max_size(10)
-            .build(manager)?)
+        Ok(r2d2::Pool::builder().max_size(10).build(manager)?)
     }
 
     /// Try to build a pool from a DB in a container
@@ -136,9 +136,7 @@ impl Database {
                 format!("host=localhost port={port} user={USER} password={PASSWORD}").parse()?,
                 NoTls,
             );
-            Ok(r2d2::Pool::builder()
-                .max_size(10)
-                .build(manager)?)
+            Ok(r2d2::Pool::builder().max_size(10).build(manager)?)
         } else {
             Database::build_pool_from_existing()
         }
@@ -158,10 +156,14 @@ impl DatabaseTrait for Database {
     fn new(name: String, tables: Vec<Table>) -> Result<Self> {
         let mut postgres_pool = POSTGRES_POOL.lock().unwrap();
         if let None = *postgres_pool {
-            *postgres_pool = Some(Database::build_pool_from_existing().or_else(|_| Database::build_pool_from_container(name.clone()))?);
+            *postgres_pool = Some(
+                Database::build_pool_from_existing()
+                    .or_else(|_| Database::build_pool_from_container(name.clone()))?,
+            );
         }
         let pool = postgres_pool.as_ref().unwrap().clone();
-        let table_names: Vec<String> = pool.get()?
+        let table_names: Vec<String> = pool
+            .get()?
             .query(
                 "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='public'",
                 &[],
