@@ -4,7 +4,7 @@ use crate::{
     differential_privacy::private_query::PrivateQuery,
     differential_privacy::{private_query, DPRelation, Error, Result},
     expr::{aggregate, AggregateColumn, Expr},
-    protection::PEPRelation,
+    privacy_unit_tracking::PUPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant as _},
     DataType, Ready,
 };
@@ -57,7 +57,7 @@ impl Relation {
     }
 }
 
-impl PEPRelation {
+impl PUPRelation {
     /// Builds a DPRelation wrapping a Relation::Reduce
     /// whose `aggregates` are the noisy sums of each column in `sums`
     /// and the group by columns are defined by `group_by_names`
@@ -90,7 +90,7 @@ impl PEPRelation {
 
         // Clip the relation
         let clipped_relation = self.deref().clone().l2_clipped_sums(
-            self.protected_entity_id(),
+            self.privacy_id(),
             group_by_names,
             input_values_bound.clone(),
         );
@@ -115,16 +115,16 @@ impl PEPRelation {
         let mut named_sums = vec![];
         let mut input_builder = Map::builder()
             .with((
-                self.protected_entity_id(),
+                self.privacy_id(),
                 Expr::coalesce(
-                    Expr::cast_as_text(Expr::col(self.protected_entity_id())),
-                    Expr::val(self.protected_entity_null_id().to_string())
+                    Expr::cast_as_text(Expr::col(self.privacy_id())),
+                    Expr::val(self.privacy_null_id().to_string())
                 ),
             ))
             .with((
-                self.protected_entity_weight(),
+                self.privacy_unit_weight(),
                 Expr::coalesce(
-                    Expr::col(self.protected_entity_weight()),
+                    Expr::col(self.privacy_unit_weight()),
                     Expr::val(0.)
                 )
             ));
@@ -186,7 +186,7 @@ impl PEPRelation {
         );
 
         let input: Relation = input_builder.input(self.deref().clone()).build();
-        let pep_input = PEPRelation::try_from(input)?;
+        let pep_input = PUPRelation::try_from(input)?;
 
         let (dp_relation, private_query) = pep_input
             .differentially_private_sums(
@@ -220,7 +220,7 @@ impl Reduce {
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-        let pep_input = PEPRelation::try_from(self.input().clone())?;
+        let pep_input = PUPRelation::try_from(self.input().clone())?;
         pep_input.differentially_private_aggregates(
             self.named_aggregates()
                 .into_iter()
@@ -242,7 +242,7 @@ mod tests {
         data_type::Variant,
         display::Dot,
         io::{postgresql, Database},
-        protection::{Protection, Strategy},
+        privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
         sql::parse,
         Relation,
     };
@@ -282,8 +282,8 @@ mod tests {
             .clone();
         let (epsilon, delta) = (1., 1e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy tracking of the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -295,7 +295,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -306,7 +306,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let dp_relation = PEPRelation::try_from(reduce.input().clone())
+        let dp_relation = PUPRelation::try_from(reduce.input().clone())
             .unwrap()
             .differentially_private_sums(vec!["price"], vec![], epsilon, delta)
             .unwrap();
@@ -330,8 +330,8 @@ mod tests {
             .clone();
         let (epsilon, delta) = (1., 1e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy tracking of the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -343,7 +343,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -354,7 +354,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let dp_relation = PEPRelation::try_from(reduce.input().clone())
+        let dp_relation = PUPRelation::try_from(reduce.input().clone())
             .unwrap()
             .differentially_private_sums(vec!["price"], vec!["item"], epsilon, delta)
             .unwrap();
@@ -382,8 +382,8 @@ mod tests {
             .clone();
         let (epsilon, delta) = (1., 1e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy tracking of the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -395,7 +395,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![
@@ -439,8 +439,8 @@ mod tests {
             .clone();
         let (epsilon, delta) = (1., 1e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy tracking of the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -452,7 +452,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![

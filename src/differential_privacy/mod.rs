@@ -11,7 +11,7 @@ pub mod private_query;
 use crate::{
     builder::With,
     differential_privacy::private_query::PrivateQuery,
-    expr, protection,
+    expr, privacy_unit_tracking,
     relation::{rewriting, Reduce, Relation},
     Ready,
 };
@@ -54,8 +54,8 @@ impl From<rewriting::Error> for Error {
         Error::Other(err.to_string())
     }
 }
-impl From<protection::Error> for Error {
-    fn from(err: protection::Error) -> Self {
+impl From<privacy_unit_tracking::Error> for Error {
+    fn from(err: privacy_unit_tracking::Error) -> Self {
         Error::Other(err.to_string())
     }
 }
@@ -133,13 +133,13 @@ impl Reduce {
             let (dp_grouping_values, private_query_group_by) = self
                 .differentially_private_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?
                 .into();
-            let input_relation_with_protected_group_by = self
+            let input_relation_with_privacy_tracked_group_by = self
                 .input()
                 .clone()
                 .join_with_grouping_values(dp_grouping_values)?;
             let reduce: Reduce = Reduce::builder()
                 .with(self)
-                .input(input_relation_with_protected_group_by)
+                .input(input_relation_with_privacy_tracked_group_by)
                 .build();
             private_query = private_query.compose(private_query_group_by);
             reduce
@@ -173,9 +173,9 @@ mod tests {
         display::Dot,
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
-        protection::{Protection, Strategy},
+        privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
         relation::{Map, Relation, Variant, Schema, Field},
-        protection::ProtectedEntity,
+        privacy_unit_tracking::PrivacyUnit,
     };
 
     #[test]
@@ -191,8 +191,8 @@ mod tests {
         let (epsilon, delta) = (1., 1e-3);
         let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy track the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -204,7 +204,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
@@ -250,8 +250,8 @@ mod tests {
         let (epsilon, delta) = (1., 1e-3);
         let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy track the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -263,7 +263,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let map: Map = Relation::map()
             .with(("order_id", expr!(order_id)))
             .with(("price", expr!(price)))
@@ -271,9 +271,9 @@ mod tests {
                 Expr::col("order_id"),
                 Expr::list(vec![1, 2, 3, 4, 5]),
             ))
-            .input(pep_table.deref().clone())
+            .input(pup_table.deref().clone())
             .build();
-        let pep_map = protection.map(&map.try_into().unwrap(), pep_table).unwrap();
+        let pep_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -324,8 +324,8 @@ mod tests {
         let (epsilon, delta) = (1., 1e-3);
         let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy track the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -337,13 +337,13 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let map: Map = Relation::map()
             .with(("order_id", expr!(order_id)))
             .with(("price", expr!(price)))
-            .input(pep_table.deref().clone())
+            .input(pup_table.deref().clone())
             .build();
-        let pep_map = protection.map(&map.try_into().unwrap(), pep_table).unwrap();
+        let pep_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -394,8 +394,8 @@ mod tests {
         let (epsilon, delta) = (1., 1e-3);
         let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
 
-        // protect the inputs
-        let protection = Protection::from((
+        // privacy track the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -407,7 +407,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = protection.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let map: Map = Relation::map()
             .with(("order_id", expr!(order_id)))
             .with(("item", expr!(item)))
@@ -416,9 +416,9 @@ mod tests {
                 Expr::col("order_id"),
                 Expr::list(vec![1, 2, 3, 4, 5]),
             ))
-            .input(pep_table.deref().clone())
+            .input(pup_table.deref().clone())
             .build();
-        let pep_map = protection.map(&map.try_into().unwrap(), pep_table).unwrap();
+        let pep_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -492,11 +492,11 @@ mod tests {
             .with(("income", expr!(income)))
             .with(("city", expr!(city)))
             .with((
-                ProtectedEntity::protected_entity_id(),
+                PrivacyUnit::privacy_id(),
                 expr!(id),
             ))
             .with((
-                ProtectedEntity::protected_entity_weight(),
+                PrivacyUnit::privacy_unit_weight(),
                 expr!(id),
             ))
             .filter(
@@ -563,11 +563,11 @@ mod tests {
             .with(("city", expr!(city)))
             .with(("age", expr!(age)))
             .with((
-                ProtectedEntity::protected_entity_id(),
+                PrivacyUnit::privacy_id(),
                 expr!(id),
             ))
             .with((
-                ProtectedEntity::protected_entity_weight(),
+                PrivacyUnit::privacy_unit_weight(),
                 expr!(id),
             ))
             .filter(

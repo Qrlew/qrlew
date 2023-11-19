@@ -2,11 +2,11 @@ use colored::Colorize;
 use itertools::Itertools;
 use std::{fmt::Display, hash::Hash, ops::Deref};
 
-pub const PROTECTION_PREFIX: &str = "_PROTECTED_";
-pub const PROTECTION_COLUMNS: usize = 2;
+pub const PRIVACY_PREFIX: &str = "_PROTECTED_";
+pub const PRIVACY_COLUMNS: usize = 2;
 pub const PROTECTED_ENTITY_ID: &str = "_PROTECTED_ENTITY_ID_";
 pub const PROTECTED_ENTITY_NULL_ID: &str = "_PROTECTED_ENTITY_NULL_";
-pub const PROTECTED_ENTITY_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
+pub const PRIVACY_UNIT_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
 
 // A few utility objects
 
@@ -162,14 +162,14 @@ impl Display for ReferredField {
 
 /// A path to a field
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
-pub struct ProtectedEntityPath {
+pub struct PrivacyUnitPath {
     path: Path,
     protected_entity_field: String,
 }
 
-impl ProtectedEntityPath {
-    pub fn new(path: Path, protected_entity_field: String) -> ProtectedEntityPath {
-        ProtectedEntityPath {
+impl PrivacyUnitPath {
+    pub fn new(path: Path, protected_entity_field: String) -> PrivacyUnitPath {
+        PrivacyUnitPath {
             path,
             protected_entity_field,
         }
@@ -183,16 +183,16 @@ impl ProtectedEntityPath {
         &self.protected_entity_field
     }
 
-    pub fn protected_entity_id() -> &'static str {
+    pub fn privacy_id() -> &'static str {
         PROTECTED_ENTITY_ID
     }
 
-    pub fn protected_entity_null_id() -> &'static str {
+    pub fn privacy_null_id() -> &'static str {
         PROTECTED_ENTITY_NULL_ID
     }
 }
 
-impl Display for ProtectedEntityPath {
+impl Display for PrivacyUnitPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -200,24 +200,24 @@ impl Display for ProtectedEntityPath {
             self.path,
             "→".yellow(),
             self.protected_entity_field,
-            ProtectedEntityPath::protected_entity_id(),
+            PrivacyUnitPath::privacy_id(),
         )
     }
 }
 
-impl From<(Vec<(&str, &str, &str)>, &str)> for ProtectedEntityPath {
+impl From<(Vec<(&str, &str, &str)>, &str)> for PrivacyUnitPath {
     fn from((path, referred_field): (Vec<(&str, &str, &str)>, &str)) -> Self {
-        ProtectedEntityPath::new(Path::from_iter(path), referred_field.into())
+        PrivacyUnitPath::new(Path::from_iter(path), referred_field.into())
     }
 }
 
-impl<'a> From<&'a ProtectedEntityPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a str) {
-    fn from(value: &'a ProtectedEntityPath) -> Self {
+impl<'a> From<&'a PrivacyUnitPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a str) {
+    fn from(value: &'a PrivacyUnitPath) -> Self {
         ((&value.path).into(), &value.protected_entity_field)
     }
 }
 
-impl<'a> IntoIterator for ProtectedEntityPath {
+impl<'a> IntoIterator for PrivacyUnitPath {
     type Item = ReferredField;
     type IntoIter = <Vec<ReferredField> as IntoIterator>::IntoIter;
 
@@ -232,10 +232,10 @@ impl<'a> IntoIterator for ProtectedEntityPath {
                     last_step.referred_relation.to_string(),
                     last_step.referred_id.to_string(),
                     step.referring_id.to_string(),
-                    ProtectedEntityPath::protected_entity_id().to_string(),
+                    PrivacyUnitPath::privacy_id().to_string(),
                 ));
                 *last_step = Step::new(
-                    ProtectedEntityPath::protected_entity_id().to_string(),
+                    PrivacyUnitPath::privacy_id().to_string(),
                     step.referred_relation,
                     step.referred_id,
                 );
@@ -249,7 +249,7 @@ impl<'a> IntoIterator for ProtectedEntityPath {
                 last_step.referred_relation,
                 last_step.referred_id,
                 self.protected_entity_field,
-                ProtectedEntityPath::protected_entity_id().to_string(),
+                PrivacyUnitPath::privacy_id().to_string(),
             ));
         }
         field_path.into_iter()
@@ -258,31 +258,31 @@ impl<'a> IntoIterator for ProtectedEntityPath {
 
 /// Associate a PEID to each table
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ProtectedEntity(Vec<(String, ProtectedEntityPath)>);
+pub struct PrivacyUnit(Vec<(String, PrivacyUnitPath)>);
 
-impl ProtectedEntity {
-    pub fn protected_prefix() -> &'static str {
-        PROTECTION_PREFIX
+impl PrivacyUnit {
+    pub fn privacy_prefix() -> &'static str {
+        PRIVACY_PREFIX
     }
 
-    pub fn protected_columns() -> usize {
-        PROTECTION_COLUMNS
+    pub fn privacy_columns() -> usize {
+        PRIVACY_COLUMNS
     }
 
-    pub fn protected_entity_id() -> &'static str {
-        ProtectedEntityPath::protected_entity_id()
+    pub fn privacy_id() -> &'static str {
+        PrivacyUnitPath::privacy_id()
     }
 
-    pub fn protected_entity_null_id() -> &'static str {
-        ProtectedEntityPath::protected_entity_null_id()
+    pub fn privacy_null_id() -> &'static str {
+        PrivacyUnitPath::privacy_null_id()
     }
 
-    pub fn protected_entity_weight() -> &'static str {
-        PROTECTED_ENTITY_WEIGHT
+    pub fn privacy_unit_weight() -> &'static str {
+        PRIVACY_UNIT_WEIGHT
     }
 }
 
-impl Display for ProtectedEntity {
+impl Display for PrivacyUnit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -294,35 +294,35 @@ impl Display for ProtectedEntity {
     }
 }
 
-impl Deref for ProtectedEntity {
-    type Target = Vec<(String, ProtectedEntityPath)>;
+impl Deref for PrivacyUnit {
+    type Target = Vec<(String, PrivacyUnitPath)>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<ProtectedEntity> for Vec<(String, ProtectedEntityPath)> {
-    fn from(value: ProtectedEntity) -> Self {
+impl From<PrivacyUnit> for Vec<(String, PrivacyUnitPath)> {
+    fn from(value: PrivacyUnit) -> Self {
         value.0
     }
 }
 
-impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for ProtectedEntity {
+impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for PrivacyUnit {
     fn from(value: Vec<(&str, Vec<(&str, &str, &str)>, &str)>) -> Self {
         let mut result = vec![];
         for (table, protection, referred_field) in value {
             result.push((
                 table.into(),
-                ProtectedEntityPath::new(Path::from_iter(protection), referred_field.into()),
+                PrivacyUnitPath::new(Path::from_iter(protection), referred_field.into()),
             ));
         }
-        ProtectedEntity(result)
+        PrivacyUnit(result)
     }
 }
 
-impl<'a> From<&'a ProtectedEntity> for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)> {
-    fn from(value: &'a ProtectedEntity) -> Self {
+impl<'a> From<&'a PrivacyUnit> for Vec<(&'a str, Vec<(&'a str, &'a str, &'a str)>, &'a str)> {
+    fn from(value: &'a PrivacyUnit) -> Self {
         value
             .iter()
             .map(|(table, field_path)| {
@@ -336,7 +336,7 @@ impl<'a> From<&'a ProtectedEntity> for Vec<(&'a str, Vec<(&'a str, &'a str, &'a 
     }
 }
 
-impl Hash for ProtectedEntity {
+impl Hash for PrivacyUnit {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         let vec_representation: Vec<(&str, Vec<(&str, &str, &str)>, &str)> = self.into();
         vec_representation.hash(state);
@@ -377,7 +377,7 @@ mod tests {
     // Add some tests
     #[test]
     fn test_field_path() {
-        let field_path: ProtectedEntityPath = (
+        let field_path: PrivacyUnitPath = (
             vec![
                 ("order_id", "order_table", "id"),
                 ("user_id", "user_table", "id"),
@@ -390,14 +390,14 @@ mod tests {
 
     #[test]
     fn test_length_zero_field_path() {
-        let field_path: ProtectedEntityPath = (vec![], "name").into();
+        let field_path: PrivacyUnitPath = (vec![], "name").into();
         println!("{}", field_path);
     }
 
     // Add some tests
     #[test]
     fn test_protected_entity() {
-        let protected_entity = ProtectedEntity::from(vec![
+        let protected_entity = PrivacyUnit::from(vec![
             (
                 "item_table",
                 vec![

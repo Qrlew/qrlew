@@ -19,7 +19,7 @@ use crate::{
     },
     expr::Identifier,
     hierarchy::Hierarchy,
-    protection::{protected_entity::ProtectedEntity, Protection},
+    privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     synthetic_data::{self, SyntheticData},
     visitor::{Acceptor, Dependencies, Visited, Visitor},
@@ -65,18 +65,18 @@ impl From<crate::io::Error> for Error {
 pub type Result<T> = result::Result<T, Error>;
 
 impl Relation {
-    /// Rewrite the query so that the protected entity is tracked through the query.
-    pub fn rewrite_as_protected_entity_preserving<'a>(
+    /// Rewrite the query so that the privacy unit is tracked through the query.
+    pub fn rewrite_as_privacy_unit_preserving<'a>(
         &'a self,
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: SyntheticData,
-        protected_entity: ProtectedEntity,
+        privacy_unit: PrivacyUnit,
         budget: Budget,
     ) -> Result<RelationWithPrivateQuery> {
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
             relations,
             synthetic_data,
-            protected_entity,
+            privacy_unit,
             budget,
         ));
         let relation_with_rules =
@@ -85,7 +85,7 @@ impl Relation {
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
-                Property::Public | Property::ProtectedEntityPreserving => Some((
+                Property::Public | Property::PrivacyUnitPreserving => Some((
                     rwrr.rewrite(Rewriter::new(relations)),
                     rwrr.accept(Score),
                 )),
@@ -93,20 +93,20 @@ impl Relation {
             })
             .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
             .map(|(relation, _)| relation)
-            .ok_or_else(|| Error::unreachable_property("protected_entity_preserving"))
+            .ok_or_else(|| Error::unreachable_property("privacy_unit_preserving"))
     }
     /// Rewrite the query so that it is differentially private.
     pub fn rewrite_with_differential_privacy<'a>(
         &'a self,
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: SyntheticData,
-        protected_entity: ProtectedEntity,
+        privacy_unit: PrivacyUnit,
         budget: Budget,
     ) -> Result<RelationWithPrivateQuery> {
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
             relations,
             synthetic_data,
-            protected_entity,
+            privacy_unit,
             budget,
         ));
         let relation_with_rules =
@@ -177,7 +177,7 @@ mod tests {
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
         ]));
-        let protected_entity = ProtectedEntity::from(vec![
+        let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
                 vec![
@@ -192,7 +192,7 @@ mod tests {
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_private_query = relation
-            .rewrite_with_differential_privacy(&relations, synthetic_data, protected_entity, budget)
+            .rewrite_with_differential_privacy(&relations, synthetic_data, privacy_unit, budget)
             .unwrap();
         relation_with_private_query
             .relation()
@@ -205,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rewrite_as_protected_entity_preserving() {
+    fn test_rewrite_as_privacy_unit_preserving() {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse("SELECT order_id, price FROM item_table").unwrap();
@@ -214,7 +214,7 @@ mod tests {
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
         ]));
-        let protected_entity = ProtectedEntity::from(vec![
+        let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
                 vec![
@@ -229,10 +229,10 @@ mod tests {
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_private_query = relation
-            .rewrite_as_protected_entity_preserving(
+            .rewrite_as_privacy_unit_preserving(
                 &relations,
                 synthetic_data,
-                protected_entity,
+                privacy_unit,
                 budget,
             )
             .unwrap();

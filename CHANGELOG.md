@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
-- `SUBSTR` function [MR186](https://github.com/Qrlew/qrlew/pull/186)
+
+## [0.5.0] - 2023-11-19
+### Changed
+- Breaking name change: Protected Entity -> Privacy Unit + PEP -> PUP [#189](https://github.com/Qrlew/qrlew/issues/189)
 
 ## [0.4.13] - 2023-11-14
 ## Added
 - `TRIM` function [MR183](https://github.com/Qrlew/qrlew/pull/183)
+- `SUBSTR` function [MR186](https://github.com/Qrlew/qrlew/pull/186)
 
 ## [0.4.12] - 2023-11-09
 ### Fixed
