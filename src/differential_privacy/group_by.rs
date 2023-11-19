@@ -26,8 +26,8 @@ impl Reduce {
                         .collect::<Vec<_>>(),
                 )
                 .with((
-                    PrivacyUnit::privacy_id(),
-                    Expr::col(PrivacyUnit::privacy_id()),
+                    PrivacyUnit::privacy_unit(),
+                    Expr::col(PrivacyUnit::privacy_unit()),
                 ))
                 .with((
                     PrivacyUnit::privacy_unit_weight(),
@@ -51,13 +51,13 @@ impl PUPRelation {
                 "Not enough budget for tau-thresholding. Got: (espilon, delta) = ({epsilon}, {delta})"
             )));
         }
-        // compute COUNT (DISTINCT PrivacyUnit::privacy_id()) GROUP BY columns
+        // compute COUNT (DISTINCT PrivacyUnit::privacy_unit()) GROUP BY columns
         let columns: Vec<String> = self
             .schema()
             .iter()
             .cloned()
             .filter_map(|f| {
-                if f.name() == self.privacy_id()
+                if f.name() == self.privacy_unit()
                     || f.name() == self.privacy_unit_weight()
                 {
                     None
@@ -68,7 +68,7 @@ impl PUPRelation {
             .collect();
         let columns: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
         let aggregates = vec![(COUNT_DISTINCT_PE_ID, aggregate::Aggregate::Count)];
-        let peid = self.privacy_id().to_string();
+        let peid = self.privacy_unit().to_string();
         let rel =
             Relation::from(self).distinct_aggregates(peid.as_ref(), columns.clone(), aggregates);
 
@@ -106,7 +106,7 @@ impl PUPRelation {
             .schema()
             .iter()
             .filter_map(|f| {
-                (f.name() != self.privacy_id()
+                (f.name() != self.privacy_unit()
                     && f.name() != self.privacy_unit_weight()
                     && f.all_values())
                 .then_some(f.name().to_string())
@@ -228,7 +228,7 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        PrivacyUnit::privacy_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
@@ -267,7 +267,7 @@ mod tests {
                     .with(("a", DataType::integer_values([1, 2, 4, 6])))
                     .with(("b", DataType::float_values([1.2, 4.6, 7.8])))
                     .with((
-                        PrivacyUnit::privacy_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
@@ -299,7 +299,7 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::float_range(5.4..=20.)))
                     .with((
-                        PrivacyUnit::privacy_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
@@ -330,7 +330,7 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        PrivacyUnit::privacy_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
@@ -366,7 +366,7 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        PrivacyUnit::privacy_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
@@ -457,7 +457,7 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::float_interval(1., 2.)))
                     .with((
-                        PrivacyUnit::privacy_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
@@ -475,8 +475,8 @@ mod tests {
             .with(("twice_b", expr!(2 * b)))
             .with(("c", expr!(3 * c)))
             .with((
-                PrivacyUnit::privacy_id(),
-                Expr::col(PrivacyUnit::privacy_id()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
@@ -517,8 +517,8 @@ mod tests {
             .with(("c", expr!(3 * c)))
             .filter(Expr::in_list(Expr::col("c"), Expr::list(vec![1., 1.5])))
             .with((
-                PrivacyUnit::privacy_id(),
-                Expr::col(PrivacyUnit::privacy_id()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
@@ -595,8 +595,8 @@ mod tests {
             .with(("twice_price", expr!(2 * price)))
             .with(("date", expr!(date)))
             .with((
-                PrivacyUnit::privacy_id(),
-                Expr::col(PrivacyUnit::privacy_id()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
@@ -654,7 +654,7 @@ mod tests {
             .with(("city", expr!(city)))
             .with(("age", expr!(age)))
             .with((
-                PrivacyUnit::privacy_id(),
+                PrivacyUnit::privacy_unit(),
                 expr!(id),
             ))
             .with((

@@ -204,12 +204,12 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
             vec![],
-            pep_table.deref().clone().into(),
+            pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -273,13 +273,13 @@ mod tests {
             ))
             .input(pup_table.deref().clone())
             .build();
-        let pep_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
+        let pup_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
             vec![expr!(order_id)],
-            pep_map.deref().clone().into(),
+            pup_map.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -343,13 +343,13 @@ mod tests {
             .with(("price", expr!(price)))
             .input(pup_table.deref().clone())
             .build();
-        let pep_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
+        let pup_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
             vec![expr!(order_id)],
-            pep_map.deref().clone().into(),
+            pup_map.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -418,7 +418,7 @@ mod tests {
             ))
             .input(pup_table.deref().clone())
             .build();
-        let pep_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
+        let pup_map = privacy_unit_tracking.map(&map.try_into().unwrap(), pup_table).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -428,7 +428,7 @@ mod tests {
                 ("sum_price".to_string(), AggregateColumn::sum("price")),
             ],
             vec![expr!(order_id), expr!(item)],
-            pep_map.deref().clone().into(),
+            pup_map.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -492,7 +492,7 @@ mod tests {
             .with(("income", expr!(income)))
             .with(("city", expr!(city)))
             .with((
-                PrivacyUnit::privacy_id(),
+                PrivacyUnit::privacy_unit(),
                 expr!(id),
             ))
             .with((
@@ -563,7 +563,7 @@ mod tests {
             .with(("city", expr!(city)))
             .with(("age", expr!(age)))
             .with((
-                PrivacyUnit::privacy_id(),
+                PrivacyUnit::privacy_unit(),
                 expr!(id),
             ))
             .with((

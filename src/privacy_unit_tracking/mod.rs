@@ -1,6 +1,9 @@
 //! # Methods to define `Relation`s' Privacy Unit and propagate it
 //!
-//! This is experimental and little tested yet.
+//! The definitions and names are inspired by:
+//! - https://pipelinedp.io/key-definitions/
+//! - https://programming-dp.com/ch3.html#the-unit-of-privacy
+//! - https://arxiv.org/pdf/2212.04133.pdf
 //!
 pub mod privacy_unit;
 
@@ -22,13 +25,13 @@ pub enum Error {
 
 impl Error {
     pub fn not_privacy_unit_preserving(relation: impl fmt::Display) -> Error {
-        Error::NotPrivacyUnitPreserving(format!("{} is not PEP", relation))
+        Error::NotPrivacyUnitPreserving(format!("{} is not PUP", relation))
     }
     pub fn no_private_table(table: impl fmt::Display) -> Error {
-        Error::NoPrivateTable(format!("{} is not protected", table))
+        Error::NoPrivateTable(format!("{} is not private", table))
     }
     pub fn other(value: impl fmt::Display) -> Error {
-        Error::Other(format!("{} is not protected", value))
+        Error::Other(format!("{} is not PUP", value))
     }
 }
 
@@ -65,12 +68,12 @@ pub enum Strategy {
 pub struct PUPRelation(pub Relation);
 
 impl PUPRelation {
-    pub fn privacy_id(&self) -> &str {
-        PrivacyUnit::privacy_id()
+    pub fn privacy_unit(&self) -> &str {
+        PrivacyUnit::privacy_unit()
     }
 
-    pub fn privacy_null_id(&self) -> &str {
-        PrivacyUnit::privacy_null_id()
+    pub fn privacy_unit_default(&self) -> &str {
+        PrivacyUnit::privacy_unit_default()
     }
 
     pub fn privacy_unit_weight(&self) -> &str {
@@ -98,7 +101,7 @@ impl TryFrom<Relation> for PUPRelation {
     fn try_from(value: Relation) -> Result<Self> {
         if value
             .schema()
-            .field(PrivacyUnit::privacy_id())
+            .field(PrivacyUnit::privacy_unit())
             .is_ok()
             && value
                 .schema()
@@ -110,7 +113,7 @@ impl TryFrom<Relation> for PUPRelation {
             Err(Error::NotPrivacyUnitPreserving(
                 format!(
                     "Cannot convert to PEPRelation a relation that does not contains both {} and {} columns. \nGot: {}",
-                    PrivacyUnit::privacy_id(), PrivacyUnit::privacy_unit_weight(), value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
+                    PrivacyUnit::privacy_unit(), PrivacyUnit::privacy_unit_weight(), value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
                 )
             ))
         }
@@ -185,7 +188,7 @@ impl Relation {
         if field_path.path().is_empty() {
             // TODO Remove this?
             self.identity_with_field(
-                PrivacyUnitPath::privacy_id(),
+                PrivacyUnitPath::privacy_unit(),
                 Expr::col(field_path.referred_field()),
             )
         } else {
@@ -207,7 +210,7 @@ impl Relation {
     }
 }
 
-/// Implements the protection of various relations
+/// Implements the privacy tracking of various relations
 pub struct PrivacyUnitTracking<'a> {
     relations: &'a Hierarchy<Arc<Relation>>,
     privacy_unit: PrivacyUnit,
@@ -238,7 +241,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             Relation::from(table.clone())
                 .with_field_path(self.relations, field_path.clone())
                 .map_fields(|name, expr| {
-                    if name == PrivacyUnit::privacy_id() {
+                    if name == PrivacyUnit::privacy_unit() {
                         Expr::md5(Expr::cast_as_text(expr))
                     } else {
                         expr
@@ -248,12 +251,12 @@ impl<'a> PrivacyUnitTracking<'a> {
         )
     }
 
-    /// Map protection from another PEP relation
+    /// Map privacy tracking from another PEP relation
     pub fn map(&self, map: &'a Map, input: PUPRelation) -> Result<PUPRelation> {
         let relation: Relation = Relation::map()
             .with((
-                PrivacyUnit::privacy_id(),
-                Expr::col(PrivacyUnit::privacy_id()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
@@ -265,13 +268,13 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Reduce protection from another PEP relation
+    /// Reduce privacy tracking from another PEP relation
     pub fn reduce(&self, reduce: &'a Reduce, input: PUPRelation) -> Result<PUPRelation> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(reduce.name())),
             Strategy::Hard => {
                 let relation: Relation = Relation::reduce()
-                    .with_group_by_column(PrivacyUnit::privacy_id())
+                    .with_group_by_column(PrivacyUnit::privacy_unit())
                     .with((
                         PrivacyUnit::privacy_unit_weight(),
                         AggregateColumn::sum(PrivacyUnit::privacy_unit_weight()),
@@ -284,14 +287,14 @@ impl<'a> PrivacyUnitTracking<'a> {
         }
     }
 
-    /// Join protection from 2 PEP relations
+    /// Join privacy tracking from 2 PEP relations
     pub fn join(
         &self,
         join: &'a crate::relation::Join,
         left: PUPRelation,
         right: PUPRelation,
     ) -> Result<PUPRelation> {
-        // Create the protected join
+        // Create the privacy tracked join
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(join)),
             Strategy::Hard => {
@@ -300,8 +303,8 @@ impl<'a> PrivacyUnitTracking<'a> {
                 let names = join.names();
                 let names = names.with(vec![
                     (
-                        vec![Join::left_name(), PrivacyUnit::privacy_id()],
-                        format!("_LEFT{}", PrivacyUnit::privacy_id()),
+                        vec![Join::left_name(), PrivacyUnit::privacy_unit()],
+                        format!("_LEFT{}", PrivacyUnit::privacy_unit()),
                     ),
                     (
                         vec![
@@ -311,8 +314,8 @@ impl<'a> PrivacyUnitTracking<'a> {
                         format!("_LEFT{}", PrivacyUnit::privacy_unit_weight()),
                     ),
                     (
-                        vec![Join::right_name(), PrivacyUnit::privacy_id()],
-                        format!("_RIGHT{}", PrivacyUnit::privacy_id()),
+                        vec![Join::right_name(), PrivacyUnit::privacy_unit()],
+                        format!("_RIGHT{}", PrivacyUnit::privacy_unit()),
                     ),
                     (
                         vec![
@@ -326,16 +329,16 @@ impl<'a> PrivacyUnitTracking<'a> {
                     .names(names)
                     .operator(operator)
                     .and(Expr::eq(
-                        Expr::qcol(Join::left_name(), PrivacyUnit::privacy_id()),
-                        Expr::qcol(Join::right_name(), PrivacyUnit::privacy_id()),
+                        Expr::qcol(Join::left_name(), PrivacyUnit::privacy_unit()),
+                        Expr::qcol(Join::right_name(), PrivacyUnit::privacy_unit()),
                     ))
                     .left(Relation::from(left))
                     .right(Relation::from(right))
                     .build();
                 let mut builder = Relation::map().name(name);
                 builder = builder.with((
-                    PrivacyUnit::privacy_id(),
-                    Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_id())),
+                    PrivacyUnit::privacy_unit(),
+                    Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit())),
                 ));
                 builder = builder.with((
                     PrivacyUnit::privacy_unit_weight(),
@@ -352,7 +355,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                 ));
                 builder = join.names().iter().fold(builder, |b, (p, n)| {
                     if [
-                        PrivacyUnit::privacy_id(),
+                        PrivacyUnit::privacy_unit(),
                         PrivacyUnit::privacy_unit_weight(),
                     ]
                     .contains(&p[1].as_str())
@@ -368,7 +371,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         }
     }
 
-    /// Join protection from 2 PEP relations
+    /// Join privacy tracking from 2 PEP relations
     pub fn join_left_published(
         //TODO this need to be cleaned (really)
         &self,
@@ -381,8 +384,8 @@ impl<'a> PrivacyUnitTracking<'a> {
         let names = join.names();
         let names = names.with(vec![
             (
-                vec![Join::right_name(), PrivacyUnit::privacy_id()],
-                format!("_RIGHT{}", PrivacyUnit::privacy_id()),
+                vec![Join::right_name(), PrivacyUnit::privacy_unit()],
+                format!("_RIGHT{}", PrivacyUnit::privacy_unit()),
             ),
             (
                 vec![
@@ -401,8 +404,8 @@ impl<'a> PrivacyUnitTracking<'a> {
         let mut builder = Relation::map()
             .name(name)
             .with((
-                PrivacyUnit::privacy_id(),
-                Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_id())),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit())),
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
@@ -413,7 +416,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
             if [
-                PrivacyUnit::privacy_id(),
+                PrivacyUnit::privacy_unit(),
                 PrivacyUnit::privacy_unit_weight(),
             ]
             .contains(&p[1].as_str())
@@ -427,7 +430,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Join protection from 2 PEP relations
+    /// Join privacy tracking from 2 PEP relations
     pub fn join_right_published(
         //TODO this need to be cleaned (really)
         &self,
@@ -440,8 +443,8 @@ impl<'a> PrivacyUnitTracking<'a> {
         let names = join.names();
         let names = names.with(vec![
             (
-                vec![Join::left_name(), PrivacyUnit::privacy_id()],
-                format!("_LEFT{}", PrivacyUnit::privacy_id()),
+                vec![Join::left_name(), PrivacyUnit::privacy_unit()],
+                format!("_LEFT{}", PrivacyUnit::privacy_unit()),
             ),
             (
                 vec![
@@ -460,8 +463,8 @@ impl<'a> PrivacyUnitTracking<'a> {
         let mut builder = Relation::map()
             .name(name)
             .with((
-                PrivacyUnit::privacy_id(),
-                Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_id())),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit())),
             ))
             .with((
                 PrivacyUnit::privacy_unit_weight(),
@@ -472,7 +475,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
             if [
-                PrivacyUnit::privacy_id(),
+                PrivacyUnit::privacy_unit(),
                 PrivacyUnit::privacy_unit_weight(),
             ]
             .contains(&p[1].as_str())
@@ -486,7 +489,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Set protection from 2 PEP relations
+    /// Set privacy tracking from 2 PEP relations
     pub fn set(
         &self,
         set: &'a crate::relation::Set,
@@ -503,7 +506,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Values protection
+    /// Values privacy tracking
     pub fn values(&self, values: &'a Values) -> Result<PUPRelation> {
         PUPRelation::try_from(Relation::Values(values.clone()))
     }
@@ -523,12 +526,12 @@ impl<'a>
             Strategy,
         ),
     ) -> Self {
-        let (relations, protected_entity, strategy) = value;
-        let protected_entity: Vec<_> = protected_entity
+        let (relations, privacy_unit, strategy) = value;
+        let privacy_unit: Vec<_> = privacy_unit
             .into_iter()
-            .map(|(table, protection, referred_field)| (table, protection, referred_field))
+            .map(|(table, privacy_tracking, referred_field)| (table, privacy_tracking, referred_field))
             .collect();
-        PrivacyUnitTracking::new(relations, PrivacyUnit::from(protected_entity), strategy)
+        PrivacyUnitTracking::new(relations, PrivacyUnit::from(privacy_unit), strategy)
     }
 }
 
@@ -556,7 +559,7 @@ mod tests {
             &relations,
             PrivacyUnitPath::from((vec![("user_id", "users", "id")], "id")),
         );
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_id());
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
         // // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
@@ -566,7 +569,7 @@ mod tests {
                 "name",
             )),
         );
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_id());
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
         // Produce the query
         relation.display_dot();
         let query: &str = &ast::Query::from(&relation).to_string();
@@ -586,7 +589,7 @@ mod tests {
     }
 
     #[test]
-    fn test_table_protection_from_field_paths() {
+    fn test_table_privacy_tracking_from_field_paths() {
         let database = postgresql::test_database();
         let relations = database.relations();
         let table = relations
@@ -594,7 +597,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        let protection = PrivacyUnitTracking::from((
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![(
                 "item_table",
@@ -604,15 +607,15 @@ mod tests {
             Strategy::Soft,
         ));
         // Table
-        let table = protection.table(&table.try_into().unwrap()).unwrap();
+        let table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         table.display_dot().unwrap();
-        println!("Schema protected = {}", table.schema());
-        println!("Query protected = {}", ast::Query::from(&*table));
-        assert_eq!(table.schema()[0].name(), PrivacyUnit::privacy_id())
+        println!("Schema privacy_tracked = {}", table.schema());
+        println!("Query privacy tracked = {}", ast::Query::from(&*table));
+        assert_eq!(table.schema()[0].name(), PrivacyUnit::privacy_unit())
     }
 
     #[test]
-    fn test_join_protection() {
+    fn test_join_privacy_tracking() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -633,7 +636,7 @@ mod tests {
             .right(right.clone())
             .build();
         Relation::from(join.clone()).display_dot().unwrap();
-        let protection = PrivacyUnitTracking::from((
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -645,12 +648,12 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let protected_left = protection.table(&left.try_into().unwrap()).unwrap();
-        let protected_right = protection.table(&right.try_into().unwrap()).unwrap();
-        let protected_join = protection
-            .join(&join, protected_left, protected_right)
+        let pup_left = privacy_unit_tracking.table(&left.try_into().unwrap()).unwrap();
+        let pup_right = privacy_unit_tracking.table(&right.try_into().unwrap()).unwrap();
+        let pup_join = privacy_unit_tracking
+            .join(&join, pup_left, pup_right)
             .unwrap();
-        protected_join.display_dot().unwrap();
+        pup_join.display_dot().unwrap();
 
         let fields: Vec<(&str, DataType)> = join
             .schema()
@@ -659,7 +662,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
-            (PrivacyUnit::privacy_id(), DataType::text()),
+            (PrivacyUnit::privacy_unit(), DataType::text()),
             (
                 PrivacyUnit::privacy_unit_weight(),
                 DataType::integer_value(1),
@@ -667,11 +670,11 @@ mod tests {
         ];
         true_fields.extend(fields.into_iter());
         assert_eq!(
-            protected_join.deref().data_type(),
+            pup_join.deref().data_type(),
             DataType::structured(true_fields)
         );
 
-        let query: &str = &ast::Query::from(protected_join.deref()).to_string();
+        let query: &str = &ast::Query::from(pup_join.deref()).to_string();
         println!("{query}");
         _ = database
             .query(query)
@@ -682,7 +685,7 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_join_protection() {
+    fn test_auto_join_privacy_tracking() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
@@ -698,7 +701,7 @@ mod tests {
             .right(table.clone())
             .build();
         Relation::from(join.clone()).display_dot().unwrap();
-        let protection = PrivacyUnitTracking::from((
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 (
@@ -710,11 +713,11 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let protected_table = protection.table(&table.try_into().unwrap()).unwrap();
-        let protected_join = protection
-            .join(&join, protected_table.clone(), protected_table.clone())
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_join = privacy_unit_tracking
+            .join(&join, pup_table.clone(), pup_table.clone())
             .unwrap();
-        protected_join.display_dot().unwrap();
+        pup_join.display_dot().unwrap();
 
         let fields: Vec<(&str, DataType)> = join
             .schema()
@@ -723,7 +726,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
-            (PrivacyUnit::privacy_id(), DataType::text()),
+            (PrivacyUnit::privacy_unit(), DataType::text()),
             (
                 PrivacyUnit::privacy_unit_weight(),
                 DataType::integer_value(1),
@@ -731,11 +734,11 @@ mod tests {
         ];
         true_fields.extend(fields.into_iter());
         assert_eq!(
-            protected_join.deref().data_type(),
+            pup_join.deref().data_type(),
             DataType::structured(true_fields)
         );
 
-        let query: &str = &ast::Query::from(protected_join.deref()).to_string();
+        let query: &str = &ast::Query::from(pup_join.deref()).to_string();
         println!("{query}");
         _ = database
             .query(query)
@@ -746,7 +749,7 @@ mod tests {
     }
 
     #[test]
-    fn test_protection_unique() {
+    fn test_privacy_tracking_unique() {
         let table1: Table = Relation::table()
             .schema(
                 Schema::empty()
@@ -785,7 +788,7 @@ mod tests {
             )
             .collect();
 
-        let protection = PrivacyUnitTracking::from((
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 ("table1", vec![], "id"),
@@ -799,10 +802,10 @@ mod tests {
             Strategy::Hard,
         ));
         for table in tables {
-            let protected_table = protection
+            let pup_table = privacy_unit_tracking
                 .table(&table.clone().try_into().unwrap())
                 .unwrap();
-            protected_table.deref().display_dot().unwrap();
+            pup_table.deref().display_dot().unwrap();
         }
     }
 }

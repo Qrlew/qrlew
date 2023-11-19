@@ -2,11 +2,11 @@ use colored::Colorize;
 use itertools::Itertools;
 use std::{fmt::Display, hash::Hash, ops::Deref};
 
-pub const PRIVACY_PREFIX: &str = "_PROTECTED_";
+pub const PRIVACY_PREFIX: &str = "_PRIVACY_";
 pub const PRIVACY_COLUMNS: usize = 2;
-pub const PROTECTED_ENTITY_ID: &str = "_PROTECTED_ENTITY_ID_";
-pub const PROTECTED_ENTITY_NULL_ID: &str = "_PROTECTED_ENTITY_NULL_";
-pub const PRIVACY_UNIT_WEIGHT: &str = "_PROTECTED_ENTITY_WEIGHT_";
+pub const PRIVACY_UNIT: &str = "_PRIVACY_UNIT_";
+pub const PRIVACY_UNIT_DEFAULT: &str = "_PRIVACY_UNIT_DEFAULT_";
+pub const PRIVACY_UNIT_WEIGHT: &str = "_PRIVACY_UNIT_WEIGHT_";
 
 // A few utility objects
 
@@ -164,14 +164,14 @@ impl Display for ReferredField {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub struct PrivacyUnitPath {
     path: Path,
-    protected_entity_field: String,
+    privacy_unit_field: String,
 }
 
 impl PrivacyUnitPath {
-    pub fn new(path: Path, protected_entity_field: String) -> PrivacyUnitPath {
+    pub fn new(path: Path, privacy_unit_field: String) -> PrivacyUnitPath {
         PrivacyUnitPath {
             path,
-            protected_entity_field,
+            privacy_unit_field,
         }
     }
 
@@ -180,15 +180,15 @@ impl PrivacyUnitPath {
     }
 
     pub fn referred_field(&self) -> &str {
-        &self.protected_entity_field
+        &self.privacy_unit_field
     }
 
-    pub fn privacy_id() -> &'static str {
-        PROTECTED_ENTITY_ID
+    pub fn privacy_unit() -> &'static str {
+        PRIVACY_UNIT
     }
 
-    pub fn privacy_null_id() -> &'static str {
-        PROTECTED_ENTITY_NULL_ID
+    pub fn privacy_unit_default() -> &'static str {
+        PRIVACY_UNIT_DEFAULT
     }
 }
 
@@ -199,8 +199,8 @@ impl Display for PrivacyUnitPath {
             "{} {} {} AS {}",
             self.path,
             "→".yellow(),
-            self.protected_entity_field,
-            PrivacyUnitPath::privacy_id(),
+            self.privacy_unit_field,
+            PrivacyUnitPath::privacy_unit(),
         )
     }
 }
@@ -213,7 +213,7 @@ impl From<(Vec<(&str, &str, &str)>, &str)> for PrivacyUnitPath {
 
 impl<'a> From<&'a PrivacyUnitPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a str) {
     fn from(value: &'a PrivacyUnitPath) -> Self {
-        ((&value.path).into(), &value.protected_entity_field)
+        ((&value.path).into(), &value.privacy_unit_field)
     }
 }
 
@@ -232,10 +232,10 @@ impl<'a> IntoIterator for PrivacyUnitPath {
                     last_step.referred_relation.to_string(),
                     last_step.referred_id.to_string(),
                     step.referring_id.to_string(),
-                    PrivacyUnitPath::privacy_id().to_string(),
+                    PrivacyUnitPath::privacy_unit().to_string(),
                 ));
                 *last_step = Step::new(
-                    PrivacyUnitPath::privacy_id().to_string(),
+                    PrivacyUnitPath::privacy_unit().to_string(),
                     step.referred_relation,
                     step.referred_id,
                 );
@@ -248,8 +248,8 @@ impl<'a> IntoIterator for PrivacyUnitPath {
                 last_step.referring_id,
                 last_step.referred_relation,
                 last_step.referred_id,
-                self.protected_entity_field,
-                PrivacyUnitPath::privacy_id().to_string(),
+                self.privacy_unit_field,
+                PrivacyUnitPath::privacy_unit().to_string(),
             ));
         }
         field_path.into_iter()
@@ -269,12 +269,12 @@ impl PrivacyUnit {
         PRIVACY_COLUMNS
     }
 
-    pub fn privacy_id() -> &'static str {
-        PrivacyUnitPath::privacy_id()
+    pub fn privacy_unit() -> &'static str {
+        PrivacyUnitPath::privacy_unit()
     }
 
-    pub fn privacy_null_id() -> &'static str {
-        PrivacyUnitPath::privacy_null_id()
+    pub fn privacy_unit_default() -> &'static str {
+        PrivacyUnitPath::privacy_unit_default()
     }
 
     pub fn privacy_unit_weight() -> &'static str {
@@ -311,10 +311,10 @@ impl From<PrivacyUnit> for Vec<(String, PrivacyUnitPath)> {
 impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for PrivacyUnit {
     fn from(value: Vec<(&str, Vec<(&str, &str, &str)>, &str)>) -> Self {
         let mut result = vec![];
-        for (table, protection, referred_field) in value {
+        for (table, privacy_unit_tracking, referred_field) in value {
             result.push((
                 table.into(),
-                PrivacyUnitPath::new(Path::from_iter(protection), referred_field.into()),
+                PrivacyUnitPath::new(Path::from_iter(privacy_unit_tracking), referred_field.into()),
             ));
         }
         PrivacyUnit(result)
@@ -396,8 +396,8 @@ mod tests {
 
     // Add some tests
     #[test]
-    fn test_protected_entity() {
-        let protected_entity = PrivacyUnit::from(vec![
+    fn test_privacy_unit() {
+        let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
                 vec![
@@ -409,6 +409,6 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        println!("{}", protected_entity);
+        println!("{}", privacy_unit);
     }
 }

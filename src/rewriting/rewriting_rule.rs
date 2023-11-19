@@ -1033,12 +1033,12 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_id = PrivacyUnitTracking::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Soft,
                     );
-                    privacy_id.table(table).unwrap().into()
+                    privacy_unit_tracking.table(table).unwrap().into()
                 }
                 (Property::DifferentiallyPrivate, _) => table.clone().into(),
                 (Property::Published, _) => table.clone().into(),
@@ -1067,12 +1067,12 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_id = PrivacyUnitTracking::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Soft,
                     );
-                    privacy_id
+                    privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()
                         .into()
@@ -1116,12 +1116,12 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_id = PrivacyUnitTracking::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    privacy_id
+                    privacy_unit_tracking
                         .reduce(reduce, relation_input.try_into().unwrap())
                         .unwrap()
                         .into()
@@ -1155,12 +1155,12 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_id = PrivacyUnitTracking::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    privacy_id
+                    privacy_unit_tracking
                         .join(
                             join,
                             relation_left.try_into().unwrap(),
@@ -1174,12 +1174,12 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_id = PrivacyUnitTracking::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    privacy_id
+                    privacy_unit_tracking
                         .join_left_published(
                             join,
                             relation_left.try_into().unwrap(),
@@ -1193,12 +1193,12 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_id = PrivacyUnitTracking::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    privacy_id
+                    privacy_unit_tracking
                         .join_right_published(
                             join,
                             relation_left.try_into().unwrap(),

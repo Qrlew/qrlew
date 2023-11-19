@@ -90,7 +90,7 @@ impl PUPRelation {
 
         // Clip the relation
         let clipped_relation = self.deref().clone().l2_clipped_sums(
-            self.privacy_id(),
+            self.privacy_unit(),
             group_by_names,
             input_values_bound.clone(),
         );
@@ -115,10 +115,10 @@ impl PUPRelation {
         let mut named_sums = vec![];
         let mut input_builder = Map::builder()
             .with((
-                self.privacy_id(),
+                self.privacy_unit(),
                 Expr::coalesce(
-                    Expr::cast_as_text(Expr::col(self.privacy_id())),
-                    Expr::val(self.privacy_null_id().to_string())
+                    Expr::cast_as_text(Expr::col(self.privacy_unit())),
+                    Expr::val(self.privacy_unit_default().to_string())
                 ),
             ))
             .with((
@@ -186,9 +186,9 @@ impl PUPRelation {
         );
 
         let input: Relation = input_builder.input(self.deref().clone()).build();
-        let pep_input = PUPRelation::try_from(input)?;
+        let pup_input = PUPRelation::try_from(input)?;
 
-        let (dp_relation, private_query) = pep_input
+        let (dp_relation, private_query) = pup_input
             .differentially_private_sums(
                 named_sums
                     .iter() // Convert &str to String
@@ -220,8 +220,8 @@ impl Reduce {
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-        let pep_input = PUPRelation::try_from(self.input().clone())?;
-        pep_input.differentially_private_aggregates(
+        let pup_input = PUPRelation::try_from(self.input().clone())?;
+        pup_input.differentially_private_aggregates(
             self.named_aggregates()
                 .into_iter()
                 .map(|(n, agg)| (n, agg.clone()))
@@ -295,13 +295,13 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
             vec![],
-            pep_table.deref().clone().into(),
+            pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -343,13 +343,13 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
 
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("my_sum_price".to_string(), AggregateColumn::sum("price"))],
             vec![Expr::col("item")],
-            pep_table.deref().clone().into(),
+            pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -395,7 +395,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![
@@ -404,7 +404,7 @@ mod tests {
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
             vec![],
-            pep_table.deref().clone().into(),
+            pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -452,7 +452,7 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let pep_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
+        let pup_table = privacy_unit_tracking.table(&table.try_into().unwrap()).unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![
@@ -461,7 +461,7 @@ mod tests {
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
             vec![expr!(item)],
-            pep_table.deref().clone().into(),
+            pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
@@ -497,7 +497,7 @@ mod tests {
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
             vec![Expr::col("item")],
-            pep_table.deref().clone().into(),
+            pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
