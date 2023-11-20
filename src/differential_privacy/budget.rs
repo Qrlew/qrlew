@@ -1,5 +1,5 @@
 use super::{DPRelation, Ready, Reduce, Relation, Result, With};
-use crate::protection::PEPRelation;
+use crate::privacy_unit_tracking::PUPRelation;
 use std::{cmp::Eq, hash::Hash};
 
 /// Represent a simple privacy budget
@@ -33,7 +33,7 @@ impl Budget {
 }
 
 impl Budget {
-    pub fn reduce(&self, reduce: &Reduce, input: PEPRelation) -> Result<DPRelation> {
+    pub fn reduce(&self, reduce: &Reduce, input: PUPRelation) -> Result<DPRelation> {
         let reduce: Reduce = Relation::reduce()
             .with(reduce.clone())
             .input(Relation::from(input))

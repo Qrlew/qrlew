@@ -234,7 +234,7 @@ impl OrderBy {
 
 /// Map Relation
 /// Maps, project, filter, sort, limit
-/// Basically, it can pack many PEP transforms and propagates the range of variables
+/// Basically, it can pack many PUP transforms and propagates the range of variables
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Map {
     /// The name of the output
@@ -937,11 +937,11 @@ impl Join {
         let (left_is_unique, right_is_unique) =
             operator.has_unique_constraint(left.schema(), right.schema());
         let transform_datatype_in_optional_left: bool = match operator {
-            JoinOperator::LeftOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross=> false,
+            JoinOperator::LeftOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross => false,
             _ => true,
         };
         let transform_datatype_in_optional_right = match operator {
-            JoinOperator::RightOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross=> false,
+            JoinOperator::RightOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross => false,
             _ => true,
         };
         let left_fields = left_names
@@ -950,7 +950,11 @@ impl Join {
             .map(|(name, field)| {
                 Field::new(
                     name,
-                    if transform_datatype_in_optional_left {DataType::optional(field.data_type())} else {field.data_type()},
+                    if transform_datatype_in_optional_left {
+                        DataType::optional(field.data_type())
+                    } else {
+                        field.data_type()
+                    },
                     if right_is_unique {
                         field.constraint()
                     } else {
@@ -964,7 +968,11 @@ impl Join {
             .map(|(name, field)| {
                 Field::new(
                     name,
-                    if transform_datatype_in_optional_right {DataType::optional(field.data_type())} else {field.data_type()},
+                    if transform_datatype_in_optional_right {
+                        DataType::optional(field.data_type())
+                    } else {
+                        field.data_type()
+                    },
                     if left_is_unique {
                         field.constraint()
                     } else {

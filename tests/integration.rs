@@ -11,7 +11,7 @@ use qrlew::{
     display::Dot,
     expr,
     io::{postgresql, Database},
-    protection::ProtectedEntity,
+    privacy_unit_tracking::PrivacyUnit,
     relation::Variant as _,
     sql::parse,
     Relation, With,

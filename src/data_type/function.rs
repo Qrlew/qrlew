@@ -290,7 +290,7 @@ impl Pointwise {
         value: impl Fn(
                 <A::Element as value::Variant>::Wrapped,
                 <B::Element as value::Variant>::Wrapped,
-                <C::Element as value::Variant>::Wrapped
+                <C::Element as value::Variant>::Wrapped,
             ) -> <D::Element as value::Variant>::Wrapped
             + Sync
             + Send
@@ -308,7 +308,11 @@ impl Pointwise {
         Error: From<<<C::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
         <D::Element as value::Variant>::Wrapped: Into<Value>,
     {
-        let domain = data_type::Struct::from_data_types(&[domain.0.into(), domain.1.into(), domain.2.into()]);
+        let domain = data_type::Struct::from_data_types(&[
+            domain.0.into(),
+            domain.1.into(),
+            domain.2.into(),
+        ]);
         Self::new(
             domain.into(),
             co_domain.into(),
@@ -317,7 +321,7 @@ impl Pointwise {
                 let a = <A::Element as value::Variant>::Wrapped::try_from(abc[0].as_ref().clone());
                 let b = <B::Element as value::Variant>::Wrapped::try_from(abc[1].as_ref().clone());
                 let c = <C::Element as value::Variant>::Wrapped::try_from(abc[2].as_ref().clone());
-                Ok(a.map(|a| b.map(|b| c.map( |c| value(a, b, c).into())))???)
+                Ok(a.map(|a| b.map(|b| c.map(|c| value(a, b, c).into())))???)
             }),
         )
     }
@@ -1112,13 +1116,11 @@ impl Function for Coalesce {
                 let data_type_1 = struct_data_type.field_from_index(0).1.as_ref().clone();
                 let data_type_2 = struct_data_type.field_from_index(1).1.as_ref().clone();
 
-                Ok(
-                    if let DataType::Optional(o) = data_type_1 {
-                        o.data_type().super_union(&data_type_2)?
-                    } else {
-                        data_type_1
-                    }
-                )
+                Ok(if let DataType::Optional(o) = data_type_1 {
+                    o.data_type().super_union(&data_type_2)?
+                } else {
+                    data_type_1
+                })
             } else {
                 Err(Error::set_out_of_range(set, self.domain()))
             }
@@ -1343,30 +1345,30 @@ pub fn substr() -> impl Function {
         |a, b| {
             let start = b as usize;
             a.as_str().get(start..).unwrap_or("").to_string()
-        }
+        },
     )
 }
 
 pub fn substr_with_size() -> impl Function {
     Pointwise::trivariate(
-        (data_type::Text::default(), data_type::Integer::default(), data_type::Integer::default()),
+        (
+            data_type::Text::default(),
+            data_type::Integer::default(),
+            data_type::Integer::default(),
+        ),
         data_type::Text::default(),
         |a, b, c| {
             let start = b as usize;
             let end = cmp::min((b + c) as usize, a.len());
             a.as_str().get(start..end).unwrap_or("").to_string()
-        }
+        },
     )
 }
 
 pub fn concat(n: usize) -> impl Function {
-    Pointwise::variadic(
-        vec![DataType::Any; n],
-        data_type::Text::default(),
-        |v| {
-            v.into_iter().map(|v| v.to_string()).join("")
-        }
-    )
+    Pointwise::variadic(vec![DataType::Any; n], data_type::Text::default(), |v| {
+        v.into_iter().map(|v| v.to_string()).join("")
+    })
 }
 
 pub fn md5() -> impl Function {
@@ -3125,7 +3127,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_coalesce() {
         println!("Test coalesce");
@@ -3136,7 +3137,7 @@ mod tests {
 
         let set = DataType::from(Struct::from_data_types(&[
             DataType::integer(),
-            DataType::text()
+            DataType::text(),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -3144,7 +3145,7 @@ mod tests {
 
         let set = DataType::from(Struct::from_data_types(&[
             DataType::optional(DataType::integer()),
-            DataType::text()
+            DataType::text(),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -3152,15 +3153,20 @@ mod tests {
 
         let set = DataType::from(Struct::from_data_types(&[
             DataType::optional(DataType::integer_interval(1, 5)),
-            DataType::integer_value(20)
+            DataType::integer_value(20),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
-        assert_eq!(im, DataType::integer_interval(1, 5).super_union(&DataType::integer_value(20)).unwrap());
+        assert_eq!(
+            im,
+            DataType::integer_interval(1, 5)
+                .super_union(&DataType::integer_value(20))
+                .unwrap()
+        );
 
         let set = DataType::from(Struct::from_data_types(&[
             DataType::optional(DataType::integer()),
-            DataType::optional(DataType::text())
+            DataType::optional(DataType::text()),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -3177,19 +3183,37 @@ mod tests {
 
         let set = DataType::from(Struct::from_data_types(&[
             DataType::text(),
-            DataType::text()
+            DataType::text(),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::text());
 
         let set = DataType::from(Struct::from_data_types(&[
-            DataType::text_values(["aba".to_string(), "aa".to_string(), "baaa".to_string(), "ba".to_string(), "mc".to_string()]),
-            DataType::text_values(["a".to_string(),"c".to_string()]),
+            DataType::text_values([
+                "aba".to_string(),
+                "aa".to_string(),
+                "baaa".to_string(),
+                "ba".to_string(),
+                "mc".to_string(),
+            ]),
+            DataType::text_values(["a".to_string(), "c".to_string()]),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
-        assert!(im == DataType::text_values(["".to_string(), "aa".to_string(), "ab".to_string(), "aba".to_string(), "b".to_string(), "ba".to_string(), "baaa".to_string(), "m".to_string(), "mc".to_string()]));
+        assert!(
+            im == DataType::text_values([
+                "".to_string(),
+                "aa".to_string(),
+                "ab".to_string(),
+                "aba".to_string(),
+                "b".to_string(),
+                "ba".to_string(),
+                "baaa".to_string(),
+                "m".to_string(),
+                "mc".to_string()
+            ])
+        );
 
         let arg = Value::text("sarusss".to_string()) & Value::text("s".to_string());
         let val = fun.value(&arg).unwrap();
@@ -3207,19 +3231,34 @@ mod tests {
 
         let set = DataType::from(Struct::from_data_types(&[
             DataType::text(),
-            DataType::text()
+            DataType::text(),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::text());
 
         let set = DataType::from(Struct::from_data_types(&[
-            DataType::text_values(["aba".to_string(), "aa".to_string(), "baaa".to_string(), "ba".to_string(), "mc".to_string()]),
-            DataType::text_values(["a".to_string(),"c".to_string()]),
+            DataType::text_values([
+                "aba".to_string(),
+                "aa".to_string(),
+                "baaa".to_string(),
+                "ba".to_string(),
+                "mc".to_string(),
+            ]),
+            DataType::text_values(["a".to_string(), "c".to_string()]),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
-        assert!(im == DataType::text_values(["".to_string(), "aa".to_string(), "aba".to_string(), "ba".to_string(), "baaa".to_string(), "mc".to_string()]));
+        assert!(
+            im == DataType::text_values([
+                "".to_string(),
+                "aa".to_string(),
+                "aba".to_string(),
+                "ba".to_string(),
+                "baaa".to_string(),
+                "mc".to_string()
+            ])
+        );
 
         let arg = Value::text("sarus".to_string()) & Value::text("s".to_string());
         let val = fun.value(&arg).unwrap();
@@ -3251,7 +3290,13 @@ mod tests {
         println!("im({}) = {}", set, im);
         assert_eq!(
             im,
-            DataType::text_values(["".to_string(), "defg".to_string(), "g".to_string(), "klmno".to_string(), "no".to_string()])
+            DataType::text_values([
+                "".to_string(),
+                "defg".to_string(),
+                "g".to_string(),
+                "klmno".to_string(),
+                "no".to_string()
+            ])
         );
     }
 
@@ -3266,7 +3311,7 @@ mod tests {
         let set = DataType::from(Struct::from_data_types(&[
             DataType::text(),
             DataType::integer(),
-            DataType::integer()
+            DataType::integer(),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -3275,13 +3320,19 @@ mod tests {
         let set = DataType::from(Struct::from_data_types(&[
             DataType::text_values(["abcdefg".to_string(), "hijklmno".to_string()]),
             DataType::integer_values([3, 6, 10]),
-            DataType::integer_value(2)
+            DataType::integer_value(2),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert_eq!(
             im,
-            DataType::text_values(["".to_string(), "de".to_string(), "g".to_string(), "kl".to_string(), "no".to_string()])
+            DataType::text_values([
+                "".to_string(),
+                "de".to_string(),
+                "g".to_string(),
+                "kl".to_string(),
+                "no".to_string()
+            ])
         );
     }
 

@@ -19,7 +19,7 @@ impl Error {
         Error::NoSyntheticData(format!("{} has no SD", table))
     }
     pub fn other(value: impl fmt::Display) -> Error {
-        Error::Other(format!("{} is not protected", value))
+        Error::Other(format!("{} has no SD", value))
     }
 }
 
