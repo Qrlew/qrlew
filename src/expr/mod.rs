@@ -281,7 +281,10 @@ impl_unary_function_constructors!(
     CastAsText,
     CastAsInteger,
     CastAsFloat,
-    CastAsDateTime
+    CastAsBoolean,
+    CastAsDateTime,
+    CastAsDate,
+    CastAsTime
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -2860,6 +2863,135 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::optional(DataType::text())
+        );
+    }
+
+    #[test]
+    fn test_cast_integer_text() {
+        println!("integer => text");
+        let expression = Expr::cast_as_text(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::integer_values([1, 2, 3])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::text_values(["1".to_string(), "2".to_string(), "3".to_string()])
+        );
+
+        println!("\ntext => integer");
+        let expression = Expr::cast_as_integer(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::text_values(["1".to_string(), "2".to_string(), "3".to_string()])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_values([1, 2, 3])
+        );
+    }
+
+    #[test]
+    fn test_cast_float_text() {
+        println!("float => text");
+        let expression = Expr::cast_as_text(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::float_values([1.1, 2., 3.5])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::text_values(["1.1".to_string(), "2".to_string(), "3.5".to_string()])
+        );
+
+        println!("\ntext => float");
+        let expression = Expr::cast_as_float(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::text_values(["1.1".to_string(), "2".to_string(), "3.5".to_string()])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_values([1.1, 2., 3.5])
+        );
+    }
+
+    #[test]
+    fn test_cast_boolean_text() {
+        println!("boolean => text");
+        let expression = Expr::cast_as_text(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::boolean_values([true, false])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::text_values(["true".to_string(), "false".to_string()])
+        );
+
+        println!("\ntext => boolean");
+        let expression = Expr::cast_as_boolean(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::text_values(["n".to_string(), "fa".to_string(), "off".to_string()])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean_value(false)
         );
     }
 }

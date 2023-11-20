@@ -53,13 +53,16 @@ pub enum Function {
     CastAsText,
     CastAsFloat,
     CastAsInteger,
+    CastAsBoolean,
     CastAsDateTime,
+    CastAsDate,
+    CastAsTime,
     Least,
     Greatest,
     Rtrim,
     Ltrim,
     Substr,
-    SubstrWithSize,
+    SubstrWithSize
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -119,7 +122,10 @@ impl Function {
             | Function::CastAsText
             | Function::CastAsFloat
             | Function::CastAsInteger
+            | Function::CastAsBoolean
             | Function::CastAsDateTime
+            | Function::CastAsDate
+            | Function::CastAsTime
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -179,7 +185,10 @@ impl Function {
             | Function::CastAsText
             | Function::CastAsFloat
             | Function::CastAsInteger
-            | Function::CastAsDateTime => Arity::Unary,
+            | Function::CastAsBoolean
+            | Function::CastAsDateTime
+            | Function::CastAsDate
+            | Function::CastAsTime => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -260,7 +269,10 @@ impl fmt::Display for Function {
             Function::CastAsText => "cast_as_text",
             Function::CastAsInteger => "cast_as_integer",
             Function::CastAsFloat => "cast_as_float",
+            Function::CastAsBoolean => "cast_as_boolean",
             Function::CastAsDateTime => "cast_as_date_time",
+            Function::CastAsDate => "cast_as_date",
+            Function::CastAsTime => "cast_as_time",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",

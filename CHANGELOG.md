@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
+- `CAST` function [MR188](https://github.com/Qrlew/qrlew/pull/188)
 
 ## [0.5.1] - 2023-11-19
 ## Added
