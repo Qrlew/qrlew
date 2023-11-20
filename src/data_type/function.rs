@@ -1813,9 +1813,11 @@ pub fn floor() -> impl Function {
 }
 
 // Round function
+// monotonic for the 1st variable but not for the second => Pointwise
 pub fn round() -> impl Function {
-    PartitionnedMonotonic::bivariate(
+    Pointwise::bivariate(
         (data_type::Float::default(), data_type::Integer::default()),
+        data_type::Float::default(),
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
             (a * multiplier).round() / multiplier
@@ -1824,21 +1826,15 @@ pub fn round() -> impl Function {
 }
 
 // Trunc function
+// monotonic for the 1st variable but not for the second (eg: when the 2nd arg is negative )=> Pointwise
 pub fn trunc() -> impl Function {
-    PartitionnedMonotonic::bivariate(
+    Pointwise::bivariate(
         (data_type::Float::default(), data_type::Integer::default()),
+        data_type::Float::default(),
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
             (a * multiplier).trunc() / multiplier
         }
-    )
-}
-
-// Sign function
-pub fn sign() -> impl Function {
-    PartitionnedMonotonic::univariate(
-        data_type::Float::default(),
-        |a| a.signum()
     )
 }
 
