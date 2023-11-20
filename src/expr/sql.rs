@@ -186,13 +186,25 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Substr
             | expr::function::Function::SubstrWithSize
             | expr::function::Function::Ceil
-            | expr::function::Function::Floor
-            | expr::function::Function::Round
-            | expr::function::Function::Trunc => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Floor => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
                     .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                    .collect(),
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::function::Function::Round
+            | expr::function::Function::Trunc => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: arguments
+                    .into_iter()
+                    .filter_map(|e| (e!=ast::Expr::Value(ast::Value::Number("1".to_string(), false))).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
                     .collect(),
                 over: None,
                 distinct: false,

@@ -850,8 +850,28 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                     Expr::substr(flat_args[0].clone(), flat_args[1].clone())
                 }
             }
-            "round" => Expr::round(flat_args[0].clone(), flat_args[1].clone()),
-            "trunc" => Expr::trunc(flat_args[0].clone(), flat_args[1].clone()),
+            "round" => {
+                let precision = if flat_args.len() > 1 {
+                    flat_args[1].clone()
+                } else {
+                    Expr::val(1.)
+                };
+                Expr::round(
+                    flat_args[0].clone(),
+                    precision,
+                )
+            }
+            "trunc" => {
+                let precision = if flat_args.len() > 1 {
+                    flat_args[1].clone()
+                } else {
+                    Expr::val(1.)
+                };
+                Expr::trunc(
+                    flat_args[0].clone(),
+                    precision,
+                )
+            }
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),

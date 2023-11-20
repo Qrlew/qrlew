@@ -1753,7 +1753,7 @@ pub fn round() -> impl Function {
         (data_type::Float::default(), data_type::Integer::default()),
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
-            ((a * multiplier).round() / multiplier)
+            (a * multiplier).round() / multiplier
         }
     )
 }
