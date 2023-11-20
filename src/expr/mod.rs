@@ -2851,8 +2851,6 @@ mod tests {
             Expr::val("4".to_string()),
         );
         println!("\nexpression = {}", expression);
-        println!("expression domain = {}", expression.domain());
-        println!("expression co domain = {}", expression.co_domain());
         println!("expression data type = {}", expression.data_type());
         let set = DataType::structured([(
             "col1",
