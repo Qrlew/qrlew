@@ -145,8 +145,8 @@ impl PUPRelation {
         (input_builder, named_sums, output_builder) = named_aggregates.into_iter().fold(
             (input_builder, named_sums, output_builder),
             |(mut input_b, mut sums, mut output_b), (name, aggregate)| {
-                let one_col = "_ONE_".to_string();
                 let col_name = aggregate.column_name().unwrap().to_string();
+                let one_col = format!("_ONE_{}", col_name);
                 let sum_col = format!("_SUM_{}", col_name);
                 let count_col = format!("_COUNT_{}", col_name);
                 match aggregate.aggregate() {
@@ -188,7 +188,7 @@ impl PUPRelation {
 
         let input: Relation = input_builder.input(self.deref().clone()).build();
         let pup_input = PUPRelation::try_from(input)?;
-
+        println!("DEBUG ");
         let (dp_relation, private_query) = pup_input
             .differentially_private_sums(
                 named_sums
