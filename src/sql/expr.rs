@@ -980,6 +980,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                     precision,
                 )
             }
+            "sign" => Expr::sign(flat_args[0].clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
