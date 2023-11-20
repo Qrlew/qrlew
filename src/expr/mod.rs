@@ -281,7 +281,9 @@ impl_unary_function_constructors!(
     CastAsText,
     CastAsInteger,
     CastAsFloat,
-    CastAsDateTime
+    CastAsDateTime,
+    Ceil,
+    Floor
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -336,7 +338,9 @@ impl_binary_function_constructors!(
     Coalesce,
     Rtrim,
     Ltrim,
-    Substr
+    Substr,
+    Trunc,
+    Round
 );
 
 /// Implement ternary function constructors

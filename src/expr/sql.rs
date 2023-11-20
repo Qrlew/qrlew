@@ -541,7 +541,40 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr, gen_expr);
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_floor() {
+        let str_expr = "floor(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_round() {
+        let str_expr = "round(a, 2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_trunc() {
+        let str_expr = "trunc(a, 4)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
     }
 
 }

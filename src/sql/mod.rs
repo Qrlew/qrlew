@@ -139,4 +139,20 @@ mod tests {
             relation.display_dot();
         }
     }
+
+    #[test]
+    fn test_queries() {
+        let mut database = postgresql::test_database();
+
+        for query in [
+            "SELECT CEIL(b), FLOAT(b), ROUND(b, 3), TRUNC(b, 2) FROM table_1",
+        ] {
+            let res1 = database.query(query).unwrap();
+            let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
+            let relation_query: &str = &ast::Query::from(&relation).to_string();
+            println!("{query} => {relation_query}");
+            let res2 = database.query(relation_query).unwrap();
+            assert_eq!(res1, res2);
+        }
+    }
 }

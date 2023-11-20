@@ -1733,42 +1733,38 @@ pub fn coalesce() -> impl Function {
 
 // Ceil function
 pub fn ceil() -> impl Function {
-    Pointwise::univariate(
+    PartitionnedMonotonic::univariate(
         data_type::Float::default(),
-        DataType::integer(),
-        |a| a.ceil().into(),
+        |a| a.ceil(),
     )
 }
 
 // Floor function
 pub fn floor() -> impl Function {
-    Pointwise::univariate(
+    PartitionnedMonotonic::univariate(
         data_type::Float::default(),
-        DataType::integer(),
-        |a| a.floor().into(),
+        |a| a.floor(),
     )
 }
 
 // Round function
 pub fn round() -> impl Function {
-    Pointwise::bivariate(
+    PartitionnedMonotonic::bivariate(
         (data_type::Float::default(), data_type::Integer::default()),
-        DataType::float(),
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
-            ((a * multiplier).round() / multiplier).into()
+            ((a * multiplier).round() / multiplier)
         }
     )
 }
 
 // Trunc function
 pub fn trunc() -> impl Function {
-    Pointwise::bivariate(
+    PartitionnedMonotonic::bivariate(
         (data_type::Float::default(), data_type::Integer::default()),
-        DataType::float(),
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
-            ((a * multiplier).trunc() / multiplier).into()
+            ((a * multiplier).trunc() / multiplier)
         }
     )
 }

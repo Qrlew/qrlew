@@ -268,6 +268,8 @@ pub trait Visitor<'a, T: Clone> {
     fn in_list(&self, expr: T, list: Vec<T>) -> T;
     fn trim(&self, expr: T, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<T>) -> T;
     fn substring(&self, expr: T, substring_from: Option<T>, substring_for: Option<T>) -> T;
+    fn ceil(&self, expr: T, field: &'a ast::DateTimeField) -> T;
+    fn floor(&self, expr: T, field: &'a ast::DateTimeField) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -389,8 +391,8 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 time_zone,
             } => todo!(),
             ast::Expr::Extract { field, expr } => todo!(),
-            ast::Expr::Ceil { expr, field } => todo!(),
-            ast::Expr::Floor { expr, field } => todo!(),
+            ast::Expr::Ceil { expr, field } => self.ceil(dependencies.get(expr).clone(), field),
+            ast::Expr::Floor { expr, field } => self.floor(dependencies.get(expr).clone(), field),
             ast::Expr::Position { expr, r#in } => self.position(
                 dependencies.get(expr).clone(),
                 dependencies.get(r#in).clone(),
@@ -640,6 +642,22 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
                 .unwrap_or("".to_string()),
         )
     }
+
+    fn ceil(&self, expr: String, field: &'a ast::DateTimeField) -> String {
+        format!(
+            "CEIL ({}{})",
+            expr,
+            if matches!(field, ast::DateTimeField::NoDateTime) {"".to_string()} else {format!(", {field}")}
+        )
+    }
+
+    fn floor(&self, expr: String, field: &'a ast::DateTimeField) -> String {
+        format!(
+            "FLOOR ({}{})",
+            expr,
+            if matches!(field, ast::DateTimeField::NoDateTime) {"".to_string()} else {format!(", {field}")}
+        )
+    }
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -832,6 +850,8 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                     Expr::substr(flat_args[0].clone(), flat_args[1].clone())
                 }
             }
+            "round" => Expr::round(flat_args[0].clone(), flat_args[1].clone()),
+            "trunc" => Expr::trunc(flat_args[0].clone(), flat_args[1].clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
@@ -917,6 +937,16 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 ))
             })
             .unwrap_or(Ok(Expr::substr(expr.clone()?, substring_from.clone()?)))
+    }
+
+    fn ceil(&self, expr: Result<Expr>, field: &'a ast::DateTimeField) -> Result<Expr> {
+        if !matches!(field, ast::DateTimeField::NoDateTime) {todo!()}
+        Ok(Expr::ceil(expr.clone()?))
+    }
+
+    fn floor(&self, expr: Result<Expr>, field: &'a ast::DateTimeField) -> Result<Expr> {
+        if !matches!(field, ast::DateTimeField::NoDateTime) {todo!()}
+        Ok(Expr::floor(expr.clone()?))
     }
 }
 
