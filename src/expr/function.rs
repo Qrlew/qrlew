@@ -33,6 +33,7 @@ pub enum Function {
     BitwiseXor,
     InList,
     Coalesce,
+    Sign,
     // Functions
     Exp,
     Ln,
@@ -132,6 +133,7 @@ impl Function {
             | Function::Floor
             | Function::CastAsDate
             | Function::CastAsTime
+            | Function::Sign
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -198,7 +200,8 @@ impl Function {
             | Function::CastAsDate
             | Function::CastAsTime
             | Function::Ceil
-            | Function::Floor => Arity::Unary,
+            | Function::Floor
+            | Function::Sign => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -289,6 +292,7 @@ impl fmt::Display for Function {
             Function::Floor => "floor",
             Function::CastAsDate => "cast_as_date",
             Function::CastAsTime => "cast_as_time",
+            Function::Sign => "sign",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",

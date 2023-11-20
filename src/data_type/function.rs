@@ -1838,6 +1838,14 @@ pub fn trunc() -> impl Function {
     )
 }
 
+// Sign function
+pub fn sign() -> impl Function {
+    PartitionnedMonotonic::univariate(
+        data_type::Float::default(),
+        |a| if a == 0. {0} else if a < 0. {-1} else {1}
+    )
+}
+
 /*
 Aggregation functions
  */
@@ -3556,5 +3564,25 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::boolean_value(true));
+    }
+
+    #[test]
+    fn test_sign() {
+        println!("\nTest sign");
+        let fun = sign();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::float_interval(-5., 5.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_interval(-1, 1));
+
+        let set = DataType::float_value(0.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_value(0));
     }
 }

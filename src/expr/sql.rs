@@ -186,7 +186,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Substr
             | expr::function::Function::SubstrWithSize
             | expr::function::Function::Ceil
-            | expr::function::Function::Floor => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Floor
+            | expr::function::Function::Sign => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
@@ -650,5 +651,16 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_sign() {
+        let str_expr = "sign(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
     }
 }
