@@ -272,7 +272,7 @@ pub trait Visitor<'a, T: Clone> {
     fn cast_as_float(&self, expr: T) -> T;
     fn cast_as_integer(&self, expr: T) -> T;
     fn cast_as_boolean(&self, expr: T) -> T;
-    fn cast_as_datetime(&self, expr: T) -> T;
+    fn cast_as_date_time(&self, expr: T) -> T;
     fn cast_as_date(&self, expr: T) -> T;
     fn cast_as_time(&self, expr: T) -> T;
 }
@@ -437,12 +437,12 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 ast::DataType::Bool
                 | ast::DataType::Boolean => self.cast_as_boolean(dependencies.get(expr).clone()),
                 // Date
-                ast::DataType::Date => todo!(),
+                ast::DataType::Date => self.cast_as_date(dependencies.get(expr).clone()),
                 // Time
-                ast::DataType::Time(_, _) => todo!(),
+                ast::DataType::Time(_, _) => self.cast_as_time(dependencies.get(expr).clone()),
                 // DateTime
                 ast::DataType::Datetime(_)
-                | ast::DataType::Timestamp(_, _) => todo!(),
+                | ast::DataType::Timestamp(_, _) => self.cast_as_date_time(dependencies.get(expr).clone()),
 
                 ast::DataType::Interval => todo!(),
                 ast::DataType::JSON => todo!(),
@@ -703,6 +703,34 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
             substring_for.map(|s| format!("FOR {}", s)).unwrap_or("".to_string()),
         )
     }
+
+    fn cast_as_text(&self, expr: String) -> String {
+        format!("CAST ({} AS TEXT)", expr)
+    }
+
+    fn cast_as_float(&self, expr: String) -> String {
+        format!("CAST ({} AS FLOAT)", expr)
+    }
+
+    fn cast_as_integer(&self, expr: String) -> String {
+        format!("CAST ({} AS INTEGER)", expr)
+    }
+
+    fn cast_as_boolean(&self, expr: String) -> String {
+        format!("CAST ({} AS BOOLEAN)", expr)
+    }
+
+    fn cast_as_date_time(&self, expr: String) -> String {
+        format!("CAST ({} AS DATETIME)", expr)
+    }
+
+    fn cast_as_date(&self, expr: String) -> String {
+        format!("CAST ({} AS DATE)", expr)
+    }
+
+    fn cast_as_time(&self, expr: String) -> String {
+        format!("CAST ({} AS TIME)", expr)
+    }
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -962,6 +990,34 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         substring_for
         .map(|x| Ok(Expr::substr_with_size(expr.clone()?, substring_from.clone()?, x?)))
         .unwrap_or(Ok(Expr::substr(expr.clone()?, substring_from.clone()?)))
+    }
+
+    fn cast_as_text(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_text(expr.clone()?))
+    }
+
+    fn cast_as_float(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_float(expr.clone()?))
+    }
+
+    fn cast_as_integer(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_integer(expr.clone()?))
+    }
+
+    fn cast_as_boolean(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_boolean(expr.clone()?))
+    }
+
+    fn cast_as_date_time(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_date_time(expr.clone()?))
+    }
+
+    fn cast_as_date(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_date(expr.clone()?))
+    }
+
+    fn cast_as_time(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_time(expr.clone()?))
     }
 }
 
