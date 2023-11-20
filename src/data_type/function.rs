@@ -1834,6 +1834,14 @@ pub fn trunc() -> impl Function {
     )
 }
 
+// Sign function
+pub fn sign() -> impl Function {
+    PartitionnedMonotonic::univariate(
+        data_type::Float::default(),
+        |a| a.signum()
+    )
+}
+
 /*
 Aggregation functions
  */
