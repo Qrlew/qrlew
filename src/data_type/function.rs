@@ -1764,7 +1764,7 @@ pub fn trunc() -> impl Function {
         (data_type::Float::default(), data_type::Integer::default()),
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
-            ((a * multiplier).trunc() / multiplier)
+            (a * multiplier).trunc() / multiplier
         }
     )
 }
