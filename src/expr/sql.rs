@@ -186,7 +186,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Substr
             | expr::function::Function::SubstrWithSize
             | expr::function::Function::Ceil
-            | expr::function::Function::Floor => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Floor
+            | expr::function::Function::Sign => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()

@@ -286,7 +286,8 @@ impl_unary_function_constructors!(
     CastAsDate,
     CastAsTime,
     Ceil,
-    Floor
+    Floor,
+    Sign
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -2996,6 +2997,54 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::boolean_value(false)
+        );
+    }
+
+    #[test]
+    fn test_sign() {
+        println!("sign");
+        let expression = Expr::sign(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("col1", DataType::float_interval(-10., 1.)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_interval(-1, 1)
+        );
+
+        let set = DataType::structured([
+            ("col1", DataType::integer_min(-0)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_interval(0, 1)
+        );
+
+        let set = DataType::structured([
+            ("col1", DataType::float_min(1.)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_value(1)
         );
     }
 }
