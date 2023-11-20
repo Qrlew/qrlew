@@ -111,7 +111,7 @@ impl Relation {
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
-                Property::Public | Property::Published | Property::DifferentiallyPrivate => {
+                Property::Public | Property::Published | Property::DifferentiallyPrivate | Property::SyntheticData => {
                     Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
                 }
                 property => None,

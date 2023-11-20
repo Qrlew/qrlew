@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
+
+## [0.5.2] - 2023-11-19
+## Added
 - `CEIL`, `ROUND`, `FLOOR`and `TRUNC` funtions [#192](https://github.com/Qrlew/qrlew/issues/192)
+- SD is acceptable as DP compilation
 
 ## [0.5.1] - 2023-11-19
 ## Added
