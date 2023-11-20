@@ -53,7 +53,10 @@ pub enum Function {
     CastAsText,
     CastAsFloat,
     CastAsInteger,
+    CastAsBoolean,
     CastAsDateTime,
+    CastAsDate,
+    CastAsTime,
     Least,
     Greatest,
     Rtrim,
@@ -123,9 +126,12 @@ impl Function {
             | Function::CastAsText
             | Function::CastAsFloat
             | Function::CastAsInteger
+            | Function::CastAsBoolean
             | Function::CastAsDateTime
             | Function::Ceil
             | Function::Floor
+            | Function::CastAsDate
+            | Function::CastAsTime
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -187,7 +193,10 @@ impl Function {
             | Function::CastAsText
             | Function::CastAsFloat
             | Function::CastAsInteger
+            | Function::CastAsBoolean
             | Function::CastAsDateTime
+            | Function::CastAsDate
+            | Function::CastAsTime
             | Function::Ceil
             | Function::Floor => Arity::Unary,
             // Binary Function
@@ -274,9 +283,12 @@ impl fmt::Display for Function {
             Function::CastAsText => "cast_as_text",
             Function::CastAsInteger => "cast_as_integer",
             Function::CastAsFloat => "cast_as_float",
+            Function::CastAsBoolean => "cast_as_boolean",
             Function::CastAsDateTime => "cast_as_date_time",
             Function::Ceil => "ceil",
             Function::Floor => "floor",
+            Function::CastAsDate => "cast_as_date",
+            Function::CastAsTime => "cast_as_time",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",

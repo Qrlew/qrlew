@@ -1155,10 +1155,75 @@ Conversion function
 
 /// Builds the cast operator
 pub fn cast(into: DataType) -> impl Function {
-    // TODO Only cast as text is working for now
     match into {
         DataType::Text(t) if t == data_type::Text::full() => {
-            Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into())
+            Pointwise::univariate(
+                //DataType::Any,
+                DataType::Any,
+                DataType::text(),
+                |v| v.to_string().into())
+        }
+        DataType::Float(f) if f == data_type::Float::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::float(),
+                |v| v.to_string().parse::<f64>().unwrap().into()
+            )
+        }
+        DataType::Integer(i) if i == data_type::Integer::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::integer(),
+                |v| v.to_string().parse::<i64>().unwrap().into()
+            )
+        }
+        DataType::Boolean(b) if b == data_type::Boolean::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::boolean(),
+                |v| {
+                    let true_list = vec![
+                        "t".to_string(), "tr".to_string(), "tru".to_string(), "true".to_string(),
+                        "y".to_string(), "ye".to_string(), "yes".to_string(),
+                        "on".to_string(),
+                        "1".to_string()
+                    ];
+                    let false_list = vec![
+                        "f".to_string(), "fa".to_string(), "fal".to_string(), "fals".to_string(), "false".to_string(),
+                        "n".to_string(), "no".to_string(),
+                        "off".to_string(),
+                        "0".to_string()
+                    ];
+                    if true_list.contains(&v.to_string().to_lowercase()) {
+                        true.into()
+                    } else if false_list.contains(&v.to_string().to_lowercase()) {
+                        false.into()
+                    } else {
+                        panic!()
+                    }
+                }
+            )
+        }
+        DataType::Date(d) if d == data_type::Date::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::date(),
+                |v| todo!()
+            )
+        }
+        DataType::DateTime(d) if d == data_type::DateTime::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::date_time(),
+                |v| todo!()
+            )
+        }
+        DataType::Time(t) if t == data_type::Time::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::time(),
+                |v| todo!()
+            )
         }
         _ => todo!(),
     }
@@ -2016,6 +2081,7 @@ mod tests {
         super::{value::Value, Struct},
         *,
     };
+    use chrono;
 
     #[test]
     fn test_argument_conversion() {
@@ -3418,5 +3484,73 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([9, 10]));
+    }
+    fn test_cast_as_text() {
+        println!("Test cast as text");
+        let fun = cast(DataType::text());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::integer_values([1, 3, 4]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["1".to_string(), "3".to_string(), "4".to_string()]));
+
+        let set = DataType::integer_values([1, 3, 4]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["1".to_string(), "3".to_string(), "4".to_string()]));
+
+        let set = DataType::date_value(chrono::NaiveDate::from_ymd_opt(2015, 6, 3).unwrap());
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["2015-06-03".to_string()]));
+    }
+
+    #[test]
+    fn test_cast_as_float() {
+        println!("Test cast as float");
+        let fun = cast(DataType::float());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::text_values(["1.5".to_string(), "3".to_string(), "4.555".to_string()]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_values([1.5, 3., 4.555]));
+    }
+
+    #[test]
+    fn test_cast_as_integer() {
+        println!("\nTest cast as integer");
+        let fun = cast(DataType::integer());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::text_values(["1".to_string(), "3".to_string(), "4".to_string()]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([1, 3, 4]));
+    }
+
+    #[test]
+    fn test_cast_to_boolean() {
+        println!("\nTest cast as boolean");
+        let fun = cast(DataType::boolean());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::text_values(["1".to_string(), "tru".to_string()]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean_value(true));
     }
 }

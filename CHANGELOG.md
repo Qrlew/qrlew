@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.1] - 2023-11-19
 ## Added
-- Added `Count(*)` by parsing it as `Count(1)`
+- Added `Count(*)` by parsing it as `Count(1)` [#185](https://github.com/Qrlew/qrlew/issues/185)
+- `CAST` function [MR188](https://github.com/Qrlew/qrlew/pull/188)
 
 ### Changed
 - Add a warning when the textbook gaussian mechanism is not really applied [#190](https://github.com/Qrlew/qrlew/issues/190)
