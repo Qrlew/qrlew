@@ -580,7 +580,7 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+        assert_eq!(ast_expr, gen_expr);
 
         let str_expr = "cast(a as bigint)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
@@ -588,7 +588,7 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+        assert_eq!(ast_expr, gen_expr);
 
         let str_expr = "cast(a as boolean)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
@@ -596,7 +596,7 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+        assert_eq!(ast_expr, gen_expr);
 
         let str_expr = "cast(a as float)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
@@ -604,7 +604,7 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+        assert_eq!(ast_expr, gen_expr);
     }
 
     #[test]

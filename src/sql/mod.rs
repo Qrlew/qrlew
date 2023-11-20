@@ -145,15 +145,13 @@ mod tests {
         let mut database = postgresql::test_database();
 
         for query in [
-            "SELECT CEIL(3 * b), FLOOR(3 * b) FROM table_1",
-            "SELECT TRUNC(3 * b) FROM table_1",
-            "SELECT ROUND(3 * b) FROM table_1",
             "SELECT CAST(a AS text) FROM table_1", // float => text
             "SELECT CAST(b AS text) FROM table_1", // integer => text
             "SELECT CAST(c AS text) FROM table_1", // date => text
             "SELECT CAST(z AS text) FROM table_2", // text => text
             "SELECT CAST(x AS float) FROM table_2", // integer => float
             "SELECT CAST('true' AS boolean) FROM table_2", // integer => float
+            "SELECT CEIL(3 * b), FLOOR(3 * b), TRUNC(3 * b), ROUND(3 * b) FROM table_1",
         ] {
             let res1 = database.query(query).unwrap();
             let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
