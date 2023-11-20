@@ -268,10 +268,8 @@ pub trait Visitor<'a, T: Clone> {
     fn in_list(&self, expr: T, list: Vec<T>) -> T;
     fn trim(&self, expr: T, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<T>) -> T;
     fn substring(&self, expr: T, substring_from: Option<T>, substring_for: Option<T>) -> T;
-<<<<<<< HEAD
     fn ceil(&self, expr: T, field: &'a ast::DateTimeField) -> T;
     fn floor(&self, expr: T, field: &'a ast::DateTimeField) -> T;
-=======
     fn cast_as_text(&self, expr: T) -> T;
     fn cast_as_float(&self, expr: T) -> T;
     fn cast_as_integer(&self, expr: T) -> T;
@@ -279,7 +277,6 @@ pub trait Visitor<'a, T: Clone> {
     fn cast_as_date_time(&self, expr: T) -> T;
     fn cast_as_date(&self, expr: T) -> T;
     fn cast_as_time(&self, expr: T) -> T;
->>>>>>> c1c9c0a5387db3ba64ab870b9cd0b6a0fbb2bfff
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -1070,7 +1067,6 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             .unwrap_or(Ok(Expr::substr(expr.clone()?, substring_from.clone()?)))
     }
 
-<<<<<<< HEAD
     fn ceil(&self, expr: Result<Expr>, field: &'a ast::DateTimeField) -> Result<Expr> {
         if !matches!(field, ast::DateTimeField::NoDateTime) {todo!()}
         Ok(Expr::ceil(expr.clone()?))
@@ -1079,7 +1075,8 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     fn floor(&self, expr: Result<Expr>, field: &'a ast::DateTimeField) -> Result<Expr> {
         if !matches!(field, ast::DateTimeField::NoDateTime) {todo!()}
         Ok(Expr::floor(expr.clone()?))
-=======
+    }
+
     fn cast_as_text(&self, expr: Result<Expr>) -> Result<Expr> {
         Ok(Expr::cast_as_text(expr.clone()?))
     }
@@ -1106,7 +1103,6 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
 
     fn cast_as_time(&self, expr: Result<Expr>) -> Result<Expr> {
         Ok(Expr::cast_as_time(expr.clone()?))
->>>>>>> c1c9c0a5387db3ba64ab870b9cd0b6a0fbb2bfff
     }
 }
 
@@ -1409,4 +1405,5 @@ mod tests {
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
     }
+
 }

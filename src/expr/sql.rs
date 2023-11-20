@@ -642,7 +642,7 @@ mod tests {
     }
 
     #[test]
-    fn test_round() {
+    fn test_trunc() {
         let str_expr = "trunc(a, 4)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();

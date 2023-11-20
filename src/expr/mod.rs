@@ -281,13 +281,12 @@ impl_unary_function_constructors!(
     CastAsText,
     CastAsInteger,
     CastAsFloat,
-    CastAsDateTime,
-    Ceil,
-    Floor
     CastAsBoolean,
     CastAsDateTime,
     CastAsDate,
-    CastAsTime
+    CastAsTime,
+    Ceil,
+    Floor
 ); // TODO Complete that
 
 /// Implement binary function constructors
