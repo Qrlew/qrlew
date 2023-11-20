@@ -392,9 +392,6 @@ impl Ready<Map> for MapBuilder<WithInput> {
                 ),
                 None => self.input.0,
             };
-            println!("DEBUG MapBuilder name {}", name);
-            println!("DEBUG MapBuilder map.named_exprs, {:#?}", map.named_exprs.iter().map(|(n,e)| format!("[{n}: {e}]")).join(", "));
-            println!("DEBUG MapBuilder input schema {}", input.schema());
             // Build the Relation
             Ok(Map::new(
                 name,
