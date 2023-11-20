@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
+- `SIGN` funtion [#194](https://github.com/Qrlew/qrlew/issues/194)
 - `CEIL`, `ROUND`, `FLOOR`and `TRUNC` funtions [#192](https://github.com/Qrlew/qrlew/issues/192)
 
 ## [0.5.1] - 2023-11-19
