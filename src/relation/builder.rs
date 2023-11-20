@@ -392,6 +392,9 @@ impl Ready<Map> for MapBuilder<WithInput> {
                 ),
                 None => self.input.0,
             };
+            println!("DEBUG name  {}", name);
+            println!("DEBUG map.named_exprs, {:#?}", map.named_exprs);
+            println!("DEBUG input schema {}", input.schema());
             // Build the Relation
             Ok(Map::new(
                 name,

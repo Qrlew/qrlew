@@ -3,8 +3,9 @@
         "sqlite",
     ],
     "rust-analyzer.cargo.features": [
-        "graphviz_display",
+        // "graphviz_display",
         "sqlite",
     ],
     "editor.codeActionsOnSave": {},
+    "rust-analyzer.cargo.buildScripts.overrideCommand": null,
 }
