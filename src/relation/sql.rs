@@ -376,6 +376,7 @@ impl From<&Relation> for ast::Query {
     }
 }
 
+
 impl Table {
     /// Build the CREATE TABLE statement
     pub fn create<T: IntoDialectTranslator>(&self, translator: T) -> ast::Statement {

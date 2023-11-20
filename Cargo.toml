@@ -32,7 +32,7 @@ postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
 statrs = "0.16.0"
 # TODO: make mssql dependencies optional
-sqlx = { path = "/Users/andicuko/Documents/Projects/sqlx", version = "0.6", features = ["mssql", "runtime-tokio-native-tls", "offline", "any"] }
+sqlx = { version = "0.6", features = ["mssql", "runtime-tokio-native-tls", "offline", "any"] }
 tokio = { version = "1", features = ["full"] }
 tiberius =  { version = "0.10" }
 tokio-util = { version = "0.7", features = ["compat"] }

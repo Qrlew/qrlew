@@ -6,11 +6,11 @@ use sqlparser::{ast, dialect::BigQueryDialect};
 pub struct BigQueryTranlator;
 
 impl IntoDialectTranslator for BigQueryTranlator {
-    type D = BigQueryDialect;
+    // type D = BigQueryDialect;
 
-    fn dialect(&self) -> Self::D {
-        BigQueryDialect {}
-    }
+    // fn dialect(&self) -> Self::D {
+    //     BigQueryDialect {}
+    // }
 }
 
 pub struct RelationWithBigQueryTranlator<'a>(pub &'a Relation, pub BigQueryTranlator);

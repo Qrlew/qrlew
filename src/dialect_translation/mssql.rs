@@ -1,25 +1,25 @@
 use crate::{
+    data_type::{DataType, DataTyped as _},
     expr::{self, Function as _},
+    hierarchy::Hierarchy,
     relation::{sql::FromRelationVisitor, Relation, Table, Variant as _},
     visitor::Acceptor,
-    data_type::{DataType, DataTyped as _}};
+    WithoutContext,
+};
 
-use super::IntoDialectTranslator;
+use super::{IntoDialectTranslator, IntoRelationTranslator, Result};
 use sqlparser::{ast, dialect::MsSqlDialect};
-
+#[derive(Clone, Copy)]
 pub struct MSSQLTranslator;
 
 impl IntoDialectTranslator for MSSQLTranslator {
-    type D = MsSqlDialect;
-
-    fn dialect(&self) -> Self::D {
-        MsSqlDialect {}
-    }
-
     /// Identifiers are back quoted
     fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
-        let quoting_char: char = '`';
-        value.iter().map(|i|ast::Ident::with_quote(quoting_char, i)).collect()
+        let quoting_char: char = '"';
+        value
+            .iter()
+            .map(|i| ast::Ident::with_quote(quoting_char, i))
+            .collect()
     }
 
     /// Converting LN to LOG
@@ -113,12 +113,10 @@ impl IntoDialectTranslator for MSSQLTranslator {
         order_by: Vec<ast::OrderByExpr>,
         limit: Option<ast::Expr>,
     ) -> ast::Query {
-        let top = limit.map(|e|{
-            ast::Top{
-                with_ties: false,
-                percent: false,
-                quantity: Some(e),
-            }
+        let top = limit.map(|e| ast::Top {
+            with_ties: false,
+            percent: false,
+            quantity: Some(e),
         });
         ast::Query {
             with: (!with.is_empty()).then_some(ast::With {
@@ -163,8 +161,8 @@ impl IntoDialectTranslator for MSSQLTranslator {
                 .iter()
                 .map(|f| ast::ColumnDef {
                     name: f.name().into(),
-                     // Need to override some convertions
-                    data_type: {translate_data_type(f.data_type())},
+                    // Need to override some convertions
+                    data_type: { translate_data_type(f.data_type()) },
                     collation: None,
                     options: if let DataType::Optional(_) = f.data_type() {
                         vec![]
@@ -200,93 +198,148 @@ impl IntoDialectTranslator for MSSQLTranslator {
     }
 }
 
+impl IntoRelationTranslator for MSSQLTranslator {
+    type D = MsSqlDialect;
+
+    fn dialect(&self) -> Self::D {
+        MsSqlDialect {}
+    }
+
+    fn try_from_function(
+        &self,
+        func: &ast::Function,
+        context: &Hierarchy<expr::Identifier>,
+    ) -> Result<expr::Expr> {
+        let function_name: &str = &func.name.0.iter().next().unwrap().value.to_lowercase()[..];
+
+        match function_name {
+            "log" => self.try_into_ln(func, context),
+            "convert" => self.try_into_md5(func, context),
+            // "rand" => self.try_into_random(func, context),
+            _ => {
+                // I can't call IntoRelationTranslator::try_from_function since it is overriden. I can still use expr::Expr::try_from.
+                let expr = ast::Expr::Function(func.clone());
+                expr::Expr::try_from(expr.with(context))
+            }
+        }
+    }
+    /// CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2) to Converting MD5(X)
+    fn try_into_md5(
+        &self,
+        func: &ast::Function,
+        context: &Hierarchy<expr::Identifier>,
+    ) -> Result<expr::Expr> {
+        // need to check func.args:
+        let args = &func.args;
+        // We expect 2 args
+        if args.len() != 3 {
+            let expr = ast::Expr::Function(func.clone());
+            expr::Expr::try_from(expr.with(context))
+        } else {
+            let is_first_arg_valid = is_varchar_valid(&args[0]);
+            let is_last_arg_valid = is_literal_two_arg(&args[2]);
+            let extract_x_arg = extract_hashbyte_expression_if_valid(&args[1]);
+            if is_first_arg_valid && is_last_arg_valid && extract_x_arg.is_some() {
+                // Code to execute when both booleans are true and the option is Some
+                let converted_x_arg =
+                    self.try_from_function_args(vec![extract_x_arg.unwrap()], context)?;
+                Ok(expr::Expr::md5(converted_x_arg[0].clone()))
+            } else {
+                let expr = ast::Expr::Function(func.clone());
+                expr::Expr::try_from(expr.with(context))
+            }
+        }
+    }
+}
+
+fn is_literal_two_arg(func_arg: &ast::FunctionArg) -> bool {
+    let expected_literal_func_arg = ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+        ast::Expr::Value(ast::Value::Number("2".to_string(), false)),
+    ));
+    if func_arg == &expected_literal_func_arg {
+        true
+    } else {
+        false
+    }
+}
+
+fn is_varchar_valid(func_arg: &ast::FunctionArg) -> bool {
+    match func_arg {
+        ast::FunctionArg::Unnamed(e) => match e {
+            ast::FunctionArgExpr::Expr(e) => match e {
+                ast::Expr::Function(f) => {
+                    if f.name == ast::ObjectName(vec!["VARCHAR".into()]) {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            },
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<ast::FunctionArg> {
+    let expected_f_name = ast::ObjectName(vec![ast::Ident::from("HASHBYTES")]);
+    let md5_literal = ast::Expr::Value(ast::Value::SingleQuotedString("MD5".to_string()));
+    let expected_first_arg = ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
+    match func_arg {
+        ast::FunctionArg::Named { .. } => None,
+        ast::FunctionArg::Unnamed(fargexpr) => match fargexpr {
+            ast::FunctionArgExpr::Expr(e) => match e {
+                ast::Expr::Function(f) => {
+                    if (f.name == expected_f_name) && (f.args[0] == expected_first_arg) {
+                        Some(f.args[1].clone())
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        },
+    }
+}
+
 // method to override DataType -> ast::DataType
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
         // It seems to be a bug in sqlx such that when using Varchar for text when pushing data to sql it fails
         //DataType::Text(_) => ast::DataType::Text,
-        DataType::Text(_) => ast::DataType::Varchar(Some(ast::CharacterLength{length: 8000 as u64, unit: None})),
-        //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL, 
+        DataType::Text(_) => ast::DataType::Varchar(Some(ast::CharacterLength {
+            length: 8000 as u64,
+            unit: None,
+        })),
+        //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL,
         DataType::Optional(o) => translate_data_type(o.data_type().clone()),
-        _ => dtype.into()
+        _ => dtype.into(),
     }
 }
 
-pub struct RelationWithMSSQLTranslator<'a>(pub &'a Relation, pub MSSQLTranslator);
-
-impl<'a> From<RelationWithMSSQLTranslator<'a>> for ast::Query {
-    fn from(value: RelationWithMSSQLTranslator) -> Self {
-        let RelationWithMSSQLTranslator(relation, translator) = value;
-        relation.accept(FromRelationVisitor::new(translator))
-    }
-}
+// TODO Relation -> To Dialect aware AST
+// Encode(Decode(source, 'hex'), 'escape') -> CONVERT( VARCHAR(MAX), CONVERT(VARBINARY(MAX), '50726976617465', 2),  0): Encode/Decode not supported functions
+// EXTRACT(epoch FROM column) -> DATEDIFF(SECOND, '19700101', column): EXTRACT not supported functions
+// CoalesceFunction
 
 #[cfg(test)]
 mod tests {
+    use sqlparser::dialect::{BigQueryDialect, GenericDialect};
+
     use super::*;
     use crate::{
         builder::{Ready, With},
         data_type::{DataType, Value as _},
+        dialect_translation::RelationWithTranslator,
         display::Dot,
         expr::Expr,
         namer,
         relation::{schema::Schema, Relation},
-        sql::parse,
+        sql::{parse, parse_with_dialect, relation::QueryWithRelations},
     };
     use std::sync::Arc;
-
-    fn build_complex_relation() -> Arc<Relation> {
-        namer::reset();
-        let schema: Schema = vec![
-            ("a", DataType::float()),
-            ("b", DataType::float_interval(-2., 2.)),
-            ("c", DataType::float()),
-            ("d", DataType::float_interval(0., 1.)),
-        ]
-        .into_iter()
-        .collect();
-        let table: Arc<Relation> = Arc::new(
-            Relation::table()
-                .name("table")
-                .schema(schema.clone())
-                .size(100)
-                .build(),
-        );
-        let map: Arc<Relation> = Arc::new(
-            Relation::map()
-                .name("map_1")
-                .with(Expr::exp(Expr::col("a")))
-                .input(table.clone())
-                .with(Expr::col("b") + Expr::col("d"))
-                .build(),
-        );
-        let join: Arc<Relation> = Arc::new(
-            Relation::join()
-                .name("join")
-                .cross()
-                .left(table.clone())
-                .right(map.clone())
-                .build(),
-        );
-        let map_2: Arc<Relation> = Arc::new(
-            Relation::map()
-                .name("map_2")
-                .with(Expr::exp(Expr::col(join[4].name())))
-                .input(join.clone())
-                .with(Expr::col(join[0].name()) + Expr::col(join[1].name()))
-                .limit(100)
-                .build(),
-        );
-        let join_2: Arc<Relation> = Arc::new(
-            Relation::join()
-                .name("join_2")
-                .cross()
-                .left(join.clone())
-                .right(map_2.clone())
-                .build(),
-        );
-        join_2
-    }
 
     #[test]
     fn test_translation() {
@@ -308,16 +361,14 @@ mod tests {
         println!("{:?}", query)
     }
 
-    #[test]
-    fn test_translation_from_relation() {
-        let binding = build_complex_relation();
-        let rel = binding.as_ref();
-        let query = ast::Query::from(rel);
-        println!("{}", query)
+    fn assert_same_query_str(query_1: &str, query_2: &str) {
+        let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
+        let b_no_whitespace: String = query_2.chars().filter(|c| !c.is_whitespace()).collect();
+        assert_eq!(a_no_whitespace, b_no_whitespace);
     }
 
     #[test]
-    fn test_map() {
+    fn test_ln_rel_to_query() {
         let schema: Schema = vec![
             ("a", DataType::float()),
             ("b", DataType::float_interval(-2., 2.)),
@@ -340,18 +391,22 @@ mod tests {
                 .input(table.clone())
                 .build(),
         );
-        map.display_dot().unwrap();
 
-        let query = ast::Query::from(map.as_ref());
-        print!("NOT TRANSLATED: \n{}\n", query);
+        // let query = ast::Query::from(map.as_ref());
+        // print!("NOT TRANSLATED: \n{}\n", query);
 
-        let rel_with_traslator = RelationWithMSSQLTranslator(map.as_ref(), MSSQLTranslator);
+        let rel_with_traslator = RelationWithTranslator(map.as_ref(), MSSQLTranslator);
         let query = ast::Query::from(rel_with_traslator);
-        print!("TRANSLATED: \n{}\n", query);
+        let translated = r#"
+            WITH map_1 (field_eo_x) AS (SELECT LOG("a") AS field_eo_x FROM "table") SELECT * FROM "map_1"
+        "#;
+        assert_same_query_str(&query.to_string(), translated);
+        // assert query string
+        // execute on db
     }
 
     #[test]
-    fn test_md5() {
+    fn test_md5() -> Result<()> {
         let input_sql = r#"
         SELECT CONVERT( VARCHAR(MAX), HASHBYTES('MD5', X), 2) FROM table_x
         "#;
@@ -374,13 +429,27 @@ mod tests {
                 .input(table.clone())
                 .build(),
         );
-        map.display_dot().unwrap();
+
+        let relations = Hierarchy::from([(["schema", "table"], table)]);
 
         let query = ast::Query::from(map.as_ref());
         print!("NOT TRANSLATED: \n{}\n", query);
 
-        let rel_with_traslator = RelationWithMSSQLTranslator(map.as_ref(), MSSQLTranslator);
+        let translator = MSSQLTranslator;
+        let rel = map.as_ref();
+        let rel_with_traslator = RelationWithTranslator(rel, translator);
         let query = ast::Query::from(rel_with_traslator);
         print!("TRANSLATED: \n{}\n", query);
+        let query_str = r#"
+            SELECT CONVERT(VARCHAR(MAX), HASHBYTES('MD5', "a"), 2) AS field_jum4 FROM "table"
+        "#;
+        // print!("Parsed with GENERIC: \n{}\n", parse_with_dialect(&query_str[..], GenericDialect)?);
+        // print!("Parsed with BIGQUERY: \n{}\n", parse_with_dialect(&query_str[..], BigQueryDialect)?);
+        // print!("Parsed with MSSQL: \n{}\n", parse_with_dialect(&query_str[..], MsSqlDialect{})?);
+        let query = parse_with_dialect(&query_str[..], translator.dialect())?;
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+        relation.display_dot().unwrap();
+        Ok(())
     }
 }

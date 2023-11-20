@@ -2,6 +2,7 @@
 // TODO:
 // MSSQL doesn't support IF NOT EXISTS in create table. If the table exists a runtime error will be rised
 // In MSSQL the boolean type is create with the BIT keyword but in the sqlparser is not possible to define a DataType BIT
+// Date, Datetime and Interval are not yes supported
 
 use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 use crate::{
@@ -12,7 +13,8 @@ use crate::{
     },
     dialect_translation::mssql::MSSQLTranslator,
     namer,
-    relation::{Table, Variant as _},
+    relation::{Schema, Table, TableBuilder, Variant as _},
+    DataType, Ready as _,
 };
 use colored::Colorize;
 use rand::{rngs::StdRng, SeedableRng};
@@ -73,6 +75,7 @@ impl Database {
     /// `docker run --name qrlew-mssql-test -p 1433:1433 -d mssql`
     fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
         log::info!("Try to get an existing DB");
+        println!("Try to get an existing DB");
         let rt = tokio::runtime::Runtime::new().unwrap();
         let mut connection = rt.block_on(async_connect(&format!(
             "mssql://{}:{}@localhost:{}/master?encrypt=false",
@@ -82,7 +85,7 @@ impl Database {
         )))?;
 
         let find_tables_query =
-            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'public'";
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
         let table_names: Vec<String> = rt
             .block_on(async_query(find_tables_query, &mut connection))?
             .iter()
@@ -129,6 +132,7 @@ impl Database {
                 .success()
             {
                 log::debug!("Starting the DB");
+                print!("\nTRY to start the container\n");
                 // If the container does not exist, start a new container
                 // Run: `docker run -e "ACCEPT_EULA=1" -e "MSSQL_SA_PASSWORD=MyPass@word" -e "MSSQL_USER=SA" -p 1433:1433 -d --name=qrlew-mssql-test mcr.microsoft.com/azure-sql-edge`
                 let output = Command::new("docker")
@@ -187,6 +191,97 @@ impl Database {
         } else {
             Database::try_get_existing(name, tables)
         }
+    }
+
+    // Overriding test_tables. We don't support Date, Datetime yet so we are pushing tables without these types
+    fn test_tables() -> Vec<Table> {
+        vec![
+            TableBuilder::new()
+                .path(["table_1"])
+                .name("table_1")
+                .size(10)
+                .schema(
+                    Schema::empty()
+                        .with(("a", DataType::float_interval(0., 10.)))
+                        .with(("b", DataType::optional(DataType::float_interval(-1., 1.))))
+                        .with(("d", DataType::integer_interval(0, 10))),
+                )
+                .build(),
+            TableBuilder::new()
+                .path(["table_2"])
+                .name("table_2")
+                .size(200)
+                .schema(
+                    Schema::empty()
+                        .with(("x", DataType::integer_interval(0, 100)))
+                        .with(("y", DataType::optional(DataType::text())))
+                        .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))),
+                )
+                .build(),
+            TableBuilder::new()
+                .path(["user_table"])
+                .name("users")
+                .size(100)
+                .schema(
+                    Schema::empty()
+                        .with(("id", DataType::integer_interval(0, 100)))
+                        .with(("name", DataType::text()))
+                        .with((
+                            "age",
+                            DataType::optional(DataType::float_interval(0., 200.)),
+                        ))
+                        .with((
+                            "city",
+                            DataType::text_values(["Paris".into(), "New-York".into()]),
+                        )),
+                )
+                .build(),
+            TableBuilder::new()
+                .path(["order_table"])
+                .name("orders")
+                .size(200)
+                .schema(
+                    Schema::empty()
+                        .with(("id", DataType::integer_interval(0, 100)))
+                        .with(("user_id", DataType::integer_interval(0, 101)))
+                        .with(("description", DataType::text())),
+                )
+                .build(),
+            TableBuilder::new()
+                .path(["item_table"])
+                .name("items")
+                .size(300)
+                .schema(
+                    Schema::empty()
+                        .with(("order_id", DataType::integer_interval(0, 100)))
+                        .with(("item", DataType::text()))
+                        .with(("price", DataType::float_interval(0., 50.))),
+                )
+                .build(),
+            TableBuilder::new()
+                .path(["large_user_table"])
+                .name("more_users")
+                .size(100000)
+                .schema(
+                    Schema::empty()
+                        .with(("id", DataType::integer_interval(0, 1000)))
+                        .with(("name", DataType::text()))
+                        .with((
+                            "age",
+                            DataType::optional(DataType::float_interval(0., 200.)),
+                        ))
+                        .with((
+                            "city",
+                            DataType::text_values([
+                                "Paris".into(),
+                                "New-York".into(),
+                                "Rome".into(),
+                            ]),
+                        ))
+                        .with(("income", DataType::float_interval(100.0, 200000.0))),
+                )
+                .build(),
+        ]
     }
 }
 
@@ -250,6 +345,7 @@ impl DatabaseTrait for Database {
     }
 
     fn query(&mut self, query: &str) -> Result<Vec<value::List>> {
+        println!("FROM inside query...");
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async_query(query, &mut self.connection))
     }
@@ -259,6 +355,7 @@ async fn async_query(
     query_str: &str,
     connection: &mut MssqlConnection,
 ) -> Result<Vec<value::List>> {
+    println!("FROM inside async_query...");
     let rows = sqlx::query(query_str).fetch_all(connection).await?;
 
     Ok(rows
@@ -395,7 +492,6 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
         &self,
         buf: &mut <mssql::Mssql as sqlx::database::HasArguments<'_>>::ArgumentBuffer,
     ) -> sqlx::encode::IsNull {
-        println!("encode_by_ref");
         match self {
             SqlValue::Boolean(b) => {
                 buf.push(if *b.deref() { 1 } else { 0 });
@@ -403,14 +499,10 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
             }
             SqlValue::Integer(i) => <i64 as Encode<'_, Mssql>>::encode_by_ref(i.deref(), buf),
             SqlValue::Float(f) => {
-                println!("SqlValue::Float encode_by_ref");
                 buf.extend(f.deref().to_le_bytes());
                 sqlx::encode::IsNull::No
             }
-            SqlValue::Text(t) => {
-                println!("SqlValue::Text encode_by_ref");
-                <String as Encode<'_, Mssql>>::encode_by_ref(t.deref(), buf)
-            }
+            SqlValue::Text(t) => <String as Encode<'_, Mssql>>::encode_by_ref(t.deref(), buf),
             SqlValue::Optional(o) => o
                 .as_ref()
                 .map(|v| <&SqlValue as Encode<'_, Mssql>>::encode_by_ref(&&**v, buf))
@@ -423,7 +515,6 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
     }
 
     fn produces(&self) -> Option<<mssql::Mssql as sqlx::Database>::TypeInfo> {
-        println!("produces");
         match self {
             SqlValue::Boolean(b) => Some(<bool as Type<Mssql>>::type_info()),
             SqlValue::Integer(i) => Some(<i64 as Type<Mssql>>::type_info()),
@@ -444,12 +535,10 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
 // implementing this is needed in order order to use .get of the row object
 impl Type<mssql::Mssql> for SqlValue {
     fn type_info() -> <mssql::Mssql as sqlx::Database>::TypeInfo {
-        println!("type_info");
         <String as Type<Mssql>>::type_info()
     }
 
     fn compatible(ty: &<mssql::Mssql as sqlx::Database>::TypeInfo) -> bool {
-        println!("compatible");
         true
     }
 }
@@ -564,6 +653,17 @@ mod tests {
                 .await?;
 
             assert_eq!(done.rows_affected(), 1);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn database_display() -> Result<()> {
+        let mut database = test_database();
+        let query = "SELECT COUNT(*) FROM table_1";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
         }
         Ok(())
     }
