@@ -49,6 +49,7 @@ impl From<SetQuantifier> for ast::SetQuantifier {
             SetQuantifier::None => ast::SetQuantifier::None,
             SetQuantifier::ByName => ast::SetQuantifier::ByName,
             SetQuantifier::AllByName => ast::SetQuantifier::AllByName,
+            SetQuantifier::DistinctByName => ast::SetQuantifier::DistinctByName,
         }
     }
 }
@@ -65,6 +66,7 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
         offset: None,
         fetch: None,
         locks: vec![],
+        limit_by: vec![],
     }
 }
 
@@ -113,6 +115,7 @@ fn set_operation(
         offset: None,
         fetch: None,
         locks: vec![],
+        limit_by: vec![],
     }
 }
 

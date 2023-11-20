@@ -71,18 +71,25 @@ function_implementations!(
         Upper,
         InList,
         Least,
-        Greatest
+        Greatest,
+        Rtrim,
+        Ltrim,
+        Substr
     ],
-    [Case, Position],
+    [Case, Position, SubstrWithSize],
     x,
     {
         match x {
             Function::CastAsText => Arc::new(function::cast(DataType::text())),
-            Function::CastAsInteger => Arc::new(function::cast(DataType::integer())),
-            Function::CastAsFloat => Arc::new(function::cast(DataType::float())),
-            Function::CastAsDateTime => Arc::new(function::cast(DataType::date_time())),
+            Function::CastAsInteger => Arc::new(Optional::new(function::cast(DataType::integer()))),
+            Function::CastAsFloat => Arc::new(Optional::new(function::cast(DataType::float()))),
+            Function::CastAsBoolean => Arc::new(Optional::new(function::cast(DataType::boolean()))),
+            Function::CastAsDateTime => Arc::new(Optional::new(function::cast(DataType::date_time()))),
+            Function::CastAsDate => Arc::new(Optional::new(function::cast(DataType::date()))),
+            Function::CastAsTime => Arc::new(Optional::new(function::cast(DataType::time()))),
             Function::Concat(n) => Arc::new(function::concat(n)),
             Function::Random(n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
+            Function::Coalesce => Arc::new(function::coalesce()),
             _ => unreachable!(),
         }
     }

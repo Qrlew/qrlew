@@ -4,7 +4,7 @@
 
 use super::{Error, Result};
 use crate::{
-    builder::{With, WithContext, WithoutContext},
+    builder::{WithContext, WithoutContext},
     expr::{identifier::Identifier, Expr, Value},
     hierarchy::{Hierarchy, Path},
     visitor::{self, Acceptor, Dependencies, Visited},
@@ -115,9 +115,21 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 right,
             } => Dependencies::from([left.as_ref(), right.as_ref()]),
             ast::Expr::UnaryOp { op: _, expr } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::Cast { expr, data_type: _ } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::TryCast { expr, data_type: _ } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::SafeCast { expr, data_type: _ } => Dependencies::from([expr.as_ref()]),
+            ast::Expr::Cast {
+                expr,
+                data_type: _,
+                format: _,
+            } => Dependencies::from([expr.as_ref()]),
+            ast::Expr::TryCast {
+                expr,
+                data_type: _,
+                format: _,
+            } => Dependencies::from([expr.as_ref()]),
+            ast::Expr::SafeCast {
+                expr,
+                data_type: _,
+                format: _,
+            } => Dependencies::from([expr.as_ref()]),
             ast::Expr::AtTimeZone {
                 timestamp,
                 time_zone: _,
@@ -141,6 +153,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 expr,
                 trim_where: _,
                 trim_what,
+                trim_characters: _,
             } => vec![Some(expr), trim_what.as_ref()]
                 .iter()
                 .filter_map(|expr| expr.map(AsRef::as_ref))
@@ -220,6 +233,14 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 opt_search_modifier,
             } => Dependencies::empty(),
             ast::Expr::IntroducedString { introducer, value } => Dependencies::empty(),
+            ast::Expr::RLike {
+                negated,
+                expr,
+                pattern,
+                regexp,
+            } => todo!(),
+            ast::Expr::Struct { values, fields } => todo!(),
+            ast::Expr::Named { expr, name } => todo!(),
         }
     }
 }
@@ -245,6 +266,15 @@ pub trait Visitor<'a, T: Clone> {
     ) -> T;
     fn position(&self, expr: T, r#in: T) -> T;
     fn in_list(&self, expr: T, list: Vec<T>) -> T;
+    fn trim(&self, expr: T, trim_where: &Option<ast::TrimWhereField>, trim_what: Option<T>) -> T;
+    fn substring(&self, expr: T, substring_from: Option<T>, substring_for: Option<T>) -> T;
+    fn cast_as_text(&self, expr: T) -> T;
+    fn cast_as_float(&self, expr: T) -> T;
+    fn cast_as_integer(&self, expr: T) -> T;
+    fn cast_as_boolean(&self, expr: T) -> T;
+    fn cast_as_date_time(&self, expr: T) -> T;
+    fn cast_as_date(&self, expr: T) -> T;
+    fn cast_as_time(&self, expr: T) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -346,9 +376,94 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 todo!()
             }
             ast::Expr::UnaryOp { op, expr } => self.unary_op(op, dependencies.get(expr).clone()),
-            ast::Expr::Cast { expr, data_type } => todo!(),
-            ast::Expr::TryCast { expr, data_type } => todo!(),
-            ast::Expr::SafeCast { expr, data_type } => todo!(),
+            ast::Expr::Cast {
+                expr,
+                data_type,
+                format: _,
+            } => match data_type {
+                //Text
+                ast::DataType::Character(_)
+                | ast::DataType::Char(_)
+                | ast::DataType::CharacterVarying(_)
+                |ast::DataType::CharVarying(_)
+                | ast::DataType::Varchar(_)
+                | ast::DataType::Nvarchar(_)
+                | ast::DataType::Uuid
+                | ast::DataType::CharacterLargeObject(_)
+                | ast::DataType::CharLargeObject(_)
+                | ast::DataType::Clob(_)
+                | ast::DataType::Text
+                | ast::DataType::String(_) => self.cast_as_text(dependencies.get(expr).clone()),
+                // Integer
+                //Bytes
+                ast::DataType::Binary(_)
+                | ast::DataType::Varbinary(_)
+                | ast::DataType::Blob(_)
+                | ast::DataType::Bytes(_) => todo!(),
+                //Float
+                ast::DataType::Numeric(_)
+                | ast::DataType::Decimal(_)
+                | ast::DataType::BigNumeric(_)
+                | ast::DataType::BigDecimal(_)
+                | ast::DataType::Dec(_)
+                | ast::DataType::Float(_)
+                | ast::DataType::Float4
+                | ast::DataType::Float64
+                | ast::DataType::Real
+                | ast::DataType::Float8
+                | ast::DataType::Double
+                | ast::DataType::DoublePrecision => self.cast_as_float(dependencies.get(expr).clone()),
+                // Integer
+                ast::DataType::TinyInt(_)
+                | ast::DataType::UnsignedTinyInt(_)
+                | ast::DataType::Int2(_)
+                | ast::DataType::UnsignedInt2(_)
+                | ast::DataType::SmallInt(_)
+                | ast::DataType::UnsignedSmallInt(_)
+                | ast::DataType::MediumInt(_)
+                | ast::DataType::UnsignedMediumInt(_)
+                | ast::DataType::Int(_)
+                | ast::DataType::Int4(_)
+                | ast::DataType::Int64
+                | ast::DataType::Integer(_)
+                | ast::DataType::UnsignedInt(_)
+                | ast::DataType::UnsignedInt4(_)
+                | ast::DataType::UnsignedInteger(_)
+                | ast::DataType::BigInt(_)
+                | ast::DataType::UnsignedBigInt(_)
+                | ast::DataType::Int8(_)
+                | ast::DataType::UnsignedInt8(_) => self.cast_as_integer(dependencies.get(expr).clone()),
+                // Boolean
+                ast::DataType::Bool
+                | ast::DataType::Boolean => self.cast_as_boolean(dependencies.get(expr).clone()),
+                // Date
+                ast::DataType::Date => self.cast_as_date(dependencies.get(expr).clone()),
+                // Time
+                ast::DataType::Time(_, _) => self.cast_as_time(dependencies.get(expr).clone()),
+                // DateTime
+                ast::DataType::Datetime(_)
+                | ast::DataType::Timestamp(_, _) => self.cast_as_date_time(dependencies.get(expr).clone()),
+
+                ast::DataType::Interval => todo!(),
+                ast::DataType::JSON => todo!(),
+                ast::DataType::Regclass => todo!(),
+                ast::DataType::Bytea => todo!(),
+                ast::DataType::Custom(_, _) => todo!(),
+                ast::DataType::Array(_) => todo!(),
+                ast::DataType::Enum(_) => todo!(),
+                ast::DataType::Set(_) => todo!(),
+                ast::DataType::Struct(_) => todo!(),
+            },
+            ast::Expr::TryCast {
+                expr,
+                data_type,
+                format: _,
+            } => todo!(),
+            ast::Expr::SafeCast {
+                expr,
+                data_type,
+                format: _,
+            } => todo!(),
             ast::Expr::AtTimeZone {
                 timestamp,
                 time_zone,
@@ -365,12 +480,33 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 substring_from,
                 substring_for,
                 special,
-            } => todo!(),
+            } => self.substring(
+                dependencies.get(expr).clone(),
+                substring_from
+                    .as_ref()
+                    .map(|x| dependencies.get(x.as_ref()).clone()),
+                substring_for
+                    .as_ref()
+                    .map(|x| dependencies.get(x.as_ref()).clone()),
+            ),
             ast::Expr::Trim {
                 expr,
                 trim_where,
                 trim_what,
-            } => todo!(),
+                trim_characters,
+            } => {
+                let trim_what = match (trim_what, trim_characters) {
+                    (None, None) => None,
+                    (Some(x), None) => Some(x.as_ref()),
+                    (None, Some(v)) => todo!(),
+                    _ => todo!(),
+                };
+                self.trim(
+                    dependencies.get(expr).clone(),
+                    trim_where,
+                    trim_what.map(|x| dependencies.get(x).clone()),
+                )
+            }
             ast::Expr::Overlay {
                 expr,
                 overlay_what,
@@ -448,6 +584,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 opt_search_modifier,
             } => todo!(),
             ast::Expr::IntroducedString { introducer, value } => todo!(),
+            ast::Expr::RLike {
+                negated,
+                expr,
+                pattern,
+                regexp,
+            } => todo!(),
+            ast::Expr::Struct { values, fields } => todo!(),
+            ast::Expr::Named { expr, name } => todo!(),
         }
     }
 }
@@ -544,6 +688,66 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
             list.into_iter().map(|x| format!("{x}")).join(", ")
         )
     }
+
+    fn trim(
+        &self,
+        expr: String,
+        trim_where: &Option<ast::TrimWhereField>,
+        trim_what: Option<String>,
+    ) -> String {
+        format!(
+            "TRIM ({} {} FROM {})",
+            trim_where.map(|w| w.to_string()).unwrap_or("".to_string()),
+            expr,
+            trim_what.unwrap_or("".to_string()),
+        )
+    }
+
+    fn substring(
+        &self,
+        expr: String,
+        substring_from: Option<String>,
+        substring_for: Option<String>,
+    ) -> String {
+        format!(
+            "SUBSTRING ({} {} {})",
+            expr,
+            substring_from
+                .map(|s| format!("FROM {}", s))
+                .unwrap_or("".to_string()),
+            substring_for
+                .map(|s| format!("FOR {}", s))
+                .unwrap_or("".to_string()),
+        )
+    }
+
+    fn cast_as_text(&self, expr: String) -> String {
+        format!("CAST ({} AS TEXT)", expr)
+    }
+
+    fn cast_as_float(&self, expr: String) -> String {
+        format!("CAST ({} AS FLOAT)", expr)
+    }
+
+    fn cast_as_integer(&self, expr: String) -> String {
+        format!("CAST ({} AS INTEGER)", expr)
+    }
+
+    fn cast_as_boolean(&self, expr: String) -> String {
+        format!("CAST ({} AS BOOLEAN)", expr)
+    }
+
+    fn cast_as_date_time(&self, expr: String) -> String {
+        format!("CAST ({} AS DATETIME)", expr)
+    }
+
+    fn cast_as_date(&self, expr: String) -> String {
+        format!("CAST ({} AS DATE)", expr)
+    }
+
+    fn cast_as_time(&self, expr: String) -> String {
+        format!("CAST ({} AS TIME)", expr)
+    }
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -569,7 +773,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 
     fn wildcard(&self) -> Result<Expr> {
-        todo!()
+        Ok(Expr::val(1))
     }
 
     fn identifier(&self, ident: &'a ast::Ident) -> Result<Expr> {
@@ -700,11 +904,42 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "pow" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "md5" => Expr::md5(flat_args[0].clone()),
+            "coalesce" => {
+                let (first, vec) = flat_args.split_first().unwrap();
+                vec.iter()
+                    .fold(first.clone(), |acc, x| Expr::coalesce(acc, x.clone()))
+            }
+            "ltrim" => self.trim(
+                Ok(flat_args[0].clone()),
+                &Some(ast::TrimWhereField::Leading),
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone())),
+            )?,
+            "rtrim" => self.trim(
+                Ok(flat_args[0].clone()),
+                &Some(ast::TrimWhereField::Trailing),
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone())),
+            )?,
+            "btrim" => self.trim(
+                Ok(flat_args[0].clone()),
+                &Some(ast::TrimWhereField::Both),
+                (flat_args.len() > 1).then_some(Ok(flat_args[1].clone())),
+            )?,
             // string functions
             "lower" => Expr::lower(flat_args[0].clone()),
             "upper" => Expr::upper(flat_args[0].clone()),
             "char_length" => Expr::char_length(flat_args[0].clone()),
             "concat" => Expr::concat(flat_args.clone()),
+            "substr" => {
+                if flat_args.len() > 2 {
+                    Expr::substr_with_size(
+                        flat_args[0].clone(),
+                        flat_args[1].clone(),
+                        flat_args[2].clone(),
+                    )
+                } else {
+                    Expr::substr(flat_args[0].clone(), flat_args[1].clone())
+                }
+            }
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
@@ -756,6 +991,68 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             })
             .collect();
         Ok(Expr::in_list(expr?, Expr::val(Value::list(list?))))
+    }
+
+    fn trim(
+        &self,
+        expr: Result<Expr>,
+        trim_where: &Option<ast::TrimWhereField>,
+        trim_what: Option<Result<Expr>>,
+    ) -> Result<Expr> {
+        let trim_what = trim_what.unwrap_or(Ok(Expr::val(" ".to_string())));
+        Ok(match trim_where {
+            Some(ast::TrimWhereField::Leading) => Expr::ltrim(expr?, trim_what?),
+            Some(ast::TrimWhereField::Trailing) => Expr::rtrim(expr?, trim_what?),
+            Some(ast::TrimWhereField::Both) | None => {
+                Expr::ltrim(Expr::rtrim(expr?, trim_what.clone()?), trim_what?)
+            }
+        })
+    }
+
+    fn substring(
+        &self,
+        expr: Result<Expr>,
+        substring_from: Option<Result<Expr>>,
+        substring_for: Option<Result<Expr>>,
+    ) -> Result<Expr> {
+        let substring_from = substring_from.unwrap_or(Ok(Expr::val(0)));
+        substring_for
+            .map(|x| {
+                Ok(Expr::substr_with_size(
+                    expr.clone()?,
+                    substring_from.clone()?,
+                    x?,
+                ))
+            })
+            .unwrap_or(Ok(Expr::substr(expr.clone()?, substring_from.clone()?)))
+    }
+
+    fn cast_as_text(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_text(expr.clone()?))
+    }
+
+    fn cast_as_float(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_float(expr.clone()?))
+    }
+
+    fn cast_as_integer(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_integer(expr.clone()?))
+    }
+
+    fn cast_as_boolean(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_boolean(expr.clone()?))
+    }
+
+    fn cast_as_date_time(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_date_time(expr.clone()?))
+    }
+
+    fn cast_as_date(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_date(expr.clone()?))
+    }
+
+    fn cast_as_time(&self, expr: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::cast_as_time(expr.clone()?))
     }
 }
 
@@ -921,5 +1218,141 @@ mod tests {
         let true_expr = Expr::not(Expr::in_list(Expr::col("a"), Expr::list([3, 4, 5])));
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("(not (a in (3, 4, 5)))"));
+    }
+
+    #[test]
+    fn test_coalesce() {
+        let ast_expr: ast::Expr = parse_expr("coalesce(col1, col2, col3, 'default')").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::coalesce(
+            Expr::coalesce(
+                Expr::coalesce(Expr::col("col1"), Expr::col("col2")),
+                Expr::col("col3"),
+            ),
+            Expr::val("default".to_string()),
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(
+            expr.to_string(),
+            String::from("coalesce(coalesce(coalesce(col1, col2), col3), default)")
+        );
+    }
+
+    #[test]
+    fn test_trim() {
+        // TODO: TRIM(LEADING|TRAILING|BOTH FROM string) does not work in SQLParser
+
+        // TRIM(LEADING 'a' FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(LEADING 'a' FROM col1)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(col1, a)"));
+
+        // LTRIM(string, "a")
+        let ast_expr: ast::Expr = parse_expr("LTRIM(col1, 'a')").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(col1, a)"));
+
+        // TRIM(TRAILING "a" FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(TRAILING 'a' FROM col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("rtrim(col1, a)"));
+
+        // RTRIM(string, "a")
+        let ast_expr: ast::Expr = parse_expr("RTRIM(col1, 'a')").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string()));
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("rtrim(col1, a)"));
+
+        // TRIM(BOTH "a" FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(BOTH 'a' FROM col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
+            Expr::val("a".to_string()),
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
+
+        // BTRIM(string, "a")
+        let ast_expr: ast::Expr = parse_expr("BTRIM(col1, 'a')").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
+            Expr::val("a".to_string()),
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
+
+        // TRIM(string)
+        let ast_expr: ast::Expr = parse_expr("TRIM(col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val(" ".to_string())),
+            Expr::val(" ".to_string()),
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1,  ),  )"));
+
+        // TRIM("a" FROM string)
+        let ast_expr: ast::Expr = parse_expr("TRIM('a' FROM col1)").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+        for (x, t) in ast_expr.iter_with(DisplayVisitor) {
+            println!("{x} ({t})");
+        }
+        let true_expr = Expr::ltrim(
+            Expr::rtrim(Expr::col("col1"), Expr::val("a".to_string())),
+            Expr::val("a".to_string()),
+        );
+        assert_eq!(true_expr.to_string(), expr.to_string());
+        assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
     }
 }

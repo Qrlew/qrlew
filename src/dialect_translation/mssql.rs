@@ -35,6 +35,8 @@ impl IntoDialectTranslator for MSSQLTranslator {
             distinct: false,
             special: false,
             order_by: vec![],
+            null_treatment: None,
+            filter: None,
         };
         ast::Expr::Function(funtion)
     }
@@ -48,6 +50,8 @@ impl IntoDialectTranslator for MSSQLTranslator {
             distinct: false,
             special: false,
             order_by: vec![],
+            filter: None,
+            null_treatment: None,
         })
     }
 
@@ -66,6 +70,8 @@ impl IntoDialectTranslator for MSSQLTranslator {
             distinct: false,
             special: false,
             order_by: vec![],
+            filter: None,
+            null_treatment: None,
         });
 
         let hash_byte_as_function_arg =
@@ -81,6 +87,8 @@ impl IntoDialectTranslator for MSSQLTranslator {
             distinct: false,
             special: false,
             order_by: vec![],
+            filter: None,
+            null_treatment: None,
         });
 
         let varchartype_as_function_arg =
@@ -99,6 +107,8 @@ impl IntoDialectTranslator for MSSQLTranslator {
             distinct: false,
             special: false,
             order_by: vec![],
+            filter: None,
+            null_treatment: None,
         })
     }
 
@@ -144,6 +154,7 @@ impl IntoDialectTranslator for MSSQLTranslator {
             offset: None,
             fetch: None,
             locks: vec![],
+            limit_by: vec![],
         }
     }
 

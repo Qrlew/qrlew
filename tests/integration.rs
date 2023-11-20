@@ -1,6 +1,6 @@
 //! # Integration tests
 //!
-//! Various queries are tested against their compiled to Relation + decompiled counterpart.
+//! Various queries are tested against their version rewriten to Relation + re-rewriten.
 
 use colored::Colorize;
 use itertools::Itertools;
@@ -11,7 +11,7 @@ use qrlew::{
     display::Dot,
     expr,
     io::{postgresql, Database},
-    protection::ProtectedEntity,
+    privacy_unit_tracking::PrivacyUnit,
     relation::Variant as _,
     sql::parse,
     Relation, With,

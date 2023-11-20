@@ -158,6 +158,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                     }))),
                     order_by,
                     limit,
+                    limit_by: vec![],
                     offset: None,
                     fetch: None,
                     locks: vec![],
@@ -234,6 +235,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                         })),
                         order_by: vec![],
                         limit: None,
+                        limit_by: vec![],
                         offset: None,
                         fetch: None,
                         locks: vec![],
@@ -243,6 +245,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                     table: false,
                     on: None,
                     returning: None,
+                    ignore: false,
                 }
             }
 
@@ -647,6 +650,8 @@ fn function_builder(name: &str, exprs: Vec<ast::Expr>) -> ast::Expr {
         distinct: false,
         special: false,
         order_by: vec![],
+        filter: None,
+        null_treatment: None,
     };
     ast::Expr::Function(funtion)
 }
@@ -656,6 +661,7 @@ fn cast_builder(expr: ast::Expr, as_type: ast::DataType) -> ast::Expr {
     ast::Expr::Cast {
         expr: Box::new(expr),
         data_type: as_type,
+        format: None,
     }
 }
 

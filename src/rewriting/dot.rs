@@ -65,7 +65,7 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
             Node::RewritingRule(rewriting_rule, _) => match rewriting_rule.output() {
                 Property::Private => colors::TABLEAU_BROWN,
                 Property::SyntheticData => colors::TABLEAU_GREEN,
-                Property::ProtectedEntityPreserving => colors::TABLEAU_ORANGE,
+                Property::PrivacyUnitPreserving => colors::TABLEAU_ORANGE,
                 Property::DifferentiallyPrivate => colors::TABLEAU_RED,
                 Property::Published => colors::TABLEAU_BLUE,
                 Property::Public => colors::TABLEAU_CYAN,
@@ -168,6 +168,19 @@ mod tests {
         sql::parse,
         Relation,
     };
+
+    #[test]
+    fn test_query() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        println!("{relations}");
+        let query = parse(
+            "SELECT a, count(abs(10*a+b)) AS x FROM table_1 WHERE b>-0.1 AND a IN (1,2,3) GROUP BY a",
+        )
+        .unwrap();
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+    }
 
     #[test]
     fn test_set_rewriting_rules() {

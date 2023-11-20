@@ -282,6 +282,50 @@ impl Pointwise {
             }),
         )
     }
+
+    /// Build trivariate pointwise function
+    pub fn trivariate<A: Variant, B: Variant, C: Variant, D: Variant>(
+        domain: (A, B, C),
+        co_domain: D,
+        value: impl Fn(
+                <A::Element as value::Variant>::Wrapped,
+                <B::Element as value::Variant>::Wrapped,
+                <C::Element as value::Variant>::Wrapped,
+            ) -> <D::Element as value::Variant>::Wrapped
+            + Sync
+            + Send
+            + 'static,
+    ) -> Self
+    where
+        <A::Element as value::Variant>::Wrapped: TryFrom<Value>,
+        <B::Element as value::Variant>::Wrapped: TryFrom<Value>,
+        <C::Element as value::Variant>::Wrapped: TryFrom<Value>,
+        <<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<A::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
+        <<B::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<B::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
+        <<C::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error: fmt::Debug,
+        Error: From<<<C::Element as value::Variant>::Wrapped as TryFrom<Value>>::Error>,
+        <D::Element as value::Variant>::Wrapped: Into<Value>,
+    {
+        let domain = data_type::Struct::from_data_types(&[
+            domain.0.into(),
+            domain.1.into(),
+            domain.2.into(),
+        ]);
+        Self::new(
+            domain.into(),
+            co_domain.into(),
+            Arc::new(move |ab| {
+                let abc = value::Struct::try_from(ab).unwrap();
+                let a = <A::Element as value::Variant>::Wrapped::try_from(abc[0].as_ref().clone());
+                let b = <B::Element as value::Variant>::Wrapped::try_from(abc[1].as_ref().clone());
+                let c = <C::Element as value::Variant>::Wrapped::try_from(abc[2].as_ref().clone());
+                Ok(a.map(|a| b.map(|b| c.map(|c| value(a, b, c).into())))???)
+            }),
+        )
+    }
+
     /// Build variadic pointwise function
     pub fn variadic<D: Variant, C: Variant>(
         domain: Vec<D>,
@@ -1047,6 +1091,55 @@ impl Function for InList {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Coalesce;
+
+impl fmt::Display for Coalesce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "coalesce")
+    }
+}
+
+impl Function for Coalesce {
+    fn domain(&self) -> DataType {
+        DataType::from(data_type::Struct::from_data_types(&[
+            DataType::Any,
+            DataType::Any,
+        ]))
+    }
+
+    fn super_image(&self, set: &DataType) -> Result<DataType> {
+        if !set.is_subset_of(&self.domain()) {
+            Err(Error::set_out_of_range(set, self.domain()))
+        } else {
+            if let DataType::Struct(struct_data_type) = set {
+                let data_type_1 = struct_data_type.field_from_index(0).1.as_ref().clone();
+                let data_type_2 = struct_data_type.field_from_index(1).1.as_ref().clone();
+
+                Ok(if let DataType::Optional(o) = data_type_1 {
+                    o.data_type().super_union(&data_type_2)?
+                } else {
+                    data_type_1
+                })
+            } else {
+                Err(Error::set_out_of_range(set, self.domain()))
+            }
+        }
+    }
+
+    fn value(&self, arg: &Value) -> Result<Value> {
+        if let Value::Struct(struct_values) = arg {
+            if struct_values.field_from_index(0).1 == Arc::new(Value::none()) {
+                Ok(struct_values.field_from_index(1).1.as_ref().clone())
+            } else {
+                Ok(struct_values.field_from_index(0).1.as_ref().clone())
+            }
+        } else {
+            Err(Error::argument_out_of_range(arg, self.domain()))
+        }
+    }
+}
+
 /*
 We list here all the functions to expose
 */
@@ -1062,10 +1155,75 @@ Conversion function
 
 /// Builds the cast operator
 pub fn cast(into: DataType) -> impl Function {
-    // TODO Only cast as text is working for now
     match into {
         DataType::Text(t) if t == data_type::Text::full() => {
-            Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into())
+            Pointwise::univariate(
+                //DataType::Any,
+                DataType::Any,
+                DataType::text(),
+                |v| v.to_string().into())
+        }
+        DataType::Float(f) if f == data_type::Float::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::float(),
+                |v| v.to_string().parse::<f64>().unwrap().into()
+            )
+        }
+        DataType::Integer(i) if i == data_type::Integer::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::integer(),
+                |v| v.to_string().parse::<i64>().unwrap().into()
+            )
+        }
+        DataType::Boolean(b) if b == data_type::Boolean::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::boolean(),
+                |v| {
+                    let true_list = vec![
+                        "t".to_string(), "tr".to_string(), "tru".to_string(), "true".to_string(),
+                        "y".to_string(), "ye".to_string(), "yes".to_string(),
+                        "on".to_string(),
+                        "1".to_string()
+                    ];
+                    let false_list = vec![
+                        "f".to_string(), "fa".to_string(), "fal".to_string(), "fals".to_string(), "false".to_string(),
+                        "n".to_string(), "no".to_string(),
+                        "off".to_string(),
+                        "0".to_string()
+                    ];
+                    if true_list.contains(&v.to_string().to_lowercase()) {
+                        true.into()
+                    } else if false_list.contains(&v.to_string().to_lowercase()) {
+                        false.into()
+                    } else {
+                        panic!()
+                    }
+                }
+            )
+        }
+        DataType::Date(d) if d == data_type::Date::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::date(),
+                |v| todo!()
+            )
+        }
+        DataType::DateTime(d) if d == data_type::DateTime::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::date_time(),
+                |v| todo!()
+            )
+        }
+        DataType::Time(t) if t == data_type::Time::full() => {
+            Pointwise::univariate(
+                DataType::text(),
+                DataType::time(),
+                |v| todo!()
+            )
         }
         _ => todo!(),
     }
@@ -1226,6 +1384,49 @@ pub fn string_concat() -> impl Function {
         (data_type::Text::default(), data_type::Text::default()),
         data_type::Text::default(),
         |a, b| (a + &b).into(),
+    )
+}
+
+pub fn rtrim() -> impl Function {
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Text::default()),
+        data_type::Text::default(),
+        |a, b| a.as_str().trim_end_matches(b.as_str()).into(),
+    )
+}
+
+pub fn ltrim() -> impl Function {
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Text::default()),
+        data_type::Text::default(),
+        |a, b| a.as_str().trim_start_matches(b.as_str()).into(),
+    )
+}
+
+pub fn substr() -> impl Function {
+    Pointwise::bivariate(
+        (data_type::Text::default(), data_type::Integer::default()),
+        data_type::Text::default(),
+        |a, b| {
+            let start = b as usize;
+            a.as_str().get(start..).unwrap_or("").to_string()
+        },
+    )
+}
+
+pub fn substr_with_size() -> impl Function {
+    Pointwise::trivariate(
+        (
+            data_type::Text::default(),
+            data_type::Integer::default(),
+            data_type::Integer::default(),
+        ),
+        data_type::Text::default(),
+        |a, b, c| {
+            let start = b as usize;
+            let end = cmp::min((b + c) as usize, a.len());
+            a.as_str().get(start..end).unwrap_or("").to_string()
+        },
     )
 }
 
@@ -1590,6 +1791,11 @@ pub fn in_list() -> impl Function {
     ))
 }
 
+// Coalesce function
+pub fn coalesce() -> impl Function {
+    Coalesce
+}
+
 /*
 Aggregation functions
  */
@@ -1837,6 +2043,7 @@ mod tests {
         super::{value::Value, Struct},
         *,
     };
+    use chrono;
 
     #[test]
     fn test_argument_conversion() {
@@ -2942,5 +3149,284 @@ mod tests {
                 .super_union(&DataType::integer_interval(10, 100))
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn test_coalesce() {
+        println!("Test coalesce");
+        let fun = coalesce();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::integer(),
+            DataType::text(),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::optional(DataType::integer()),
+            DataType::text(),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::optional(DataType::integer_interval(1, 5)),
+            DataType::integer_value(20),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::integer_interval(1, 5)
+                .super_union(&DataType::integer_value(20))
+                .unwrap()
+        );
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::optional(DataType::integer()),
+            DataType::optional(DataType::text()),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::optional(DataType::text()));
+    }
+
+    #[test]
+    fn test_rtrim() {
+        println!("Test rtrim");
+        let fun = rtrim();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::text(),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values([
+                "aba".to_string(),
+                "aa".to_string(),
+                "baaa".to_string(),
+                "ba".to_string(),
+                "mc".to_string(),
+            ]),
+            DataType::text_values(["a".to_string(), "c".to_string()]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(
+            im == DataType::text_values([
+                "".to_string(),
+                "aa".to_string(),
+                "ab".to_string(),
+                "aba".to_string(),
+                "b".to_string(),
+                "ba".to_string(),
+                "baaa".to_string(),
+                "m".to_string(),
+                "mc".to_string()
+            ])
+        );
+
+        let arg = Value::text("sarusss".to_string()) & Value::text("s".to_string());
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, Value::from("saru".to_string()));
+    }
+
+    #[test]
+    fn test_ltrim() {
+        println!("Test ltrim");
+        let fun = ltrim();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::text(),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values([
+                "aba".to_string(),
+                "aa".to_string(),
+                "baaa".to_string(),
+                "ba".to_string(),
+                "mc".to_string(),
+            ]),
+            DataType::text_values(["a".to_string(), "c".to_string()]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(
+            im == DataType::text_values([
+                "".to_string(),
+                "aa".to_string(),
+                "aba".to_string(),
+                "ba".to_string(),
+                "baaa".to_string(),
+                "mc".to_string()
+            ])
+        );
+
+        let arg = Value::text("sarus".to_string()) & Value::text("s".to_string());
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, Value::from("arus".to_string()));
+    }
+
+    #[test]
+    fn test_substr() {
+        println!("Test substr");
+        let fun = substr();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::integer(),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["abcdefg".to_string(), "hijklmno".to_string()]),
+            DataType::integer_values([3, 6, 10]),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::text_values([
+                "".to_string(),
+                "defg".to_string(),
+                "g".to_string(),
+                "klmno".to_string(),
+                "no".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn test_substr_with_size() {
+        println!("Test substr_with_size");
+        let fun = substr_with_size();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text(),
+            DataType::integer(),
+            DataType::integer(),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["abcdefg".to_string(), "hijklmno".to_string()]),
+            DataType::integer_values([3, 6, 10]),
+            DataType::integer_value(2),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::text_values([
+                "".to_string(),
+                "de".to_string(),
+                "g".to_string(),
+                "kl".to_string(),
+                "no".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn test_cast_as_text() {
+        println!("Test cast as text");
+        let fun = cast(DataType::text());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::integer_values([1, 3, 4]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["1".to_string(), "3".to_string(), "4".to_string()]));
+
+        let set = DataType::integer_values([1, 3, 4]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["1".to_string(), "3".to_string(), "4".to_string()]));
+
+        let set = DataType::date_value(chrono::NaiveDate::from_ymd_opt(2015, 6, 3).unwrap());
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text_values(["2015-06-03".to_string()]));
+    }
+
+    #[test]
+    fn test_cast_as_float() {
+        println!("Test cast as float");
+        let fun = cast(DataType::float());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::text_values(["1.5".to_string(), "3".to_string(), "4.555".to_string()]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_values([1.5, 3., 4.555]));
+    }
+
+    #[test]
+    fn test_cast_as_integer() {
+        println!("\nTest cast as integer");
+        let fun = cast(DataType::integer());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::text_values(["1".to_string(), "3".to_string(), "4".to_string()]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([1, 3, 4]));
+    }
+
+    #[test]
+    fn test_cast_to_boolean() {
+        println!("\nTest cast as boolean");
+        let fun = cast(DataType::boolean());
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::text_values(["1".to_string(), "tru".to_string()]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean_value(true));
     }
 }

@@ -32,6 +32,7 @@ pub enum Function {
     BitwiseAnd,
     BitwiseXor,
     InList,
+    Coalesce,
     // Functions
     Exp,
     Ln,
@@ -52,9 +53,16 @@ pub enum Function {
     CastAsText,
     CastAsFloat,
     CastAsInteger,
+    CastAsBoolean,
     CastAsDateTime,
+    CastAsDate,
+    CastAsTime,
     Least,
     Greatest,
+    Rtrim,
+    Ltrim,
+    Substr,
+    SubstrWithSize
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -114,14 +122,22 @@ impl Function {
             | Function::CastAsText
             | Function::CastAsFloat
             | Function::CastAsInteger
+            | Function::CastAsBoolean
             | Function::CastAsDateTime
+            | Function::CastAsDate
+            | Function::CastAsTime
             // Binary Functions
             | Function::Pow
             | Function::Position
             | Function::Least
             | Function::Greatest
+            | Function::Coalesce
+            | Function::Rtrim
+            | Function::Ltrim
+            | Function::Substr
             // Ternary Function
             | Function::Case
+            | Function::SubstrWithSize
             // Nary Function
             | Function::Concat(_) => Style::Function,
         }
@@ -169,13 +185,21 @@ impl Function {
             | Function::CastAsText
             | Function::CastAsFloat
             | Function::CastAsInteger
-            | Function::CastAsDateTime => Arity::Unary,
+            | Function::CastAsBoolean
+            | Function::CastAsDateTime
+            | Function::CastAsDate
+            | Function::CastAsTime => Arity::Unary,
             // Binary Function
-            Function::Pow | Function::Position | Function::Least | Function::Greatest => {
-                Arity::Nary(2)
-            }
+            Function::Pow
+            | Function::Position
+            | Function::Least
+            | Function::Greatest
+            | Function::Coalesce
+            | Function::Rtrim
+            | Function::Ltrim
+            | Function::Substr => Arity::Nary(2),
             // Ternary Function
-            Function::Case => Arity::Nary(3),
+            Function::Case | Function::SubstrWithSize => Arity::Nary(3),
             // Nary Function
             Function::Concat(_) => Arity::Varying,
         }
@@ -245,14 +269,22 @@ impl fmt::Display for Function {
             Function::CastAsText => "cast_as_text",
             Function::CastAsInteger => "cast_as_integer",
             Function::CastAsFloat => "cast_as_float",
+            Function::CastAsBoolean => "cast_as_boolean",
             Function::CastAsDateTime => "cast_as_date_time",
+            Function::CastAsDate => "cast_as_date",
+            Function::CastAsTime => "cast_as_time",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",
             Function::Least => "least",
             Function::Greatest => "greatest",
+            Function::Coalesce => "coalesce",
+            Function::Rtrim => "rtrim",
+            Function::Ltrim => "ltrim",
+            Function::Substr => "substr",
             // Ternary Functions
             Function::Case => "case",
+            Function::SubstrWithSize => "substr",
             // Nary Functions
             Function::Concat(_) => "concat",
         })

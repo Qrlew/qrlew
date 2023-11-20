@@ -27,7 +27,7 @@ pub mod encoder;
 pub mod hierarchy;
 pub mod io;
 pub mod namer;
-pub mod protection;
+pub mod privacy_unit_tracking;
 pub mod relation;
 pub mod rewriting;
 pub mod sampling_adjustment;

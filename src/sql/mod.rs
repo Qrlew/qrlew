@@ -142,39 +142,23 @@ mod tests {
     }
 
     #[test]
-    fn test_render() {
-        let database = postgresql::test_database();
-        let relations = database.relations();
-        let query = r#"
-        SELECT y FROM table_2 GROUP BY y
-        "#;
-        // let paresed = parse_with_dialect(query, BigQueryDialect).unwrap();
-        // println!("PARSED: \n{}\n", paresed);
-        // let qwith_rel = paresed.with(&relations);
-        // let relation = Relation::try_from(qwith_rel).unwrap();
-        let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
-        println!("Relation: \n{}\n", relation);
-        let new_query = ast::Query::from(&relation);
-        println!("FINAL: \n{}\n", new_query)
-    }
+    fn test_cast_queries() {
+        let mut database = postgresql::test_database();
 
-    #[test]
-    fn test_values() {
-        // let values = Values::new(
-        //     "values".to_string(),
-        //     vec![Value::from(1.0), Value::from(2.0), Value::from(10)],
-        // );
-        // assert_eq!(
-        //     values.data_type(),
-        //     DataType::structured(vec![(
-        //         "values",
-        //         DataType::from(data_type::Float::from_values(vec![1., 2., 10.]))
-        //     )])
-        // );
-        // let relation: Relation = values.into();
-        // let query = ast::Query::from(&relation);
-        // assert_eq!(values.size(), &Integer::from(3 as i64));
-        // println!("{}", values);
-        // println!("QUERY: {}")
+        for query in [
+            "SELECT CAST(a AS text) FROM table_1", // float => text
+            "SELECT CAST(b AS text) FROM table_1", // integer => text
+            "SELECT CAST(c AS text) FROM table_1", // date => text
+            "SELECT CAST(z AS text) FROM table_2", // text => text
+            "SELECT CAST(x AS float) FROM table_2", // integer => float
+            "SELECT CAST('true' AS boolean) FROM table_2", // integer => float
+        ] {
+            let res1 = database.query(query).unwrap();
+            let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
+            let relation_query: &str = &ast::Query::from(&relation).to_string();
+            println!("{query} => {relation_query}");
+            let res2 = database.query(relation_query).unwrap();
+            assert_eq!(res1, res2);
+        }
     }
 }
