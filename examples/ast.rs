@@ -129,5 +129,8 @@ fn main() -> Result<(), &'static str> {
     // Print an AST with Values
     print_ast("(VALUES (1), (2), (3)) AS t1")?;
 
+    // Print an AST with count(*)
+    print_ast("SELECT COUNT(*) FROM table_1")?;
+
     Ok(())
 }

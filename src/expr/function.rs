@@ -197,9 +197,7 @@ impl Function {
             | Function::Coalesce
             | Function::Rtrim
             | Function::Ltrim
-            | Function::Substr => {
-                Arity::Nary(2)
-            }
+            | Function::Substr => Arity::Nary(2),
             // Ternary Function
             Function::Case | Function::SubstrWithSize => Arity::Nary(3),
             // Nary Function

@@ -4,7 +4,7 @@
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
-    data_type::{self, DataType, DataTyped, Variant as _, function::Function},
+    data_type::{self, function::Function, DataType, DataTyped, Variant as _},
     expr::{self, aggregate, Aggregate, Expr, Value},
     io, namer, relation,
 };
@@ -514,7 +514,8 @@ impl Relation {
             .with_iter(self.schema().iter().map(|f| {
                 if name_sigmas.contains_key(&f.name()) {
                     let x = Expr::coalesce(Expr::col(f.name()), Expr::val(0.));
-                    let float_data_type: data_type::Float = x.super_image(&f.data_type())
+                    let float_data_type: data_type::Float = x
+                        .super_image(&f.data_type())
                         .unwrap()
                         .into_data_type(&DataType::float())
                         .unwrap()
