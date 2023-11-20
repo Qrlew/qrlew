@@ -145,7 +145,7 @@ mod tests {
         let mut database = postgresql::test_database();
 
         for query in [
-            "SELECT CEIL(b), FLOAT(b), ROUND(b, 3), TRUNC(b, 2) FROM table_1",
+            "SELECT CEIL(b), FLOOR(b), ROUND(b, 3), TRUNC(b, 2) FROM table_1",
         ] {
             let res1 = database.query(query).unwrap();
             let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
