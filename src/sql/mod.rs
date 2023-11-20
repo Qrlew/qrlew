@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cast_queries() {
+    fn test_queries() {
         let mut database = postgresql::test_database();
 
         for query in [
@@ -151,6 +151,7 @@ mod tests {
             "SELECT CAST(z AS text) FROM table_2", // text => text
             "SELECT CAST(x AS float) FROM table_2", // integer => float
             "SELECT CAST('true' AS boolean) FROM table_2", // integer => float
+            "SELECT CEIL(3 * b), FLOOR(3 * b), TRUNC(3 * b), ROUND(3 * b) FROM table_1",
         ] {
             let res1 = database.query(query).unwrap();
             let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();

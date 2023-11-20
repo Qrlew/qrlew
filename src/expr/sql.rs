@@ -184,11 +184,27 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Rtrim
             | expr::function::Function::Ltrim
             | expr::function::Function::Substr
-            | expr::function::Function::SubstrWithSize => ast::Expr::Function(ast::Function {
+            | expr::function::Function::SubstrWithSize
+            | expr::function::Function::Ceil
+            | expr::function::Function::Floor => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
                     .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                    .collect(),
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::function::Function::Round
+            | expr::function::Function::Trunc => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: arguments
+                    .into_iter()
+                    .filter_map(|e| (e!=ast::Expr::Value(ast::Value::Number("1".to_string(), false))).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
                     .collect(),
                 over: None,
                 distinct: false,
@@ -555,6 +571,7 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         assert_eq!(gen_expr, parse_expr("substr(a, 0, 5)").unwrap());
     }
+
     #[test]
     fn test_cast() {
         let str_expr = "cast(a as varchar)";
@@ -588,5 +605,50 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_ceil() {
+        let str_expr = "ceil(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+
+    #[test]
+    fn test_floor() {
+        let str_expr = "floor(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_round() {
+        let str_expr = "round(a, 2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_trunc() {
+        let str_expr = "trunc(a, 4)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
     }
 }

@@ -62,7 +62,11 @@ pub enum Function {
     Rtrim,
     Ltrim,
     Substr,
-    SubstrWithSize
+    SubstrWithSize,
+    Ceil,
+    Floor,
+    Round,
+    Trunc
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -124,6 +128,8 @@ impl Function {
             | Function::CastAsInteger
             | Function::CastAsBoolean
             | Function::CastAsDateTime
+            | Function::Ceil
+            | Function::Floor
             | Function::CastAsDate
             | Function::CastAsTime
             // Binary Functions
@@ -135,6 +141,8 @@ impl Function {
             | Function::Rtrim
             | Function::Ltrim
             | Function::Substr
+            | Function::Round
+            | Function::Trunc
             // Ternary Function
             | Function::Case
             | Function::SubstrWithSize
@@ -188,7 +196,9 @@ impl Function {
             | Function::CastAsBoolean
             | Function::CastAsDateTime
             | Function::CastAsDate
-            | Function::CastAsTime => Arity::Unary,
+            | Function::CastAsTime
+            | Function::Ceil
+            | Function::Floor => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -197,7 +207,11 @@ impl Function {
             | Function::Coalesce
             | Function::Rtrim
             | Function::Ltrim
-            | Function::Substr => Arity::Nary(2),
+            | Function::Substr
+            | Function::Round
+            | Function::Trunc => {
+                Arity::Nary(2)
+            }
             // Ternary Function
             Function::Case | Function::SubstrWithSize => Arity::Nary(3),
             // Nary Function
@@ -271,6 +285,8 @@ impl fmt::Display for Function {
             Function::CastAsFloat => "cast_as_float",
             Function::CastAsBoolean => "cast_as_boolean",
             Function::CastAsDateTime => "cast_as_date_time",
+            Function::Ceil => "ceil",
+            Function::Floor => "floor",
             Function::CastAsDate => "cast_as_date",
             Function::CastAsTime => "cast_as_time",
             // Binary Functions
@@ -282,6 +298,8 @@ impl fmt::Display for Function {
             Function::Rtrim => "rtrim",
             Function::Ltrim => "ltrim",
             Function::Substr => "substr",
+            Function::Round => "round",
+            Function::Trunc => "trunc",
             // Ternary Functions
             Function::Case => "case",
             Function::SubstrWithSize => "substr",
