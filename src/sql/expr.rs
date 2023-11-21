@@ -8,6 +8,7 @@ use crate::{
     expr::{identifier::Identifier, Expr, Value},
     hierarchy::{Hierarchy, Path},
     visitor::{self, Acceptor, Dependencies, Visited},
+    namer
 };
 use itertools::Itertools;
 use sqlparser::{
@@ -926,9 +927,11 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "abs" => Expr::abs(flat_args[0].clone()),
             "sin" => Expr::sin(flat_args[0].clone()),
             "cos" => Expr::cos(flat_args[0].clone()),
+            "tan" => Expr::divide(Expr::sin(flat_args[0].clone()), Expr::cos(flat_args[0].clone())),
             "sqrt" => Expr::sqrt(flat_args[0].clone()),
             "pow" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
+            "square" => Expr::pow(flat_args[0].clone(), Expr::val(2)),
             "md5" => Expr::md5(flat_args[0].clone()),
             "coalesce" => {
                 let (first, vec) = flat_args.split_first().unwrap();
@@ -989,6 +992,12 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 )
             }
             "sign" => Expr::sign(flat_args[0].clone()),
+            "random" => Expr::random(namer::new_id("UNIFORM_SAMPLING")),
+            "pi" => Expr::pi(),
+            "degrees" => Expr::multiply(
+                flat_args[0].clone(),
+                Expr::divide(Expr::val(180.), Expr::pi())
+            ),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),

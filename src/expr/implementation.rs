@@ -91,6 +91,7 @@ function_implementations!(
             Function::CastAsTime => Arc::new(Optional::new(function::cast(DataType::time()))),
             Function::Concat(n) => Arc::new(function::concat(n)),
             Function::Random(n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
+            Function::Pi => Arc::new(function::pi()),
             Function::Coalesce => Arc::new(function::coalesce()),
             _ => unreachable!(),
         }
