@@ -914,7 +914,15 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "not" => Expr::not(flat_args[0].clone()),
             "exp" => Expr::exp(flat_args[0].clone()),
             "ln" => Expr::ln(flat_args[0].clone()),
-            "log" => Expr::log(flat_args[0].clone()),
+            "log" => {
+                if flat_args.len() == 1 {
+                    Expr::log(flat_args[0].clone())
+                } else {
+                    Expr::divide(Expr::log(flat_args[1].clone()), Expr::log(flat_args[0].clone()))
+                }
+            }
+            "log2" => Expr::divide(Expr::log(Expr::val(2)), Expr::log(flat_args[0].clone())),
+            "log10" => Expr::divide(Expr::log(Expr::val(10)), Expr::log(flat_args[0].clone())),
             "abs" => Expr::abs(flat_args[0].clone()),
             "sin" => Expr::sin(flat_args[0].clone()),
             "cos" => Expr::cos(flat_args[0].clone()),

@@ -663,4 +663,49 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr);
     }
+
+    #[test]
+    fn test_log() {
+        let str_expr = "ln(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "log(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "log(b, x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(log(x)) / ((log(b)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "log10(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("(log(10)) / ((log(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "log2(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(log(2)) / ((log(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
 }
