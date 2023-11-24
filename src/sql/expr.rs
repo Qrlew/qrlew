@@ -522,9 +522,6 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::TypedString { data_type, value } => todo!(),
             ast::Expr::MapAccess { column, keys } => todo!(),
             ast::Expr::Function(function) => {
-                if function.distinct {
-                    todo!()
-                }
                 self.function(function, {
                     let mut result = vec![];
                     for function_arg in function.args.iter() {
@@ -909,6 +906,9 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             .collect();
         let flat_args = flat_args?;
         let function_name: &str = &function.name.0.iter().join(".").to_lowercase();
+        if function.distinct && !["count", "sum", "avg", "variance", "stddev"].contains(&function_name) {
+            todo!()
+        }
         Ok(match function_name {
             // Functions Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos
             "opposite" => Expr::opposite(flat_args[0].clone()),
@@ -1001,10 +1001,15 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
+            "count" if function.distinct => Expr::count_distinct(flat_args[0].clone()),
             "count" => Expr::count(flat_args[0].clone()),
+            "avg" if function.distinct  => Expr::mean_distinct(flat_args[0].clone()),
             "avg" => Expr::mean(flat_args[0].clone()),
+            "sum" if function.distinct => Expr::sum_distinct(flat_args[0].clone()),
             "sum" => Expr::sum(flat_args[0].clone()),
+            "variance" if function.distinct => Expr::var_distinct(flat_args[0].clone()),
             "variance" => Expr::var(flat_args[0].clone()),
+            "stddev" if function.distinct => Expr::std_distinct(flat_args[0].clone()),
             "stddev" => Expr::std(flat_args[0].clone()),
             _ => todo!(),
         })
