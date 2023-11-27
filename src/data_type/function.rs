@@ -1724,6 +1724,30 @@ pub fn cos() -> impl Function {
     )
 }
 
+/// inverse sine
+pub fn asin() -> impl Function {
+    PartitionnedMonotonic::univariate(
+        data_type::Float::from_interval(-1., 1.),
+        |x| x.asin()
+    )
+}
+
+/// inverse cosine
+pub fn acos() -> impl Function {
+    PartitionnedMonotonic::univariate(
+        data_type::Float::from_interval(-1., 1.),
+        |x| x.acos()
+    )
+}
+
+/// inverse tangent
+pub fn atan() -> impl Function {
+    PartitionnedMonotonic::univariate(
+        data_type::Float::default(),
+        |x| x.atan()
+    )
+}
+
 pub fn least() -> impl Function {
     Polymorphic::from((
         PartitionnedMonotonic::bivariate(
@@ -3716,5 +3740,65 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_value(0));
+    }
+
+    #[test]
+    fn test_asin() {
+        println!("\nTest asin");
+        let fun = asin();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::float_interval(-1., 1.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_interval(-std::f64::consts::PI / 2., std::f64::consts::PI / 2.));
+
+        let set = DataType::float_value(0.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_value(0.));
+    }
+
+    #[test]
+    fn test_acos() {
+        println!("\nTest acos");
+        let fun = acos();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::float_interval(-1., 1.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_interval(0., std::f64::consts::PI));
+
+        let set = DataType::float_value(0.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_value(std::f64::consts::PI / 2.));
+    }
+
+    #[test]
+    fn test_atan() {
+        println!("\nTest atan");
+        let fun = atan();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::float_min(0.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_interval(0., std::f64::consts::PI / 2.));
+
+        let set = DataType::float_value(0.);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_value(0.));
     }
 }

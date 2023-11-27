@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Added
 - implemented `DISTINCT`` in aggregations [#197](https://github.com/Qrlew/qrlew/issues/197)
 - Implemented math functions: `PI`, `DEGREES`, `TAN`, `RANDOM`, `LOG10`, `LOG2`, `SQUARE` [#196](https://github.com/Qrlew/qrlew/issues/196)
+- Implemented inverse trigo functions: `ASIN`, `ACOS`, `ATAN` [#198](https://github.com/Qrlew/qrlew/issues/198)
 
 ## [0.5.2] - 2023-11-19
 ## Added
