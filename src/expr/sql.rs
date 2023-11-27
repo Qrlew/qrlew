@@ -188,10 +188,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::SubstrWithSize
             | expr::function::Function::Ceil
             | expr::function::Function::Floor
-            | expr::function::Function::Sign
-            | expr::function::Function::Asin
-            | expr::function::Function::Acos
-            | expr::function::Function::Atan => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Sign => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
@@ -825,33 +822,6 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         let true_expr = parse_expr("(sin(x)) / ((cos(x)))").unwrap();
         assert_eq!(gen_expr, true_expr);
-    }
-
-    #[test]
-    fn test_inverse_trigo() {
-        let str_expr = "asin(x)";
-        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
-        let expr = Expr::try_from(&ast_expr).unwrap();
-        println!("expr = {}", expr);
-        let gen_expr = ast::Expr::from(&expr);
-        println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr, gen_expr);
-
-        let str_expr = "acos(x)";
-        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
-        let expr = Expr::try_from(&ast_expr).unwrap();
-        println!("expr = {}", expr);
-        let gen_expr = ast::Expr::from(&expr);
-        println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr, gen_expr);
-
-        let str_expr = "atan(x)";
-        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
-        let expr = Expr::try_from(&ast_expr).unwrap();
-        println!("expr = {}", expr);
-        let gen_expr = ast::Expr::from(&expr);
-        println!("ast::expr = {gen_expr}");
-        assert_eq!(ast_expr, gen_expr);
     }
 
     #[test]

@@ -297,10 +297,7 @@ impl_unary_function_constructors!(
     CastAsTime,
     Ceil,
     Floor,
-    Sign,
-    Asin,
-    Acos,
-    Atan
+    Sign
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -3102,72 +3099,6 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::float_value(3.141592653589793)
-        );
-    }
-
-    #[test]
-    fn test_asin() {
-        println!("asin");
-        let expression = expr!(asin(a));
-        println!("expression = {}", expression);
-        println!("expression domain = {}", expression.domain());
-        println!("expression co domain = {}", expression.co_domain());
-        println!("expression data type = {}", expression.data_type());
-
-        let set = DataType::structured([
-            ("a", DataType::float_interval(-1., 1.)),
-        ]);
-        println!(
-            "expression super image = {}",
-            expression.super_image(&set).unwrap()
-        );
-        assert_eq!(
-            expression.super_image(&set).unwrap(),
-            DataType::float_interval(-std::f64::consts::PI / 2., std::f64::consts::PI / 2.)
-        );
-    }
-
-    #[test]
-    fn test_acos() {
-        println!("acos");
-        let expression = expr!(acos(a));
-        println!("expression = {}", expression);
-        println!("expression domain = {}", expression.domain());
-        println!("expression co domain = {}", expression.co_domain());
-        println!("expression data type = {}", expression.data_type());
-
-        let set = DataType::structured([
-            ("a", DataType::float_interval(-1., 1.)),
-        ]);
-        println!(
-            "expression super image = {}",
-            expression.super_image(&set).unwrap()
-        );
-        assert_eq!(
-            expression.super_image(&set).unwrap(),
-            DataType::float_interval(0., std::f64::consts::PI)
-        );
-    }
-
-    #[test]
-    fn test_atan() {
-        println!("atan");
-        let expression = expr!(atan(a));
-        println!("expression = {}", expression);
-        println!("expression domain = {}", expression.domain());
-        println!("expression co domain = {}", expression.co_domain());
-        println!("expression data type = {}", expression.data_type());
-
-        let set = DataType::structured([
-            ("a", DataType::float()),
-        ]);
-        println!(
-            "expression super image = {}",
-            expression.super_image(&set).unwrap()
-        );
-        assert_eq!(
-            expression.super_image(&set).unwrap(),
-            DataType::float_interval(-std::f64::consts::PI / 2., std::f64::consts::PI / 2.)
         );
     }
 }

@@ -68,10 +68,7 @@ pub enum Function {
     Ceil,
     Floor,
     Round,
-    Trunc,
-    Asin,
-    Acos,
-    Atan
+    Trunc
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -139,9 +136,6 @@ impl Function {
             | Function::CastAsDate
             | Function::CastAsTime
             | Function::Sign
-            | Function::Asin
-            | Function::Acos
-            | Function::Atan
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -209,10 +203,7 @@ impl Function {
             | Function::CastAsTime
             | Function::Ceil
             | Function::Floor
-            | Function::Sign
-            | Function::Asin
-            | Function::Acos
-            | Function::Atan => Arity::Unary,
+            | Function::Sign => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -305,9 +296,6 @@ impl fmt::Display for Function {
             Function::CastAsDate => "cast_as_date",
             Function::CastAsTime => "cast_as_time",
             Function::Sign => "sign",
-            Function::Asin => "asin",
-            Function::Acos => "acos",
-            Function::Atan => "atan",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",
