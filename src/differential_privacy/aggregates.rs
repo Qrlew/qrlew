@@ -226,6 +226,7 @@ impl Reduce {
         let epsilon = epsilon / (cmp::max(reduces.len(), 1) as f64);
         let delta = delta / (cmp::max(reduces.len(), 1) as f64);
 
+        // Rewritten into differential privacy each `Reduce` then join them.
         let (relation, private_query) = reduces.iter()
             .map(|r| pup_input.clone().differentially_private_aggregates(
                 r.named_aggregates()
@@ -254,6 +255,10 @@ impl Reduce {
         Ok((relation, private_query).into())
     }
 
+
+    /// Returns a Vec of rewritten `Reduce` whose each item corresponds to a specific `DISTINCT` clause
+    /// (e.g.: SUM(DISTINCT a) or COUNT(DISTINCT a) have the same `DISTINCT` clause). The original `Reduce``
+    /// has been rewritten with `GROUP BY`s for each `DISTINCT` clause.
     fn split_distinct_aggregates(&self) -> Vec<Reduce> {
         let mut distinct_map: HashMap<Option<Column>, Vec<(String, AggregateColumn)>> = HashMap::new();
         let mut first_aggs: Vec<(String, AggregateColumn)> = vec![];
@@ -284,6 +289,21 @@ impl Reduce {
             .collect()
     }
 
+    /// Rewrite the `DISTINCT` aggregate with a `GROUP BY`
+    ///
+    /// # Arguments
+    /// - `self`: we reuse the `input` and `group_by` fields of the current `Reduce
+    /// - `identifier`: The optionnal column `Identifier` associated with the `DISTINCT`, if `None` then the aggregates
+    /// contain no `DISTINCT`.
+    /// - `aggs` the vector of the `AggregateColumn` with their names
+    ///
+    /// Example 1 :
+    /// (SELECT sum(DISTINCT col1), count(*) FROM table GROUP BY a, Some(col1), ("my_sum", sum(col1)))
+    /// --> SELECT a AS a, sum(col1) AS my_sum FROM (SELECT a AS a, sum(col1) AS col1 FROM table GROUP BY a, col1) GROUP BY a
+    ///
+    /// Example 2 :
+    /// (SELECT sum(DISTINCT col1), count(*) FROM table GROUP BY a, None, ("my_count", count(*)))
+    /// --> SELECT a AS a, count(*) AS my_count FROM table GROUP BY a
     fn rewrite_distinct(&self, identifier: Option<Identifier>, aggs: Vec<(String, AggregateColumn)>) -> Reduce {
         let builder = Relation::reduce()
             .input(self.input().clone());
