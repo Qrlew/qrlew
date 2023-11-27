@@ -168,17 +168,27 @@ impl fmt::Display for Function {
 
 impl Variant for Function {}
 
-/// Implemant random function constructor (same thing but no macro here)
+/// Implement random function constructor (same thing but no macro here)
 impl Function {
     pub fn random(n: usize) -> Function {
         Function::new(function::Function::Random(n), vec![])
     }
 }
 
-/// Implemant random expression constructor (same thing but no macro here)
+impl Function {
+    pub fn pi() -> Function {
+        Function::new(function::Function::Pi, vec![])
+    }
+}
+
+/// Implement random expression constructor (same thing but no macro here)
 impl Expr {
     pub fn random(n: usize) -> Expr {
         Expr::from(Function::random(n))
+    }
+
+    pub fn pi() -> Expr {
+        Expr::from(Function::pi())
     }
 
     pub fn filter_column(
@@ -3045,6 +3055,50 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::integer_value(1)
+        );
+    }
+
+    #[test]
+    fn test_random() {
+        println!("random");
+        let expression = Expr::random(2);
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("col1", DataType::float()),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_interval(0., 1.)
+        );
+    }
+
+    #[test]
+    fn test_pi() {
+        println!("pi");
+        let expression = Expr::pi();
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("col1", DataType::float()),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_value(3.141592653589793)
         );
     }
 }

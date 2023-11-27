@@ -51,6 +51,7 @@ pub enum Function {
     Md5,
     Position,
     Random(usize),
+    Pi,
     CastAsText,
     CastAsFloat,
     CastAsInteger,
@@ -112,6 +113,7 @@ impl Function {
             | Function::InList => Style::BinaryOperator,
             // Zero arg Functions
             Function::Random(_)
+            | Function::Pi
             // Unary Functions
             | Function::Exp
             | Function::Ln
@@ -179,7 +181,7 @@ impl Function {
             | Function::BitwiseXor
             | Function::InList => Arity::Nary(2),
             // Zero arg Functions
-            Function::Random(_) => Arity::Nary(0),
+            Function::Random(_) | Function::Pi => Arity::Nary(0),
             // Unary Functions
             Function::Exp
             | Function::Ln
@@ -271,6 +273,7 @@ impl fmt::Display for Function {
             Function::InList => "in",
             // Zero arg Functions
             Function::Random(_) => "random",
+            Function::Pi => "pi",
             // Unary Functions
             Function::Exp => "exp",
             Function::Ln => "ln",

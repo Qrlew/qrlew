@@ -178,6 +178,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Lower
             | expr::function::Function::Upper
             | expr::function::Function::Random(_)
+            | expr::function::Function::Pi
             | expr::function::Function::Least
             | expr::function::Function::Greatest
             | expr::function::Function::Coalesce
@@ -662,5 +663,123 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_square() {
+        let str_expr = "square(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("pow(x, 2)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_log() {
+        let str_expr = "ln(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "log(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "log(b, x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(log(x)) / ((log(b)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "log10(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("(log(10)) / ((log(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "log2(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(log(2)) / ((log(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_trigo() {
+        let str_expr = "sin(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cos(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "tan(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(sin(x)) / ((cos(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_random() {
+        let str_expr = "random()";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_pi() {
+        let str_expr = "pi()";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_degrees() {
+        let str_expr = "degrees(100)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(100) * (((180) / ((pi()))))").unwrap();
+        assert_eq!(gen_expr, true_expr);
     }
 }

@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
+- Implemented math functions: `PI`, `DEGREES`, `TAN`, `RANDOM`, `LOG10`, `LOG2`, `SQUARE` [#196](https://github.com/Qrlew/qrlew/issues/196)
 
 ## [0.5.2] - 2023-11-19
 ## Added
 - `CEIL`, `ROUND`, `FLOOR`and `TRUNC` funtions [#192](https://github.com/Qrlew/qrlew/issues/192)
-- `SIGN` funtion [#194](https://github.com/Qrlew/qrlew/issues/194)
+- `SIGN` funtion [#195](https://github.com/Qrlew/qrlew/issues/195)
 - SD is acceptable as DP compilation
 
 ## [0.5.1] - 2023-11-19

@@ -1458,6 +1458,14 @@ pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function
     )
 }
 
+pub fn pi() -> impl Function {
+    Stateful::new(
+        DataType::unit(),
+        DataType::float_value(3.141592653589793),
+        Arc::new(Mutex::new(RefCell::new(move |_| 3.141592653589793.into()))),
+    )
+}
+
 pub fn gt() -> impl Function {
     Polymorphic::default()
         .with(PartitionnedMonotonic::bivariate(
