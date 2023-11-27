@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ## Added
 - Implemented math functions: `PI`, `DEGREES`, `TAN`, `RANDOM`, `LOG10`, `LOG2`, `SQUARE` [#196](https://github.com/Qrlew/qrlew/issues/196)
+- Implemented string functions: `NEWID`, `ENCODE`, `DECODE`, `UNHEX`` [#196](https://github.com/Qrlew/qrlew/issues/199)
+
 
 ## [0.5.2] - 2023-11-19
 ## Added
