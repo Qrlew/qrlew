@@ -1,7 +1,7 @@
 use std::{
     borrow::BorrowMut,
     cell::RefCell,
-    cmp, collections,
+    cmp, collections::{self, HashSet},
     convert::{Infallible, TryFrom, TryInto},
     error, fmt,
     hash::Hasher,
@@ -1906,6 +1906,21 @@ pub fn mean() -> impl Function {
     )
 }
 
+/// Mean distinct aggregation
+pub fn mean_distinct() -> impl Function {
+    // Only works on types that can be converted to floats
+    Aggregate::from(
+        data_type::Float::full(),
+        |values| {
+            let (count, sum) = values.into_iter().collect::<HashSet<_>>().into_iter().fold((0.0, 0.0), |(count, sum), value| {
+                (count + 1.0, sum + f64::from(value))
+            });
+            (sum / count).into()
+        },
+        |(intervals, _size)| Ok(intervals.into_interval()),
+    )
+}
+
 /// Aggregate as a list
 pub fn list() -> impl Function {
     null()
@@ -1919,6 +1934,30 @@ pub fn count() -> impl Function {
             DataType::Any,
             |values| (values.len() as i64).into(),
             |(_dt, size)| Ok(size),
+        ),
+        // Optional implementation
+        Aggregate::from(
+            data_type::Optional::from(DataType::Any),
+            |values| {
+                values
+                    .iter()
+                    .filter_map(|value| value.as_ref().and(Some(1)))
+                    .sum::<i64>()
+                    .into()
+            },
+            |(_dt, size)| Ok(data_type::Integer::from_interval(0, *size.max().unwrap())),
+        ),
+    ))
+}
+
+/// Count distinct aggregation
+pub fn count_distinct() -> impl Function {
+    Polymorphic::from((
+        // Any implementation
+        Aggregate::from(
+            DataType::Any,
+            |values| (values.iter().cloned().collect::<HashSet<_>>().len()as i64).into(),
+            |(_dt, size)| Ok(data_type::Integer::from_interval(1, *size.max().unwrap())),
         ),
         // Optional implementation
         Aggregate::from(
@@ -2035,6 +2074,32 @@ pub fn sum() -> impl Function {
     ))
 }
 
+/// Sum distinct aggregation
+pub fn sum_distinct() -> impl Function {
+    Polymorphic::from((
+        // Integer implementation
+        Aggregate::from(
+            data_type::Integer::full(),
+            |values| values.iter().cloned().collect::<HashSet<_>>().into_iter().map(|f| *f).sum::<i64>().into(),
+            |(intervals, size)| {
+                Ok(data_type::Integer::try_from(multiply().super_image(
+                    &DataType::structured_from_data_types([intervals.into(), size.into()]),
+                )?)?)
+            },
+        ),
+        // Float implementation
+        Aggregate::from(
+            data_type::Float::full(),
+            |values| values.iter().cloned().collect::<HashSet<_>>().into_iter().map(|f| *f).sum::<f64>().into(),
+            |(intervals, size)| {
+                Ok(data_type::Float::try_from(multiply().super_image(
+                    &DataType::structured_from_data_types([intervals.into(), size.into()]),
+                )?)?)
+            },
+        ),
+    ))
+}
+
 /// Agg groups aggregation
 pub fn agg_groups() -> impl Function {
     null()
@@ -2066,6 +2131,34 @@ pub fn std() -> impl Function {
     )
 }
 
+/// Standard deviation distinct aggregation
+pub fn std_distinct() -> impl Function {
+    // Only works on types that can be converted to floats
+    Aggregate::from(
+        data_type::Float::full(),
+        |values| {
+            let (count, sum, sum_2) =
+                values
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
+                        let value: f64 = value.into();
+                        (
+                            count + 1.0,
+                            sum + f64::from(value),
+                            sum_2 + (f64::from(value) * f64::from(value)),
+                        )
+                    });
+            ((sum_2 - sum * sum / count) / (count - 1.)).sqrt().into()
+        },
+        |(intervals, _size)| match (intervals.min(), intervals.max()) {
+            (Some(&min), Some(&max)) => Ok(data_type::Float::from_interval(0., (max - min) / 2.)),
+            _ => Ok(data_type::Float::from_min(0.)),
+        },
+    )
+}
+
 /// Variance aggregation
 pub fn var() -> impl Function {
     // Only works on types that can be converted to floats
@@ -2074,6 +2167,37 @@ pub fn var() -> impl Function {
         |values| {
             let (count, sum, sum_2) =
                 values
+                    .into_iter()
+                    .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
+                        let value: f64 = value.into();
+                        (
+                            count + 1.0,
+                            sum + f64::from(value),
+                            sum_2 + (f64::from(value) * f64::from(value)),
+                        )
+                    });
+            ((sum_2 - sum * sum / count) / (count - 1.)).into()
+        },
+        |(intervals, _size)| match (intervals.min(), intervals.max()) {
+            (Some(&min), Some(&max)) => Ok(data_type::Float::from_interval(
+                0.,
+                ((max - min) / 2.).powi(2),
+            )),
+            _ => Ok(data_type::Float::from_min(0.)),
+        },
+    )
+}
+
+/// Variance distinct aggregation
+pub fn var_distinct() -> impl Function {
+    // Only works on types that can be converted to floats
+    Aggregate::from(
+        data_type::Float::full(),
+        |values| {
+            let (count, sum, sum_2) =
+                values
+                    .into_iter()
+                    .collect::<HashSet<_>>()
                     .into_iter()
                     .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
                         let value: f64 = value.into();

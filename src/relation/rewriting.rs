@@ -741,6 +741,40 @@ impl Relation {
             .right_names(right_names)
             .build())
     }
+
+    /// Returns the outer join between `self` and `right` where
+    /// the output names of the fields are conserved.
+    /// The joining criteria is the equality of columns with the same name
+    pub fn natural_inner_join(self, right: Self) -> Relation {
+        let mut left_names: Vec<String> = vec![];
+        let mut right_names: Vec<String> = vec![];
+        let mut names: Vec<(String, Expr)> = vec![];
+        for f in self.fields() {
+            let col = f.name().to_string();
+            left_names.push(col.clone());
+            names.push((col.clone(), Expr::col(col)));
+        }
+        for f in right.fields() {
+            let col = f.name().to_string();
+            if left_names.contains(&col) {
+                right_names.push(format!("right_{}", col));
+            } else {
+                right_names.push(col.clone());
+                names.push((col.clone(), Expr::col(col)));
+            }
+        }
+        let join: Relation = Relation::join()
+            .left(self.clone())
+            .right(right.clone())
+            .inner()
+            .left_names(left_names)
+            .right_names(right_names)
+            .build();
+        Relation::map()
+            .input(join)
+            .with_iter(names)
+            .build()
+    }
 }
 
 impl With<(&str, Expr)> for Relation {

@@ -396,6 +396,81 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 filter: None,
                 null_treatment: None,
             }),
+            expr::aggregate::Aggregate::MeanDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("avg"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::CountDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("count"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::SumDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("sum"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::StdDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("stddev"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::VarDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("variance"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
         }
     }
 
