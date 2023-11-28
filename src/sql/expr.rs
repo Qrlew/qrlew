@@ -1016,7 +1016,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "newid" => Expr::newid(),
             "encode" => Expr::encode(flat_args[0].clone(), flat_args[1].clone()),
             "decode" => Expr::decode(flat_args[0].clone(), flat_args[1].clone()),
-            "unhex" => Expr::unhex(flat_args[0].clone()),
+            "unhex" | "from_hex" => Expr::unhex(flat_args[0].clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
