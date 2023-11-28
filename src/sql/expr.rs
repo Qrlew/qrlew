@@ -980,7 +980,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                     precision,
                 )
             }
-            "trunc" => {
+            "trunc" | "truncate" => {
                 let precision = if flat_args.len() > 1 {
                     flat_args[1].clone()
                 } else {
@@ -992,7 +992,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 )
             }
             "sign" => Expr::sign(flat_args[0].clone()),
-            "random" => Expr::random(namer::new_id("UNIFORM_SAMPLING")),
+            "random" | "rand" => Expr::random(namer::new_id("UNIFORM_SAMPLING")),
             "pi" => Expr::pi(),
             "degrees" => Expr::multiply(
                 flat_args[0].clone(),
