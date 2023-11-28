@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use itertools::Itertools;
-
+use chrono::{Datelike, Timelike};
 use super::{
     super::data_type,
     injection,
@@ -1027,6 +1027,138 @@ impl Function for Case {
     }
 }
 
+// Extract (DatePart FROM expression)
+#[derive(Clone, Debug)]
+pub enum DatePart {
+    Year,
+    Month,
+    Day,
+    Hour,
+    Minute,
+    Second,
+    Microsecond,
+    Millisecond,
+    Nanosecond,
+    Dow, // day of the week
+    Week
+}
+
+impl fmt::Display for DatePart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            DatePart::Year => "year",
+            DatePart::Month => "month",
+            DatePart::Day => "day",
+            DatePart::Hour => "hour",
+            DatePart::Minute => "minute",
+            DatePart::Second => "second",
+            DatePart::Microsecond => "microsecond",
+            DatePart::Millisecond => "millisecond",
+            DatePart::Nanosecond => "nanosecond",
+            DatePart::Dow => "dow",
+            DatePart::Week => "week",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Extract(DatePart);
+
+impl fmt::Display for Extract {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "extract_{}", self.0)
+    }
+}
+
+impl Function for Extract {
+    fn domain(&self) -> DataType {
+        match self.0 {
+            DatePart::Year
+            | DatePart::Month
+            | DatePart::Day
+            | DatePart::Dow
+            | DatePart::Week => DataType::sum([DataType::date(), DataType::date_time()]),
+            DatePart::Hour
+            | DatePart::Minute
+            | DatePart::Second
+            | DatePart::Microsecond
+            | DatePart::Millisecond
+            | DatePart::Nanosecond => DataType::sum([DataType::time(), DataType::date_time()]),
+        }
+    }
+
+    fn super_image(&self, set: &DataType) -> Result<DataType> {
+        if !set.is_subset_of(&self.domain()) {
+            Err(Error::set_out_of_range(set, self.domain()))
+        } else {
+            Ok(
+                match self.0 {
+                DatePart::Year => DataType::integer_min(0),
+                    DatePart::Month => DataType::integer_interval(1, 12),
+                    DatePart::Day => DataType::integer_interval(1, 31),
+                    DatePart::Dow => DataType::integer_interval(0, 6),
+                    DatePart::Week => DataType::integer_interval(1, 52),
+                    DatePart::Hour => DataType::integer_interval(0, 23),
+                    DatePart::Minute => DataType::integer_interval(0, 59),
+                    DatePart::Second => DataType::float_interval(0., 59.),
+                    DatePart::Microsecond => DataType::integer_min(0),
+                    DatePart::Millisecond => DataType::float_interval(0., 59000.),
+                    DatePart::Nanosecond  => DataType::integer_interval(0, 59E9 as i64),
+                }
+            )
+        }
+    }
+
+    fn value(&self, arg: &Value) -> Result<Value> {
+        if let Value::Date(date) = arg {
+            match self.0 {
+                DatePart::Year => Ok((date.year() as i64).into()),
+                DatePart::Month => Ok((date.month() as i64).into()),
+                DatePart::Day => Ok((date.day() as i64).into()),
+                DatePart::Dow => Ok((date.weekday().num_days_from_monday() as i64).into()),
+                DatePart::Week => Ok((date.iso_week().week() as i64).into()),
+                DatePart::Hour
+                | DatePart::Minute
+                | DatePart::Second
+                | DatePart::Microsecond
+                | DatePart::Millisecond
+                | DatePart::Nanosecond => Err(Error::argument_out_of_range(arg, self.domain())),
+            }
+        } else if let Value::Time(time) = arg {
+            match self.0 {
+                DatePart::Year
+                | DatePart::Month
+                | DatePart::Day
+                | DatePart::Dow
+                | DatePart::Week => Err(Error::argument_out_of_range(arg, self.domain())),
+                DatePart::Hour => Ok((time.hour() as i64).into()),
+                DatePart::Minute => Ok((time.minute() as i64).into()),
+                DatePart::Second => Ok((time.second() as f64).into()),
+                DatePart::Microsecond => Ok((time.second() as i64 * 1_000_000).into()),
+                DatePart::Millisecond => Ok((time.second() as f64 * 1000. + time.nanosecond() as f64 / 1_000_000.).into()),
+                DatePart::Nanosecond  => Ok((time.nanosecond() as i64).into()),
+            }
+        } else if let Value::DateTime(datetime) = arg {
+            match self.0 {
+                DatePart::Year => Ok((datetime.year() as i64).into()),
+                DatePart::Month => Ok((datetime.month() as i64).into()),
+                DatePart::Day => Ok((datetime.day() as i64).into()),
+                DatePart::Dow => Ok((datetime.weekday().num_days_from_monday() as i64).into()),
+                DatePart::Week => Ok((datetime.iso_week().week() as i64).into()),
+                DatePart::Hour => Ok((datetime.hour() as i64).into()),
+                DatePart::Minute => Ok((datetime.minute() as i64).into()),
+                DatePart::Second => Ok((datetime.second() as f64).into()),
+                DatePart::Microsecond => Ok((datetime.second() as i64 * 1_000_000).into()),
+                DatePart::Millisecond => Ok((datetime.second() as f64 * 1000. + datetime.nanosecond() as f64 / 1_000_000.).into()),
+                DatePart::Nanosecond  => Ok((datetime.nanosecond() as i64).into()),
+            }
+        } else {
+            Err(Error::argument_out_of_range(arg, self.domain()))
+        }
+    }
+}
+
 // TODO
 #[derive(Clone, Debug)]
 pub struct UserDefineFunction {
@@ -1883,6 +2015,35 @@ pub fn unhex() -> impl Function {
         DataType::text(),
         DataType::text()
     )
+}
+
+// Date functions
+pub fn current_date() -> impl Function {
+    UserDefineFunction::new(
+        "current_date".to_string(),
+        DataType::unit(),
+        DataType::date()
+    )
+}
+
+pub fn current_time() -> impl Function {
+    UserDefineFunction::new(
+        "current_time".to_string(),
+        DataType::unit(),
+        DataType::time()
+    )
+}
+
+pub fn current_timestamp() -> impl Function {
+    UserDefineFunction::new(
+        "current_timestamp".to_string(),
+        DataType::unit(),
+        DataType::date_time()
+    )
+}
+
+pub fn extract(date_part: DatePart) -> impl Function {
+    Extract(date_part)
 }
 
 // Case function

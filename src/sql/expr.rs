@@ -910,7 +910,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         let flat_args = flat_args?;
         let function_name: &str = &function.name.0.iter().join(".").to_lowercase();
         Ok(match function_name {
-            // Functions Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos
+            // Math Functions
             "opposite" => Expr::opposite(flat_args[0].clone()),
             "not" => Expr::not(flat_args[0].clone()),
             "exp" => Expr::exp(flat_args[0].clone()),
@@ -982,7 +982,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 flat_args[0].clone(),
                 Expr::divide(Expr::val(180.), Expr::pi())
             ),
-            // string functions
+            // String functions
             "lower" => Expr::lower(flat_args[0].clone()),
             "upper" => Expr::upper(flat_args[0].clone()),
             "char_length" => Expr::char_length(flat_args[0].clone()),
@@ -1017,6 +1017,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "encode" => Expr::encode(flat_args[0].clone(), flat_args[1].clone()),
             "decode" => Expr::decode(flat_args[0].clone(), flat_args[1].clone()),
             "unhex" | "from_hex" => Expr::unhex(flat_args[0].clone()),
+            // Date functions
+            "current_date" => Expr::current_date(),
+            "current_time" => Expr::current_time(),
+            "current_timestamp" => Expr::current_timestamp(),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),

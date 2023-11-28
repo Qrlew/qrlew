@@ -291,6 +291,18 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 data_type: DataType::time().into(),
                 format: None,
             },
+            expr::function::Function::CurrentDate
+            | expr::function::Function::CurrentTime
+            | expr::function::Function::CurrentTimestamp => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: vec![],
+                over: None,
+                distinct: false,
+                special: true,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
         }
     }
     // TODO implement this properly
@@ -903,5 +915,40 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         let true_expr = parse_expr("regexp_replace(value, regexp, replacement)").unwrap();
         assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_date_functions() {
+        // CURRENT_DATE
+        let str_expr = "current_date";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // CURRENT_TIME
+        let str_expr = "current_time";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // CURRENT_TIMESTAMP
+        let str_expr = "current_timestamp";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT ( datePart FROM expression)
+        let str_expr = "extract(year from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("expr = {:?}", ast_expr);
     }
 }

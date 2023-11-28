@@ -75,7 +75,10 @@ pub enum Function {
     Newid,
     Encode,
     Decode,
-    Unhex
+    Unhex,
+    CurrentDate,
+    CurrentTime,
+    CurrentTimestamp
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -122,6 +125,9 @@ impl Function {
             Function::Random(_)
             | Function::Pi
             | Function::Newid
+            | Function::CurrentDate
+            | Function::CurrentTime
+            | Function::CurrentTimestamp
             // Unary Functions
             | Function::Exp
             | Function::Ln
@@ -197,7 +203,12 @@ impl Function {
             | Function::Encode
             | Function::Decode => Arity::Nary(2),
             // Zero arg Functions
-            Function::Random(_) | Function::Pi | Function::Newid => Arity::Nary(0),
+            Function::Random(_)
+            | Function::Pi
+            | Function::Newid
+            | Function::CurrentDate
+            | Function::CurrentTime
+            | Function::CurrentTimestamp => Arity::Nary(0),
             // Unary Functions
             Function::Exp
             | Function::Ln
@@ -295,6 +306,9 @@ impl fmt::Display for Function {
             Function::Random(_) => "random",
             Function::Pi => "pi",
             Function::Newid => "newid",
+            Function::CurrentDate => "current_date",
+            Function::CurrentTime => "current_time",
+            Function::CurrentTimestamp => "current_timestamp",
             // Unary Functions
             Function::Exp => "exp",
             Function::Ln => "ln",
