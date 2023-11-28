@@ -953,22 +953,6 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 &Some(ast::TrimWhereField::Both),
                 (flat_args.len() > 1).then_some(Ok(flat_args[1].clone())),
             )?,
-            // string functions
-            "lower" => Expr::lower(flat_args[0].clone()),
-            "upper" => Expr::upper(flat_args[0].clone()),
-            "char_length" => Expr::char_length(flat_args[0].clone()),
-            "concat" => Expr::concat(flat_args.clone()),
-            "substr" => {
-                if flat_args.len() > 2 {
-                    Expr::substr_with_size(
-                        flat_args[0].clone(),
-                        flat_args[1].clone(),
-                        flat_args[2].clone(),
-                    )
-                } else {
-                    Expr::substr(flat_args[0].clone(), flat_args[1].clone())
-                }
-            }
             "round" => {
                 let precision = if flat_args.len() > 1 {
                     flat_args[1].clone()
@@ -998,6 +982,41 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 flat_args[0].clone(),
                 Expr::divide(Expr::val(180.), Expr::pi())
             ),
+            // string functions
+            "lower" => Expr::lower(flat_args[0].clone()),
+            "upper" => Expr::upper(flat_args[0].clone()),
+            "char_length" => Expr::char_length(flat_args[0].clone()),
+            "concat" => Expr::concat(flat_args.clone()),
+            "substr" => {
+                if flat_args.len() > 2 {
+                    Expr::substr_with_size(
+                        flat_args[0].clone(),
+                        flat_args[1].clone(),
+                        flat_args[2].clone(),
+                    )
+                } else {
+                    Expr::substr(flat_args[0].clone(), flat_args[1].clone())
+                }
+            }
+            "regexp_contains" => Expr::regexp_contains(flat_args[0].clone(), flat_args[1].clone()),
+            "regexp_extract" | "regexp_substr" => {
+                let position = if flat_args.len() > 2 {
+                    flat_args[2].clone()
+                } else {
+                    Expr::val(0)
+                };
+                let occurrence = if flat_args.len() > 3 {
+                    flat_args[3].clone()
+                } else {
+                    Expr::val(1)
+                };
+                Expr::regexp_extract(flat_args[0].clone(), flat_args[1].clone(), position, occurrence)
+            },
+            "regexp_replace" => Expr::regexp_replace(flat_args[0].clone(), flat_args[1].clone(), flat_args[2].clone()),
+            "newid" => Expr::newid(),
+            "encode" => Expr::encode(flat_args[0].clone(), flat_args[1].clone()),
+            "decode" => Expr::decode(flat_args[0].clone(), flat_args[1].clone()),
+            "unhex" | "from_hex" => Expr::unhex(flat_args[0].clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),

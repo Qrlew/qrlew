@@ -9,7 +9,6 @@ use std::{
     result,
     sync::{Arc, Mutex},
 };
-
 use itertools::Itertools;
 
 use super::{
@@ -1028,6 +1027,44 @@ impl Function for Case {
     }
 }
 
+// TODO
+#[derive(Clone, Debug)]
+pub struct UserDefineFunction {
+    name: String,
+    domain: DataType,
+    co_domain: DataType
+}
+
+impl fmt::Display for UserDefineFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+impl Function for UserDefineFunction {
+    fn domain(&self) -> DataType {
+        self.domain.clone()
+    }
+
+    fn super_image(&self, set: &DataType) -> Result<DataType> {
+        if !set.is_subset_of(&self.domain()) {
+            Err(Error::set_out_of_range(set, self.domain()))
+        } else {
+            Ok(self.co_domain.clone())
+        }
+    }
+
+    fn value(&self, arg: &Value) -> Result<Value> {
+        todo!()
+    }
+}
+
+impl UserDefineFunction {
+    pub fn new(name: String, domain: DataType, co_domain: DataType) -> UserDefineFunction {
+        UserDefineFunction {name, domain, co_domain}
+    }
+}
+
 // IN (..)
 #[derive(Clone, Debug)]
 pub struct InList(DataType);
@@ -1782,6 +1819,69 @@ pub fn position() -> impl Function {
                     .map(|v| Arc::new(Value::integer(v.try_into().unwrap()))),
             ))
         },
+    )
+}
+
+/// Regexp contains
+pub fn regexp_contains() -> impl Function {
+    UserDefineFunction::new(
+        "regexp_contains".to_string(),
+        DataType::structured_from_data_types([DataType::text(), DataType::text()]),
+        DataType::boolean()
+    )
+}
+
+/// Regexp extract
+pub fn regexp_extract() -> impl Function {
+    UserDefineFunction::new(
+        "regexp_extract".to_string(),
+        DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::integer(), DataType::integer()]),
+        DataType::optional(DataType::text())
+    )
+}
+
+/// Regexp replace
+pub fn regexp_replace() -> impl Function {
+    UserDefineFunction::new(
+        "regexp_replace".to_string(),
+        DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::text()]),
+        DataType::text()
+    )
+}
+
+/// Transact newid
+pub fn newid() -> impl Function {
+    UserDefineFunction::new(
+        "newid".to_string(),
+        DataType::unit(),
+        DataType::text()
+    )
+}
+
+/// MySQL encode
+pub fn encode() -> impl Function {
+    UserDefineFunction::new(
+        "encode".to_string(),
+        DataType::structured_from_data_types([DataType::text(), DataType::text()]),
+        DataType::text()
+    )
+}
+
+/// MySQL decode
+pub fn decode() -> impl Function {
+    UserDefineFunction::new(
+        "decode".to_string(),
+        DataType::structured_from_data_types([DataType::text(), DataType::text()]),
+        DataType::text()
+    )
+}
+
+/// MySQL unhex
+pub fn unhex() -> impl Function {
+    UserDefineFunction::new(
+        "unhex".to_string(),
+        DataType::text(),
+        DataType::text()
     )
 }
 
@@ -3505,6 +3605,8 @@ mod tests {
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([9, 10]));
     }
+
+    #[test]
     fn test_cast_as_text() {
         println!("Test cast as text");
         let fun = cast(DataType::text());
@@ -3592,5 +3694,62 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_value(0));
+    }
+
+    #[test]
+    fn test_regexp_contains() {
+        println!("\nTest regexp_contains");
+        let fun = regexp_contains();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["foo@example.com".to_string(), "bar@example.org".to_string(), "www.example.net".to_string()]),
+            DataType::text_value(r"@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+".to_string())
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean());
+    }
+
+    #[test]
+    fn test_regexp_extract() {
+        println!("\nTest regexp_extract");
+        let fun = regexp_extract();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_value("Hello Helloo and Hellooo".to_string()),
+            DataType::text_value("H?ello+".to_string()),
+            DataType::integer_value(3),
+            DataType::integer_value(1)
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::optional(DataType::text()));
+    }
+
+    #[test]
+    fn test_regexp_replace() {
+        println!("\nTest regexp_replace");
+        let fun = regexp_replace();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["# Heading".to_string(), "# Another heading".to_string()]),
+            DataType::text_value(r"^# ([a-zA-Z0-9\s]+$)".to_string()),
+            DataType::text_value(r"<h1>\\1</h1>".to_string()),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
     }
 }

@@ -68,7 +68,14 @@ pub enum Function {
     Ceil,
     Floor,
     Round,
-    Trunc
+    Trunc,
+    RegexpContains,
+    RegexpExtract,
+    RegexpReplace,
+    Newid,
+    Encode,
+    Decode,
+    Unhex
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -114,6 +121,7 @@ impl Function {
             // Zero arg Functions
             Function::Random(_)
             | Function::Pi
+            | Function::Newid
             // Unary Functions
             | Function::Exp
             | Function::Ln
@@ -136,6 +144,7 @@ impl Function {
             | Function::CastAsDate
             | Function::CastAsTime
             | Function::Sign
+            | Function::Unhex
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -147,9 +156,14 @@ impl Function {
             | Function::Substr
             | Function::Round
             | Function::Trunc
+            | Function::RegexpContains
+            | Function::Encode
+            | Function::Decode
             // Ternary Function
             | Function::Case
             | Function::SubstrWithSize
+            | Function::RegexpExtract
+            | Function::RegexpReplace
             // Nary Function
             | Function::Concat(_) => Style::Function,
         }
@@ -179,9 +193,11 @@ impl Function {
             | Function::BitwiseOr
             | Function::BitwiseAnd
             | Function::BitwiseXor
-            | Function::InList => Arity::Nary(2),
+            | Function::InList
+            | Function::Encode
+            | Function::Decode => Arity::Nary(2),
             // Zero arg Functions
-            Function::Random(_) | Function::Pi => Arity::Nary(0),
+            Function::Random(_) | Function::Pi | Function::Newid => Arity::Nary(0),
             // Unary Functions
             Function::Exp
             | Function::Ln
@@ -203,7 +219,8 @@ impl Function {
             | Function::CastAsTime
             | Function::Ceil
             | Function::Floor
-            | Function::Sign => Arity::Unary,
+            | Function::Sign
+            | Function::Unhex => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -214,11 +231,14 @@ impl Function {
             | Function::Ltrim
             | Function::Substr
             | Function::Round
-            | Function::Trunc => {
+            | Function::Trunc
+            | Function::RegexpContains => {
                 Arity::Nary(2)
             }
             // Ternary Function
-            Function::Case | Function::SubstrWithSize => Arity::Nary(3),
+            Function::Case | Function::SubstrWithSize | Function::RegexpReplace => Arity::Nary(3),
+            // Quaternary Function
+            Function::RegexpExtract => Arity::Nary(4),
             // Nary Function
             Function::Concat(_) => Arity::Varying,
         }
@@ -274,6 +294,7 @@ impl fmt::Display for Function {
             // Zero arg Functions
             Function::Random(_) => "random",
             Function::Pi => "pi",
+            Function::Newid => "newid",
             // Unary Functions
             Function::Exp => "exp",
             Function::Ln => "ln",
@@ -296,6 +317,7 @@ impl fmt::Display for Function {
             Function::CastAsDate => "cast_as_date",
             Function::CastAsTime => "cast_as_time",
             Function::Sign => "sign",
+            Function::Unhex => "unhex",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",
@@ -307,9 +329,14 @@ impl fmt::Display for Function {
             Function::Substr => "substr",
             Function::Round => "round",
             Function::Trunc => "trunc",
+            Function::RegexpContains => "regexp_contains",
+            Function::Encode => "encode",
+            Function::Decode => "decode",
             // Ternary Functions
             Function::Case => "case",
             Function::SubstrWithSize => "substr",
+            Function::RegexpExtract => "regexp_extract",
+            Function::RegexpReplace => "regexp_replace",
             // Nary Functions
             Function::Concat(_) => "concat",
         })

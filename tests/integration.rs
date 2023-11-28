@@ -90,6 +90,7 @@ const QUERIES: &[&str] = &[
     SELECT * FROM t1 UNION SELECT * FROM t2",
     // Some joins
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
+    // Some string functions
     "SELECT UPPER(z) FROM table_2 LIMIT 5",
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
 ];
