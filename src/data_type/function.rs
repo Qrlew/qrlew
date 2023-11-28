@@ -9,7 +9,6 @@ use std::{
     result,
     sync::{Arc, Mutex},
 };
-use regex::bytes::Regex;
 use itertools::Itertools;
 
 use super::{
