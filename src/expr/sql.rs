@@ -303,6 +303,16 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 filter: None,
                 null_treatment: None,
             }),
+            expr::function::Function::ExtractYear => ast::Expr::Extract {field: ast::DateTimeField::Year, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMonth => ast::Expr::Extract {field: ast::DateTimeField::Month, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractDay => ast::Expr::Extract {field: ast::DateTimeField::Day, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractHour => ast::Expr::Extract {field: ast::DateTimeField::Hour, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMinute => ast::Expr::Extract {field: ast::DateTimeField::Minute, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractSecond => ast::Expr::Extract {field: ast::DateTimeField::Second, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMicrosecond => ast::Expr::Extract {field: ast::DateTimeField::Microsecond, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMillisecond => ast::Expr::Extract {field: ast::DateTimeField::Millisecond, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractDow => ast::Expr::Extract {field: ast::DateTimeField::Dow, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractWeek => ast::Expr::Extract {field: ast::DateTimeField::Week, expr: arguments[0].clone().into()},
         }
     }
     // TODO implement this properly
@@ -918,7 +928,7 @@ mod tests {
     }
 
     #[test]
-    fn test_date_functions() {
+    fn test_current() {
         // CURRENT_DATE
         let str_expr = "current_date";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
@@ -945,10 +955,98 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(gen_expr, ast_expr);
+    }
 
-        // EXTRACT ( datePart FROM expression)
+    #[test]
+    fn test_extract() {
+        // EXTRACT(YEAR FROM col1)
         let str_expr = "extract(year from col1)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
-        println!("expr = {:?}", ast_expr);
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MONTH FROM col1)
+        let str_expr = "extract(month from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(DAY FROM col1)
+        let str_expr = "extract(day from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(HOUR FROM col1)
+        let str_expr = "extract(hour from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MINUTE FROM col1)
+        let str_expr = "extract(minute from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(SECOND FROM col1)
+        let str_expr = "extract(second from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MICROSECOND FROM col1)
+        let str_expr = "extract(microsecond from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MILLISECOND FROM col1)
+        let str_expr = "extract(millisecond from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(DOW FROM col1)
+        let str_expr = "extract(dow from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(WEEK FROM col1)
+        let str_expr = "extract(week from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
     }
 }

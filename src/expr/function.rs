@@ -78,7 +78,17 @@ pub enum Function {
     Unhex,
     CurrentDate,
     CurrentTime,
-    CurrentTimestamp
+    CurrentTimestamp,
+    ExtractYear,
+    ExtractMonth,
+    ExtractDay,
+    ExtractHour,
+    ExtractMinute,
+    ExtractSecond,
+    ExtractMicrosecond,
+    ExtractMillisecond,
+    ExtractDow,
+    ExtractWeek
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -151,6 +161,16 @@ impl Function {
             | Function::CastAsTime
             | Function::Sign
             | Function::Unhex
+            | Function::ExtractYear
+            | Function::ExtractMonth
+            | Function::ExtractDay
+            | Function::ExtractHour
+            | Function::ExtractMinute
+            | Function::ExtractSecond
+            | Function::ExtractMicrosecond
+            | Function::ExtractMillisecond
+            | Function::ExtractDow
+            | Function::ExtractWeek
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -231,7 +251,17 @@ impl Function {
             | Function::Ceil
             | Function::Floor
             | Function::Sign
-            | Function::Unhex => Arity::Unary,
+            | Function::Unhex
+            | Function::ExtractYear
+            | Function::ExtractMonth
+            | Function::ExtractDay
+            | Function::ExtractHour
+            | Function::ExtractMinute
+            | Function::ExtractSecond
+            | Function::ExtractMicrosecond
+            | Function::ExtractMillisecond
+            | Function::ExtractDow
+            | Function::ExtractWeek => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -332,6 +362,16 @@ impl fmt::Display for Function {
             Function::CastAsTime => "cast_as_time",
             Function::Sign => "sign",
             Function::Unhex => "unhex",
+            Function::ExtractYear => "extract_year",
+            Function::ExtractMonth => "extract_month",
+            Function::ExtractDay => "extract_day",
+            Function::ExtractHour => "extract_hour",
+            Function::ExtractMinute => "extract_minute",
+            Function::ExtractSecond => "extract_second",
+            Function::ExtractMicrosecond => "extract_microsecond",
+            Function::ExtractMillisecond => "extract_millisecond",
+            Function::ExtractDow => "extract_dow",
+            Function::ExtractWeek => "extract_week",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",

@@ -319,7 +319,17 @@ impl_unary_function_constructors!(
     Ceil,
     Floor,
     Sign,
-    Unhex
+    Unhex,
+    ExtractYear,
+    ExtractMonth,
+    ExtractDay,
+    ExtractHour,
+    ExtractMinute,
+    ExtractSecond,
+    ExtractMicrosecond,
+    ExtractMillisecond,
+    ExtractDow,
+    ExtractWeek
 ); // TODO Complete that
 
 /// Implement binary function constructors

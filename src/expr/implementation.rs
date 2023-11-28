@@ -88,7 +88,17 @@ function_implementations!(
         Trunc,
         RegexpContains,
         Encode,
-        Decode
+        Decode,
+        ExtractYear,
+        ExtractMonth,
+        ExtractDay,
+        ExtractHour,
+        ExtractMinute,
+        ExtractSecond,
+        ExtractMicrosecond,
+        ExtractMillisecond,
+        ExtractDow,
+        ExtractWeek
     ],
     [Case, Position, SubstrWithSize, RegexpReplace],
     [RegexpExtract],
