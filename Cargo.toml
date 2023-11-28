@@ -33,7 +33,6 @@ r2d2 = "0.8"
 r2d2_postgres = "0.18"
 rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
 statrs = "0.16.0"
-regex = "1.10.2"
 
 [features]
 # Use SQLite for tests and examples
