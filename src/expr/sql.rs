@@ -188,9 +188,28 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::SubstrWithSize
             | expr::function::Function::Ceil
             | expr::function::Function::Floor
-            | expr::function::Function::Sign => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Sign
+            | expr::function::Function::RegexpContains
+            | expr::function::Function::RegexpReplace
+            | expr::function::Function::Unhex
+            | expr::function::Function::Encode
+            | expr::function::Function::Decode
+            | expr::function::Function::Newid => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
+                    .into_iter()
+                    .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                    .collect(),
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::function::Function::RegexpExtract => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: vec![arguments[0].clone(), arguments[1].clone(), arguments[2].clone(), arguments[3].clone()]
                     .into_iter()
                     .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
                     .collect(),
@@ -551,6 +570,38 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         assert_eq!(ast_expr, gen_expr);
+
+        // Newid
+        let ast_expr: ast::Expr = parse_expr("newid()").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // encode
+        let ast_expr: ast::Expr = parse_expr("encode(col1, col2)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // decode
+        let ast_expr: ast::Expr = parse_expr("decode(col1, col2)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // unhex
+        let ast_expr: ast::Expr = parse_expr("unhex(col1)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
     }
 
     #[test]
@@ -855,6 +906,77 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         let true_expr = parse_expr("(100) * (((180) / ((pi()))))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_regexp_contains() {
+        let str_expr = "regexp_contains(col1, col2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_regexp_extract() {
+        let str_expr = "regexp_extract(value, regexp)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, 0, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "regexp_substr(value, regexp)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, 0, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+
+        let str_expr = "regexp_extract(value, regexp, position)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, position, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "regexp_substr(value, regexp, position)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, position, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "regexp_extract(value, regexp, position, occurrence)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+    }
+
+    #[test]
+    fn test_regexp_replace() {
+        let str_expr = "regexp_replace(value, regexp, replacement)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_replace(value, regexp, replacement)").unwrap();
         assert_eq!(gen_expr, true_expr);
     }
 }

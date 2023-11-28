@@ -168,16 +168,18 @@ impl fmt::Display for Function {
 
 impl Variant for Function {}
 
-/// Implement random function constructor (same thing but no macro here)
+/// Implement some function constructor (same thing but no macro here)
 impl Function {
     pub fn random(n: usize) -> Function {
         Function::new(function::Function::Random(n), vec![])
     }
-}
 
-impl Function {
     pub fn pi() -> Function {
         Function::new(function::Function::Pi, vec![])
+    }
+
+    pub fn newid() -> Function {
+        Function::new(function::Function::Newid, vec![])
     }
 }
 
@@ -189,6 +191,10 @@ impl Expr {
 
     pub fn pi() -> Expr {
         Expr::from(Function::pi())
+    }
+
+    pub fn newid() -> Expr {
+        Expr::from(Function::newid())
     }
 
     pub fn filter_column(
@@ -297,7 +303,8 @@ impl_unary_function_constructors!(
     CastAsTime,
     Ceil,
     Floor,
-    Sign
+    Sign,
+    Unhex
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -354,7 +361,10 @@ impl_binary_function_constructors!(
     Ltrim,
     Substr,
     Trunc,
-    Round
+    Round,
+    RegexpContains,
+    Encode,
+    Decode
 );
 
 /// Implement ternary function constructors
@@ -382,7 +392,34 @@ macro_rules! impl_ternary_function_constructors {
     };
 }
 
-impl_ternary_function_constructors!(Case, SubstrWithSize);
+impl_ternary_function_constructors!(Case, SubstrWithSize, RegexpReplace);
+
+/// Implement quaternary function constructors
+macro_rules! impl_quaternary_function_constructors {
+    ($( $Function:ident ),*) => {
+        impl Function {
+            paste! {
+                $(
+                    pub fn [<$Function:snake>]<F: Into<Expr>, S: Into<Expr>, T: Into<Expr>, U: Into<Expr>>(first: F, second: S, third: T, fourth: U) -> Function {
+                        Function::new(function::Function::$Function, vec![Arc::new(first.into()), Arc::new(second.into()), Arc::new(third.into()), Arc::new(fourth.into())])
+                    }
+                )*
+            }
+        }
+
+        impl Expr {
+            paste! {
+                $(
+                    pub fn [<$Function:snake>]<F: Into<Expr>, S: Into<Expr>, T: Into<Expr>, U: Into<Expr>>(first: F, second: S, third: T, fourth: U) -> Expr {
+                        Expr::from(Function::[<$Function:snake>](first, second, third, fourth))
+                    }
+                )*
+            }
+        }
+    };
+}
+
+impl_quaternary_function_constructors!(RegexpExtract);
 
 /// Implement nary function constructors
 macro_rules! impl_nary_function_constructors {
@@ -3099,6 +3136,78 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::float_value(3.141592653589793)
+        );
+    }
+
+    #[test]
+    fn test_regexp_contains() {
+        println!("regexp_contains(value, regexp)");
+        let expression = expr!(regexp_contains(value, regexp));
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("value", DataType::text_values(["a@foo.com".to_string(), "b@bar.org".to_string()])),
+            ("regexp", DataType::text_value(r"^[\w.+-]+@foo\.com|[\w.+-]+@bar\.org$".to_string())),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+    }
+
+    #[test]
+    fn test_regexp_extract() {
+        println!("regexp_extract(value, regexp, position, occ)");
+        let expression = expr!(regexp_extract(value, regexp, position, occ));
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("value", DataType::text_value("ab".to_string())),
+            ("regexp", DataType::text_value(r"*b".to_string())),
+            ("position", DataType::integer_value(0)),
+            ("occ", DataType::integer_value(1)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::optional(DataType::text())
+        );
+    }
+
+    #[test]
+    fn test_regexp_replace() {
+        println!("regexp_extract(value, regexp, replacement)");
+        let expression = expr!(regexp_replace(value, regexp, replacement));
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("value", DataType::text_value("ab".to_string())),
+            ("regexp", DataType::text_value(r"*b".to_string())),
+            ("replacement", DataType::text())
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::text()
         );
     }
 }

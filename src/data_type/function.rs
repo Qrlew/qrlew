@@ -9,7 +9,6 @@ use std::{
     result,
     sync::{Arc, Mutex},
 };
-
 use itertools::Itertools;
 
 use super::{
@@ -153,20 +152,20 @@ where
 /// In particular, no range computation is done
 /// Note that stateful computations should be avoided and reserved to pseudorandom functions//TODO remove this feature?
 #[derive(Clone)]
-pub struct Stateful {
+pub struct Unimplemented {
     domain: DataType,
     co_domain: DataType,
     value: Arc<Mutex<RefCell<dyn FnMut(Value) -> Value + Send>>>,
 }
 
-impl Stateful {
+impl Unimplemented {
     /// Constructor for Generic
     pub fn new(
         domain: DataType,
         co_domain: DataType,
         value: Arc<Mutex<RefCell<dyn FnMut(Value) -> Value + Send>>>,
     ) -> Self {
-        Stateful {
+        Unimplemented {
             domain,
             co_domain,
             value,
@@ -174,19 +173,19 @@ impl Stateful {
     }
 }
 
-impl fmt::Debug for Stateful {
+impl fmt::Debug for Unimplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
     }
 }
 
-impl fmt::Display for Stateful {
+impl fmt::Display for Unimplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
     }
 }
 
-impl Function for Stateful {
+impl Function for Unimplemented {
     fn domain(&self) -> DataType {
         self.domain.clone()
     }
@@ -1437,7 +1436,7 @@ pub fn concat(n: usize) -> impl Function {
 }
 
 pub fn md5() -> impl Function {
-    Stateful::new(
+    Unimplemented::new(
         DataType::text(),
         DataType::text(),
         Arc::new(Mutex::new(RefCell::new(|v| {
@@ -1449,7 +1448,7 @@ pub fn md5() -> impl Function {
 }
 
 pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function {
-    Stateful::new(
+    Unimplemented::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
         Arc::new(Mutex::new(RefCell::new(move |v| {
@@ -1459,7 +1458,7 @@ pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function
 }
 
 pub fn pi() -> impl Function {
-    Stateful::new(
+    Unimplemented::new(
         DataType::unit(),
         DataType::float_value(3.141592653589793),
         Arc::new(Mutex::new(RefCell::new(move |_| 3.141592653589793.into()))),
@@ -1782,6 +1781,69 @@ pub fn position() -> impl Function {
                     .map(|v| Arc::new(Value::integer(v.try_into().unwrap()))),
             ))
         },
+    )
+}
+
+/// Regexp contains
+pub fn regexp_contains() -> impl Function {
+    Unimplemented::new(
+        DataType::structured_from_data_types([DataType::text(), DataType::text()]),
+        DataType::boolean(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+    )
+}
+
+/// Regexp extract
+pub fn regexp_extract() -> impl Function {
+    Unimplemented::new(
+        DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::integer(), DataType::integer()]),
+        DataType::optional(DataType::text()),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+    )
+}
+
+/// Regexp replace
+pub fn regexp_replace() -> impl Function {
+    Unimplemented::new(
+        DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::text()]),
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+    )
+}
+
+/// Transact newid
+pub fn newid() -> impl Function {
+    Unimplemented::new(
+        DataType::unit(),
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+    )
+}
+
+/// MySQL encode
+pub fn encode() -> impl Function {
+    Unimplemented::new(
+        DataType::structured_from_data_types([DataType::text(), DataType::text()]),
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+    )
+}
+
+/// MySQL decode
+pub fn decode() -> impl Function {
+    Unimplemented::new(
+        DataType::structured_from_data_types([DataType::text(), DataType::text()]),
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+    )
+}
+
+/// MySQL unhex
+pub fn unhex() -> impl Function {
+    Unimplemented::new(
+        DataType::text(),
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
@@ -3629,6 +3691,8 @@ mod tests {
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([9, 10]));
     }
+
+    #[test]
     fn test_cast_as_text() {
         println!("Test cast as text");
         let fun = cast(DataType::text());
@@ -3716,5 +3780,62 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_value(0));
+    }
+
+    #[test]
+    fn test_regexp_contains() {
+        println!("\nTest regexp_contains");
+        let fun = regexp_contains();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["foo@example.com".to_string(), "bar@example.org".to_string(), "www.example.net".to_string()]),
+            DataType::text_value(r"@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+".to_string())
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean());
+    }
+
+    #[test]
+    fn test_regexp_extract() {
+        println!("\nTest regexp_extract");
+        let fun = regexp_extract();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_value("Hello Helloo and Hellooo".to_string()),
+            DataType::text_value("H?ello+".to_string()),
+            DataType::integer_value(3),
+            DataType::integer_value(1)
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::optional(DataType::text()));
+    }
+
+    #[test]
+    fn test_regexp_replace() {
+        println!("\nTest regexp_replace");
+        let fun = regexp_replace();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::from(Struct::from_data_types(&[
+            DataType::text_values(["# Heading".to_string(), "# Another heading".to_string()]),
+            DataType::text_value(r"^# ([a-zA-Z0-9\s]+$)".to_string()),
+            DataType::text_value(r"<h1>\\1</h1>".to_string()),
+        ]));
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::text());
     }
 }

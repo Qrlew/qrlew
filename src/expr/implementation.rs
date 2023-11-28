@@ -8,7 +8,7 @@ use rand::rngs::OsRng;
 use std::sync::{Arc, Mutex};
 
 macro_rules! function_implementations {
-    ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], $function:ident, $default:block) => {
+    ([$($unary:ident),*], [$($binary:ident),*], [$($ternary:ident),*], [$($quaternary:ident),*], $function:ident, $default:block) => {
         paste! {
             // A (thread local) global map
             thread_local! {
@@ -16,6 +16,7 @@ macro_rules! function_implementations {
                     $([< $unary:snake >]: Arc::new(Optional::new(function::[< $unary:snake >]())),)*
                     $([< $binary:snake >]: Arc::new(Optional::new(function::[< $binary:snake >]())),)*
                     $([< $ternary:snake >]: Arc::new(Optional::new(function::[< $ternary:snake >]())),)*
+                    $([< $quaternary:snake >]: Arc::new(Optional::new(function::[< $quaternary:snake >]())),)*
                 };
             }
 
@@ -24,6 +25,7 @@ macro_rules! function_implementations {
                 $(pub [< $unary:snake >]: Arc<dyn function::Function>,)*
                 $(pub [< $binary:snake >]: Arc<dyn function::Function>,)*
                 $(pub [< $ternary:snake >]: Arc<dyn function::Function>,)*
+                $(pub [< $quaternary:snake >]: Arc<dyn function::Function>,)*
             }
 
             /// The object to access implementations
@@ -32,6 +34,7 @@ macro_rules! function_implementations {
                     $(Function::$unary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $unary:snake >].clone()),)*
                     $(Function::$binary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $binary:snake >].clone()),)*
                     $(Function::$ternary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $ternary:snake >].clone()),)*
+                    $(Function::$quaternary => FUNCTION_IMPLEMENTATIONS.with(|impls| impls.[< $quaternary:snake >].clone()),)*
                     $function => $default
                 }
             }
@@ -43,9 +46,10 @@ macro_rules! function_implementations {
 // Unary: Opposite, Not, Exp, Ln, Abs, Sin, Cos, CharLength, Lower, Upper, Md5, Ceil, Floor, Sign
 // Binary: Plus, Minus, Multiply, Divide, Modulo, StringConcat, Gt, Lt, GtEq, LtEq, Eq, NotEq, And, Or, Xor, BitwiseOr, BitwiseAnd, BitwiseXor, Position, Concat, Greatest, Least, Round, Trunc
 // Ternary: Case, Position
+// Quaternary: RegexExtract
 // Nary: Concat
 function_implementations!(
-    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Ceil, Floor, Sign],
+    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Ceil, Floor, Sign, Unhex],
     [
         Plus,
         Minus,
@@ -76,9 +80,13 @@ function_implementations!(
         Ltrim,
         Substr,
         Round,
-        Trunc
+        Trunc,
+        RegexpContains,
+        Encode,
+        Decode
     ],
-    [Case, Position, SubstrWithSize],
+    [Case, Position, SubstrWithSize, RegexpReplace],
+    [RegexpExtract],
     x,
     {
         match x {
@@ -92,6 +100,7 @@ function_implementations!(
             Function::Concat(n) => Arc::new(function::concat(n)),
             Function::Random(n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
             Function::Pi => Arc::new(function::pi()),
+            Function::Newid => Arc::new(function::newid()),
             Function::Coalesce => Arc::new(function::coalesce()),
             _ => unreachable!(),
         }
