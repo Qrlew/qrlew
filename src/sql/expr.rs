@@ -278,6 +278,7 @@ pub trait Visitor<'a, T: Clone> {
     fn cast_as_date_time(&self, expr: T) -> T;
     fn cast_as_date(&self, expr: T) -> T;
     fn cast_as_time(&self, expr: T) -> T;
+    fn extract(&self, field: &'a ast::DateTimeField, expr: T) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -471,7 +472,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 timestamp,
                 time_zone,
             } => todo!(),
-            ast::Expr::Extract { field, expr } => todo!(),
+            ast::Expr::Extract { field, expr } => self.extract(field, dependencies.get(expr).clone()),
             ast::Expr::Ceil { expr, field } => self.ceil(dependencies.get(expr).clone(), field),
             ast::Expr::Floor { expr, field } => self.floor(dependencies.get(expr).clone(), field),
             ast::Expr::Position { expr, r#in } => self.position(
@@ -764,6 +765,10 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
     fn cast_as_time(&self, expr: String) -> String {
         format!("CAST ({} AS TIME)", expr)
     }
+
+    fn extract(&self, field: &'a ast::DateTimeField, expr: String) -> String {
+        format!("EXTRACT({} FROM {})", field, expr)
+    }
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -910,7 +915,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             todo!()
         }
         Ok(match function_name {
-            // Functions Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos
+            // Math Functions
             "opposite" => Expr::opposite(flat_args[0].clone()),
             "not" => Expr::not(flat_args[0].clone()),
             "exp" => Expr::exp(flat_args[0].clone()),
@@ -964,7 +969,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                     precision,
                 )
             }
-            "trunc" => {
+            "trunc" | "truncate" => {
                 let precision = if flat_args.len() > 1 {
                     flat_args[1].clone()
                 } else {
@@ -976,13 +981,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 )
             }
             "sign" => Expr::sign(flat_args[0].clone()),
-            "random" => Expr::random(namer::new_id("UNIFORM_SAMPLING")),
+            "random" | "rand" => Expr::random(namer::new_id("UNIFORM_SAMPLING")),
             "pi" => Expr::pi(),
             "degrees" => Expr::multiply(
                 flat_args[0].clone(),
                 Expr::divide(Expr::val(180.), Expr::pi())
             ),
-            // string functions
+            // String functions
             "lower" => Expr::lower(flat_args[0].clone()),
             "upper" => Expr::upper(flat_args[0].clone()),
             "char_length" => Expr::char_length(flat_args[0].clone()),
@@ -1017,6 +1022,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "encode" => Expr::encode(flat_args[0].clone(), flat_args[1].clone()),
             "decode" => Expr::decode(flat_args[0].clone(), flat_args[1].clone()),
             "unhex" | "from_hex" => Expr::unhex(flat_args[0].clone()),
+            // Date functions
+            "current_date" => Expr::current_date(),
+            "current_time" => Expr::current_time(),
+            "current_timestamp" => Expr::current_timestamp(),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
@@ -1145,6 +1154,24 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
 
     fn cast_as_time(&self, expr: Result<Expr>) -> Result<Expr> {
         Ok(Expr::cast_as_time(expr.clone()?))
+    }
+
+    fn extract(&self, field: &'a ast::DateTimeField, expr: Result<Expr>) -> Result<Expr> {
+        Ok(
+            match field {
+                ast::DateTimeField::Year => Expr::extract_year(expr.clone()?),
+                ast::DateTimeField::Month => Expr::extract_month(expr.clone()?),
+                ast::DateTimeField::Week => Expr::extract_week(expr.clone()?),
+                ast::DateTimeField::Day => Expr::extract_day(expr.clone()?),
+                ast::DateTimeField::Hour => Expr::extract_hour(expr.clone()?),
+                ast::DateTimeField::Minute => Expr::extract_minute(expr.clone()?),
+                ast::DateTimeField::Second => Expr::extract_second(expr.clone()?),
+                ast::DateTimeField::Dow => Expr::extract_dow(expr.clone()?),
+                ast::DateTimeField::Microsecond => Expr::extract_microsecond(expr.clone()?),
+                ast::DateTimeField::Millisecond => Expr::extract_millisecond(expr.clone()?),
+                _ => todo!(),
+            }
+        )
     }
 }
 

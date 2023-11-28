@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use itertools::Itertools;
-
+use chrono::{Datelike, Timelike};
 use super::{
     super::data_type,
     injection,
@@ -1207,21 +1207,21 @@ pub fn cast(into: DataType) -> impl Function {
             Pointwise::univariate(
                 DataType::text(),
                 DataType::date(),
-                |v| todo!()
+                |v| unimplemented!()
             )
         }
         DataType::DateTime(d) if d == data_type::DateTime::full() => {
             Pointwise::univariate(
                 DataType::text(),
                 DataType::date_time(),
-                |v| todo!()
+                |v| unimplemented!()
             )
         }
         DataType::Time(t) if t == data_type::Time::full() => {
             Pointwise::univariate(
                 DataType::text(),
                 DataType::time(),
-                |v| todo!()
+                |v| unimplemented!()
             )
         }
         _ => todo!(),
@@ -1789,7 +1789,7 @@ pub fn regexp_contains() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::boolean(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1798,7 +1798,7 @@ pub fn regexp_extract() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::integer(), DataType::integer()]),
         DataType::optional(DataType::text()),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1807,7 +1807,7 @@ pub fn regexp_replace() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1816,7 +1816,7 @@ pub fn newid() -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1825,7 +1825,7 @@ pub fn encode() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1834,7 +1834,7 @@ pub fn decode() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1843,8 +1843,183 @@ pub fn unhex() -> impl Function {
     Unimplemented::new(
         DataType::text(),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
+}
+
+// Date functions
+pub fn current_date() -> impl Function {
+    Unimplemented::new(
+        DataType::unit(),
+        DataType::date(),
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
+    )
+}
+
+pub fn current_time() -> impl Function {
+    Unimplemented::new(
+        DataType::unit(),
+        DataType::time(),
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
+    )
+}
+
+pub fn current_timestamp() -> impl Function {
+    Unimplemented::new(
+        DataType::unit(),
+        DataType::date_time(),
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
+    )
+}
+
+pub fn extract_year() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Date::default(),
+            DataType::integer_min(0),
+            |a| (a.year() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_min(0),
+            |a| (a.year() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_month() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Date::default(),
+            DataType::integer_interval(1, 12),
+            |a| (a.month() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(1, 12),
+            |a| (a.month() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_day() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Date::default(),
+            DataType::integer_interval(1, 31),
+            |a| (a.day() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(1, 31),
+            |a| (a.day() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_dow() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Date::default(),
+            DataType::integer_interval(0, 6),
+            |a| (a.weekday().num_days_from_sunday() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(0, 6),
+            |a| (a.weekday().num_days_from_sunday() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_week() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Date::default(),
+            DataType::integer_interval(1, 52),
+            |a| (a.iso_week().week() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(1, 52),
+            |a| (a.iso_week().week() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_hour() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Time::default(),
+            DataType::integer_interval(0, 23),
+            |a| (a.hour() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(0, 23),
+            |a| (a.hour() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_minute() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Time::default(),
+            DataType::integer_interval(0, 59),
+            |a| (a.minute() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(0, 59),
+            |a| (a.minute() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_second() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Time::default(),
+            DataType::integer_interval(0, 59),
+            |a| (a.second() as i64).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(0, 59),
+            |a| (a.second() as i64).into(),
+        ),
+    ))
+}
+
+pub fn extract_microsecond() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Time::default(),
+            DataType::integer_interval(0, 59999000),
+            |a| (a.second() as i64 * 1_000_000 + a.nanosecond() as i64 / 1_000).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::integer_interval(0, 59999000),
+            |a| (a.second() as i64 * 1_000_000 + a.nanosecond() as i64 / 1_000).into(),
+        ),
+    ))
+}
+
+pub fn extract_millisecond() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(
+            data_type::Time::default(),
+            DataType::float_interval(0., 59900.000),
+            |a| (a.second() as f64 * 1000. + a.nanosecond() as f64 / 1_000_000.).into(),
+        ),
+        Pointwise::univariate(
+            data_type::DateTime::default(),
+            DataType::float_interval(0., 59900.000),
+            |a| (a.second() as f64 * 1000. + a.nanosecond() as f64 / 1_000_000.).into(),
+        ),
+    ))
 }
 
 // Case function
@@ -2287,7 +2462,7 @@ mod tests {
         super::{value::Value, Struct},
         *,
     };
-    use chrono;
+    use chrono::{self, NaiveDate, NaiveDateTime, NaiveTime};
 
     #[test]
     fn test_argument_conversion() {
@@ -2695,7 +2870,7 @@ mod tests {
             "super_image(optional([0,1] & [-5,2])) = {}",
             optional_greatest
                 .super_image(&DataType::optional(
-                    (DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.))
+                    DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.)
                 ))
                 .unwrap()
         );
@@ -3013,7 +3188,7 @@ mod tests {
         assert!(matches!(im, DataType::Text(_)));
 
         // {false, true}, int, text
-        let date_a = chrono::NaiveDate::from_isoywd_opt(2022, 10, chrono::Weekday::Mon).unwrap();
+        let date_a = NaiveDate::from_isoywd_opt(2022, 10, chrono::Weekday::Mon).unwrap();
         let date_b = date_a + chrono::Duration::days(10);
         let set = DataType::from(Struct::from_data_types(&[
             DataType::from(data_type::Boolean::default()),
@@ -3711,7 +3886,7 @@ mod tests {
         println!("im({}) = {}", set, im);
         assert!(im == DataType::text_values(["1".to_string(), "3".to_string(), "4".to_string()]));
 
-        let set = DataType::date_value(chrono::NaiveDate::from_ymd_opt(2015, 6, 3).unwrap());
+        let set = DataType::date_value(NaiveDate::from_ymd_opt(2015, 6, 3).unwrap());
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::text_values(["2015-06-03".to_string()]));
@@ -3837,5 +4012,248 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::text());
+    }
+
+    #[test]
+    fn test_extract() {
+        // year
+        println!("\nTest extract_year");
+        let fun = extract_year();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::date_values([
+            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
+            NaiveDate::from_ymd_opt(2023, 12, 31).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_value(2023));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 8).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([2016, 2026]));
+
+        // month
+        println!("\nTest extract_month");
+        let fun = extract_month();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::date_values([
+            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
+            NaiveDate::from_ymd_opt(2023, 12, 31).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([1, 12]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 8).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_value(7));
+
+        // day
+        println!("\nTest extract_day");
+        let fun = extract_day();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::date_values([
+            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
+            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_value(1));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([8, 18]));
+
+        // dow
+        println!("\nTest extract_dow");
+        let fun = extract_dow();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::date_values([
+            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
+            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([0, 5]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([1, 3]));
+
+        // week
+        println!("\nTest extract_week");
+        let fun = extract_week();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::date_values([
+            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
+            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([48, 52]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([28, 29]));
+
+        // hour
+        println!("\nTest extract_hour");
+        let fun = extract_hour();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::time_values([
+            NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
+            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([10, 11]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([6, 9]));
+
+        // minute
+        println!("\nTest extract_minute");
+        let fun = extract_minute();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::time_values([
+            NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
+            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([12, 57]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([10, 15]));
+
+        // second
+        println!("\nTest extract_second");
+        let fun = extract_second();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::time_values([
+            NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
+            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([13, 58]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([1, 11]));
+
+        // microsecond
+        println!("\nTest extract_microsecond");
+        let fun = extract_microsecond();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::time_values([
+            NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
+            NaiveTime::from_hms_milli_opt(11, 57, 59, 999).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([13014000, 59999000]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([1000000, 11000000]));
+
+        // millisecond
+        println!("\nTest extract_millisecond");
+        let fun = extract_millisecond();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::time_values([
+            NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
+            NaiveTime::from_hms_milli_opt(11, 57, 59, 999).unwrap()
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_values([13014.000, 59999.000]));
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::float_values([1000.000, 11000.000]));
     }
 }

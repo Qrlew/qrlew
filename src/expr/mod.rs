@@ -173,28 +173,12 @@ impl Function {
     pub fn random(n: usize) -> Function {
         Function::new(function::Function::Random(n), vec![])
     }
-
-    pub fn pi() -> Function {
-        Function::new(function::Function::Pi, vec![])
-    }
-
-    pub fn newid() -> Function {
-        Function::new(function::Function::Newid, vec![])
-    }
 }
 
 /// Implement random expression constructor (same thing but no macro here)
 impl Expr {
     pub fn random(n: usize) -> Expr {
         Expr::from(Function::random(n))
-    }
-
-    pub fn pi() -> Expr {
-        Expr::from(Function::pi())
-    }
-
-    pub fn newid() -> Expr {
-        Expr::from(Function::newid())
     }
 
     pub fn filter_column(
@@ -258,6 +242,37 @@ impl Expr {
 }
 
 /// Implement unary function constructors
+macro_rules! impl_nullary_function_constructors {
+    ($( $Function:ident ),*) => {
+        impl Function {
+            paste! {
+                $(pub fn [<$Function:snake>]() -> Function {
+                    Function::new(function::Function::$Function, vec![])
+                }
+                )*
+            }
+        }
+
+        impl Expr {
+            paste! {
+                $(pub fn [<$Function:snake>]() -> Expr {
+                    Expr::from(Function::[<$Function:snake>]())
+                }
+                )*
+            }
+        }
+    };
+}
+
+impl_nullary_function_constructors!(
+    Pi,
+    Newid,
+    CurrentDate,
+    CurrentTime,
+    CurrentTimestamp
+);
+
+/// Implement unary function constructors
 macro_rules! impl_unary_function_constructors {
     ($( $Function:ident ),*) => {
         impl Function {
@@ -304,7 +319,17 @@ impl_unary_function_constructors!(
     Ceil,
     Floor,
     Sign,
-    Unhex
+    Unhex,
+    ExtractYear,
+    ExtractMonth,
+    ExtractDay,
+    ExtractHour,
+    ExtractMinute,
+    ExtractSecond,
+    ExtractMicrosecond,
+    ExtractMillisecond,
+    ExtractDow,
+    ExtractWeek
 ); // TODO Complete that
 
 /// Implement binary function constructors
