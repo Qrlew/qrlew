@@ -1207,21 +1207,21 @@ pub fn cast(into: DataType) -> impl Function {
             Pointwise::univariate(
                 DataType::text(),
                 DataType::date(),
-                |v| todo!()
+                |v| unimplemented!()
             )
         }
         DataType::DateTime(d) if d == data_type::DateTime::full() => {
             Pointwise::univariate(
                 DataType::text(),
                 DataType::date_time(),
-                |v| todo!()
+                |v| unimplemented!()
             )
         }
         DataType::Time(t) if t == data_type::Time::full() => {
             Pointwise::univariate(
                 DataType::text(),
                 DataType::time(),
-                |v| todo!()
+                |v| unimplemented!()
             )
         }
         _ => todo!(),
@@ -1789,7 +1789,7 @@ pub fn regexp_contains() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::boolean(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1798,7 +1798,7 @@ pub fn regexp_extract() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::integer(), DataType::integer()]),
         DataType::optional(DataType::text()),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1807,7 +1807,7 @@ pub fn regexp_replace() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1816,7 +1816,7 @@ pub fn newid() -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1825,7 +1825,7 @@ pub fn encode() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1834,7 +1834,7 @@ pub fn decode() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
@@ -1843,32 +1843,32 @@ pub fn unhex() -> impl Function {
     Unimplemented::new(
         DataType::text(),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
 // Date functions
 pub fn current_date() -> impl Function {
-    UserDefineFunction::new(
-        "current_date".to_string(),
+    Unimplemented::new(
         DataType::unit(),
-        DataType::date()
+        DataType::date(),
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
 pub fn current_time() -> impl Function {
-    UserDefineFunction::new(
-        "current_time".to_string(),
+    Unimplemented::new(
         DataType::unit(),
-        DataType::time()
+        DataType::time(),
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
 pub fn current_timestamp() -> impl Function {
-    UserDefineFunction::new(
-        "current_timestamp".to_string(),
+    Unimplemented::new(
         DataType::unit(),
-        DataType::date_time()
+        DataType::date_time(),
+        Arc::new(Mutex::new(RefCell::new(|v| unimplemented!())))
     )
 }
 
