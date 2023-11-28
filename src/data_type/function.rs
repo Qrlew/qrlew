@@ -1,7 +1,7 @@
 use std::{
     borrow::BorrowMut,
     cell::RefCell,
-    cmp, collections,
+    cmp, collections::{self, HashSet},
     convert::{Infallible, TryFrom, TryInto},
     error, fmt,
     hash::Hasher,
@@ -152,20 +152,20 @@ where
 /// In particular, no range computation is done
 /// Note that stateful computations should be avoided and reserved to pseudorandom functions//TODO remove this feature?
 #[derive(Clone)]
-pub struct Stateful {
+pub struct Unimplemented {
     domain: DataType,
     co_domain: DataType,
     value: Arc<Mutex<RefCell<dyn FnMut(Value) -> Value + Send>>>,
 }
 
-impl Stateful {
+impl Unimplemented {
     /// Constructor for Generic
     pub fn new(
         domain: DataType,
         co_domain: DataType,
         value: Arc<Mutex<RefCell<dyn FnMut(Value) -> Value + Send>>>,
     ) -> Self {
-        Stateful {
+        Unimplemented {
             domain,
             co_domain,
             value,
@@ -173,19 +173,19 @@ impl Stateful {
     }
 }
 
-impl fmt::Debug for Stateful {
+impl fmt::Debug for Unimplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
     }
 }
 
-impl fmt::Display for Stateful {
+impl fmt::Display for Unimplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "simple{{{} -> {}}}", self.domain(), self.co_domain())
     }
 }
 
-impl Function for Stateful {
+impl Function for Unimplemented {
     fn domain(&self) -> DataType {
         self.domain.clone()
     }
@@ -1027,44 +1027,6 @@ impl Function for Case {
     }
 }
 
-// TODO
-#[derive(Clone, Debug)]
-pub struct UserDefineFunction {
-    name: String,
-    domain: DataType,
-    co_domain: DataType
-}
-
-impl fmt::Display for UserDefineFunction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
-    }
-}
-
-impl Function for UserDefineFunction {
-    fn domain(&self) -> DataType {
-        self.domain.clone()
-    }
-
-    fn super_image(&self, set: &DataType) -> Result<DataType> {
-        if !set.is_subset_of(&self.domain()) {
-            Err(Error::set_out_of_range(set, self.domain()))
-        } else {
-            Ok(self.co_domain.clone())
-        }
-    }
-
-    fn value(&self, arg: &Value) -> Result<Value> {
-        todo!()
-    }
-}
-
-impl UserDefineFunction {
-    pub fn new(name: String, domain: DataType, co_domain: DataType) -> UserDefineFunction {
-        UserDefineFunction {name, domain, co_domain}
-    }
-}
-
 // IN (..)
 #[derive(Clone, Debug)]
 pub struct InList(DataType);
@@ -1474,7 +1436,7 @@ pub fn concat(n: usize) -> impl Function {
 }
 
 pub fn md5() -> impl Function {
-    Stateful::new(
+    Unimplemented::new(
         DataType::text(),
         DataType::text(),
         Arc::new(Mutex::new(RefCell::new(|v| {
@@ -1486,7 +1448,7 @@ pub fn md5() -> impl Function {
 }
 
 pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function {
-    Stateful::new(
+    Unimplemented::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
         Arc::new(Mutex::new(RefCell::new(move |v| {
@@ -1496,7 +1458,7 @@ pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function
 }
 
 pub fn pi() -> impl Function {
-    Stateful::new(
+    Unimplemented::new(
         DataType::unit(),
         DataType::float_value(3.141592653589793),
         Arc::new(Mutex::new(RefCell::new(move |_| 3.141592653589793.into()))),
@@ -1824,64 +1786,64 @@ pub fn position() -> impl Function {
 
 /// Regexp contains
 pub fn regexp_contains() -> impl Function {
-    UserDefineFunction::new(
-        "regexp_contains".to_string(),
+    Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
-        DataType::boolean()
+        DataType::boolean(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
 /// Regexp extract
 pub fn regexp_extract() -> impl Function {
-    UserDefineFunction::new(
-        "regexp_extract".to_string(),
+    Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::integer(), DataType::integer()]),
-        DataType::optional(DataType::text())
+        DataType::optional(DataType::text()),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
 /// Regexp replace
 pub fn regexp_replace() -> impl Function {
-    UserDefineFunction::new(
-        "regexp_replace".to_string(),
+    Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::text()]),
-        DataType::text()
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
 /// Transact newid
 pub fn newid() -> impl Function {
-    UserDefineFunction::new(
-        "newid".to_string(),
+    Unimplemented::new(
         DataType::unit(),
-        DataType::text()
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
 /// MySQL encode
 pub fn encode() -> impl Function {
-    UserDefineFunction::new(
-        "encode".to_string(),
+    Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
-        DataType::text()
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
 /// MySQL decode
 pub fn decode() -> impl Function {
-    UserDefineFunction::new(
-        "decode".to_string(),
+    Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
-        DataType::text()
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
 /// MySQL unhex
 pub fn unhex() -> impl Function {
-    UserDefineFunction::new(
-        "unhex".to_string(),
+    Unimplemented::new(
         DataType::text(),
-        DataType::text()
+        DataType::text(),
+        Arc::new(Mutex::new(RefCell::new(|v| todo!())))
     )
 }
 
@@ -2181,6 +2143,21 @@ pub fn mean() -> impl Function {
     )
 }
 
+/// Mean distinct aggregation
+pub fn mean_distinct() -> impl Function {
+    // Only works on types that can be converted to floats
+    Aggregate::from(
+        data_type::Float::full(),
+        |values| {
+            let (count, sum) = values.into_iter().collect::<HashSet<_>>().into_iter().fold((0.0, 0.0), |(count, sum), value| {
+                (count + 1.0, sum + f64::from(value))
+            });
+            (sum / count).into()
+        },
+        |(intervals, _size)| Ok(intervals.into_interval()),
+    )
+}
+
 /// Aggregate as a list
 pub fn list() -> impl Function {
     null()
@@ -2194,6 +2171,30 @@ pub fn count() -> impl Function {
             DataType::Any,
             |values| (values.len() as i64).into(),
             |(_dt, size)| Ok(size),
+        ),
+        // Optional implementation
+        Aggregate::from(
+            data_type::Optional::from(DataType::Any),
+            |values| {
+                values
+                    .iter()
+                    .filter_map(|value| value.as_ref().and(Some(1)))
+                    .sum::<i64>()
+                    .into()
+            },
+            |(_dt, size)| Ok(data_type::Integer::from_interval(0, *size.max().unwrap())),
+        ),
+    ))
+}
+
+/// Count distinct aggregation
+pub fn count_distinct() -> impl Function {
+    Polymorphic::from((
+        // Any implementation
+        Aggregate::from(
+            DataType::Any,
+            |values| (values.iter().cloned().collect::<HashSet<_>>().len()as i64).into(),
+            |(_dt, size)| Ok(data_type::Integer::from_interval(1, *size.max().unwrap())),
         ),
         // Optional implementation
         Aggregate::from(
@@ -2310,6 +2311,32 @@ pub fn sum() -> impl Function {
     ))
 }
 
+/// Sum distinct aggregation
+pub fn sum_distinct() -> impl Function {
+    Polymorphic::from((
+        // Integer implementation
+        Aggregate::from(
+            data_type::Integer::full(),
+            |values| values.iter().cloned().collect::<HashSet<_>>().into_iter().map(|f| *f).sum::<i64>().into(),
+            |(intervals, size)| {
+                Ok(data_type::Integer::try_from(multiply().super_image(
+                    &DataType::structured_from_data_types([intervals.into(), size.into()]),
+                )?)?)
+            },
+        ),
+        // Float implementation
+        Aggregate::from(
+            data_type::Float::full(),
+            |values| values.iter().cloned().collect::<HashSet<_>>().into_iter().map(|f| *f).sum::<f64>().into(),
+            |(intervals, size)| {
+                Ok(data_type::Float::try_from(multiply().super_image(
+                    &DataType::structured_from_data_types([intervals.into(), size.into()]),
+                )?)?)
+            },
+        ),
+    ))
+}
+
 /// Agg groups aggregation
 pub fn agg_groups() -> impl Function {
     null()
@@ -2341,6 +2368,34 @@ pub fn std() -> impl Function {
     )
 }
 
+/// Standard deviation distinct aggregation
+pub fn std_distinct() -> impl Function {
+    // Only works on types that can be converted to floats
+    Aggregate::from(
+        data_type::Float::full(),
+        |values| {
+            let (count, sum, sum_2) =
+                values
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
+                        let value: f64 = value.into();
+                        (
+                            count + 1.0,
+                            sum + f64::from(value),
+                            sum_2 + (f64::from(value) * f64::from(value)),
+                        )
+                    });
+            ((sum_2 - sum * sum / count) / (count - 1.)).sqrt().into()
+        },
+        |(intervals, _size)| match (intervals.min(), intervals.max()) {
+            (Some(&min), Some(&max)) => Ok(data_type::Float::from_interval(0., (max - min) / 2.)),
+            _ => Ok(data_type::Float::from_min(0.)),
+        },
+    )
+}
+
 /// Variance aggregation
 pub fn var() -> impl Function {
     // Only works on types that can be converted to floats
@@ -2349,6 +2404,37 @@ pub fn var() -> impl Function {
         |values| {
             let (count, sum, sum_2) =
                 values
+                    .into_iter()
+                    .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
+                        let value: f64 = value.into();
+                        (
+                            count + 1.0,
+                            sum + f64::from(value),
+                            sum_2 + (f64::from(value) * f64::from(value)),
+                        )
+                    });
+            ((sum_2 - sum * sum / count) / (count - 1.)).into()
+        },
+        |(intervals, _size)| match (intervals.min(), intervals.max()) {
+            (Some(&min), Some(&max)) => Ok(data_type::Float::from_interval(
+                0.,
+                ((max - min) / 2.).powi(2),
+            )),
+            _ => Ok(data_type::Float::from_min(0.)),
+        },
+    )
+}
+
+/// Variance distinct aggregation
+pub fn var_distinct() -> impl Function {
+    // Only works on types that can be converted to floats
+    Aggregate::from(
+        data_type::Float::full(),
+        |values| {
+            let (count, sum, sum_2) =
+                values
+                    .into_iter()
+                    .collect::<HashSet<_>>()
                     .into_iter()
                     .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
                         let value: f64 = value.into();

@@ -147,7 +147,7 @@ macro_rules! aggregate_implementations {
 }
 
 aggregate_implementations!(
-    [Min, Max, Median, NUnique, First, Last, Mean, List, Count, Sum, AggGroups, Std, Var],
+    [Min, Max, Median, NUnique, First, Last, Mean, List, Count, Sum, AggGroups, Std, Var,  MeanDistinct, CountDistinct, SumDistinct, StdDistinct, VarDistinct],
     x,
     {
         match x {

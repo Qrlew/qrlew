@@ -5,6 +5,8 @@ use itertools::Itertools;
 use super::{implementation, Result};
 use crate::data_type::{value::Value, DataType};
 
+
+
 /// The list of operators
 /// inspired by: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.BinaryOperator.html
 /// and mostly: https://docs.rs/polars/latest/polars/prelude/enum.AggExpr.html
@@ -18,14 +20,19 @@ pub enum Aggregate {
     First,
     Last,
     Mean,
+    MeanDistinct,
     List,
     Count,
+    CountDistinct,
     Quantile(f64),
     Quantiles(&'static [f64]),
     Sum,
+    SumDistinct,
     AggGroups,
     Std,
+    StdDistinct,
     Var,
+    VarDistinct
 }
 
 // TODO make sure f64::nan do not happen
@@ -83,6 +90,11 @@ impl fmt::Display for Aggregate {
             Aggregate::AggGroups => write!(f, "agg_groups"),
             Aggregate::Std => write!(f, "std"),
             Aggregate::Var => write!(f, "var"),
+            Aggregate::MeanDistinct => write!(f, "mean_distinct"),
+            Aggregate::CountDistinct => write!(f, "count_distinct"),
+            Aggregate::SumDistinct => write!(f, "sum_distinct"),
+            Aggregate::StdDistinct => write!(f, "std_distinct"),
+            Aggregate::VarDistinct => write!(f, "var_distinct"),
         }
     }
 }
