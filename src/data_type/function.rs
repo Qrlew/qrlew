@@ -4439,13 +4439,13 @@ mod tests {
         );
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
-        assert!(im == DataType::integer_value(1));
+        assert!(im == DataType::date_value(NaiveDate::from_ymd_opt(2023, 01, 01).unwrap()));
 
         let set = DataType::date_time_value(
             NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
         );
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
-        assert!(im == DataType::integer_value(3));
+        assert!(im == DataType::date_value(NaiveDate::from_ymd_opt(2026, 7, 8).unwrap()));
     }
 }
