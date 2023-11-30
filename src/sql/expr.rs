@@ -1026,6 +1026,27 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "current_date" => Expr::current_date(),
             "current_time" => Expr::current_time(),
             "current_timestamp" => Expr::current_timestamp(),
+            "dayname" => Expr::dayname(flat_args[0].clone()),
+            "date_format" => Expr::date_format(flat_args[0].clone(), flat_args[1].clone()),
+            "quarter" => Expr::quarter(flat_args[0].clone()),
+            "datetime_diff" => Expr::datetime_diff(flat_args[0].clone(), flat_args[1].clone(), flat_args[2].clone()),
+            "date" => Expr::date(flat_args[0].clone()),
+            "from_unixtime" => {
+                let format = if flat_args.len() > 1 {
+                    flat_args[1].clone()
+                } else {
+                    Expr::val("%Y-%m-%d %H:%i:%S".to_string())
+                };
+                Expr::from_unixtime(flat_args[0].clone(), format)
+            },
+            "unix_timestamp" => {
+                let arg = if flat_args.len() > 0 {
+                    flat_args[0].clone()
+                } else {
+                    Expr::current_timestamp()
+                };
+                Expr::unix_timestamp(arg)
+            },
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),

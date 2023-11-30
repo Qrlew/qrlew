@@ -88,7 +88,14 @@ pub enum Function {
     ExtractMicrosecond,
     ExtractMillisecond,
     ExtractDow,
-    ExtractWeek
+    ExtractWeek,
+    Dayname,
+    FromUnixtime,
+    UnixTimestamp,
+    DateFormat,
+    Quarter,
+    DatetimeDiff,
+    Date
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -171,6 +178,10 @@ impl Function {
             | Function::ExtractMillisecond
             | Function::ExtractDow
             | Function::ExtractWeek
+            | Function::Dayname
+            | Function::UnixTimestamp
+            | Function::Quarter
+            | Function::Date
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -185,11 +196,14 @@ impl Function {
             | Function::RegexpContains
             | Function::Encode
             | Function::Decode
+            | Function::FromUnixtime
+            | Function::DateFormat
             // Ternary Function
             | Function::Case
             | Function::SubstrWithSize
             | Function::RegexpExtract
             | Function::RegexpReplace
+            | Function::DatetimeDiff
             // Nary Function
             | Function::Concat(_) => Style::Function,
         }
@@ -261,7 +275,11 @@ impl Function {
             | Function::ExtractMicrosecond
             | Function::ExtractMillisecond
             | Function::ExtractDow
-            | Function::ExtractWeek => Arity::Unary,
+            | Function::ExtractWeek
+            | Function::Dayname
+            | Function::UnixTimestamp
+            | Function::Quarter
+            | Function::Date => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -273,11 +291,13 @@ impl Function {
             | Function::Substr
             | Function::Round
             | Function::Trunc
-            | Function::RegexpContains => {
+            | Function::RegexpContains
+            | Function::FromUnixtime
+            | Function::DateFormat => {
                 Arity::Nary(2)
             }
             // Ternary Function
-            Function::Case | Function::SubstrWithSize | Function::RegexpReplace => Arity::Nary(3),
+            Function::Case | Function::SubstrWithSize | Function::RegexpReplace | Function::DatetimeDiff => Arity::Nary(3),
             // Quaternary Function
             Function::RegexpExtract => Arity::Nary(4),
             // Nary Function
@@ -372,6 +392,10 @@ impl fmt::Display for Function {
             Function::ExtractMillisecond => "extract_millisecond",
             Function::ExtractDow => "extract_dow",
             Function::ExtractWeek => "extract_week",
+            Function::Dayname => "dayname",
+            Function::UnixTimestamp => "unix_timestamp",
+            Function::Quarter => "quarter",
+            Function::Date => "date",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",
@@ -386,11 +410,14 @@ impl fmt::Display for Function {
             Function::RegexpContains => "regexp_contains",
             Function::Encode => "encode",
             Function::Decode => "decode",
+            Function::FromUnixtime => "from_unixtime",
+            Function::DateFormat => "date_format",
             // Ternary Functions
             Function::Case => "case",
             Function::SubstrWithSize => "substr",
             Function::RegexpExtract => "regexp_extract",
             Function::RegexpReplace => "regexp_replace",
+            Function::DatetimeDiff => "datetime_diff",
             // Nary Functions
             Function::Concat(_) => "concat",
         })

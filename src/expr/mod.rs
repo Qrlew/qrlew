@@ -329,7 +329,11 @@ impl_unary_function_constructors!(
     ExtractMicrosecond,
     ExtractMillisecond,
     ExtractDow,
-    ExtractWeek
+    ExtractWeek,
+    Dayname,
+    Quarter,
+    Date,
+    UnixTimestamp
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -389,7 +393,9 @@ impl_binary_function_constructors!(
     Round,
     RegexpContains,
     Encode,
-    Decode
+    Decode,
+    DateFormat,
+    FromUnixtime
 );
 
 /// Implement ternary function constructors
@@ -417,7 +423,7 @@ macro_rules! impl_ternary_function_constructors {
     };
 }
 
-impl_ternary_function_constructors!(Case, SubstrWithSize, RegexpReplace);
+impl_ternary_function_constructors!(Case, SubstrWithSize, RegexpReplace, DatetimeDiff);
 
 /// Implement quaternary function constructors
 macro_rules! impl_quaternary_function_constructors {
