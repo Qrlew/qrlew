@@ -194,7 +194,14 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Unhex
             | expr::function::Function::Encode
             | expr::function::Function::Decode
-            | expr::function::Function::Newid => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Newid
+            | expr::function::Function::Dayname
+            | expr::function::Function::DateFormat
+            | expr::function::Function::Quarter
+            | expr::function::Function::DatetimeDiff
+            | expr::function::Function::Date
+            | expr::function::Function::FromUnixtime
+            | expr::function::Function::UnixTimestamp => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
@@ -755,6 +762,30 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as date)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as time)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as timestamp)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
     }
 
     #[test]
@@ -1123,5 +1154,89 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(gen_expr, ast_expr);
+    }
+
+    #[test]
+    fn test_datetime_functions() {
+        // DAYNAME
+        let str_expr = "dayname(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // DATE_FORMAT
+        let str_expr = "date_format(col1, format_date)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // Quarter
+        let str_expr = "quarter(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // datetime_diff
+        let str_expr = "datetime_diff(col1, col2, col3)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // date
+        let str_expr = "date(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // from_unixtime
+        let str_expr = "from_unixtime(col1, '%Y-%m-%d')";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "from_unixtime(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("from_unixtime(col1, '%Y-%m-%d %H:%i:%S')").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // unix_timestamp
+        let str_expr = "unix_timestamp(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "unix_timestamp()";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("unix_timestamp(current_timestamp)").unwrap();
+        assert_eq!(gen_expr, true_expr);
     }
 }

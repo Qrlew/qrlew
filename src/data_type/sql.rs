@@ -14,7 +14,7 @@ impl From<DataType> for ast::DataType {
             DataType::Bytes(_) => ast::DataType::Blob(None),
             DataType::Date(_) => ast::DataType::Date,
             DataType::Time(_) => ast::DataType::Time(None, ast::TimezoneInfo::None),
-            DataType::DateTime(_) => ast::DataType::Datetime(None),
+            DataType::DateTime(_) => ast::DataType::Timestamp(None, ast::TimezoneInfo::None),
             DataType::Optional(o) => ast::DataType::from(o.data_type().clone()),
             _ => todo!(),
         }
