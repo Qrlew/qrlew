@@ -31,9 +31,6 @@ pub enum Function {
     BitwiseOr,
     BitwiseAnd,
     BitwiseXor,
-    InList,
-    Coalesce,
-    Sign,
     // Functions
     Exp,
     Ln,
@@ -95,7 +92,15 @@ pub enum Function {
     DateFormat,
     Quarter,
     DatetimeDiff,
-    Date
+    Date,
+    InList,
+    Coalesce,
+    Sign,
+    Like,
+    Ilike,
+    Choose,
+    IsNull,
+    IsBool
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -182,6 +187,7 @@ impl Function {
             | Function::UnixTimestamp
             | Function::Quarter
             | Function::Date
+            | Function::IsNull
             // Binary Functions
             | Function::Pow
             | Function::Position
@@ -198,6 +204,10 @@ impl Function {
             | Function::Decode
             | Function::FromUnixtime
             | Function::DateFormat
+            | Function::Choose
+            | Function::Like
+            | Function::Ilike
+            | Function::IsBool
             // Ternary Function
             | Function::Case
             | Function::SubstrWithSize
@@ -211,7 +221,7 @@ impl Function {
 
     /// Return the arity of the function
     pub fn arity(self) -> Arity {
-        match self {
+        let arity = match self {
             // Unary Operators
             Function::Opposite | Function::Not => Arity::Unary,
             // Binary Operators
@@ -279,7 +289,8 @@ impl Function {
             | Function::Dayname
             | Function::UnixTimestamp
             | Function::Quarter
-            | Function::Date => Arity::Unary,
+            | Function::Date
+            | Function::IsNull => Arity::Unary,
             // Binary Function
             Function::Pow
             | Function::Position
@@ -293,7 +304,11 @@ impl Function {
             | Function::Trunc
             | Function::RegexpContains
             | Function::FromUnixtime
-            | Function::DateFormat => {
+            | Function::DateFormat
+            | Function::Choose
+            | Function::Like
+            | Function::Ilike
+            | Function::IsBool => {
                 Arity::Nary(2)
             }
             // Ternary Function
@@ -302,7 +317,8 @@ impl Function {
             Function::RegexpExtract => Arity::Nary(4),
             // Nary Function
             Function::Concat(_) => Arity::Varying,
-        }
+        };
+        arity
     }
 
     /// Return the function object implementing the function
@@ -396,6 +412,7 @@ impl fmt::Display for Function {
             Function::UnixTimestamp => "unix_timestamp",
             Function::Quarter => "quarter",
             Function::Date => "date",
+            Function::IsNull => "is_null",
             // Binary Functions
             Function::Pow => "pow",
             Function::Position => "position",
@@ -412,6 +429,10 @@ impl fmt::Display for Function {
             Function::Decode => "decode",
             Function::FromUnixtime => "from_unixtime",
             Function::DateFormat => "date_format",
+            Function::Choose => "choose",
+            Function::Like => "like",
+            Function::Ilike => "ilike",
+            Function::IsBool => "is_bool",
             // Ternary Functions
             Function::Case => "case",
             Function::SubstrWithSize => "substr",

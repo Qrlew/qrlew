@@ -1,7 +1,7 @@
 //! Convert Expr into ast::Expr
 use crate::{
     ast,
-    data_type::DataType,
+    data_type::{DataType, Boolean},
     expr::{self, Expr},
     visitor::Acceptor,
 };
@@ -320,6 +320,48 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             expr::function::Function::ExtractMillisecond => ast::Expr::Extract {field: ast::DateTimeField::Millisecond, expr: arguments[0].clone().into()},
             expr::function::Function::ExtractDow => ast::Expr::Extract {field: ast::DateTimeField::Dow, expr: arguments[0].clone().into()},
             expr::function::Function::ExtractWeek => ast::Expr::Extract {field: ast::DateTimeField::Week, expr: arguments[0].clone().into()},
+            expr::function::Function::Like => ast::Expr::Like {
+                negated: false,
+                expr: arguments[0].clone().into(),
+                pattern: arguments[1].clone().into(),
+                escape_char: None,
+            },
+            expr::function::Function::Ilike => ast::Expr::ILike {
+                negated: false,
+                expr: arguments[0].clone().into(),
+                pattern: arguments[1].clone().into(),
+                escape_char: None,
+            },
+            expr::function::Function::Choose => if let ast::Expr::Tuple(t) = &arguments[1] {
+                ast::Expr::Function(ast::Function {
+                    name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                    args: vec![arguments[0].clone()]
+                        .into_iter()
+                        .chain(t.clone())
+                        .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                        .collect(),
+                    over: None,
+                    distinct: false,
+                    special: false,
+                    order_by: vec![],
+                    filter: None,
+                    null_treatment: None,
+                })
+            } else {
+                todo!()
+            },
+            expr::function::Function::IsNull => ast::Expr::IsNull(arguments[0].clone().into()),
+            expr::function::Function::IsBool => {
+                if let ast::Expr::Value(ast::Value::Boolean(b)) = arguments[1] {
+                    if b {
+                        ast::Expr::IsTrue(arguments[0].clone().into())
+                    } else {
+                        ast::Expr::IsFalse(arguments[0].clone().into())
+                    }
+                } else {
+                    unimplemented!()
+                }
+            },
         }
     }
     // TODO implement this properly
@@ -1238,5 +1280,110 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         let true_expr = parse_expr("unix_timestamp(current_timestamp)").unwrap();
         assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_boolean_expressions() {
+        // like
+        let str_expr = "col1 LIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "col1 NOT LIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not(col1 LIKE 'a%')").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // ilike
+        let str_expr = "col1 ILIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "col1 NOT ILIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not(col1 ILIKE 'a%')").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // Between
+        let str_expr = "Price BETWEEN 10 AND 20";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("((Price) >= (10)) AND ((Price) <= (20))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // IS
+        let str_expr = "col1 IS null";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "col1 IS NOT null";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not (col1 IS null)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS true";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("cast(col1 as boolean) IS true)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS NOT true";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not (cast(col1 as boolean) IS true)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS false";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("cast(col1 as boolean) IS false)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS NOT false";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not (cast(col1 as boolean) IS false)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_choose() {
+        let str_expr = "choose(3, 'a', 'b', 'c')";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
     }
 }
