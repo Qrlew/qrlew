@@ -279,6 +279,9 @@ pub trait Visitor<'a, T: Clone> {
     fn cast_as_date(&self, expr: T) -> T;
     fn cast_as_time(&self, expr: T) -> T;
     fn extract(&self, field: &'a ast::DateTimeField, expr: T) -> T;
+    fn like(&self, expr: T, pattern: T) -> T;
+    fn ilike(&self, expr: T, pattern: T) -> T;
+    fn is(&self, expr: T, value: Option<bool>) -> T;
 }
 
 // For the visitor to be more convenient, we create a few auxiliary objects
@@ -301,12 +304,21 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 right,
             } => todo!(),
             ast::Expr::CompositeAccess { expr, key } => todo!(),
-            ast::Expr::IsFalse(_) => todo!(),
-            ast::Expr::IsNotFalse(_) => todo!(),
-            ast::Expr::IsTrue(_) => todo!(),
-            ast::Expr::IsNotTrue(_) => todo!(),
-            ast::Expr::IsNull(_) => todo!(),
-            ast::Expr::IsNotNull(_) => todo!(),
+            ast::Expr::IsFalse(expr) => self.is(dependencies.get(expr).clone(), Some(false)),
+            ast::Expr::IsNotFalse(expr) => self.unary_op(
+                &ast::UnaryOperator::Not,
+                self.is(dependencies.get(expr).clone(), Some(false))
+            ),
+            ast::Expr::IsTrue(expr) => self.is(dependencies.get(expr).clone(), Some(true)),
+            ast::Expr::IsNotTrue(expr) => self.unary_op(
+                &ast::UnaryOperator::Not,
+                self.is(dependencies.get(expr).clone(), Some(true))
+            ),
+            ast::Expr::IsNull(expr) => self.is(dependencies.get(expr).clone(), None),
+            ast::Expr::IsNotNull(expr) => self.unary_op(
+                &ast::UnaryOperator::Not,
+                self.is(dependencies.get(expr).clone(), None)
+            ),
             ast::Expr::IsUnknown(_) => todo!(),
             ast::Expr::IsNotUnknown(_) => todo!(),
             ast::Expr::IsDistinctFrom(_, _) => todo!(),
@@ -341,7 +353,26 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 negated,
                 low,
                 high,
-            } => todo!(),
+            } => {
+                let x = self.binary_op(
+                    self.binary_op(
+                        dependencies.get(expr).clone(),
+                        &ast::BinaryOperator::GtEq,
+                        dependencies.get(low).clone()
+                    ),
+                    &ast::BinaryOperator::And,
+                    self.binary_op(
+                        dependencies.get(expr).clone(),
+                        &ast::BinaryOperator::LtEq,
+                        dependencies.get(high).clone()
+                    ),
+                );
+                if *negated {
+                    self.unary_op(&ast::UnaryOperator::Not, x)
+                } else {
+                    x
+                }
+            }
             ast::Expr::BinaryOp { left, op, right } => self.binary_op(
                 dependencies.get(left).clone(),
                 op,
@@ -352,13 +383,39 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 pattern,
                 escape_char,
-            } => todo!(),
+            } => {
+                if escape_char.is_some() {
+                    todo!()
+                };
+                let x = self.like(
+                    dependencies.get(expr).clone(),
+                    dependencies.get(pattern).clone()
+                );
+                if *negated {
+                    self.unary_op(&ast::UnaryOperator::Not, x)
+                } else {
+                    x
+                }
+            },
             ast::Expr::ILike {
                 negated,
                 expr,
                 pattern,
                 escape_char,
-            } => todo!(),
+            } => {
+                if escape_char.is_some() {
+                    todo!()
+                };
+                let x = self.ilike(
+                    dependencies.get(expr).clone(),
+                    dependencies.get(pattern).clone()
+                );
+                if *negated {
+                    self.unary_op(&ast::UnaryOperator::Not, x)
+                } else {
+                    x
+                }
+            },
             ast::Expr::SimilarTo {
                 negated,
                 expr,
@@ -769,6 +826,18 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
     fn extract(&self, field: &'a ast::DateTimeField, expr: String) -> String {
         format!("EXTRACT({} FROM {})", field, expr)
     }
+
+    fn like(&self, expr: String, pattern: String) -> String {
+        format!("{} LIKE {}", expr, pattern)
+    }
+
+    fn ilike(&self, expr: String, pattern: String) -> String {
+        format!("{} ILIKE {}", expr, pattern)
+    }
+
+    fn is(&self, expr: String, value: Option<bool>) -> String {
+        format!("{} IS {}", expr, value.map(|b| b.to_string().to_uppercase()).unwrap_or("NULL".to_string()))
+    }
 }
 
 /// A simple ast::Expr -> Expr conversion Visitor
@@ -987,6 +1056,18 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 flat_args[0].clone(),
                 Expr::divide(Expr::val(180.), Expr::pi())
             ),
+            "choose" => Expr::choose(
+                flat_args[0].clone(),
+                Expr::val(Value::list(
+                    flat_args.iter()
+                        .skip(1)
+                        .map(|x|
+                            Value::try_from(x.clone())
+                            .map_err(|e| Error::other(e))
+                        )
+                        .collect::<Result<Vec<_>>>()?
+                ))
+            ),
             // String functions
             "lower" => Expr::lower(flat_args[0].clone()),
             "upper" => Expr::upper(flat_args[0].clone()),
@@ -1191,6 +1272,23 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 ast::DateTimeField::Microsecond => Expr::extract_microsecond(expr.clone()?),
                 ast::DateTimeField::Millisecond => Expr::extract_millisecond(expr.clone()?),
                 _ => todo!(),
+            }
+        )
+    }
+
+    fn like(&self, expr: Result<Expr>, pattern: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::like(expr.clone()?, pattern.clone()?))
+    }
+
+    fn ilike(&self, expr: Result<Expr>, pattern: Result<Expr>) -> Result<Expr> {
+        Ok(Expr::ilike(expr.clone()?, pattern.clone()?))
+    }
+
+    fn is(&self, expr: Result<Expr>, value: Option<bool>) -> Result<Expr> {
+        Ok(
+            match value {
+                Some(b) => Expr::is_bool(expr.clone()?, Expr::val(b)),
+                None => Expr::is_null(expr.clone()?),
             }
         )
     }
@@ -1495,5 +1593,4 @@ mod tests {
         assert_eq!(true_expr.to_string(), expr.to_string());
         assert_eq!(expr.to_string(), String::from("ltrim(rtrim(col1, a), a)"));
     }
-
 }

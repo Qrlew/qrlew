@@ -1826,6 +1826,48 @@ pub fn unhex() -> impl Function {
     )
 }
 
+pub fn like() -> impl Function {
+    Unimplemented::new(
+        DataType::text(),
+        DataType::boolean(),
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+    )
+}
+
+pub fn ilike() -> impl Function {
+    Unimplemented::new(
+        DataType::text(),
+        DataType::boolean(),
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+    )
+}
+
+pub fn is_null() -> impl Function {
+    Pointwise::univariate(
+        DataType::Any,
+        DataType::boolean(),
+        |v| if let Value::Optional(o) = v {
+            o.is_none()
+        } else {
+            false
+        }.into()
+    )
+}
+
+pub fn is_bool() -> impl Function {
+    Pointwise::bivariate(
+        (DataType::optional(DataType::boolean()), DataType::boolean()),
+        data_type::Boolean::default(),
+        |a, b| if let Value::Optional(o) = a {
+            o.as_ref()
+                .map(|x| *x.deref() == b)
+                .unwrap_or(false)
+        } else {
+            a == b
+        }.into()
+    )
+}
+
 // Date functions
 pub fn current_date() -> impl Function {
     Unimplemented::new(
@@ -2208,6 +2250,24 @@ pub fn sign() -> impl Function {
     PartitionnedMonotonic::univariate(
         data_type::Float::default(),
         |a| if a == 0. {0} else if a < 0. {-1} else {1}
+    )
+}
+
+pub fn choose() -> impl Function {
+    Pointwise::new(
+        DataType::structured_from_data_types([DataType::integer(), DataType::list(DataType::Any, 1, i64::MAX as usize)]),
+        DataType::optional(DataType::Any),
+        Arc::new(|v| {
+            if let Value::Struct(s) = v {
+                if let (Value::Integer(i),Value::List(l))  = (s[0].as_ref(), s[1].as_ref()) {
+                    Ok(value::Optional::new(l.get(*i.deref() as usize).map(|v| Arc::new(v.clone()))).into())
+                } else {
+                    return Err(Error::other("Argument out of range"))
+                }
+            } else {
+                Err(Error::other("Argument out of range"))
+            }
+        })
     )
 }
 
@@ -4448,4 +4508,114 @@ mod tests {
         println!("im({}) = {}", set, im);
         assert!(im == DataType::date_value(NaiveDate::from_ymd_opt(2026, 7, 8).unwrap()));
     }
+
+    #[test]
+    fn test_choose() {
+        println!("\nTest choose");
+        let fun = choose();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::structured_from_data_types([
+            DataType::integer_value(2),
+            DataType::list(DataType::text_values(
+                ["a".to_string(), "b".to_string(), "c".to_string()]
+            ), 1, 3)
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::optional(DataType::Any));
+        let arg = Value::structured_from_values([
+            2.into(),
+            Value::list(["a".to_string(), "b".to_string(), "c".to_string()].into_iter().map(|s| Value::from(s)))
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, Value::Optional(value::Optional::new(Some(Arc::new("c".to_string().into())))));
+    }
+
+    #[test]
+    fn test_is_null() {
+        println!("\nTest is_null");
+        let fun = is_null();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::optional(DataType::Any);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean());
+
+        let arg = Value::Optional(value::Optional::none());
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, true.into());
+
+        let arg = Value::Optional(value::Optional::some(true.into()));
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, false.into());
+    }
+
+    #[test]
+    fn test_is_bool() {
+        println!("\nTest is_bool");
+        let fun = is_bool();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        // True
+        let set = DataType::structured_from_data_types([
+            DataType::boolean(),
+            DataType::boolean_value(true)
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean());
+
+        let arg = Value::structured_from_values([
+            Value::from(true), Value::from(true)
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, true.into());
+
+        let arg = Value::structured_from_values([
+            Value::from(true), Value::from(false)
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, false.into());
+
+        // False
+        let set = DataType::structured_from_data_types([
+            DataType::boolean(),
+            DataType::boolean_value(false)
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::boolean());
+
+        let arg = Value::structured_from_values([
+            Value::from(false), Value::from(false)
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, true.into());
+
+        let arg = Value::structured_from_values([
+            Value::from(false), Value::from(true)
+        ]);
+        let val = fun.value(&arg).unwrap();
+        println!("val({}) = {}", arg, val);
+        assert_eq!(val, false.into());
+    }
+
+
 }

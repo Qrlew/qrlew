@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
-- implemented `DAYNAME`, `FROM_UNIXTIME`, `UNIX_TIMESTAMP`, `QARTER`, `DATETIME_DIFF`, `QUARTER` and `DATE_FORMAT` [#202](https://github.com/Qrlew/qrlew/issues/202)
+- implemented `BETWEEN`, `IS TRUE`, `IS FALSE`, `IS NULL`, `CHOOSE`, `LIKE` and `ILIKE` [#203](https://github.com/Qrlew/qrlew/issues/203)
+- implemented `DAYNAME`, `FROM_UNIXTIME`, `UNIX_TIMESTAMP`, `DATETIME_DIFF`, `QUARTER` and `DATE_FORMAT` [#202](https://github.com/Qrlew/qrlew/issues/202)
 - implemented `CURRENT_DATE`, `CURRENT_TIME`, `CURRENT_TIMESTAMP` and `EXTRACT(datepart FROM col)` [#200](https://github.com/Qrlew/qrlew/issues/200)
 - implemented `DISTINCT` in aggregations [#197](https://github.com/Qrlew/qrlew/issues/197)
 - Implemented math functions: `PI`, `DEGREES`, `TAN`, `RANDOM`, `LOG10`, `LOG2`, `SQUARE` [#196](https://github.com/Qrlew/qrlew/issues/196)

@@ -333,7 +333,8 @@ impl_unary_function_constructors!(
     Dayname,
     Quarter,
     Date,
-    UnixTimestamp
+    UnixTimestamp,
+    IsNull
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -395,7 +396,11 @@ impl_binary_function_constructors!(
     Encode,
     Decode,
     DateFormat,
-    FromUnixtime
+    FromUnixtime,
+    Like,
+    Ilike,
+    Choose,
+    IsBool
 );
 
 /// Implement ternary function constructors
