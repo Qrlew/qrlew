@@ -712,10 +712,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
-                vec![
-                    Property::DifferentiallyPrivate,
-                    Property::PrivacyUnitPreserving,
-                ],
+                vec![Property::Public, Property::PrivacyUnitPreserving],
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
