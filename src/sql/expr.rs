@@ -304,12 +304,21 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ),
             ast::Expr::IsNotFalse(expr) => self.unary_op(
                 &ast::UnaryOperator::Not,
-                self.is(dependencies.get(expr).clone(), Some(false))
+                self.is(
+                    self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
+                    Some(false)
+                )
             ),
-            ast::Expr::IsTrue(expr) => self.is(dependencies.get(expr).clone(), Some(true)),
+            ast::Expr::IsTrue(expr) => self.is(
+                self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
+                Some(true)
+            ),
             ast::Expr::IsNotTrue(expr) => self.unary_op(
                 &ast::UnaryOperator::Not,
-                self.is(dependencies.get(expr).clone(), Some(true))
+                self.is(
+                    self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
+                    Some(true)
+                )
             ),
             ast::Expr::IsNull(expr) => self.is(dependencies.get(expr).clone(), None),
             ast::Expr::IsNotNull(expr) => self.unary_op(

@@ -1348,14 +1348,15 @@ mod tests {
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
-        assert_eq!(gen_expr, ast_expr);
+        let true_expr = parse_expr("cast(col1 as boolean) IS true)").unwrap();
+        assert_eq!(gen_expr, true_expr);
 
         let str_expr = "col1 IS NOT true";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
-        let true_expr = parse_expr("not (col1 IS true)").unwrap();
+        let true_expr = parse_expr("not (cast(col1 as boolean) IS true)").unwrap();
         assert_eq!(gen_expr, true_expr);
 
         let str_expr = "col1 IS false";
@@ -1363,14 +1364,15 @@ mod tests {
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
-        assert_eq!(gen_expr, ast_expr);
+        let true_expr = parse_expr("cast(col1 as boolean) IS false)").unwrap();
+        assert_eq!(gen_expr, true_expr);
 
         let str_expr = "col1 IS NOT false";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
-        let true_expr = parse_expr("not (col1 IS false)").unwrap();
+        let true_expr = parse_expr("not (cast(col1 as boolean) IS false)").unwrap();
         assert_eq!(gen_expr, true_expr);
     }
 
