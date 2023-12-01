@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
+- implemented `STD` and `VAR`aggregations in the dp rewritting [#205](https://github.com/Qrlew/qrlew/issues/205)
 - implemented `CURRENT_DATE`, `CURRENT_TIME`, `CURRENT_TIMESTAMP` and `EXTRACT(datepart FROM col)` [#200](https://github.com/Qrlew/qrlew/issues/200)
 - implemented `DISTINCT` in aggregations [#197](https://github.com/Qrlew/qrlew/issues/197)
 - Implemented math functions: `PI`, `DEGREES`, `TAN`, `RANDOM`, `LOG10`, `LOG2`, `SQUARE` [#196](https://github.com/Qrlew/qrlew/issues/196)
