@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## Changed
+- some cleaning in the translation of Expr -> ast::Expr [#204](https://github.com/Qrlew/qrlew/issues/204)
 ## Added
 - implemented `CURRENT_DATE`, `CURRENT_TIME`, `CURRENT_TIMESTAMP` and `EXTRACT(datepart FROM col)` [#200](https://github.com/Qrlew/qrlew/issues/200)
 - implemented `DISTINCT` in aggregations [#197](https://github.com/Qrlew/qrlew/issues/197)
