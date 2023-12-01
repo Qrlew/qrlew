@@ -304,7 +304,10 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 right,
             } => todo!(),
             ast::Expr::CompositeAccess { expr, key } => todo!(),
-            ast::Expr::IsFalse(expr) => self.is(dependencies.get(expr).clone(), Some(false)),
+            ast::Expr::IsFalse(expr) => self.is(
+                self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
+                Some(false)
+            ),
             ast::Expr::IsNotFalse(expr) => self.unary_op(
                 &ast::UnaryOperator::Not,
                 self.is(dependencies.get(expr).clone(), Some(false))
