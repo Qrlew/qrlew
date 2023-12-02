@@ -242,6 +242,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
             } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
+            ast::Expr::Convert { expr, data_type, charset, target_before_value } => todo!(),
         }
     }
 }
@@ -583,6 +584,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
+            ast::Expr::Convert { expr, data_type, charset, target_before_value } => todo!(),
         }
     }
 }
