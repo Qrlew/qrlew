@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.3] - 2023-12-02
 ## Changed
-- some cleaning in the translation of Expr -> ast::Expr [#204](https://github.com/Qrlew/qrlew/issues/204)
+- some cleaning in the translation of Expr -> ast::Expr [#209](https://github.com/Qrlew/qrlew/issues/209)
 - `Expr::filter_by_function`: if the filtered datatype cannot be determined, keep the original data [#206](https://github.com/Qrlew/qrlew/issues/206)
 ## Added
 - implemented Public -> Synthetic rewritting rule for table [#206](https://github.com/Qrlew/qrlew/issues/206)
