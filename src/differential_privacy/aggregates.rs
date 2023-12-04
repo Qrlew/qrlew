@@ -663,7 +663,7 @@ mod tests {
             .differentially_private_aggregates(epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
-        assert_eq!(dp_relation.schema().len(), 3);
+        assert_eq!(dp_relation.schema().len(), 5);
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured(vec![

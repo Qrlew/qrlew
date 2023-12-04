@@ -6,8 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.5.3] - 2023-12-02
+## Changed
+- some cleaning in the translation of Expr -> ast::Expr [#204](https://github.com/Qrlew/qrlew/issues/204)
 ## Added
+<<<<<<< HEAD
 - implemented `STD` and `VAR`aggregations in the dp rewritting [#205](https://github.com/Qrlew/qrlew/issues/205)
+=======
+- implemented `BETWEEN`, `IS TRUE`, `IS FALSE`, `IS NULL`, `CHOOSE`, `LIKE` and `ILIKE` [#203](https://github.com/Qrlew/qrlew/issues/203)
+- implemented `DAYNAME`, `FROM_UNIXTIME`, `UNIX_TIMESTAMP`, `DATETIME_DIFF`, `QUARTER` and `DATE_FORMAT` [#202](https://github.com/Qrlew/qrlew/issues/202)
+>>>>>>> cf16b15a1f56f156c683d13e6a40151026c0f3b2
 - implemented `CURRENT_DATE`, `CURRENT_TIME`, `CURRENT_TIMESTAMP` and `EXTRACT(datepart FROM col)` [#200](https://github.com/Qrlew/qrlew/issues/200)
 - implemented `DISTINCT` in aggregations [#197](https://github.com/Qrlew/qrlew/issues/197)
 - Implemented math functions: `PI`, `DEGREES`, `TAN`, `RANDOM`, `LOG10`, `LOG2`, `SQUARE` [#196](https://github.com/Qrlew/qrlew/issues/196)

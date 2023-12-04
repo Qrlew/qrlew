@@ -131,6 +131,7 @@ fn query(
         fetch: None,
         locks: vec![],
         limit_by: vec![],
+        for_clause: None,
     }
 }
 
@@ -147,6 +148,7 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
         fetch: None,
         locks: vec![],
         limit_by: vec![],
+        for_clause: None,
     }
 }
 
@@ -229,6 +231,7 @@ fn set_operation(
         fetch: None,
         locks: vec![],
         limit_by: vec![],
+        for_clause: None,
     }
 }
 
@@ -549,7 +552,7 @@ impl Table {
             table_name: self.path().clone().into(),
             columns: self.schema().iter().map(|f| f.name().into()).collect(),
             overwrite: false,
-            source: Box::new(ast::Query {
+            source: Some(Box::new(ast::Query {
                 with: None,
                 body: Box::new(ast::SetExpr::Values(ast::Values {
                     explicit_row: false,
@@ -563,7 +566,8 @@ impl Table {
                 fetch: None,
                 locks: vec![],
                 limit_by: vec![],
-            }),
+                for_clause: None,
+            })),
             partitioned: None,
             after_columns: vec![],
             table: false,
