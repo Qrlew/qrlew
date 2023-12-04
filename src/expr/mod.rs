@@ -1427,14 +1427,14 @@ impl DataType {
                 }
             },
             (function::Function::Eq, [left, right]) => {
-                let left_dt = left.super_image(&datatype).unwrap();
-                let right_dt = right.super_image(&datatype).unwrap();
-                let dt = left_dt.super_intersection(&right_dt).unwrap();
-                if let Expr::Column(col) = left {
-                    datatype = datatype.replace(&col, dt.clone())
-                }
-                if let Expr::Column(col) = right {
-                    datatype = datatype.replace(&col, dt)
+                if let (Ok(left_dt), Ok(right_dt)) = (left.super_image(&datatype), right.super_image(&datatype)) {
+                    let dt = left_dt.super_intersection(&right_dt).unwrap();
+                    if let Expr::Column(col) = left {
+                        datatype = datatype.replace(&col, dt.clone())
+                    }
+                    if let Expr::Column(col) = right {
+                        datatype = datatype.replace(&col, dt)
+                    }
                 }
             }
             (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
