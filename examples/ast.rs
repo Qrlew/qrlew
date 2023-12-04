@@ -132,8 +132,5 @@ fn main() -> Result<(), &'static str> {
     // Print an AST with count(*)
     print_ast("SELECT COUNT(*) FROM table_1")?;
 
-    // Print an AST with count(*)
-    print_ast("Select COUNT(*) from table_1 TABLESAMPLE SYSTEM (10);")?;
-
     Ok(())
 }
