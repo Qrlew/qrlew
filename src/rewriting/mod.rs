@@ -311,7 +311,7 @@ mod tests {
             "SELECT * FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
             "SELECT department, AVG(sales_value) AS average_sales FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id GROUP BY department",
             "SELECT * FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id",
-            // "WITH ranked_products AS (SELECT * FROM retail_transactions GROUP BY product_id) SELECT product_id FROM ranked_products",
+            "WITH ranked_products AS (SELECT product_id, COUNT(*) AS my_count FROM retail_transactions GROUP BY product_id) SELECT product_id FROM ranked_products ORDER BY my_count",
             //"SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp < CAST('2023-02-01' AS date) GROUP BY t.product_id, p.product_category",
             "SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp > '2023-01-01' AND t.transaction_timestamp < '2023-02-01' GROUP BY t.product_id, p.product_category",
             "SELECT p.product_id, p.brand, COUNT(*) FROM retail_products p INNER JOIN retail_transactions t ON p.product_id = t.product_id GROUP BY p.product_id, p.brand",
