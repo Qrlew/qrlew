@@ -101,7 +101,7 @@ impl Relation {
             budget,
         ));
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
-        let rrules = relation_with_rules
+        relation_with_rules
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
@@ -109,11 +109,8 @@ impl Relation {
                     Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
                 }
                 property => None,
-            });
-        for r in rrules.clone() {
-            r.0.relation().display_dot().unwrap();
-        }
-            rrules.max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
+            })
+            .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
             .map(|(relation, _)| relation)
             .ok_or_else(|| Error::unreachable_property("differential_privacy"))
     }
@@ -330,7 +327,7 @@ mod tests {
                 privacy_unit.clone(),
                 budget.clone()
             ).unwrap();
-            dp_relation.relation().display_dot().unwrap();
+            //dp_relation.relation().display_dot().unwrap();
         }
 
     }

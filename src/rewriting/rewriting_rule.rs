@@ -714,6 +714,14 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
+                vec![
+                    Property::DifferentiallyPrivate,
+                    Property::PrivacyUnitPreserving,
+                ],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
                 vec![Property::PrivacyUnitPreserving, Property::Published],
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
@@ -1174,11 +1182,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     [Property::Published, Property::PrivacyUnitPreserving],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
-                ) | (
-                    [Property::Public, Property::PrivacyUnitPreserving],
-                    Property::PrivacyUnitPreserving,
-                    Parameters::PrivacyUnit(privacy_unit),
-                )=> {
+                ) => {
                     let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
                         privacy_unit.clone(),
@@ -1195,10 +1199,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 }
                 (
                     [Property::PrivacyUnitPreserving, Property::Published],
-                    Property::PrivacyUnitPreserving,
-                    Parameters::PrivacyUnit(privacy_unit),
-                ) | (
-                    [Property::PrivacyUnitPreserving, Property::Public],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
