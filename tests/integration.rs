@@ -8,10 +8,8 @@ use itertools::Itertools;
 use qrlew::io::sqlite;
 use qrlew::{
     ast,
-    display::Dot,
     expr,
     io::{postgresql, Database},
-    privacy_unit_tracking::PrivacyUnit,
     relation::Variant as _,
     sql::parse,
     Relation, With,
@@ -93,6 +91,11 @@ const QUERIES: &[&str] = &[
     // Some string functions
     "SELECT UPPER(z) FROM table_2 LIMIT 5",
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
+    // ORDER BY
+    "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d",
+    "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d DESC",
+    "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
+    "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
 ];
 
 #[cfg(feature = "sqlite")]
