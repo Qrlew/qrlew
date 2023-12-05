@@ -7,7 +7,7 @@ use crate::{
     builder::{Ready, With},
     differential_privacy::{
         budget::Budget,
-        private_query::{self, PrivateQuery},
+        private_query::PrivateQuery,
     },
     hierarchy::Hierarchy,
     privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
@@ -620,11 +620,18 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 ),
             ]
         } else {
-            vec![RewritingRule::new(
-                vec![],
-                Property::Public,
-                Parameters::None,
-            )]
+            vec![
+                RewritingRule::new(
+                    vec![],
+                    Property::Public,
+                    Parameters::None,
+                ),
+                RewritingRule::new(
+                    vec![],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(self.synthetic_data.clone()),
+                ),
+            ]
         }
     }
 
@@ -707,15 +714,15 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
-                vec![Property::PrivacyUnitPreserving, Property::Published],
-                Property::PrivacyUnitPreserving,
-                Parameters::PrivacyUnit(self.privacy_unit.clone()),
-            ),
-            RewritingRule::new(
                 vec![
                     Property::DifferentiallyPrivate,
                     Property::PrivacyUnitPreserving,
                 ],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
+                vec![Property::PrivacyUnitPreserving, Property::Published],
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),

@@ -1404,45 +1404,37 @@ impl DataType {
             | (function::Function::GtEq, [left, right])
             | (function::Function::Lt, [right, left])
             | (function::Function::LtEq, [right, left]) => {
-                let left_dt = left.super_image(&datatype).unwrap();
-                let left_dt = if let DataType::Optional(o) = left_dt {
-                    o.data_type().clone()
-                } else {
-                    left_dt
-                };
-                let right_dt = right.super_image(&datatype).unwrap();
-                let right_dt = if let DataType::Optional(o) = right_dt {
-                    o.data_type().clone()
-                } else {
-                    right_dt
-                };
-                let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
-                if let Expr::Column(col) = left {
-                    let dt = data_type::function::greatest()
-                        .super_image(&set)
-                        .unwrap()
-                        .super_intersection(&left_dt)
-                        .unwrap();
-                    datatype = datatype.replace(col, dt)
+                let left_dt = left.super_image(&datatype);
+                let right_dt = right.super_image(&datatype);
+                if let (Ok(left_dt), Ok(right_dt)) = (left_dt, right_dt) {
+                    let left_dt = if let DataType::Optional(o) = left_dt {
+                        o.data_type().clone()
+                    } else {
+                        left_dt
+                    };
+                    let right_dt = if let DataType::Optional(o) = right_dt {
+                        o.data_type().clone()
+                    } else {
+                        right_dt
+                    };
+                    let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                    if let (Expr::Column(col), Ok(dt)) = (left, data_type::function::greatest().super_image(&set)) {
+                        datatype = datatype.replace(col, dt.super_intersection(&left_dt).unwrap())
+                    }
+                    if let (Expr::Column(col), Ok(dt)) = (right, data_type::function::least().super_image(&set)) {
+                        datatype = datatype.replace(col, dt.super_intersection(&right_dt).unwrap())
+                    }
                 }
-                if let Expr::Column(col) = right {
-                    let dt = data_type::function::least()
-                        .super_image(&set)
-                        .unwrap()
-                        .super_intersection(&right_dt)
-                        .unwrap();
-                    datatype = datatype.replace(col, dt)
-                }
-            }
+            },
             (function::Function::Eq, [left, right]) => {
-                let left_dt = left.super_image(&datatype).unwrap();
-                let right_dt = right.super_image(&datatype).unwrap();
-                let dt = left_dt.super_intersection(&right_dt).unwrap();
-                if let Expr::Column(col) = left {
-                    datatype = datatype.replace(&col, dt.clone())
-                }
-                if let Expr::Column(col) = right {
-                    datatype = datatype.replace(&col, dt)
+                if let (Ok(left_dt), Ok(right_dt)) = (left.super_image(&datatype), right.super_image(&datatype)) {
+                    let dt = left_dt.super_intersection(&right_dt).unwrap();
+                    if let Expr::Column(col) = left {
+                        datatype = datatype.replace(&col, dt.clone())
+                    }
+                    if let Expr::Column(col) = right {
+                        datatype = datatype.replace(&col, dt)
+                    }
                 }
             }
             (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
