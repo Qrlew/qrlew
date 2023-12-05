@@ -1703,29 +1703,71 @@ pub fn cos() -> impl Function {
 }
 
 pub fn least() -> impl Function {
-    Polymorphic::from((
-        PartitionnedMonotonic::bivariate(
-            (data_type::Integer::default(), data_type::Integer::default()),
-            |x, y| x.min(y),
-        ),
-        PartitionnedMonotonic::bivariate(
-            (data_type::Float::default(), data_type::Float::default()),
-            |x, y| x.min(y),
-        ),
-    ))
+    Polymorphic::default()
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Integer::default(), data_type::Integer::default()),
+                |x, y| x.min(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Float::default(), data_type::Float::default()),
+                |x, y| x.min(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Time::default(), data_type::Time::default()),
+                |x, y| x.min(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Date::default(), data_type::Date::default()),
+                |x, y| x.min(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::DateTime::default(), data_type::DateTime::default()),
+                |x, y| x.min(y),
+            )
+        )
 }
 
 pub fn greatest() -> impl Function {
-    Polymorphic::from((
-        PartitionnedMonotonic::bivariate(
-            (data_type::Integer::default(), data_type::Integer::default()),
-            |x, y| x.max(y),
-        ),
-        PartitionnedMonotonic::bivariate(
-            (data_type::Float::default(), data_type::Float::default()),
-            |x, y| x.max(y),
-        ),
-    ))
+    Polymorphic::default()
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Integer::default(), data_type::Integer::default()),
+                |x, y| x.max(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Float::default(), data_type::Float::default()),
+                |x, y| x.max(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Time::default(), data_type::Time::default()),
+                |x, y| x.max(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::Date::default(), data_type::Date::default()),
+                |x, y| x.max(y),
+            )
+        )
+        .with(
+            PartitionnedMonotonic::bivariate(
+                (data_type::DateTime::default(), data_type::DateTime::default()),
+                |x, y| x.max(y),
+            )
+        )
 }
 
 // String functions
@@ -3747,6 +3789,27 @@ mod tests {
             DataType::float_interval(2., 10.)
                 .super_union(&DataType::integer_interval(10, 100))
                 .unwrap()
+        );
+
+        // im(struct{0: float(-∞, 10], 1: int[2 100]}) = float(-∞, 10]
+        let set: DataType = DataType::structured_from_data_types([
+            DataType::date_time_interval(
+                NaiveDateTime::from_timestamp_opt(1662921288, 0).unwrap(),
+                NaiveDateTime::from_timestamp_opt(1862921288, 111110).unwrap()
+            ),
+            DataType::date_time_interval(
+                NaiveDateTime::from_timestamp_opt(1362921288, 0).unwrap(),
+                NaiveDateTime::from_timestamp_opt(2062921288, 111110).unwrap()
+            ),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
+        assert_eq!(
+            im,
+            DataType::date_time_interval(
+                NaiveDateTime::from_timestamp_opt(1662921288, 0).unwrap(),
+                NaiveDateTime::from_timestamp_opt(2062921288, 111110).unwrap()
+            ),
         );
     }
 

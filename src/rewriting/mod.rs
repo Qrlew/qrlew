@@ -2,7 +2,6 @@ pub mod dot;
 pub mod relation_with_attributes;
 pub mod rewriting_rule;
 
-use itertools::Itertools;
 pub use relation_with_attributes::RelationWithAttributes;
 pub use rewriting_rule::{
     Property, RelationWithPrivateQuery, RelationWithRewritingRule, RelationWithRewritingRules,
@@ -12,17 +11,12 @@ pub use rewriting_rule::{
 use std::{error, fmt, result, sync::Arc};
 
 use crate::{
-    builder::{Ready, With},
-    differential_privacy::{
-        budget::Budget,
-        private_query::{self, PrivateQuery},
-    },
-    expr::Identifier,
+    differential_privacy::budget::Budget,
     hierarchy::Hierarchy,
-    privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
-    relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
-    synthetic_data::{self, SyntheticData},
-    visitor::{Acceptor, Dependencies, Visited, Visitor},
+    privacy_unit_tracking::privacy_unit::PrivacyUnit,
+    relation::Relation,
+    synthetic_data::SyntheticData,
+    visitor::Acceptor, display::Dot,
 };
 
 use rewriting_rule::{
@@ -128,13 +122,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        ast,
-        builder::With,
+        builder::{Ready, With},
         display::Dot,
         expr::Identifier,
         io::{postgresql, Database},
         sql::parse,
         Relation,
+        data_type::DataType,
+        relation::{Schema, field::Constraint, Variant},
     };
 
     #[test]
@@ -234,5 +229,106 @@ mod tests {
             "PrivateQuery = {}",
             relation_with_private_query.private_query()
         );
+    }
+
+    #[test]
+    fn test_retail() {
+        let retail_transactions: Relation = Relation::table()
+            .name("retail_transactions")
+            .schema(
+                vec![
+                    ("household_id", DataType::integer()),
+                    ("store_id", DataType::integer()),
+                    ("basket_id", DataType::integer()),
+                    ("product_id", DataType::integer()),
+                    ("quantity", DataType::integer()),
+                    ("sales_value", DataType::float()),
+                    ("retail_disc", DataType::float()),
+                    ("coupon_disc", DataType::float()),
+                    ("coupon_match_disc", DataType::float()),
+                    ("week", DataType::text()),
+                    ("transaction_timestamp", DataType::date()),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(1000)
+            .build();
+        let retail_demographics: Relation = Relation::table()
+            .name("retail_demographics")
+            .schema(
+                vec![
+                    ("household_id", DataType::integer(), Some(Constraint::Unique)),
+                    ("age", DataType::integer(), None),
+                    ("income", DataType::float(), None),
+                    ("home_ownership", DataType::text(), None),
+                    ("marital_status", DataType::text(), None),
+                    ("household_size", DataType::integer(), None),
+                    ("household_comp", DataType::text(), None),
+                    ("kids_count", DataType::integer(), None),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(10000)
+            .build();
+        let retail_products: Relation = Relation::table()
+            .name("retail_products")
+            .schema(
+                vec![
+                    ("product_id", DataType::integer(), Some(Constraint::Unique)),
+                    ("manufacturer_id", DataType::integer(), None),
+                    ("department", DataType::text(), None),
+                    ("brand", DataType::text(), None),
+                    ("product_category", DataType::text(), None),
+                    ("product_type", DataType::text(), None),
+                    ("package_size", DataType::text(), None),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(10000)
+            .build();
+        let relations: Hierarchy<Arc<Relation>> = vec![retail_transactions, retail_demographics, retail_products]
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
+            .collect();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["retail_transactions"], Identifier::from("synthetic_retail_transactions")),
+            (vec!["retail_demographics"], Identifier::from("synthetic_retail_demographics")),
+            (vec!["retail_products"], Identifier::from("synthetic_retail_products")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            ("retail_demographics", vec![], "household_id"),
+            ("retail_transactions", vec![("household_id","retail_demographics","household_id")], "household_id"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+
+        let queries = [
+            "SELECT COUNT(DISTINCT household_id) AS unique_customers FROM retail_transactions",
+            "SELECT * FROM retail_transactions t1 INNER JOIN retail_transactions t2 ON t1.product_id = t2.product_id",
+            "SELECT COUNT(*) FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
+            "SELECT * FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
+            "SELECT department, AVG(sales_value) AS average_sales FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id GROUP BY department",
+            "SELECT * FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id",
+            "WITH ranked_products AS (SELECT product_id, COUNT(*) AS my_count FROM retail_transactions GROUP BY product_id) SELECT product_id FROM ranked_products ORDER BY my_count",
+            //"SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp < CAST('2023-02-01' AS date) GROUP BY t.product_id, p.product_category",
+            "SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp > '2023-01-01' AND t.transaction_timestamp < '2023-02-01' GROUP BY t.product_id, p.product_category",
+            "SELECT p.product_id, p.brand, COUNT(*) FROM retail_products p INNER JOIN retail_transactions t ON p.product_id = t.product_id GROUP BY p.product_id, p.brand",
+        ];
+        for query_str in queries {
+            println!("\n{query_str}");
+            let query = parse(query_str).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            //relation.display_dot().unwrap();
+            let dp_relation = relation.rewrite_with_differential_privacy(
+                &relations,
+                synthetic_data.clone(),
+                privacy_unit.clone(),
+                budget.clone()
+            ).unwrap();
+            //dp_relation.relation().display_dot().unwrap();
+        }
+
     }
 }
