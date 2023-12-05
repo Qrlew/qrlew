@@ -445,7 +445,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         self
     }
 
-    pub fn group_by_iter<I: IntoIterator<Item = Expr>>(self, iter: I) -> Self {
+    pub fn group_by_iter<E: Into<Expr>, I: IntoIterator<Item=E>>(self, iter: I) -> Self {
         iter.into_iter().fold(self, |w, i| w.group_by(i))
     }
 

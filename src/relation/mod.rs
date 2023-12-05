@@ -444,7 +444,7 @@ pub struct Reduce {
     /// Aggregate expressions
     aggregate: Vec<AggregateColumn>,
     /// Grouping expressions
-    group_by: Vec<Expr>,
+    group_by: Vec<Column>,
     /// The schema description of the output
     schema: Schema,
     /// The size of the Reduce
@@ -461,7 +461,7 @@ impl Reduce {
     pub fn new(
         name: String,
         named_aggregate: Vec<(String, AggregateColumn)>,
-        group_by: Vec<Expr>,
+        group_by: Vec<Column>,
         input: Arc<Relation>,
     ) -> Self {
         // assert!(Split::from_iter(named_exprs.clone()).len()==1);
@@ -525,22 +525,22 @@ impl Reduce {
         &self.aggregate
     }
     /// Get group_by
-    pub fn group_by(&self) -> &[Expr] {
+    pub fn group_by(&self) -> &[Column] {
         &self.group_by
     }
-    /// Get group_by columns
-    pub fn group_by_columns(&self) -> Vec<&Column> {
-        self.group_by
-            .iter()
-            .filter_map(|e| {
-                if let Expr::Column(column) = e {
-                    Some(column)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
+    // /// Get group_by columns
+    // pub fn group_by_columns(&self) -> Vec<&Column> {
+    //     self.group_by
+    //         .iter()
+    //         .filter_map(|e| {
+    //             if let Expr::Column(column) = e {
+    //                 Some(column)
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect()
+    // }
     /// Get the input
     pub fn input(&self) -> &Relation {
         &self.input
@@ -565,10 +565,7 @@ impl Reduce {
     pub fn group_by_names(&self) -> Vec<&str> {
         self.group_by
             .iter()
-            .filter_map(|e| match e {
-                Expr::Column(col) => col.last().ok(),
-                _ => None,
-            })
+            .filter_map(|col| col.last().ok())
             .collect()
     }
 }

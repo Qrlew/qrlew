@@ -1847,7 +1847,7 @@ mod tests {
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
                 ("b".to_string(), AggregateColumn::first("b")),
             ],
-            vec![Expr::col("b")],
+            vec!["b".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
@@ -1866,7 +1866,7 @@ mod tests {
         let red = Reduce::new(
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
-            vec![Expr::col("b")],
+            vec!["b".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
@@ -1888,7 +1888,7 @@ mod tests {
                 ("b".to_string(), AggregateColumn::first("b")),
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
             ],
-            vec![Expr::col("b"), Expr::col("c")],
+            vec!["b".into(), "c".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
@@ -1910,7 +1910,7 @@ mod tests {
                 ("c".to_string(), AggregateColumn::first("c")),
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
             ],
-            vec![Expr::col("b"), Expr::col("c")],
+            vec!["b".into(), "c".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();

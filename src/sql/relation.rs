@@ -610,7 +610,8 @@ mod tests {
         builder::Ready,
         data_type::{DataType, DataTyped, Variant},
         display::Dot,
-        relation::{schema::Schema, Constraint},
+        relation::schema::Schema,
+        io::{Database, postgresql}
     };
 
     #[test]
@@ -1199,5 +1200,38 @@ mod tests {
             relation.data_type(),
             DataType::structured(vec![("my_sum", DataType::float().try_empty().unwrap())])
         );
+    }
+
+    #[test]
+    fn test_group_by_exprs() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let query = parse(
+            "SELECT CASE WHEN d < 5 THEN 5 ELSE 1 END AS case_d, COUNT(*) AS my_count FROM table_1 GROUP BY CASE WHEN d < 5 THEN 5 ELSE 1 END;"
+        ).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        println!("relation = {relation}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("case_d", DataType::float_values([1., 5.])),
+                ("my_count", DataType::integer_interval(0, 10)),
+            ])
+        );
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+
     }
 }

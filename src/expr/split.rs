@@ -1,7 +1,7 @@
 //! The splits with some improvements
 //! Each split has named Expr and anonymous exprs
 use super::{
-    aggregate, function, visitor::Acceptor, Aggregate, AggregateColumn, Column, Expr, Function,
+    aggregate, function, visitor::Acceptor, AggregateColumn, Column, Expr, Function,
     Identifier, Value, Visitor,
 };
 use crate::{
@@ -36,7 +36,18 @@ impl Split {
     }
 
     pub fn group_by(expr: Expr) -> Reduce {
-        Reduce::new(vec![], vec![expr], None)
+        println!("x = {:?}", expr);
+        match expr {
+            Expr::Column(c) => Reduce::new(vec![], vec![c], None),
+            Expr::Value(_) => todo!(),
+            Expr::Function(_) => {
+                let name = namer::name_from_content(FIELD, &expr);
+                let map = Map::new(vec![(name.clone(), expr)], None, vec![], None);
+                Reduce::new(vec![], vec![name.into()], Some(map))
+            },
+            Expr::Aggregate(_) => todo!(),
+            Expr::Struct(_) => todo!(),
+        }
     }
 
     pub fn into_map(self) -> Map {
@@ -416,17 +427,47 @@ impl And<Expr> for Map {
     }
 }
 
+impl And<Column> for Map {
+    type Product = (Map, Column);
+
+    fn and(self, col: Column) -> Self::Product {
+        let Map {
+            named_exprs,
+            filter,
+            order_by,
+            reduce,
+        } = self;
+        // Add the expr to the next split if needed
+        let (reduce, col) = if let Some(r) = reduce {
+            let (r, expr) = r.and(col);
+            (Some(r), expr)
+        } else {
+            (None, col)
+        };
+        // Add matched sub-expressions
+        (
+            Map::new(
+                named_exprs.into_iter().chain(vec![(col, Expr::Column]).collect(),
+                filter,
+                order_by,
+                reduce,
+            ),
+            expr,
+        )
+    }
+}
+
 #[derive(Clone, Default, Debug, Hash, PartialEq, Eq)]
 pub struct Reduce {
     pub named_aggregates: Vec<(String, AggregateColumn)>,
-    pub group_by: Vec<Expr>,
+    pub group_by: Vec<Column>,
     pub map: Option<Box<Map>>,
 }
 
 impl Reduce {
     pub fn new(
         named_aggregates: Vec<(String, AggregateColumn)>,
-        group_by: Vec<Expr>,
+        group_by: Vec<Column>,
         map: Option<Map>,
     ) -> Self {
         Reduce {
@@ -440,7 +481,7 @@ impl Reduce {
         &self.named_aggregates
     }
 
-    pub fn group_by(&self) -> &[Expr] {
+    pub fn group_by(&self) -> &[Column] {
         &self.group_by
     }
 
@@ -581,9 +622,9 @@ impl And<Self> for Reduce {
                 let (map, group_by) =
                     self.group_by
                         .into_iter()
-                        .fold((map, vec![]), |(map, mut group_by), expr| {
-                            let (map, expr) = map.and(expr);
-                            group_by.push(expr);
+                        .fold((map, vec![]), |(map, mut group_by), col| {
+                            let (map, col) = map.and(Expr::Column(col));
+                            group_by.push(col);
                             (map, group_by)
                         });
                 Reduce::new(
@@ -608,9 +649,9 @@ impl And<Self> for Reduce {
                     other
                         .group_by
                         .into_iter()
-                        .fold((map, vec![]), |(map, mut group_by), expr| {
-                            let (map, expr) = map.and(expr);
-                            group_by.push(expr);
+                        .fold((map, vec![]), |(map, mut group_by), col| {
+                            let (map, col) = map.and(Expr::Column(col));
+                            group_by.push(col);
                             (map, group_by)
                         });
                 Reduce::new(
@@ -663,7 +704,7 @@ impl And<Expr> for Reduce {
                 group_by
                     .clone()
                     .into_iter()
-                    .map(|e| (namer::name_from_content(FIELD, &e), e)),
+                    .map(|col| (namer::name_from_content(FIELD, &col), Expr::Column(col))),
             )
             .unique()
             .collect();
@@ -822,7 +863,15 @@ mod tests {
             None,
         );
         println!("reduce = {reduce}");
-        let reduce = reduce.and(Reduce::new(vec![], vec![Expr::col("z")], None));
+
+        let reduce = reduce.and(Reduce::new(vec![], vec!["z".into()], None));
+        println!("reduce and group by = {}", reduce);
+        assert_eq!(reduce.len(), 1);
+        let map = reduce.clone().into_map();
+        println!("reduce into map = {}", map);
+        assert_eq!(map.len(), 2);
+
+        let reduce = reduce.and(Reduce::new(vec![], vec![expr!(3 * v)], None));
         println!("reduce and group by = {}", reduce);
         assert_eq!(reduce.len(), 1);
         let map = reduce.into_map();
