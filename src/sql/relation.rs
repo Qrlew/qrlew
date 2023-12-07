@@ -21,6 +21,7 @@ use crate::{
     },
     tokenizer::Tokenizer,
     visitor::{Acceptor, Dependencies, Visited},
+    types::And
 };
 use itertools::Itertools;
 use std::{
@@ -28,7 +29,7 @@ use std::{
     iter::{once, Iterator},
     result,
     str::FromStr,
-    sync::Arc,
+    sync::Arc, collections::HashMap,
 };
 
 /*
@@ -306,13 +307,31 @@ impl<'a> VisitedQueryRelations<'a> {
             }
         }
         // Prepare the GROUP BY
-        let group_by: Result<Vec<Expr>> = match group_by {
+        let group_by  = match group_by {
             ast::GroupByExpr::All => todo!(),
             ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
                 .iter()
                 .map(|e| e.with(columns).try_into())
-                .collect(),
+                .collect::<Result<Vec<Expr>>>()?,
         };
+        let exprs:HashMap<Expr, String> = named_exprs
+            .iter()
+            .cloned()
+            .map(|(name, x)| (x, name))
+            .collect();
+        // let mut named_exprs = named_exprs.into_iter().chain(
+        //     group_by.iter()
+        //     .cloned()
+        //     .map(|gx| (
+        //         exprs
+        //         .get(&gx)
+        //         .unwrap_or(&namer::name_from_content(FIELD, &gx))
+        //         .to_string(),
+        //         gx)
+        //     )
+        //     .collect::<Vec<_>>()
+        // ).collect::<Vec<_>>();
+
 
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
@@ -323,22 +342,26 @@ impl<'a> VisitedQueryRelations<'a> {
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
                 .collect();
             expr = expr.replace(columns).0;
-            if let Ok(g) = &group_by {
-                let columns = g
-                    .iter()
-                    .filter_map(|x| {
-                        matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone())))
-                    })
-                    .collect();
-                expr = expr.replace(columns).0;
-            }
+            let columns = group_by
+                .iter()
+                .filter_map(|x| {
+                    matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone())))
+                })
+                .collect();
+            expr = expr.replace(columns).0;
             named_exprs.push((having_name.clone(), expr));
             Some(having_name)
         } else {
             None
         };
+
         // Build the Map or Reduce based on the type of split
-        let split = Split::from_iter(named_exprs);
+        let split = group_by.into_iter()
+            .fold(
+                Split::from_iter(named_exprs),
+                |s, expr| s.and(Split::Reduce(Split::group_by(expr)))
+            );
+        println!("split = {}", split);
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
@@ -349,13 +372,13 @@ impl<'a> VisitedQueryRelations<'a> {
             Split::Map(map) => {
                 let builder = Relation::map().split(map);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
+                //let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
+                //let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
         };
@@ -1207,9 +1230,8 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let query = parse(
-            "SELECT CASE WHEN d < 5 THEN 5 ELSE 1 END AS case_d, COUNT(*) AS my_count FROM table_1 GROUP BY CASE WHEN d < 5 THEN 5 ELSE 1 END;"
-        ).unwrap();
+        let query_str = "SELECT 3*d, COUNT(*) AS my_count FROM table_1 GROUP BY 3*d;";
+        let query = parse(query_str).unwrap();
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
             &relations

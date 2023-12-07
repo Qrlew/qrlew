@@ -36,17 +36,9 @@ impl Split {
     }
 
     pub fn group_by(expr: Expr) -> Reduce {
-        match expr {
-            Expr::Column(c) => Reduce::new(vec![], vec![c], None),
-            Expr::Value(_) => todo!(),
-            Expr::Function(_) => {
-                let name = namer::name_from_content(FIELD, &expr);
-                let map = Map::new(vec![(name.clone(), expr)], None, vec![], None);
-                Reduce::new(vec![], vec![name.into()], Some(map))
-            },
-            Expr::Aggregate(_) => todo!(),
-            Expr::Struct(_) => todo!(),
-        }
+        let name = namer::name_from_content(FIELD, &expr);
+        let map = Map::new(vec![(name.clone(), expr)], None, vec![], None);
+        Reduce::new(vec![], vec![name.into()], Some(map))
     }
 
     pub fn into_map(self) -> Map {
@@ -744,7 +736,9 @@ impl And<Column> for Reduce {
         };
         (
             Reduce::new(
-                named_aggregates.into_iter().chain(vec![(col.last().unwrap().to_string(), AggregateColumn::first(col.last().unwrap().to_string()))]).collect(),
+                named_aggregates
+                    .into_iter()
+                    .chain(vec![(col.last().unwrap().to_string(), AggregateColumn::first(col.last().unwrap().to_string()))]).collect(),
                 group_by.into_iter().chain(vec![col.clone()]).collect(),
                 map,
             ),
@@ -856,8 +850,6 @@ impl<S: Into<String>> FromIterator<(S, Expr)> for Split {
 
 #[cfg(test)]
 mod tests {
-    use crate::expr::implementation::aggregate;
-
     use super::*;
 
     #[test]

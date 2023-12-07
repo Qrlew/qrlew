@@ -1779,23 +1779,42 @@ mod tests {
     #[test]
     fn test_reduce_builder() {
         let schema: Schema = vec![
-            ("a", DataType::float()),
-            ("b", DataType::float_interval(-2., 2.)),
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 1.)),
             ("c", DataType::float()),
             ("d", DataType::float_interval(0., 1.)),
         ]
         .into_iter()
         .collect();
-        let table: Relation = Relation::table().schema(schema).build();
+        let table: Relation = Relation::table().schema(schema).size(100).build();
+
         let reduce: Relation = Relation::reduce()
-            .with(Expr::sum(Expr::col("a")))
+            .with(("my_sum", Expr::sum(Expr::col("b"))))
+            .with(("a", Expr::first(Expr::col("a"))))
             .group_by(Expr::col("a"))
-            .input(table)
-            // .with(Expr::count(Expr::col("b")))
+            .input(table.clone())
             .build();
-        println!("reduce = {}", reduce);
-        println!("reduce.data_type() = {}", reduce.data_type());
-        println!("reduce.schema() = {}", reduce.schema());
+        assert_eq!(
+            reduce.data_type(),
+            DataType::structured([
+                ("my_sum", DataType::float_interval(0., 100.)),
+                ("a", DataType::integer_interval(0, 10)),
+            ])
+        );
+
+        let reduce: Relation = Relation::reduce()
+            .with(("my_sum", Expr::sum(Expr::col("b"))))
+            .with(("my_a", Expr::first(expr!(3 * a))))
+            .group_by(expr!(3 * a))
+            .input(table)
+            .build();
+        assert_eq!(
+            reduce.data_type(),
+            DataType::structured([
+                ("my_sum", DataType::float_interval(0., 100.)),
+                ("my_a", DataType::integer_interval(0, 30)),
+            ])
+        );
     }
 
     #[test]

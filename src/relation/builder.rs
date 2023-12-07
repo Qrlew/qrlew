@@ -12,7 +12,7 @@ use crate::{
     expr::{self, AggregateColumn, Expr, Identifier, Split},
     hierarchy::Hierarchy,
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
-    And,
+    And, display::Dot,
 };
 
 // A Table builder
@@ -157,7 +157,8 @@ impl<RequireInput> MapBuilder<RequireInput> {
 
     /// Add a group by
     pub fn group_by(mut self, expr: Expr) -> Self {
-        self.split = self.split.and(Split::group_by(expr).into());
+        let s = Split::group_by(expr.into());
+        self.split = self.split.and(s.into());
         self
     }
 
@@ -441,7 +442,8 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
     }
 
     pub fn group_by<E: Into<Expr>>(mut self, expr: E) -> Self {
-        self.split = self.split.and(Split::group_by(expr.into()).into());
+        let s = Split::group_by(expr.into());
+        self.split = self.split.and(s.into());
         self
     }
 
@@ -618,6 +620,20 @@ impl Ready<Reduce> for ReduceBuilder<WithInput> {
                 ),
                 None => self.input.0,
             };
+            input.display_dot().unwrap();
+            println!("{:?}", reduce.group_by);
+            // Check that the First aggregate columns are in the GROUP BY
+            reduce.named_aggregates.iter()
+                .filter_map(|(_, agg)| matches!(agg.aggregate(), expr::aggregate::Aggregate::First).then_some(agg.column()))
+                .map(|col: &Identifier| if !reduce.group_by.contains(col) {
+                    Err(Error::InvalidRelation(format!(
+                        "First aggregate columns must be in the GROUP BY. Got: {}",
+                        col
+                    )))
+                } else {
+                    Ok(col)
+                })
+                .collect::<Result<Vec<_>>>()?;
             // Build the Relation
             Ok(Reduce::new(
                 name,
