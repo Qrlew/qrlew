@@ -447,12 +447,12 @@ impl And<Column> for Map {
         // Add matched sub-expressions
         (
             Map::new(
-                named_exprs.into_iter().chain(vec![(col, Expr::Column]).collect(),
+                named_exprs.into_iter().chain(vec![(col.last().unwrap().to_string(), Expr::Column(col.clone()))]).collect(),
                 filter,
                 order_by,
                 reduce,
             ),
-            expr,
+            col,
         )
     }
 }
@@ -623,7 +623,7 @@ impl And<Self> for Reduce {
                     self.group_by
                         .into_iter()
                         .fold((map, vec![]), |(map, mut group_by), col| {
-                            let (map, col) = map.and(Expr::Column(col));
+                            let (map, col) = map.and(col);
                             group_by.push(col);
                             (map, group_by)
                         });
@@ -650,7 +650,7 @@ impl And<Self> for Reduce {
                         .group_by
                         .into_iter()
                         .fold((map, vec![]), |(map, mut group_by), col| {
-                            let (map, col) = map.and(Expr::Column(col));
+                            let (map, col) = map.and(col);
                             group_by.push(col);
                             (map, group_by)
                         });
@@ -723,6 +723,33 @@ impl And<Expr> for Reduce {
                 map,
             ),
             expr,
+        )
+    }
+}
+
+impl And<Column> for Reduce {
+    type Product = (Reduce, Column);
+
+    fn and(self, col: Column) -> Self::Product {
+        let Reduce {
+            named_aggregates,
+            group_by,
+            map,
+        } = self;
+        // Add the expr to the next split if needed
+        let (map, col) = if let Some(m) = map {
+            let (m, expr) = m.and(col);
+            (Some(m), expr)
+        } else {
+            (None, col)
+        };
+        (
+            Reduce::new(
+                named_aggregates.into_iter().chain(vec![(col.last().unwrap().to_string(), AggregateColumn::first(col.last().unwrap().to_string()))]).collect(),
+                group_by.into_iter().chain(vec![col.clone()]).collect(),
+                map,
+            ),
+            col,
         )
     }
 }
