@@ -151,9 +151,7 @@ impl PUPRelation {
                 let sum_col = format!("_SUM_{}", col_name);
                 let count_col = format!("_COUNT_{}", col_name);
                 let square_col = format!("_SQUARE_{}", col_name);
-                let one_square_col = format!("_ONE_{}", square_col);
                 let sum_square_col = format!("_SUM_{}", square_col);
-                let count_square_col = format!("_COUNT_{}", square_col);
                 match aggregate.aggregate() {
                     aggregate::Aggregate::First => {
                         assert!(group_by_names.contains(&col_name.as_str()));
@@ -187,11 +185,9 @@ impl PUPRelation {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
                             .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
-                            .with((one_col.as_str(), Expr::val(1.)))
-                            .with((one_square_col.as_str(), Expr::val(1.)));
+                            .with((one_col.as_str(), Expr::val(1.)));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
-                        sums.push((count_square_col.clone(), one_square_col));
                         sums.push((sum_square_col.clone(), square_col));
                         output_b = output_b.with((
                             name,
@@ -200,7 +196,7 @@ impl PUPRelation {
                                 Expr::minus(
                                     Expr::divide(
                                         Expr::col(sum_square_col),
-                                        Expr::greatest(Expr::val(1.), Expr::col(count_square_col)),
+                                        Expr::greatest(Expr::val(1.), Expr::col(count_col.clone())),
                                     ),
                                     Expr::divide(
                                         Expr::col(sum_col),
@@ -214,11 +210,9 @@ impl PUPRelation {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
                             .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
-                            .with((one_col.as_str(), Expr::val(1.)))
-                            .with((one_square_col.as_str(), Expr::val(1.)));
+                            .with((one_col.as_str(), Expr::val(1.)));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
-                        sums.push((count_square_col.clone(), one_square_col));
                         sums.push((sum_square_col.clone(), square_col));
                         output_b = output_b.with((
                             name,
@@ -227,7 +221,7 @@ impl PUPRelation {
                                 Expr::minus(
                                     Expr::divide(
                                         Expr::col(sum_square_col),
-                                        Expr::greatest(Expr::val(1.), Expr::col(count_square_col)),
+                                        Expr::greatest(Expr::val(1.), Expr::col(count_col.clone())),
                                     ),
                                     Expr::divide(
                                         Expr::col(sum_col),
