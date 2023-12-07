@@ -8,5 +8,4 @@
     ],
     "editor.codeActionsOnSave": {},
     "rust-analyzer.cargo.buildScripts.overrideCommand": null,
-    "rust-analyzer.procMacro.enable": true
 }
