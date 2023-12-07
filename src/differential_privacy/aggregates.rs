@@ -589,7 +589,7 @@ mod tests {
                 ("sum_price".to_string(), AggregateColumn::sum("price")),
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
-            vec![expr!(item)],
+            vec!["item".into()],
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
@@ -688,7 +688,7 @@ mod tests {
                 ("sum_distinct_price".to_string(), AggregateColumn::sum_distinct("price")),
                 ("item".to_string(), AggregateColumn::first("item")),
             ],
-            vec![expr!(item)],
+            vec!["item".into()],
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());

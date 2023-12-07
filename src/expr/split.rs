@@ -36,7 +36,6 @@ impl Split {
     }
 
     pub fn group_by(expr: Expr) -> Reduce {
-        println!("x = {:?}", expr);
         match expr {
             Expr::Column(c) => Reduce::new(vec![], vec![c], None),
             Expr::Value(_) => todo!(),
@@ -895,13 +894,6 @@ mod tests {
         println!("reduce and group by = {}", reduce);
         assert_eq!(reduce.len(), 1);
         let map = reduce.clone().into_map();
-        println!("reduce into map = {}", map);
-        assert_eq!(map.len(), 2);
-
-        let reduce = reduce.and(Reduce::new(vec![], vec![expr!(3 * v)], None));
-        println!("reduce and group by = {}", reduce);
-        assert_eq!(reduce.len(), 1);
-        let map = reduce.into_map();
         println!("reduce into map = {}", map);
         assert_eq!(map.len(), 2);
     }

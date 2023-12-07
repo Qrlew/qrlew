@@ -291,7 +291,7 @@ mod tests {
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
-            vec![expr!(order_id)],
+            vec!["order_id".into()],
             pup_map.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
@@ -365,7 +365,7 @@ mod tests {
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("sum_price".to_string(), AggregateColumn::sum("price"))],
-            vec![expr!(order_id)],
+            vec!["order_id".into()],
             pup_map.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
@@ -448,7 +448,7 @@ mod tests {
                 ("order_id".to_string(), AggregateColumn::first("order_id")),
                 ("sum_price".to_string(), AggregateColumn::sum("price")),
             ],
-            vec![expr!(order_id), expr!(item)],
+            vec!["order_id".into(), "item".into()],
             pup_map.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
