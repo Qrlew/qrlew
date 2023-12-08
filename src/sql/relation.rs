@@ -425,7 +425,7 @@ impl<'a> VisitedQueryRelations<'a> {
             return Err(Error::other("QUALIFY is not supported"));
         }
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
-        let mut relation = self.try_from_select_items_selection_and_group_by(
+        let relation = self.try_from_select_items_selection_and_group_by(
             &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
             projection,
             selection,
