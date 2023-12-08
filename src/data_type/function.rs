@@ -1156,51 +1156,69 @@ Conversion function
 pub fn cast(into: DataType) -> impl Function {
     match into {
         DataType::Text(t) if t == data_type::Text::full() => {
-            Pointwise::univariate(
-                DataType::Any,
-                DataType::text(),
-                |v| v.to_string().into()
-            )
+            Polymorphic::default()
+                .with(
+                Pointwise::univariate(
+                    DataType::Any,
+                    DataType::text(),
+                    |v| v.to_string().into()
+                    )
+                )
         }
         DataType::Float(f) if f == data_type::Float::full() => {
-            Pointwise::univariate(
-                DataType::text(),
-                DataType::float(),
-                |v| v.to_string().parse::<f64>().unwrap().into()
-            )
+            Polymorphic::from((
+                PartitionnedMonotonic::univariate(
+                    data_type::Integer::default(),
+                    |v| v as f64
+                ),
+                Pointwise::univariate(
+                    DataType::text(),
+                    DataType::float(),
+                    |v| v.to_string().parse::<f64>().unwrap().into()
+                )
+            ))
         }
         DataType::Integer(i) if i == data_type::Integer::full() => {
-            Pointwise::univariate(
-                DataType::text(),
-                DataType::integer(),
-                |v| v.to_string().parse::<i64>().unwrap().into()
-            )
+            Polymorphic::from((
+                PartitionnedMonotonic::univariate(
+                    data_type::Float::default(),
+                    |v| v.round() as i64
+                ),
+                Pointwise::univariate(
+                    DataType::text(),
+                    DataType::integer(),
+                    |v| v.to_string().parse::<i64>().unwrap().into()
+                )
+            ))
         }
         DataType::Boolean(b) if b == data_type::Boolean::full() => {
-            Pointwise::univariate(
-                DataType::text(),
-                DataType::boolean(),
-                |v| {
-                    let true_list = vec![
-                        "t".to_string(), "tr".to_string(), "tru".to_string(), "true".to_string(),
-                        "y".to_string(), "ye".to_string(), "yes".to_string(),
-                        "on".to_string(),
-                        "1".to_string()
-                    ];
-                    let false_list = vec![
-                        "f".to_string(), "fa".to_string(), "fal".to_string(), "fals".to_string(), "false".to_string(),
-                        "n".to_string(), "no".to_string(),
-                        "off".to_string(),
-                        "0".to_string()
-                    ];
-                    if true_list.contains(&v.to_string().to_lowercase()) {
-                        true.into()
-                    } else if false_list.contains(&v.to_string().to_lowercase()) {
-                        false.into()
-                    } else {
-                        panic!()
+            Polymorphic::default()
+                .with(
+                Pointwise::univariate(
+                    DataType::text(),
+                    DataType::boolean(),
+                    |v| {
+                        let true_list = vec![
+                            "t".to_string(), "tr".to_string(), "tru".to_string(), "true".to_string(),
+                            "y".to_string(), "ye".to_string(), "yes".to_string(),
+                            "on".to_string(),
+                            "1".to_string()
+                        ];
+                        let false_list = vec![
+                            "f".to_string(), "fa".to_string(), "fal".to_string(), "fals".to_string(), "false".to_string(),
+                            "n".to_string(), "no".to_string(),
+                            "off".to_string(),
+                            "0".to_string()
+                        ];
+                        if true_list.contains(&v.to_string().to_lowercase()) {
+                            true.into()
+                        } else if false_list.contains(&v.to_string().to_lowercase()) {
+                            false.into()
+                        } else {
+                            panic!()
+                        }
                     }
-                }
+                )
             )
         }
         _ => todo!(),

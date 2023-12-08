@@ -172,7 +172,7 @@ impl PUPRelation {
                     aggregate::Aggregate::Count => {
                         input_b = input_b.with((one_col.as_str(), Expr::val(1.)));
                         sums.push((count_col.clone(), one_col));
-                        output_b = output_b.with((name, Expr::col(count_col)));
+                        output_b = output_b.with((name, Expr::cast_as_integer(Expr::col(count_col))));
                     }
                     aggregate::Aggregate::Sum => {
                         input_b = input_b.with((col_name.as_str(), Expr::col(col_name.as_str())));
@@ -998,14 +998,14 @@ mod tests {
         .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
         .build();
         let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
-        //dp_relation.relation().display_dot().unwrap();
+        dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.relation().data_type(),
             DataType::structured([
                 ("sum_a", DataType::float_interval(-2000., 2000.)),
                 ("sum_distinct_a", DataType::float_interval(-2000., 2000.)),
-                ("count_b", DataType::float_interval(0., 1000.)),
-                ("count_distinct_b", DataType::float_interval(0., 1000.)),
+                ("count_b", DataType::integer_interval(0, 1000)),
+                ("count_distinct_b", DataType::integer_interval(0, 1000)),
             ])
         );
 
@@ -1026,8 +1026,8 @@ mod tests {
             DataType::structured([
                 ("sum_a", DataType::float_interval(-2000., 2000.)),
                 ("sum_distinct_a", DataType::float_interval(-2000., 2000.)),
-                ("count_b", DataType::float_interval(0., 1000.)),
-                ("count_distinct_b", DataType::float_interval(0., 1000.)),
+                ("count_b", DataType::integer_interval(0, 1000)),
+                ("count_distinct_b", DataType::integer_interval(0, 1000)),
                 ("my_c", DataType::float_interval(10., 20.)),
             ])
         );
