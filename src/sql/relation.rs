@@ -276,6 +276,7 @@ impl<'a> VisitedQueryRelations<'a> {
         group_by: &'a ast::GroupByExpr,
         from: Arc<Relation>,
         having: &'a Option<ast::Expr>,
+        distinct: &'a Option<ast::Distinct>,
     ) -> Result<Arc<Relation>> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = vec![];
@@ -372,6 +373,12 @@ impl<'a> VisitedQueryRelations<'a> {
                 .input(relation)
                 .build();
         }
+        if let Some(distinct) = distinct {
+            if matches!(distinct, ast::Distinct::On(_)) {
+                return Err(Error::other("DISTINCT IN is not supported"));
+            }
+            relation = relation.distinct()
+        }
         Ok(Arc::new(relation))
     }
 
@@ -418,17 +425,15 @@ impl<'a> VisitedQueryRelations<'a> {
             return Err(Error::other("QUALIFY is not supported"));
         }
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
-        let relation = self.try_from_select_items_selection_and_group_by(
+        let mut relation = self.try_from_select_items_selection_and_group_by(
             &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
             projection,
             selection,
             group_by,
             from,
             having,
+            distinct
         )?;
-        if distinct.is_some() {
-            todo!()
-        }
         Ok(RelationWithColumns::new(relation, columns))
     }
 

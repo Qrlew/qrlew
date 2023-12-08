@@ -1959,6 +1959,33 @@ mod tests {
             assert_eq!(red.group_by.len(), table.schema().len())
         }
 
+        // Map
+        let relation: Relation = Relation::map()
+            .input(table.clone())
+            .with(expr!(a * b))
+            .with(("my_c", expr!(c)))
+            .build();
+        let distinct_relation = relation.clone().distinct();
+        assert_eq!(distinct_relation.schema(), relation.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), relation.schema().len())
+        }
 
+        // Reduce
+        let relation: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(expr!(count(a)))
+            //.with_group_by_column("c")
+            .with(("twice_c", expr!(first(2*c))))
+            .group_by(expr!(c))
+            .build();
+        let distinct_relation = relation.clone().distinct();
+        distinct_relation.display_dot();
+        assert_eq!(distinct_relation.schema(), relation.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), relation.schema().len())
+        }
     }
 }
