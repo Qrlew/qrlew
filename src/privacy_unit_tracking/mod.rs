@@ -128,7 +128,7 @@ impl Deref for PUPRelation {
 }
 
 impl Relation {
-    /// TODO
+    /// Add the field for the row protection
     pub fn add_row_protection(self) -> Self {
         let expr = Expr::random_id((1e6 as i64) * self.size().max().unwrap());
         self.identity_with_field(
@@ -136,7 +136,7 @@ impl Relation {
             expr,
         )
     }
-    /// TODO
+    /// Add the field containing the protection unit
     pub fn add_protection_unit(self, referred_field: &str) -> Self {
         let relation = if referred_field == PrivacyUnit::per_row_protection() {
             self.add_row_protection()
