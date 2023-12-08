@@ -65,12 +65,6 @@ impl<'a> From<&'a Step> for (&'a str, &'a str, &'a str) {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub struct Path(Vec<Step>);
 
-impl Path {
-    pub fn empty() -> Path {
-        Self(Vec::<Step>::new())
-    }
-}
-
 impl Deref for Path {
     type Target = Vec<Step>;
 
@@ -196,10 +190,6 @@ impl PrivacyUnitPath {
 
     pub fn privacy_unit_default() -> &'static str {
         PRIVACY_UNIT_DEFAULT
-    }
-
-    pub fn is_row_protected(&self) -> bool {
-        self.path.is_empty() && self.privacy_unit_field == PER_ROW_PROTECTION
     }
 }
 
