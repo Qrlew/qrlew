@@ -270,7 +270,7 @@ impl PrivacyUnit {
         PRIVACY_COLUMNS
     }
 
-    pub fn per_row_privacy() -> &'static str {
+    pub fn privacy_unit_row() -> &'static str {
         PRIVACY_UNIT_ROW
     }
 

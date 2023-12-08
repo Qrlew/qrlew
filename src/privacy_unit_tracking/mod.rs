@@ -132,13 +132,13 @@ impl Relation {
     pub fn privacy_unit_row(self) -> Self {
         let expr = Expr::random(namer::new_id(self.name()));
         self.identity_with_field(
-            PrivacyUnit::per_row_privacy(),
+            PrivacyUnit::privacy_unit_row(),
             expr,
         )
     }
     /// Add the field containing the privacy unit
     pub fn add_privacy_unit(self, referred_field: &str) -> Self {
-        let relation = if referred_field == PrivacyUnit::per_row_privacy() {
+        let relation = if referred_field == PrivacyUnit::privacy_unit_row() {
             self.privacy_unit_row()
         } else {
             self
@@ -164,7 +164,7 @@ impl Relation {
             .map(|f| f.name().to_string())
             .filter(|name| name != &referred_field_name)
             .collect();
-        let referred_relation = if referred_field == PrivacyUnit::per_row_privacy() {
+        let referred_relation = if referred_field == PrivacyUnit::privacy_unit_row() {
             Arc::new(
                 referred_relation.deref()
                     .clone()
@@ -596,7 +596,7 @@ mod tests {
         let orders = relations.get(&["orders".to_string()]).unwrap().as_ref();
         let relation = orders.clone().with_field_path(
             &relations,
-            PrivacyUnitPath::from((vec![("user_id", "users", "id")], PrivacyUnit::per_row_privacy())),
+            PrivacyUnitPath::from((vec![("user_id", "users", "id")], PrivacyUnit::privacy_unit_row())),
         );
         relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
@@ -606,7 +606,7 @@ mod tests {
             &relations,
             PrivacyUnitPath::from((
                 vec![("order_id", "orders", "id"), ("user_id", "users", "id")],
-                PrivacyUnit::per_row_privacy(),
+                PrivacyUnit::privacy_unit_row(),
             )),
         );
         relation.display_dot().unwrap();

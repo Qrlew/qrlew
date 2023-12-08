@@ -211,10 +211,10 @@ mod tests {
                     ("order_id", "order_table", "id"),
                     ("user_id", "user_table", "id"),
                 ],
-                PrivacyUnit::per_row_privacy(),
+                PrivacyUnit::privacy_unit_row(),
             ),
-            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_privacy()),
-            ("user_table", vec![], PrivacyUnit::per_row_privacy()),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::privacy_unit_row()),
+            ("user_table", vec![], PrivacyUnit::privacy_unit_row()),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -285,10 +285,10 @@ mod tests {
                     ("order_id", "order_table", "id"),
                     ("user_id", "user_table", "id"),
                 ],
-                PrivacyUnit::per_row_privacy(),
+                PrivacyUnit::privacy_unit_row(),
             ),
-            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_privacy()),
-            ("user_table", vec![], PrivacyUnit::per_row_privacy()),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::privacy_unit_row()),
+            ("user_table", vec![], PrivacyUnit::privacy_unit_row()),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
