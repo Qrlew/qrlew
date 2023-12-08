@@ -137,7 +137,7 @@ impl Relation {
         )
     }
     /// Add the field containing the privacy unit
-    pub fn add_privacy_unit(self, referred_field: &str) -> Self {
+    pub fn privacy_unit(self, referred_field: &str) -> Self {
         let relation = if referred_field == PrivacyUnit::privacy_unit_row() {
             self.privacy_unit_row()
         } else {
@@ -214,7 +214,7 @@ impl Relation {
         field_path: PrivacyUnitPath,
     ) -> Relation {
         if field_path.path().is_empty() {
-            self.add_privacy_unit(field_path.referred_field())
+            self.privacy_unit(field_path.referred_field())
         } else {
             field_path
                 .into_iter()
