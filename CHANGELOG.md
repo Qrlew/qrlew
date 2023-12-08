@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
+- Cast DP COUNT as integer [#217](https://github.com/Qrlew/qrlew/issues/217)
 - implemented distinct in the select clause [#216](https://github.com/Qrlew/qrlew/issues/216)
 
 ## [0.5.4] - 2023-12-05
