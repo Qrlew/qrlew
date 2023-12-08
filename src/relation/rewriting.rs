@@ -663,7 +663,8 @@ impl Relation {
         }
     }
 
-    ///TODO
+    /// GROUP BY all the fields. This mimicks the sql `DISTINCT` in the
+    /// `SELECT` clause.
     pub fn distinct(self) -> Relation {
         let fields = self.schema()
             .iter()
