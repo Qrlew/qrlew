@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- implemented row protection [#211](https://github.com/Qrlew/qrlew/issues/211)
+
 
 ## [0.5.3] - 2023-12-02
 ## Changed
