@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## Added
-- implemented row protection [#215](https://github.com/Qrlew/qrlew/issues/215)
+- implemented row privacy [#215](https://github.com/Qrlew/qrlew/issues/215)
 
 ## [0.5.4] - 2023-12-05
 - implemented `STD` and `VAR`aggregations in the dp rewritting [#205](https://github.com/Qrlew/qrlew/issues/205)

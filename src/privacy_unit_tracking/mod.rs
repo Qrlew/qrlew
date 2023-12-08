@@ -128,18 +128,18 @@ impl Deref for PUPRelation {
 }
 
 impl Relation {
-    /// Add the field for the row protection
-    pub fn add_row_protection(self) -> Self {
+    /// Add the field for the row privacy
+    pub fn add_row_privacy(self) -> Self {
         let expr = Expr::random_id((1e6 as i64) * self.size().max().unwrap());
         self.identity_with_field(
-            PrivacyUnit::per_row_protection(),
+            PrivacyUnit::per_row_privacy(),
             expr,
         )
     }
-    /// Add the field containing the protection unit
-    pub fn add_protection_unit(self, referred_field: &str) -> Self {
-        let relation = if referred_field == PrivacyUnit::per_row_protection() {
-            self.add_row_protection()
+    /// Add the field containing the privacy unit
+    pub fn add_privacy_unit(self, referred_field: &str) -> Self {
+        let relation = if referred_field == PrivacyUnit::per_row_privacy() {
+            self.add_row_privacy()
         } else {
             self
         };
@@ -164,11 +164,11 @@ impl Relation {
             .map(|f| f.name().to_string())
             .filter(|name| name != &referred_field_name)
             .collect();
-        let referred_relation = if referred_field == PrivacyUnit::per_row_protection() {
+        let referred_relation = if referred_field == PrivacyUnit::per_row_privacy() {
             Arc::new(
                 referred_relation.deref()
                     .clone()
-                    .add_row_protection()
+                    .add_row_privacy()
             )
         } else {
             referred_relation
@@ -214,7 +214,7 @@ impl Relation {
         field_path: PrivacyUnitPath,
     ) -> Relation {
         if field_path.path().is_empty() {
-            self.add_protection_unit(field_path.referred_field())
+            self.add_privacy_unit(field_path.referred_field())
         } else {
             field_path
                 .into_iter()
@@ -236,7 +236,7 @@ impl Relation {
 
 impl Expr {
     fn random_id(size: i64) -> Expr {
-        let n = namer::new_id(PrivacyUnit::per_row_protection());
+        let n = namer::new_id(PrivacyUnit::per_row_privacy());
         Expr::cast_as_integer(
             Expr::multiply(
                 Expr::random(n),
@@ -603,12 +603,12 @@ mod tests {
         let relation = relation.filter_fields(|n| n != "peid");
         assert!(relation.schema()[0].name() != "peid");
 
-        // with row protection
+        // with row privacy
         // Link orders to users
         let orders = relations.get(&["orders".to_string()]).unwrap().as_ref();
         let relation = orders.clone().with_field_path(
             &relations,
-            PrivacyUnitPath::from((vec![("user_id", "users", "id")], PrivacyUnit::per_row_protection())),
+            PrivacyUnitPath::from((vec![("user_id", "users", "id")], PrivacyUnit::per_row_privacy())),
         );
         relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
@@ -618,7 +618,7 @@ mod tests {
             &relations,
             PrivacyUnitPath::from((
                 vec![("order_id", "orders", "id"), ("user_id", "users", "id")],
-                PrivacyUnit::per_row_protection(),
+                PrivacyUnit::per_row_privacy(),
             )),
         );
         relation.display_dot().unwrap();

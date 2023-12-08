@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rewrite_with_differential_privacy_with_row_protection() {
+    fn test_rewrite_with_differential_privacy_with_row_privacy() {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
@@ -211,10 +211,10 @@ mod tests {
                     ("order_id", "order_table", "id"),
                     ("user_id", "user_table", "id"),
                 ],
-                PrivacyUnit::per_row_protection(),
+                PrivacyUnit::per_row_privacy(),
             ),
-            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_protection()),
-            ("user_table", vec![], PrivacyUnit::per_row_protection()),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_privacy()),
+            ("user_table", vec![], PrivacyUnit::per_row_privacy()),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rewrite_as_privacy_unit_preserving_with_row_protection() {
+    fn test_rewrite_as_privacy_unit_preserving_with_row_privacy() {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse("SELECT * FROM order_table").unwrap();
@@ -285,10 +285,10 @@ mod tests {
                     ("order_id", "order_table", "id"),
                     ("user_id", "user_table", "id"),
                 ],
-                PrivacyUnit::per_row_protection(),
+                PrivacyUnit::per_row_privacy(),
             ),
-            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_protection()),
-            ("user_table", vec![], PrivacyUnit::per_row_protection()),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_privacy()),
+            ("user_table", vec![], PrivacyUnit::per_row_privacy()),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
