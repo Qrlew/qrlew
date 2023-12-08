@@ -129,8 +129,8 @@ impl Deref for PUPRelation {
 
 impl Relation {
     /// Add the field for the row privacy
-    pub fn add_row_privacy(self) -> Self {
-        let expr = Expr::random_id((1e6 as i64) * self.size().max().unwrap());
+    pub fn privacy_unit_row(self) -> Self {
+        let expr = Expr::random(namer::new_id(self.name()));
         self.identity_with_field(
             PrivacyUnit::per_row_privacy(),
             expr,
@@ -139,7 +139,7 @@ impl Relation {
     /// Add the field containing the privacy unit
     pub fn add_privacy_unit(self, referred_field: &str) -> Self {
         let relation = if referred_field == PrivacyUnit::per_row_privacy() {
-            self.add_row_privacy()
+            self.privacy_unit_row()
         } else {
             self
         };
@@ -168,7 +168,7 @@ impl Relation {
             Arc::new(
                 referred_relation.deref()
                     .clone()
-                    .add_row_privacy()
+                    .privacy_unit_row()
             )
         } else {
             referred_relation
@@ -231,18 +231,6 @@ impl Relation {
                     )
                 })
         }
-    }
-}
-
-impl Expr {
-    fn random_id(size: i64) -> Expr {
-        let n = namer::new_id(PrivacyUnit::per_row_privacy());
-        Expr::cast_as_integer(
-            Expr::multiply(
-                Expr::random(n),
-                Expr::val(size)
-            )
-        )
     }
 }
 

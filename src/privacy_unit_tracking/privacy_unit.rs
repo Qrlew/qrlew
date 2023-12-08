@@ -7,7 +7,7 @@ pub const PRIVACY_COLUMNS: usize = 2;
 pub const PRIVACY_UNIT: &str = "_PRIVACY_UNIT_";
 pub const PRIVACY_UNIT_DEFAULT: &str = "_PRIVACY_UNIT_DEFAULT_";
 pub const PRIVACY_UNIT_WEIGHT: &str = "_PRIVACY_UNIT_WEIGHT_";
-pub const PER_ROW_PRIVACY: &str = "_RANDOM_";
+pub const PRIVACY_UNIT_ROW: &str = "_PRIVACY_UNIT_ROW_";
 
 // A few utility objects
 
@@ -271,7 +271,7 @@ impl PrivacyUnit {
     }
 
     pub fn per_row_privacy() -> &'static str {
-        PER_ROW_PRIVACY
+        PRIVACY_UNIT_ROW
     }
 
     pub fn privacy_unit() -> &'static str {
@@ -416,7 +416,7 @@ mod tests {
             ),
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
-            ("product_table", vec![], PER_ROW_PRIVACY),
+            ("product_table", vec![], PRIVACY_UNIT_ROW),
         ]);
         println!("{}", privacy_unit);
     }

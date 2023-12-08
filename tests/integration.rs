@@ -93,6 +93,10 @@ const QUERIES: &[&str] = &[
     // Some string functions
     "SELECT UPPER(z) FROM table_2 LIMIT 5",
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
+    // distinct
+    "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d",
+    "SELECT DISTINCt c, d FROM table_1",
+    "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c"
 ];
 
 #[cfg(feature = "sqlite")]

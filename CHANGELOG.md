@@ -6,8 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.5.5] - 2023-12-09
 ## Added
 - implemented row privacy [#215](https://github.com/Qrlew/qrlew/issues/215)
+- Cast DP COUNT as integer [#217](https://github.com/Qrlew/qrlew/issues/217)
+- implemented distinct in the select clause [#216](https://github.com/Qrlew/qrlew/issues/216)
 
 ## [0.5.4] - 2023-12-05
 - implemented `STD` and `VAR`aggregations in the dp rewritting [#205](https://github.com/Qrlew/qrlew/issues/205)
