@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## Added
+- implemented distinct in the select clause [#216](https://github.com/Qrlew/qrlew/issues/216)
+
 ## [0.5.4] - 2023-12-05
 - implemented `STD` and `VAR`aggregations in the dp rewritting [#205](https://github.com/Qrlew/qrlew/issues/205)
 - `Expr::filter_by_function`: if the filtered datatype cannot be determined, keep the original data [#209](https://github.com/Qrlew/qrlew/issues/209)
