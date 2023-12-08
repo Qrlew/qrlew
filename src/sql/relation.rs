@@ -393,9 +393,6 @@ impl<'a> VisitedQueryRelations<'a> {
             named_window,
             qualify,
         } = select;
-        if distinct.is_some() {
-            return Err(Error::other("DISTINCT is not supported"));
-        }
         if top.is_some() {
             return Err(Error::other("TOP is not supported"));
         }
@@ -429,6 +426,9 @@ impl<'a> VisitedQueryRelations<'a> {
             from,
             having,
         )?;
+        if distinct.is_some() {
+            todo!()
+        }
         Ok(RelationWithColumns::new(relation, columns))
     }
 
@@ -1111,13 +1111,13 @@ mod tests {
             &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ))
         .unwrap();
+        relation.display_dot().unwrap();
         println!("relation = {relation}");
         assert_eq!(
             relation.data_type(),
             DataType::structured(vec![("my_sum", DataType::float_interval(0., 1000.))])
         );
 
-        //relation.display_dot().unwrap();
         let q = ast::Query::from(&relation);
         println!("query = {q}");
 
@@ -1198,6 +1198,36 @@ mod tests {
         assert_eq!(
             relation.data_type(),
             DataType::structured(vec![("my_sum", DataType::float().try_empty().unwrap())])
+        );
+    }
+
+    #[test]
+    fn test_distinct_in_select() {
+        let query = parse("SELECT DISTINCT a, b FROM table_1;").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("table_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        println!("relation = {relation}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("a", DataType::integer_interval(0, 10)),
+                ("b", DataType::float_interval(0., 10.)),
+            ])
         );
     }
 }

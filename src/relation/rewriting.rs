@@ -663,6 +663,19 @@ impl Relation {
         }
     }
 
+    ///TODO
+    pub fn distinct(self) -> Relation {
+        let fields = self.schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect::<Vec<_>>();
+        Relation::reduce()
+            .input(self)
+            .with_iter(fields.iter().map(|f| (f, Expr::first(Expr::col(f)))))
+            .group_by_iter(fields.iter().map(|f| Expr::col(f)))
+            .build()
+    }
+
     /// Build a relation whose output fields are to the aggregations in `aggregates`
     /// applied on the UNIQUE values of the column `column` and grouped by the columns in `group_by`.
     /// If `grouping_by` is not empty, we order by the grouping expressions.
@@ -1923,5 +1936,29 @@ mod tests {
                 .collect::<Vec<_>>(),
             names_aggs
         );
+    }
+
+    #[test]
+    fn test_distinct() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // Table
+        let distinct_relation = table.clone().distinct();
+        assert_eq!(distinct_relation.schema(), table.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), table.schema().len())
+        }
+
+
     }
 }
