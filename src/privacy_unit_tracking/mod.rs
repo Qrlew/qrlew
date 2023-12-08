@@ -12,6 +12,7 @@ use crate::{
     expr::{AggregateColumn, Expr},
     hierarchy::Hierarchy,
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
+    namer, display::Dot
 };
 pub use privacy_unit::{PrivacyUnit, PrivacyUnitPath};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
@@ -68,6 +69,7 @@ pub enum Strategy {
 pub struct PUPRelation(pub Relation);
 
 impl PUPRelation {
+
     pub fn privacy_unit(&self) -> &str {
         PrivacyUnit::privacy_unit()
     }
@@ -126,6 +128,26 @@ impl Deref for PUPRelation {
 }
 
 impl Relation {
+    /// TODO
+    pub fn add_row_protection(self) -> Self {
+        let expr = Expr::random_id((1e6 as i64) * self.size().max().unwrap());
+        self.identity_with_field(
+            PrivacyUnit::per_row_protection(),
+            expr,
+        )
+    }
+    /// TODO
+    pub fn add_protection_unit(self, referred_field: &str) -> Self {
+        let relation = if referred_field == PrivacyUnit::per_row_protection() {
+            self.add_row_protection()
+        } else {
+            self
+        };
+        relation.identity_with_field(
+            PrivacyUnitPath::privacy_unit(),
+            Expr::col(referred_field),
+        )
+    }
     /// Add a field designated with a foreign relation and a field
     pub fn with_referred_field(
         self,
@@ -142,6 +164,15 @@ impl Relation {
             .map(|f| f.name().to_string())
             .filter(|name| name != &referred_field_name)
             .collect();
+        let referred_relation = if referred_field == PrivacyUnit::per_row_protection() {
+            Arc::new(
+                referred_relation.deref()
+                    .clone()
+                    .add_row_protection()
+            )
+        } else {
+            referred_relation
+        };
         let join: Relation = Relation::join()
             .inner()
             .on(Expr::eq(
@@ -183,11 +214,7 @@ impl Relation {
         field_path: PrivacyUnitPath,
     ) -> Relation {
         if field_path.path().is_empty() {
-            // TODO Remove this?
-            self.identity_with_field(
-                PrivacyUnitPath::privacy_unit(),
-                Expr::col(field_path.referred_field()),
-            )
+            self.add_protection_unit(field_path.referred_field())
         } else {
             field_path
                 .into_iter()
@@ -204,6 +231,18 @@ impl Relation {
                     )
                 })
         }
+    }
+}
+
+impl Expr {
+    fn random_id(size: i64) -> Expr {
+        let n = namer::new_id(PrivacyUnit::per_row_protection());
+        Expr::cast_as_integer(
+            Expr::multiply(
+                Expr::random(n),
+                Expr::val(size)
+            )
+        )
     }
 }
 
@@ -528,14 +567,16 @@ mod tests {
     fn test_field_path() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
+
         // Link orders to users
         let orders = relations.get(&["orders".to_string()]).unwrap().as_ref();
         let relation = orders.clone().with_field_path(
             &relations,
             PrivacyUnitPath::from((vec![("user_id", "users", "id")], "id")),
         );
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
-        // // Link items to orders
+        // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
             &relations,
@@ -546,7 +587,7 @@ mod tests {
         );
         assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
         // Produce the query
-        relation.display_dot();
+        relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
         println!(
@@ -559,8 +600,42 @@ mod tests {
                 .map(ToString::to_string)
                 .join("\n")
         );
-        // let relation = relation.filter_fields(|n| n != "peid");
-        // assert!(relation.schema()[0].name() != "peid");
+        let relation = relation.filter_fields(|n| n != "peid");
+        assert!(relation.schema()[0].name() != "peid");
+
+        // with row protection
+        // Link orders to users
+        let orders = relations.get(&["orders".to_string()]).unwrap().as_ref();
+        let relation = orders.clone().with_field_path(
+            &relations,
+            PrivacyUnitPath::from((vec![("user_id", "users", "id")], PrivacyUnit::per_row_protection())),
+        );
+        relation.display_dot().unwrap();
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        // Link items to orders
+        let items = relations.get(&["items".to_string()]).unwrap().as_ref();
+        let relation = items.clone().with_field_path(
+            &relations,
+            PrivacyUnitPath::from((
+                vec![("order_id", "orders", "id"), ("user_id", "users", "id")],
+                PrivacyUnit::per_row_protection(),
+            )),
+        );
+        relation.display_dot().unwrap();
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        // Produce the query
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        println!(
+            "{}\n{}",
+            format!("{query}").yellow(),
+            database
+                .query(query)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n")
+        );
     }
 
     #[test]

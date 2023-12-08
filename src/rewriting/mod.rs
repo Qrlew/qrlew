@@ -195,6 +195,43 @@ mod tests {
     }
 
     #[test]
+    fn test_rewrite_with_differential_privacy_with_row_protection() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                PrivacyUnit::per_row_protection(),
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_protection()),
+            ("user_table", vec![], PrivacyUnit::per_row_protection()),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        let relation_with_private_query = relation
+            .rewrite_with_differential_privacy(&relations, synthetic_data, privacy_unit, budget)
+            .unwrap();
+        relation_with_private_query
+            .relation()
+            .display_dot()
+            .unwrap();
+        println!(
+            "PrivateQuery = {}",
+            relation_with_private_query.private_query()
+        );
+    }
+
+    #[test]
     fn test_rewrite_as_privacy_unit_preserving() {
         let database = postgresql::test_database();
         let relations = database.relations();
@@ -215,6 +252,43 @@ mod tests {
             ),
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        let relation_with_private_query = relation
+            .rewrite_as_privacy_unit_preserving(&relations, synthetic_data, privacy_unit, budget)
+            .unwrap();
+        relation_with_private_query
+            .relation()
+            .display_dot()
+            .unwrap();
+        println!(
+            "PrivateQuery = {}",
+            relation_with_private_query.private_query()
+        );
+    }
+
+    #[test]
+    fn test_rewrite_as_privacy_unit_preserving_with_row_protection() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse("SELECT * FROM order_table").unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                PrivacyUnit::per_row_protection(),
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::per_row_protection()),
+            ("user_table", vec![], PrivacyUnit::per_row_protection()),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();

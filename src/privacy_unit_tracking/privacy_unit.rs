@@ -7,6 +7,7 @@ pub const PRIVACY_COLUMNS: usize = 2;
 pub const PRIVACY_UNIT: &str = "_PRIVACY_UNIT_";
 pub const PRIVACY_UNIT_DEFAULT: &str = "_PRIVACY_UNIT_DEFAULT_";
 pub const PRIVACY_UNIT_WEIGHT: &str = "_PRIVACY_UNIT_WEIGHT_";
+pub const PER_ROW_PROTECTION: &str = "_RANDOM_";
 
 // A few utility objects
 
@@ -63,6 +64,12 @@ impl<'a> From<&'a Step> for (&'a str, &'a str, &'a str) {
 /// A path to a field
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub struct Path(Vec<Step>);
+
+impl Path {
+    pub fn empty() -> Path {
+        Self(Vec::<Step>::new())
+    }
+}
 
 impl Deref for Path {
     type Target = Vec<Step>;
@@ -190,6 +197,10 @@ impl PrivacyUnitPath {
     pub fn privacy_unit_default() -> &'static str {
         PRIVACY_UNIT_DEFAULT
     }
+
+    pub fn is_row_protected(&self) -> bool {
+        self.path.is_empty() && self.privacy_unit_field == PER_ROW_PROTECTION
+    }
 }
 
 impl Display for PrivacyUnitPath {
@@ -267,6 +278,10 @@ impl PrivacyUnit {
 
     pub fn privacy_columns() -> usize {
         PRIVACY_COLUMNS
+    }
+
+    pub fn per_row_protection() -> &'static str {
+        PER_ROW_PROTECTION
     }
 
     pub fn privacy_unit() -> &'static str {
@@ -411,6 +426,7 @@ mod tests {
             ),
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
+            ("product_table", vec![], PER_ROW_PROTECTION),
         ]);
         println!("{}", privacy_unit);
     }
