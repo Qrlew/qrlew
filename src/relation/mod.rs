@@ -555,7 +555,7 @@ impl Reduce {
     pub fn group_by_names(&self) -> Vec<&str> {
         self.group_by
             .iter()
-            .filter_map(|col| col.last().ok())
+            .filter_map(|col| col.last().ok())// We should fail if there is an ambiguity
             .collect()
     }
 }

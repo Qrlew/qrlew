@@ -341,7 +341,7 @@ impl<'a> VisitedQueryRelations<'a> {
         let split = if group_by.is_empty() {
             Split::from_iter(named_exprs)
         } else {
-            let group_by = group_by.into_iter()
+            let group_by = group_by.clone().into_iter()
             .fold(Split::Reduce(Reduce::default()),
             |s, expr| s.and(Split::Reduce(Split::group_by(expr)))
             );
@@ -360,13 +360,13 @@ impl<'a> VisitedQueryRelations<'a> {
             Split::Map(map) => {
                 let builder = Relation::map().split(map);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                //let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
+                let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                //let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
+                let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
         };
