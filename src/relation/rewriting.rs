@@ -4,7 +4,7 @@
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
-    data_type::{self, DataTyped},
+    data_type::{self, function::Function, DataType, DataTyped, Variant as _},
     expr::{self, aggregate, Aggregate, Expr, Value},
     io, namer, relation,
 };
@@ -13,7 +13,6 @@ use std::{
     convert::Infallible,
     error, fmt,
     num::ParseFloatError,
-    ops::{self, Deref},
     result,
     sync::Arc,
 };
@@ -389,7 +388,9 @@ impl Relation {
         self.sums_by_group(entities_groups, values.clone())
             .map_fields(|field_name, expr| {
                 if values.contains(&field_name) {
-                    Expr::pow(expr, Expr::val(2))
+                    // TODO Remove abs
+                    // Abs is here to signal a positive number
+                    Expr::abs(Expr::multiply(expr.clone(), expr))
                 } else {
                     expr
                 }
@@ -496,6 +497,39 @@ impl Relation {
                     (
                         f.name(),
                         Expr::col(f.name()).add_gaussian_noise(name_sigmas[f.name()]),
+                    )
+                } else {
+                    (f.name(), Expr::col(f.name()))
+                }
+            }))
+            .input(self)
+            .build()
+    }
+
+    /// Add gaussian noise of a given standard deviation to the given columns, while keeping the column min and max
+    pub fn add_clipped_gaussian_noise(self, name_sigmas: Vec<(&str, f64)>) -> Relation {
+        let name_sigmas: HashMap<&str, f64> = name_sigmas.into_iter().collect();
+        Relation::map()
+            // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
+            .with_iter(self.schema().iter().map(|f| {
+                if name_sigmas.contains_key(&f.name()) {
+                    let x = Expr::coalesce(Expr::col(f.name()), Expr::val(0.));
+                    let float_data_type: data_type::Float = x
+                        .super_image(&f.data_type())
+                        .unwrap()
+                        .into_data_type(&DataType::float())
+                        .unwrap()
+                        .try_into()
+                        .unwrap();
+                    (
+                        f.name(),
+                        Expr::least(
+                            Expr::val(*float_data_type.max().unwrap()),
+                            Expr::greatest(
+                                Expr::val(*float_data_type.min().unwrap()),
+                                x.add_gaussian_noise(name_sigmas[f.name()]),
+                            ),
+                        ),
                     )
                 } else {
                     (f.name(), Expr::col(f.name()))

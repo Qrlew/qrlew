@@ -74,6 +74,7 @@ impl From<ast::SetQuantifier> for SetQuantifier {
             ast::SetQuantifier::None => SetQuantifier::None,
             ast::SetQuantifier::ByName => SetQuantifier::ByName,
             ast::SetQuantifier::AllByName => SetQuantifier::AllByName,
+            ast::SetQuantifier::DistinctByName => SetQuantifier::DistinctByName,
         }
     }
 }
@@ -633,7 +634,7 @@ mod tests {
         builder::Ready,
         data_type::{DataType, DataTyped, Variant},
         display::Dot,
-        relation::schema::Schema,
+        relation::{schema::Schema, Constraint},
     };
 
     #[test]
@@ -1010,6 +1011,32 @@ mod tests {
         // relation.display_dot().unwrap();
         // let q = ast::Query::from(&relation);
         // println!("query = {q}");
+    }
+
+    #[test]
+    fn test_count_all() {
+        let query = parse("SELECT count(*) FROM table_1 GROUP BY a").unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("b", DataType::float_interval(0., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1: Relation = Relation::table()
+            .name("tab_1")
+            .path(["schema", "table_1"])
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        println!("relation = {relation}");
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
     }
 
     #[test]

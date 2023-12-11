@@ -12,14 +12,19 @@ use crate::{
     namer,
     relation::{Table, Variant as _},
 };
+use std::{
+    env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
+};
+
 use colored::Colorize;
 use postgres::{
     self,
     types::{FromSql, ToSql, Type},
 };
+use r2d2::Pool;
+use r2d2_postgres::{postgres::NoTls, PostgresConnectionManager};
 use rand::{rngs::StdRng, SeedableRng};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
-use std::{env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time};
 
 const DB: &str = "qrlew-test";
 const PORT: usize = 5432;
@@ -36,10 +41,12 @@ impl From<postgres::Error> for Error {
 pub struct Database {
     name: String,
     tables: Vec<Table>,
-    client: postgres::Client,
+    pool: Pool<PostgresConnectionManager<NoTls>>,
     drop: bool,
 }
 
+/// Only one pool
+pub static POSTGRES_POOL: Mutex<Option<Pool<PostgresConnectionManager<NoTls>>>> = Mutex::new(None);
 /// Only one thread start a container
 pub static POSTGRES_CONTAINER: Mutex<bool> = Mutex::new(false);
 
@@ -63,47 +70,25 @@ impl Database {
         env::var("POSTGRES_PASSWORD").unwrap_or(PASSWORD.into())
     }
 
+    /// Try to build a pool from an existing DB
     /// A postgresql instance must exist
     /// `docker run --name qrlew-test -p 5432:5432 -e POSTGRES_PASSWORD=qrlew-test -d postgres`
-    fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
-        log::info!("Try to get an existing DB");
-        let mut client = postgres::Client::connect(
-            &format!(
+    fn build_pool_from_existing() -> Result<Pool<PostgresConnectionManager<NoTls>>> {
+        let manager = PostgresConnectionManager::new(
+            format!(
                 "host=localhost port={} user={} password={}",
                 Database::port(),
                 Database::user(),
                 Database::password()
-            ),
-            postgres::NoTls,
-        )?;
-        let table_names: Vec<String> = client
-            .query(
-                "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='public'",
-                &[],
-            )?
-            .into_iter()
-            .map(|row| row.get("tablename"))
-            .collect();
-        if table_names.is_empty() {
-            Database {
-                name,
-                tables: vec![],
-                client,
-                drop: false,
-            }
-            .with_tables(tables)
-        } else {
-            Ok(Database {
-                name,
-                tables,
-                client,
-                drop: false,
-            })
-        }
+            )
+            .parse()?,
+            NoTls,
+        );
+        Ok(r2d2::Pool::builder().max_size(10).build(manager)?)
     }
 
-    /// Get a Database from a container
-    fn try_get_container(name: String, tables: Vec<Table>) -> Result<Self> {
+    /// Try to build a pool from a DB in a container
+    fn build_pool_from_container(name: String) -> Result<Pool<PostgresConnectionManager<NoTls>>> {
         let mut postgres_container = POSTGRES_CONTAINER.lock().unwrap();
         if *postgres_container == false {
             // A new container will be started
@@ -148,19 +133,13 @@ impl Database {
                 }
                 log::info!("{}", "DB ready".red());
             }
-            let client = postgres::Client::connect(
-                &format!("host=localhost port={port} user={USER} password={PASSWORD}"),
-                postgres::NoTls,
-            )?;
-            Ok(Database {
-                name,
-                tables: vec![],
-                client,
-                drop: false,
-            }
-            .with_tables(tables)?)
+            let manager = PostgresConnectionManager::new(
+                format!("host=localhost port={port} user={USER} password={PASSWORD}").parse()?,
+                NoTls,
+            );
+            Ok(r2d2::Pool::builder().max_size(10).build(manager)?)
         } else {
-            Database::try_get_existing(name, tables)
+            Database::build_pool_from_existing()
         }
     }
 }
@@ -176,8 +155,39 @@ impl fmt::Debug for Database {
 
 impl DatabaseTrait for Database {
     fn new(name: String, tables: Vec<Table>) -> Result<Self> {
-        Database::try_get_existing(name.clone(), tables.clone())
-            .or_else(|_| Database::try_get_container(name, tables))
+        let mut postgres_pool = POSTGRES_POOL.lock().unwrap();
+        if let None = *postgres_pool {
+            *postgres_pool = Some(
+                Database::build_pool_from_existing()
+                    .or_else(|_| Database::build_pool_from_container(name.clone()))?,
+            );
+        }
+        let pool = postgres_pool.as_ref().unwrap().clone();
+        let table_names: Vec<String> = pool
+            .get()?
+            .query(
+                "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='public'",
+                &[],
+            )?
+            .into_iter()
+            .map(|row| row.get("tablename"))
+            .collect();
+        if table_names.is_empty() {
+            Database {
+                name,
+                tables: vec![],
+                pool,
+                drop: false,
+            }
+            .with_tables(tables)
+        } else {
+            Ok(Database {
+                name,
+                tables,
+                pool,
+                drop: false,
+            })
+        }
     }
 
     fn name(&self) -> &str {
@@ -193,17 +203,15 @@ impl DatabaseTrait for Database {
     }
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
-        Ok(self
-            .client
-            .execute(&table.create(PostgresTranslator).to_string(), &[])? as usize)
+        let mut connection = self.pool.get()?;
+        Ok(connection.execute(&table.create(PostgresTranslator).to_string(), &[])? as usize)
     }
 
     fn insert_data(&mut self, table: &Table) -> Result<()> {
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
-        let statement = self
-            .client
-            .prepare(&table.insert("$", PostgresTranslator).to_string())?;
+        let mut connection = self.pool.get()?;
+        let statement = connection.prepare(&table.insert("$", PostgresTranslator).to_string())?;
         for _ in 0..size {
             let structured: value::Struct =
                 table.schema().data_type().generate(&mut rng).try_into()?;
@@ -214,14 +222,18 @@ impl DatabaseTrait for Database {
             let values = values?;
             let params: Vec<&(dyn ToSql + Sync)> =
                 values.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
-            self.client.execute(&statement, &params)?;
+            connection.execute(&statement, &params)?;
         }
         Ok(())
     }
 
     fn query(&mut self, query: &str) -> Result<Vec<value::List>> {
-        let statement = self.client.prepare(query)?;
-        let rows = self.client.query(&statement, &[])?;
+        let rows: Vec<_>;
+        {
+            let mut connection = self.pool.get()?;
+            let statement = connection.prepare(query)?;
+            rows = connection.query(&statement, &[])?;
+        }
         Ok(rows
             .into_iter()
             .map(|r| {
@@ -402,6 +414,7 @@ mod tests {
     #[test]
     fn database_test() -> Result<()> {
         let mut database = test_database();
+        println!("Pool {}", database.pool.max_size());
         assert!(!database.eq("SELECT * FROM table_1", "SELECT * FROM table_2"));
         assert!(database.eq(
             "SELECT * FROM table_1",

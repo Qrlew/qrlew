@@ -21,10 +21,10 @@ use rand::{rngs::StdRng, SeedableRng};
 use sqlx::{
     self,
     mssql::{
-        self, Mssql, MssqlArguments, MssqlConnectOptions, MssqlQueryResult, MssqlRow, MssqlValueRef,
+        self, Mssql, MssqlArguments, MssqlConnectOptions, MssqlQueryResult, MssqlRow, MssqlValueRef, MssqlPoolOptions,
     },
     query::Query,
-    Connection, Decode, Encode, MssqlConnection, Row, Type, TypeInfo, ValueRef as _,
+    Connection, Decode, Encode, MssqlConnection, Row, Type, TypeInfo, ValueRef as _, MssqlPool, Pool,
 };
 use std::{
     env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
@@ -44,10 +44,11 @@ impl From<sqlx::Error> for Error {
 pub struct Database {
     name: String,
     tables: Vec<Table>,
-    connection: MssqlConnection,
+    pool: MssqlPool,
     drop: bool,
 }
 
+pub static MSSQL_POOL: Mutex<Option<Pool<Mssql>>> = Mutex::new(None);
 /// Only one thread start a container
 pub static MSSQL_CONTAINER: Mutex<bool> = Mutex::new(false);
 
@@ -73,50 +74,52 @@ impl Database {
 
     /// A mssql instance must exist
     /// `docker run --name qrlew-mssql-test -p 1433:1433 -d mssql`
-    fn try_get_existing(name: String, tables: Vec<Table>) -> Result<Self> {
+    fn build_pool_from_existing() -> Result<Pool<Mssql>> {
         log::info!("Try to get an existing DB");
-        println!("Try to get an existing DB");
+        println!("FROM inside build_pool_from_existing...");
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let mut connection = rt.block_on(async_connect(&format!(
+        let pool = rt.block_on(async_connect(&format!(
             "mssql://{}:{}@localhost:{}/master?encrypt=false",
             Database::user(),
             Database::password(),
             Database::port(),
         )))?;
-
-        let find_tables_query =
-            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
-        let table_names: Vec<String> = rt
-            .block_on(async_query(find_tables_query, &mut connection))?
-            .iter()
-            .map(|r| {
-                let val_as_str: String = r.to_vec()[0].clone().try_into().unwrap();
-                val_as_str
-            })
-            .collect();
-        if table_names.is_empty() {
-            Database {
-                name,
-                tables: vec![],
-                connection,
-                drop: false,
-            }
-            .with_tables(tables)
-        } else {
-            Ok(Database {
-                name,
-                tables,
-                connection,
-                drop: false,
-            })
-        }
+        Ok(pool)
+        // let find_tables_query =
+        //     "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
+        // let table_names: Vec<String> = rt
+        //     .block_on(async_query(find_tables_query, &mut connection))?
+        //     .iter()
+        //     .map(|r| {
+        //         let val_as_str: String = r.to_vec()[0].clone().try_into().unwrap();
+        //         val_as_str
+        //     })
+        //     .collect();
+        // if table_names.is_empty() {
+        //     Database {
+        //         name,
+        //         tables: vec![],
+        //         pool,
+        //         drop: false,
+        //     }
+        //     .with_tables(tables)
+        // } else {
+        //     Ok(Database {
+        //         name,
+        //         tables,
+        //         pool,
+        //         drop: false,
+        //     })
+        // }
     }
 
     // /// Get a Database from a container
-    fn try_get_container(name: String, tables: Vec<Table>) -> Result<Self> {
+    fn build_pool_from_container(name: String) -> Result<Pool<Mssql>> {
+        println!("FROM inside build_pool_from_container...");
         let mut mssql_container = MSSQL_CONTAINER.lock().unwrap();
 
-        if !*mssql_container {
+        if *mssql_container == false {
+            println!("FROM inside mssql_container == false");
             // A new container will be started
             *mssql_container = true;
 
@@ -153,43 +156,53 @@ impl Database {
                     .output()?;
                 log::info!("{:?}", output);
                 log::info!("Waiting for the DB to start");
-                while !Command::new("docker")
-                    .arg("exec")
-                    .arg(&name)
-                    .arg("sqlcmd")
-                    .arg("-S")
-                    .arg(format!("localhost,{port}"))
-                    .arg("-U")
-                    .arg("SA")
-                    .arg("-P")
-                    .arg("{PASSWORD}")
-                    .arg("-Q")
-                    .arg("SELECT 1")
-                    .status()?
-                    .success()
-                {
-                    thread::sleep(time::Duration::from_millis(200));
-                    log::info!("Waiting...");
-                }
+                // [!NOTE] sqlcmd tool is not available inside the ARM64 version of SQL Edge containers.
+                // FROM https://hub.docker.com/_/microsoft-azure-sql-edge
+
+                
+
+                // while !Command::new("docker")
+                //     .arg("exec")
+                //     .arg(&name)
+                //     .arg("/bin/bash")
+                //     .arg("&&")
+                //     .arg("echo")
+                //     .arg("1")
+                //     .status()?
+                //     .success()
+                // while !Command::new("docker")
+                //     .arg("exec")
+                //     .arg(&name)
+                //     .arg("sqlcmd")
+                //     .arg("-S")
+                //     .arg(format!("localhost,{port}"))
+                //     .arg("-U")
+                //     .arg("SA")
+                //     .arg("-P")
+                //     .arg("{PASSWORD}")
+                //     .arg("-Q")
+                //     .arg("SELECT 1")
+                //     .status()?
+                //     .success()
+                // {
+                //     thread::sleep(time::Duration::from_millis(500));
+                //     log::info!("Waiting...");
+                // }
+                thread::sleep(time::Duration::from_millis(5000));
                 log::info!("{}", "DB ready".red());
             }
 
             let rt = tokio::runtime::Runtime::new().unwrap();
-            let connection = rt.block_on(async_connect(&format!(
+            let pool = rt.block_on(async_connect(&format!(
                 "mssql://{}:{}@localhost:{}/master?encrypt=false",
                 Database::user(),
                 Database::password(),
                 Database::port(),
             )))?;
-            Ok(Database {
-                name,
-                tables: vec![],
-                connection,
-                drop: false,
-            }
-            .with_tables(tables)?)
+            Ok(pool)
         } else {
-            Database::try_get_existing(name, tables)
+            println!("FROM inside mssql_container == true");
+            Database::build_pool_from_existing()
         }
     }
 
@@ -296,8 +309,42 @@ impl fmt::Debug for Database {
 
 impl DatabaseTrait for Database {
     fn new(name: String, tables: Vec<Table>) -> Result<Self> {
-        Database::try_get_existing(name.clone(), tables.clone())
-            .or_else(|_| Database::try_get_container(name, tables))
+        let mut mssql_pool = MSSQL_POOL.lock().unwrap();
+        if let None = *mssql_pool {
+            *mssql_pool = Some(
+                Database::build_pool_from_existing()
+                .or_else(|_| Database::build_pool_from_container(name.clone()))?
+            );
+        }
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let pool = mssql_pool.as_ref().unwrap().clone();
+        let find_tables_query =
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
+        let table_names: Vec<String> = rt
+            .block_on(async_query(find_tables_query, &pool))?
+            .iter()
+            .map(|r| {
+                let val_as_str: String = r.to_vec()[0].clone().try_into().unwrap();
+                val_as_str
+            })
+            .collect();
+        println!("Found Tables: {:?}", table_names);
+        if table_names.is_empty() {
+            Database {
+                name,
+                tables: vec![],
+                pool,
+                drop: false,
+            }
+            .with_tables(tables)
+        } else {
+            Ok(Database {
+                name,
+                tables,
+                pool,
+                drop: false,
+            })
+        }
     }
 
     fn name(&self) -> &str {
@@ -317,8 +364,8 @@ impl DatabaseTrait for Database {
         let translator = MSSQLTranslator;
         let create_table_query = &table.create(translator).to_string();
         let query = sqlx::query(&create_table_query[..]);
-        rt.block_on(async_execute(query, &mut self.connection))?;
-        Ok(1 as usize)
+        let res = rt.block_on(async_execute(query, &self.pool))?;
+        Ok(res.rows_affected() as usize)
     }
 
     fn insert_data(&mut self, table: &Table) -> Result<()> {
@@ -339,7 +386,7 @@ impl DatabaseTrait for Database {
             for value in &values {
                 insert_query = insert_query.bind(value);
             }
-            rt.block_on(async_execute(insert_query, &mut self.connection))?;
+            rt.block_on(async_execute(insert_query, &self.pool))?;
         }
         Ok(())
     }
@@ -347,16 +394,16 @@ impl DatabaseTrait for Database {
     fn query(&mut self, query: &str) -> Result<Vec<value::List>> {
         println!("FROM inside query...");
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async_query(query, &mut self.connection))
+        rt.block_on(async_query(query, &self.pool))
     }
 }
 
 async fn async_query(
     query_str: &str,
-    connection: &mut MssqlConnection,
+    pool: &Pool<Mssql>,
 ) -> Result<Vec<value::List>> {
-    println!("FROM inside async_query...");
-    let rows = sqlx::query(query_str).fetch_all(connection).await?;
+    println!("FROM inside async_query: {}", query_str);
+    let rows = sqlx::query(query_str).fetch_all(pool).await?;
 
     Ok(rows
         .iter()
@@ -374,14 +421,13 @@ async fn async_query(
 
 async fn async_execute(
     query: Query<'_, mssql::Mssql, MssqlArguments>,
-    connection: &mut MssqlConnection,
+    pool: &Pool<Mssql>,
 ) -> Result<MssqlQueryResult> {
-    Ok(query.execute(connection).await?)
+    Ok(query.execute(pool).await?)
 }
 
-async fn async_connect(connection_string: &str) -> Result<MssqlConnection> {
-    let connection_options = MssqlConnectOptions::from_str(connection_string)?;
-    Ok(MssqlConnection::connect_with(&connection_options).await?)
+async fn async_connect(connection_string: &str) -> Result<MssqlPool> {
+    Ok(MssqlPoolOptions::new().max_connections(10).connect(connection_string).await?)
 }
 
 #[derive(Debug, Clone)]
@@ -650,6 +696,26 @@ mod tests {
             let done = sqlx::query("INSERT INTO users (id) VALUES (@p1)")
                 .bind(index as f64)
                 .execute(&mut conn)
+                .await?;
+
+            assert_eq!(done.rows_affected(), 1);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_insert_strings_with_pool() -> Result<()> {
+        let connection_string = "mssql://SA:MyPass@word@localhost:1433/master?encrypt=false";
+        let pool = MssqlPoolOptions::new().test_before_acquire(true).connect(connection_string).await?;
+
+        // let connection_options = MssqlConnectOptions::from_str(connection_string)?;
+        // let mut conn = MssqlConnection::connect_with(&connection_options).await?;
+        let _ = pool.execute("CREATE TABLE users (id FLOAT);").await?;
+
+        for index in 1..=2_i32 {
+            let done = sqlx::query("INSERT INTO users (id) VALUES (@p1)")
+                .bind(index as f64)
+                .execute(&pool)
                 .await?;
 
             assert_eq!(done.rows_affected(), 1);

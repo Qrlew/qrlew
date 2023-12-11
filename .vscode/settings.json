@@ -8,6 +8,7 @@
         "sqlite",
     ],
     "editor.codeActionsOnSave": {},
+    "rust-analyzer.cargo.buildScripts.overrideCommand": null,
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml"
     ],

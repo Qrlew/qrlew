@@ -3,8 +3,8 @@ use crate::{
     builder::{Ready, With, WithIterator},
     differential_privacy::{private_query, DPRelation, PrivateQuery, Result},
     expr::{aggregate, Expr},
-    namer,
-    protection::{PEPRelation, ProtectedEntity},
+    namer::{self, name_from_content},
+    privacy_unit_tracking::{PUPRelation, PrivacyUnit},
     relation::{Join, Reduce, Relation, Variant as _},
 };
 
@@ -26,21 +26,21 @@ impl Reduce {
                         .collect::<Vec<_>>(),
                 )
                 .with((
-                    ProtectedEntity::protected_entity_id(),
-                    Expr::col(ProtectedEntity::protected_entity_id()),
+                    PrivacyUnit::privacy_unit(),
+                    Expr::col(PrivacyUnit::privacy_unit()),
                 ))
                 .with((
-                    ProtectedEntity::protected_entity_weight(),
-                    Expr::col(ProtectedEntity::protected_entity_weight()),
+                    PrivacyUnit::privacy_unit_weight(),
+                    Expr::col(PrivacyUnit::privacy_unit_weight()),
                 ))
                 .input(self.input().clone())
                 .build();
-            PEPRelation::try_from(relation)?.dp_values(epsilon, delta)
+            PUPRelation::try_from(relation)?.dp_values(epsilon, delta)
         }
     }
 }
 
-impl PEPRelation {
+impl PUPRelation {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs the (epsilon, delta)-DP values
     /// (found by tau-thresholding) of the fields of the current `Relation`
@@ -51,15 +51,13 @@ impl PEPRelation {
                 "Not enough budget for tau-thresholding. Got: (espilon, delta) = ({epsilon}, {delta})"
             )));
         }
-        // compute COUNT (DISTINCT ProtectedEntity::protected_entity_id()) GROUP BY columns
+        // compute COUNT (DISTINCT PrivacyUnit::privacy_unit()) GROUP BY columns
         let columns: Vec<String> = self
             .schema()
             .iter()
             .cloned()
             .filter_map(|f| {
-                if f.name() == self.protected_entity_id()
-                    || f.name() == self.protected_entity_weight()
-                {
+                if f.name() == self.privacy_unit() || f.name() == self.privacy_unit_weight() {
                     None
                 } else {
                     Some(f.name().to_string())
@@ -68,7 +66,7 @@ impl PEPRelation {
             .collect();
         let columns: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
         let aggregates = vec![(COUNT_DISTINCT_PE_ID, aggregate::Aggregate::Count)];
-        let peid = self.protected_entity_id().to_string();
+        let peid = self.privacy_unit().to_string();
         let rel =
             Relation::from(self).distinct_aggregates(peid.as_ref(), columns.clone(), aggregates);
 
@@ -95,7 +93,7 @@ impl PEPRelation {
 
     /// Returns a DPRelation whose:
     ///     - first field is a Relation whose outputs are
-    /// (epsilon, delta)-DP values of grouping keys of the current PEPRelation,
+    /// (epsilon, delta)-DP values of grouping keys of the current PUPRelation,
     ///     - second field is a PrivateQuery corresponding the used mechanisms
     /// The (epsilon, delta)-DP values are found by:
     ///     - Using the propagated public values of the grouping columns when they exist
@@ -106,8 +104,8 @@ impl PEPRelation {
             .schema()
             .iter()
             .filter_map(|f| {
-                (f.name() != self.protected_entity_id()
-                    && f.name() != self.protected_entity_weight()
+                (f.name() != self.privacy_unit()
+                    && f.name() != self.privacy_unit_weight()
                     && f.all_values())
                 .then_some(f.name().to_string())
             })
@@ -146,6 +144,8 @@ impl Relation {
         Ok(relation_with_private_values.public_values()?)
     }
 
+    /// We join the `self` `Relation` with the `grouping_values Relation`;
+    /// We use a `LEFT OUTER` join for guaranteeing that all the possible grouping keys are released
     pub fn join_with_grouping_values(self, grouping_values: Relation) -> Result<Relation> {
         let left = grouping_values;
         let right = self;
@@ -166,12 +166,30 @@ impl Relation {
             .iter()
             .map(|f| f.name().to_string())
             .collect::<Vec<_>>();
+        let left_names = left
+            .schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect::<Vec<_>>();
+        let right_names = right
+            .schema()
+            .iter()
+            .map(|f| {
+                let name = f.name().to_string();
+                if left_names.contains(&name) {
+                    name_from_content("left_".to_string(), f)
+                } else {
+                    name
+                }
+            })
+            .collect::<Vec<_>>();
 
         let join_rel: Relation = Relation::join()
             .right(right)
-            .right_names(names.clone())
+            .right_names(right_names.clone())
             .left(left)
-            .inner()
+            .left_names(left_names.clone())
+            .left_outer()
             .on_iter(on)
             .build();
 
@@ -185,14 +203,14 @@ mod tests {
     use crate::{
         ast,
         builder::With,
-        data_type::{DataType, DataTyped, Variant},
+        data_type::{DataType, DataTyped, Integer, Variant},
         display::Dot,
         expr::AggregateColumn,
         io::{postgresql, Database},
-        protection::{ProtectedEntity, Protection, Strategy},
-        relation::{Join, Schema},
+        privacy_unit_tracking::{PrivacyUnit, PrivacyUnitTracking, Strategy},
+        relation::{Field, Join, Schema},
     };
-    use std::ops::Deref;
+    use std::{collections::HashSet, ops::Deref};
 
     #[test]
     fn test_tau_thresholding_values() {
@@ -204,19 +222,19 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        ProtectedEntity::protected_entity_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        ProtectedEntity::protected_entity_weight(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),
             )
             .build();
-        let protected_table = PEPRelation(table);
+        let pup_table = PUPRelation(table);
 
-        let (rel, pq) = protected_table
+        let (rel, pq) = pup_table
             .clone()
             .tau_thresholding_values(1., 0.003)
             .unwrap()
@@ -243,18 +261,18 @@ mod tests {
                     .with(("a", DataType::integer_values([1, 2, 4, 6])))
                     .with(("b", DataType::float_values([1.2, 4.6, 7.8])))
                     .with((
-                        ProtectedEntity::protected_entity_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        ProtectedEntity::protected_entity_weight(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),
             )
             .build();
-        let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
+        let pup_table = PUPRelation(table);
+        let (rel, pq) = pup_table.dp_values(1., 0.003).unwrap().into();
         matches!(rel, Relation::Join(_));
         assert_eq!(
             rel.data_type(),
@@ -275,18 +293,18 @@ mod tests {
                     .with(("a", DataType::integer_range(1..=10)))
                     .with(("b", DataType::float_range(5.4..=20.)))
                     .with((
-                        ProtectedEntity::protected_entity_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        ProtectedEntity::protected_entity_weight(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),
             )
             .build();
-        let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
+        let pup_table = PUPRelation(table);
+        let (rel, pq) = pup_table.dp_values(1., 0.003).unwrap().into();
         assert!(matches!(rel, Relation::Map(_)));
         assert_eq!(
             rel.data_type(),
@@ -306,18 +324,18 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        ProtectedEntity::protected_entity_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        ProtectedEntity::protected_entity_weight(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),
             )
             .build();
-        let protected_table = PEPRelation(table);
-        let (rel, pq) = protected_table.dp_values(1., 0.003).unwrap().into();
+        let pup_table = PUPRelation(table);
+        let (rel, pq) = pup_table.dp_values(1., 0.003).unwrap().into();
         assert!(matches!(rel, Relation::Join(_)));
         assert!(matches!(rel.inputs()[0], &Relation::Values(_)));
         assert!(matches!(rel.inputs()[1], &Relation::Map(_)));
@@ -342,11 +360,11 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        ProtectedEntity::protected_entity_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        ProtectedEntity::protected_entity_weight(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),
@@ -433,11 +451,11 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::float_interval(1., 2.)))
                     .with((
-                        ProtectedEntity::protected_entity_id(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        ProtectedEntity::protected_entity_weight(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),
@@ -451,12 +469,12 @@ mod tests {
             .with(("twice_b", expr!(2 * b)))
             .with(("c", expr!(3 * c)))
             .with((
-                ProtectedEntity::protected_entity_id(),
-                Expr::col(ProtectedEntity::protected_entity_id()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
-                ProtectedEntity::protected_entity_weight(),
-                Expr::col(ProtectedEntity::protected_entity_weight()),
+                PrivacyUnit::privacy_unit_weight(),
+                Expr::col(PrivacyUnit::privacy_unit_weight()),
             ))
             .input(table.clone())
             .build();
@@ -493,12 +511,12 @@ mod tests {
             .with(("c", expr!(3 * c)))
             .filter(Expr::in_list(Expr::col("c"), Expr::list(vec![1., 1.5])))
             .with((
-                ProtectedEntity::protected_entity_id(),
-                Expr::col(ProtectedEntity::protected_entity_id()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
-                ProtectedEntity::protected_entity_weight(),
-                Expr::col(ProtectedEntity::protected_entity_weight()),
+                PrivacyUnit::privacy_unit_weight(),
+                Expr::col(PrivacyUnit::privacy_unit_weight()),
             ))
             .input(table.clone())
             .build();
@@ -551,7 +569,7 @@ mod tests {
             .right_names(vec!["id", "user_id", "description", "date"])
             .build();
         Relation::from(join.clone()).display_dot().unwrap();
-        let protection = Protection::from((
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
                 ("item_table", vec![("order_id", "order_table", "id")], "id"),
@@ -559,10 +577,14 @@ mod tests {
             ],
             Strategy::Hard,
         ));
-        let protected_left = protection.table(&left.try_into().unwrap()).unwrap();
-        let protected_right = protection.table(&right.try_into().unwrap()).unwrap();
-        let protected_join = protection
-            .join(&join, protected_left, protected_right)
+        let pup_left = privacy_unit_tracking
+            .table(&left.try_into().unwrap())
+            .unwrap();
+        let pup_right = privacy_unit_tracking
+            .table(&right.try_into().unwrap())
+            .unwrap();
+        let pup_join = privacy_unit_tracking
+            .join(&join, pup_left, pup_right)
             .unwrap();
 
         let map: Relation = Relation::map()
@@ -571,14 +593,14 @@ mod tests {
             .with(("twice_price", expr!(2 * price)))
             .with(("date", expr!(date)))
             .with((
-                ProtectedEntity::protected_entity_id(),
-                Expr::col(ProtectedEntity::protected_entity_id()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
-                ProtectedEntity::protected_entity_weight(),
-                Expr::col(ProtectedEntity::protected_entity_weight()),
+                PrivacyUnit::privacy_unit_weight(),
+                Expr::col(PrivacyUnit::privacy_unit_weight()),
             ))
-            .input(protected_join.deref().clone())
+            .input(pup_join.deref().clone())
             .build();
 
         let reduce: Reduce = Relation::reduce()
@@ -602,5 +624,87 @@ mod tests {
         ])));
         let dp_query = ast::Query::from(&dp_relation);
         _ = database.query(&dp_query.to_string()).unwrap();
+    }
+
+    #[test]
+    fn test_differentially_private_output_all_grouping_keys() {
+        // test the results contains all the keys asked by the user (i.e. in the WHERE )
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let table = relations
+            .get(&["large_user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        let new_schema: Schema = table
+            .schema()
+            .iter()
+            .map(|f| {
+                if f.name() == "city" {
+                    Field::from_name_data_type("city", DataType::text())
+                } else {
+                    f.clone()
+                }
+            })
+            .collect();
+        let table: Relation = Relation::table()
+            .path(["large_user_table"])
+            .name("more_users")
+            .size(100000)
+            .schema(new_schema)
+            .build();
+        let input: Relation = Relation::map()
+            .name("map_relation")
+            .with(("income", expr!(income)))
+            .with(("city", expr!(city)))
+            .with(("age", expr!(age)))
+            .with((PrivacyUnit::privacy_unit(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit_weight(), expr!(id)))
+            .filter(Expr::in_list(
+                Expr::col("city"),
+                Expr::list(vec!["Paris".to_string(), "London".to_string()]),
+            ))
+            .input(table.clone())
+            .build();
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_income".to_string(), AggregateColumn::sum("income")))
+            .group_by(expr!(city))
+            .group_by(expr!(age))
+            .input(input)
+            .build();
+        let (dp_relation, _) = reduce
+            .differentially_private_group_by(1., 1e-2)
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        let results = database.query(query).unwrap();
+        let city_keys: HashSet<_> = results
+            .iter()
+            .map(|row| row.to_vec().clone()[0].clone().to_string())
+            .collect();
+        let correct_keys: HashSet<_> = vec!["London".to_string(), "Paris".to_string()]
+            .into_iter()
+            .collect();
+        assert_eq!(city_keys, correct_keys);
+
+        let input_relation_with_privacy_tracked_group_by = reduce
+            .input()
+            .clone()
+            .join_with_grouping_values(dp_relation)
+            .unwrap();
+        input_relation_with_privacy_tracked_group_by
+            .display_dot()
+            .unwrap();
+        let query: &str =
+            &ast::Query::from(&input_relation_with_privacy_tracked_group_by).to_string();
+        let results = database.query(query).unwrap();
+        let city_keys: HashSet<_> = results
+            .iter()
+            .map(|row| row.to_vec().clone()[0].clone().to_string())
+            .collect();
+        println!("{:?}", city_keys);
+        assert_eq!(city_keys, correct_keys);
     }
 }

@@ -6,15 +6,88 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## Added
+
+## [0.5.1] - 2023-11-19
+## Added
+- Added `Count(*)` by parsing it as `Count(1)` [#185](https://github.com/Qrlew/qrlew/issues/185)
+- `CAST` function [MR188](https://github.com/Qrlew/qrlew/pull/188)
+
+### Changed
+- Add a warning when the textbook gaussian mechanism is not really applied [#190](https://github.com/Qrlew/qrlew/issues/190)
+
+## [0.5.0] - 2023-11-19
+### Changed
+- Breaking name change: Protected Entity -> Privacy Unit + PEP -> PUP [#189](https://github.com/Qrlew/qrlew/issues/189)
+
+## [0.4.13] - 2023-11-14
+## Added
+- `TRIM` function [MR183](https://github.com/Qrlew/qrlew/pull/183)
+- `SUBSTR` function [MR186](https://github.com/Qrlew/qrlew/pull/186)
+
+## [0.4.12] - 2023-11-09
+### Fixed
+- Dp query should release all the possible values of the grouping keys. [MR180](https://github.com/Qrlew/qrlew/pull/180)
+- `DataType`` propagation in joins: if their is not INNER or CROSS contraint, then the output `DataType`s must be optional [MR179](https://github.com/Qrlew/qrlew/pull/179)
+### Added
+- Implemented `Coalesce` [MR178](https://github.com/Qrlew/qrlew/pull/178)
+- `TRIM` function [MR183](https://github.com/Qrlew/qrlew/pull/183)
+### Changed
+- If no tau-thresholding, the budget is transferred to the aggregations [MR180](https://github.com/Qrlew/qrlew/pull/180)
+- Allow public tables [MR182](https://github.com/Qrlew/qrlew/pull/182)
+
+## [0.4.11] - 2023-11-09
+### Fixed
+- Use a connection pool (R2D2) for multithreaded access to DB
+
+## [0.4.10] - 2023-11-09
+### Fixed
+- Retries only 10 times
+
+## [0.4.9] - 2023-11-09
+### Fixed
+- Do not split budget in half when the query has no GROUP BY. Use all the budget in the aggregations
+
+## [0.4.8] - 2023-11-09
+### Fixed
+- Retries in postgres
+
+## [0.4.7] - 2023-11-09
+### Fixed
+- DP can be SD
+
+## [0.4.6] - 2023-10-27
+### Fixed
+- fixed clipped noise
+
+## [0.4.5] - 2023-10-27
+### Changed
+- added clipped noise [MR171](https://github.com/Qrlew/qrlew/pull/171)
+
+## [0.4.4] - 2023-10-27
+### Fixed
+- changed PEP compilation
+
+## [0.4.3] - 2023-10-27
+### Fixed
+- added rewrite_as_pep [MR170](https://github.com/Qrlew/qrlew/pull/170)
+- Updates sqlparser version
+
+## [0.4.2] - 2023-10-27
+### Fixed
+- gaussian noise [MR169](https://github.com/Qrlew/qrlew/pull/169)
+
+## [0.4.1] - 2023-10-24
 ### Added
 - Differential privacy in rules [MR156](https://github.com/Qrlew/qrlew/pull/156)
 - Method for dp rewritting: rewrite_with_differential_privacy [MR162](https://github.com/Qrlew/qrlew/pull/162)
+- computation of the size in the case of join where the constraint is unique [MR163](https://github.com/Qrlew/qrlew/pull/163)
+- - `rewriting_rul.RewriteVisitor` outputs a `RelationWithPrivateQuery` [MR157](https://github.com/Qrlew/qrlew/pull/157)
 ### Fixed
 - differential privacy for the new formalism [MR155](https://github.com/Qrlew/qrlew/pull/155)
 - bug in differential privacy [MR158](https://github.com/Qrlew/qrlew/pull/158)
-### Added
-- `rewriting_rul.RewriteVisitor` outputs a `RelationWithPrivateQuery` [MR157](https://github.com/Qrlew/qrlew/pull/157)
-
+### Changed
+- `set rewrite_with_differential_privacy` as a Relation's method [MR166](https://github.com/Qrlew/qrlew/pull/166)
 
 ## [0.4.0] - 2023-10-19
 ### Added

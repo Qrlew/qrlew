@@ -179,7 +179,12 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Upper
             | expr::function::Function::Random(_)
             | expr::function::Function::Least
-            | expr::function::Function::Greatest => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Greatest
+            | expr::function::Function::Coalesce
+            | expr::function::Function::Rtrim
+            | expr::function::Function::Ltrim
+            | expr::function::Function::Substr
+            | expr::function::Function::SubstrWithSize => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
@@ -189,6 +194,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::function::Function::Case => ast::Expr::Case {
                 operand: None,
@@ -215,10 +222,38 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             expr::function::Function::CastAsText => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::text().into(),
+                format: None,
             },
-            expr::function::Function::CastAsFloat => todo!(),
-            expr::function::Function::CastAsInteger => todo!(),
-            expr::function::Function::CastAsDateTime => todo!(),
+            expr::function::Function::CastAsFloat => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::float().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsInteger => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::integer().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsBoolean => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::boolean().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsDateTime => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::date_time().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsDate => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::date().into(),
+                format: None,
+            },
+            expr::function::Function::CastAsTime => ast::Expr::Cast {
+                expr: arguments[0].clone().into(),
+                data_type: DataType::time().into(),
+                format: None,
+            },
         }
     }
     // TODO implement this properly
@@ -240,6 +275,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Max => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident {
@@ -253,6 +290,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Median => todo!(),
             expr::aggregate::Aggregate::NUnique => todo!(),
@@ -272,6 +311,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::List => todo!(),
             expr::aggregate::Aggregate::Count => ast::Expr::Function(ast::Function {
@@ -286,6 +327,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Quantile(_) => todo!(),
             expr::aggregate::Aggregate::Quantiles(_) => todo!(),
@@ -301,6 +344,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::AggGroups => todo!(),
             expr::aggregate::Aggregate::Std => ast::Expr::Function(ast::Function {
@@ -315,6 +360,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
             expr::aggregate::Aggregate::Var => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident {
@@ -328,6 +375,8 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 distinct: false,
                 special: false,
                 order_by: vec![],
+                filter: None,
+                null_treatment: None,
             }),
         }
     }
@@ -453,5 +502,91 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {}", gen_expr.to_string());
         assert_eq!(gen_expr.to_string(), "a IN (4, 5)".to_string(),);
+    }
+
+    #[test]
+    fn test_coalesce() {
+        let str_expr = "Coalesce(a, 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        println!("ast::expr = {ast_expr}");
+        println!("ast::expr = {:?}", ast_expr);
+        assert_eq!(ast_expr.to_string(), str_expr.to_string(),);
+    }
+
+    #[test]
+    fn test_substr() {
+        let str_expr = "substr(a, 5, 2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "\nsubstr(a, 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "\nsubstring(a from 5 for 2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, parse_expr("substr(a, 5, 2)").unwrap());
+
+        let str_expr = "\nsubstring(a from 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, parse_expr("substr(a, 5)").unwrap());
+
+        let str_expr = "\nsubstring(a for 5)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, parse_expr("substr(a, 0, 5)").unwrap());
+    }
+    #[test]
+    fn test_cast() {
+        let str_expr = "cast(a as varchar)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as bigint)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as boolean)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as float)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
     }
 }

@@ -1,11 +1,5 @@
 //! For now a simple definition of Property
-use std::{
-    collections::HashSet,
-    fmt::{self, Arguments},
-    marker::PhantomData,
-    ops::Deref,
-    sync::Arc,
-};
+use std::{collections::HashSet, fmt, marker::PhantomData, ops::Deref, sync::Arc};
 
 use itertools::Itertools;
 
@@ -16,7 +10,7 @@ use crate::{
         private_query::{self, PrivateQuery},
     },
     hierarchy::Hierarchy,
-    protection::{protected_entity::ProtectedEntity, Protection},
+    privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
     synthetic_data::{self, SyntheticData},
@@ -28,7 +22,7 @@ use crate::{
 pub enum Property {
     Private,
     SyntheticData,
-    ProtectedEntityPreserving,
+    PrivacyUnitPreserving,
     DifferentiallyPrivate,
     Published,
     Public,
@@ -39,7 +33,7 @@ impl fmt::Display for Property {
         match self {
             Property::Private => write!(f, "Priv"),
             Property::SyntheticData => write!(f, "SD"),
-            Property::ProtectedEntityPreserving => write!(f, "PEP"),
+            Property::PrivacyUnitPreserving => write!(f, "PUP"),
             Property::DifferentiallyPrivate => write!(f, "DP"),
             Property::Published => write!(f, "Pubd"),
             Property::Public => write!(f, "Pub"),
@@ -53,7 +47,7 @@ pub enum Parameters {
     None,
     SyntheticData(SyntheticData),
     Budget(Budget),
-    ProtectedEntity(ProtectedEntity),
+    PrivacyUnit(PrivacyUnit),
 }
 
 /// Relation rewriting rule
@@ -578,72 +572,60 @@ impl<'a> RelationWithRewritingRule<'a> {
     }
 }
 
-pub fn rewrite_with_differential_privacy(
-    relation: Relation,
-    relations: Hierarchy<Arc<Relation>>,
-    synthetic_data: SyntheticData,
-    protected_entity: ProtectedEntity,
-    budget: Budget,
-) -> RelationWithPrivateQuery {
-    let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
-        synthetic_data,
-        protected_entity,
-        budget,
-    ));
-    let relation_with_rules = relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
-    relation_with_rules
-        .select_rewriting_rules(BaseRewritingRulesSelector)
-        .into_iter()
-        .map(|rwrr| {
-            (
-                rwrr.rewrite(BaseRewriter(&relations)),
-                rwrr.accept(BaseScore),
-            )
-        })
-        .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
-        .map(|(relation, _)| relation)
-        .unwrap()
-}
-
 // # Implement various rewriting rules visitors
 
 /// A basic rewriting rule setter
-struct BaseRewritingRulesSetter {
+pub struct RewritingRulesSetter<'a> {
+    relations: &'a Hierarchy<Arc<Relation>>,
     synthetic_data: SyntheticData,
-    protected_entity: ProtectedEntity,
+    privacy_unit: PrivacyUnit,
     budget: Budget,
 }
-// TODO implement this properly
 
-impl BaseRewritingRulesSetter {
+impl<'a> RewritingRulesSetter<'a> {
     pub fn new(
+        relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: SyntheticData,
-        protected_entity: ProtectedEntity,
+        privacy_unit: PrivacyUnit,
         budget: Budget,
-    ) -> BaseRewritingRulesSetter {
-        BaseRewritingRulesSetter {
+    ) -> RewritingRulesSetter {
+        RewritingRulesSetter {
+            relations,
             synthetic_data,
-            protected_entity,
+            privacy_unit,
             budget,
         }
     }
 }
 
-impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
+impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
     fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
-        vec![
-            RewritingRule::new(vec![], Property::Private, Parameters::None),
-            RewritingRule::new(
+        if self
+            .privacy_unit
+            .iter()
+            .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
+            .is_some()
+        {
+            vec![
+                RewritingRule::new(vec![], Property::Private, Parameters::None),
+                RewritingRule::new(
+                    vec![],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(self.synthetic_data.clone()),
+                ),
+                RewritingRule::new(
+                    vec![],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(self.privacy_unit.clone()),
+                ),
+            ]
+        } else {
+            vec![RewritingRule::new(
                 vec![],
-                Property::SyntheticData,
-                Parameters::SyntheticData(self.synthetic_data.clone()),
-            ),
-            RewritingRule::new(
-                vec![],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
-            ),
-        ]
+                Property::Public,
+                Parameters::None,
+            )]
+        }
     }
 
     fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
@@ -660,9 +642,9 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                 Parameters::None,
             ),
             RewritingRule::new(
-                vec![Property::ProtectedEntityPreserving],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
+                vec![Property::PrivacyUnitPreserving],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData],
@@ -684,9 +666,8 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                 Property::Published,
                 Parameters::None,
             ),
-            RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(
-                vec![Property::ProtectedEntityPreserving],
+                vec![Property::PrivacyUnitPreserving],
                 Property::DifferentiallyPrivate,
                 Parameters::Budget(self.budget.clone()),
             ),
@@ -721,38 +702,38 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
                 Parameters::None,
             ),
             RewritingRule::new(
-                vec![Property::Published, Property::ProtectedEntityPreserving],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
+                vec![Property::Published, Property::PrivacyUnitPreserving],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
-                vec![Property::ProtectedEntityPreserving, Property::Published],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
+                vec![Property::PrivacyUnitPreserving, Property::Published],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![
                     Property::DifferentiallyPrivate,
-                    Property::ProtectedEntityPreserving,
+                    Property::PrivacyUnitPreserving,
                 ],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![
-                    Property::ProtectedEntityPreserving,
+                    Property::PrivacyUnitPreserving,
                     Property::DifferentiallyPrivate,
                 ],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![
-                    Property::ProtectedEntityPreserving,
-                    Property::ProtectedEntityPreserving,
+                    Property::PrivacyUnitPreserving,
+                    Property::PrivacyUnitPreserving,
                 ],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData, Property::SyntheticData],
@@ -781,11 +762,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
             ),
             RewritingRule::new(
                 vec![
-                    Property::ProtectedEntityPreserving,
-                    Property::ProtectedEntityPreserving,
+                    Property::PrivacyUnitPreserving,
+                    Property::PrivacyUnitPreserving,
                 ],
-                Property::ProtectedEntityPreserving,
-                Parameters::ProtectedEntity(self.protected_entity.clone()),
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData, Property::SyntheticData],
@@ -808,9 +789,9 @@ impl<'a> SetRewritingRulesVisitor<'a> for BaseRewritingRulesSetter {
 }
 
 /// A basic rewriting rule eliminator
-struct BaseRewritingRulesEliminator; // TODO implement this properly
+pub struct RewritingRulesEliminator;
 
-impl<'a> MapRewritingRulesVisitor<'a> for BaseRewritingRulesEliminator {
+impl<'a> MapRewritingRulesVisitor<'a> for RewritingRulesEliminator {
     fn table(&self, table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
         rewriting_rules.into_iter().cloned().collect()
     }
@@ -915,9 +896,9 @@ impl<'a> MapRewritingRulesVisitor<'a> for BaseRewritingRulesEliminator {
 }
 
 /// A basic rewriting rule selector
-struct BaseRewritingRulesSelector; // TODO implement this properly
+pub struct RewritingRulesSelector;
 
-impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
+impl<'a> SelectRewritingRuleVisitor<'a> for RewritingRulesSelector {
     fn table(&self, table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
         rewriting_rules.into_iter().cloned().collect()
     }
@@ -992,9 +973,9 @@ impl<'a> SelectRewritingRuleVisitor<'a> for BaseRewritingRulesSelector {
 }
 
 /// Compute the number of DP ops
-struct BaseBudgetDispatcher;
+pub struct BudgetDispatcher;
 
-impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BaseBudgetDispatcher {
+impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BudgetDispatcher {
     fn visit(
         &self,
         acceptor: &'a RelationWithRewritingRule<'a>,
@@ -1011,9 +992,9 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BaseBudgetDispatc
 }
 
 /// Compute the score
-struct BaseScore;
+pub struct Score;
 
-impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
+impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for Score {
     fn visit(
         &self,
         acceptor: &'a RelationWithRewritingRule<'a>,
@@ -1022,7 +1003,7 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
         acceptor.inputs().iter().fold(
             match acceptor.attributes().output() {
                 Property::SyntheticData => 1.,
-                Property::ProtectedEntityPreserving => 2.,
+                Property::PrivacyUnitPreserving => 2.,
                 Property::DifferentiallyPrivate => 5.,
                 Property::Published => 1.,
                 Property::Public => 10.,
@@ -1033,9 +1014,15 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for BaseScore {
     }
 }
 
-struct BaseRewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
+pub struct Rewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
 
-impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
+impl<'a> Rewriter<'a> {
+    pub fn new(relations: &'a Hierarchy<Arc<Relation>>) -> Rewriter<'a> {
+        Rewriter(relations)
+    }
+}
+
+impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
     fn table(
         &self,
         table: &'a Table,
@@ -1047,16 +1034,13 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                 (Property::SyntheticData, Parameters::SyntheticData(synthetic_data)) => {
                     synthetic_data.table(table).unwrap().into()
                 }
-                (
-                    Property::ProtectedEntityPreserving,
-                    Parameters::ProtectedEntity(protected_entity),
-                ) => {
-                    let protection = Protection::new(
+                (Property::PrivacyUnitPreserving, Parameters::PrivacyUnit(privacy_unit)) => {
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
-                        protected_entity.clone(),
-                        crate::protection::Strategy::Soft,
+                        privacy_unit.clone(),
+                        crate::privacy_unit_tracking::Strategy::Soft,
                     );
-                    protection.table(table).unwrap().into()
+                    privacy_unit_tracking.table(table).unwrap().into()
                 }
                 (Property::DifferentiallyPrivate, _) => table.clone().into(),
                 (Property::Published, _) => table.clone().into(),
@@ -1081,16 +1065,16 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                 rewriting_rule.parameters(),
             ) {
                 (
-                    [Property::ProtectedEntityPreserving],
-                    Property::ProtectedEntityPreserving,
-                    Parameters::ProtectedEntity(protected_entity),
+                    [Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let protection = Protection::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
-                        protected_entity.clone(),
-                        crate::protection::Strategy::Soft,
+                        privacy_unit.clone(),
+                        crate::privacy_unit_tracking::Strategy::Soft,
                     );
-                    protection
+                    privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()
                         .into()
@@ -1118,7 +1102,7 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                 rewriting_rule.parameters(),
             ) {
                 (
-                    [Property::ProtectedEntityPreserving],
+                    [Property::PrivacyUnitPreserving],
                     Property::DifferentiallyPrivate,
                     Parameters::Budget(budget),
                 ) => {
@@ -1130,16 +1114,16 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                     dp_relation
                 }
                 (
-                    [Property::ProtectedEntityPreserving],
-                    Property::ProtectedEntityPreserving,
-                    Parameters::ProtectedEntity(protected_entity),
+                    [Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let protection = Protection::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
-                        protected_entity.clone(),
-                        crate::protection::Strategy::Hard,
+                        privacy_unit.clone(),
+                        crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    protection
+                    privacy_unit_tracking
                         .reduce(reduce, relation_input.try_into().unwrap())
                         .unwrap()
                         .into()
@@ -1169,16 +1153,16 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                 rewriting_rule.parameters(),
             ) {
                 (
-                    [Property::ProtectedEntityPreserving, Property::ProtectedEntityPreserving],
-                    Property::ProtectedEntityPreserving,
-                    Parameters::ProtectedEntity(protected_entity),
+                    [Property::PrivacyUnitPreserving, Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let protection = Protection::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
-                        protected_entity.clone(),
-                        crate::protection::Strategy::Hard,
+                        privacy_unit.clone(),
+                        crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    protection
+                    privacy_unit_tracking
                         .join(
                             join,
                             relation_left.try_into().unwrap(),
@@ -1188,16 +1172,16 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         .into()
                 }
                 (
-                    [Property::Published, Property::ProtectedEntityPreserving],
-                    Property::ProtectedEntityPreserving,
-                    Parameters::ProtectedEntity(protected_entity),
+                    [Property::Published, Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let protection = Protection::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
-                        protected_entity.clone(),
-                        crate::protection::Strategy::Hard,
+                        privacy_unit.clone(),
+                        crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    protection
+                    privacy_unit_tracking
                         .join_left_published(
                             join,
                             relation_left.try_into().unwrap(),
@@ -1207,16 +1191,16 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
                         .into()
                 }
                 (
-                    [Property::ProtectedEntityPreserving, Property::Published],
-                    Property::ProtectedEntityPreserving,
-                    Parameters::ProtectedEntity(protected_entity),
+                    [Property::PrivacyUnitPreserving, Property::Published],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let protection = Protection::new(
+                    let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
-                        protected_entity.clone(),
-                        crate::protection::Strategy::Hard,
+                        privacy_unit.clone(),
+                        crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    protection
+                    privacy_unit_tracking
                         .join_right_published(
                             join,
                             relation_left.try_into().unwrap(),
@@ -1268,15 +1252,12 @@ impl<'a> RewriteVisitor<'a> for BaseRewriter<'a> {
 mod tests {
     use super::*;
     use crate::{
-        ast,
         builder::With,
         display::Dot,
         expr::Identifier,
         io::{postgresql, Database},
-        protection::protected_entity,
-        relation,
         sql::parse,
-        synthetic_data, Relation,
+        Relation,
     };
 
     #[test]
@@ -1296,7 +1277,7 @@ mod tests {
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
         ]));
-        let protected_entity = ProtectedEntity::from(vec![
+        let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
                 vec![
@@ -1312,21 +1293,21 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
             synthetic_data,
-            protected_entity,
+            privacy_unit,
             budget,
         ));
         relation_with_rules.display_dot().unwrap();
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
-        for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
+        for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
             rwrr.display_dot().unwrap();
-            let num_dp = rwrr.accept(BaseBudgetDispatcher);
+            let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
-            println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
-            let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
+            println!("DEBUG SCORE {}", rwrr.accept(Score));
+            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
                 relation_with_private_query.private_query()
@@ -1348,7 +1329,7 @@ mod tests {
         }
         let query = parse(
             "SELECT order_id, sum(price) AS sum_price,
-        count(price) AS count_price,
+        count(*) AS count_price,
         avg(price) AS mean_price
         FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10) GROUP BY order_id",
         )
@@ -1358,7 +1339,7 @@ mod tests {
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
         ]));
-        let protected_entity = ProtectedEntity::from(vec![
+        let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
                 vec![
@@ -1374,21 +1355,21 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
             synthetic_data,
-            protected_entity,
+            privacy_unit,
             budget,
         ));
         relation_with_rules.display_dot().unwrap();
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
-        for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
+        for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
             rwrr.display_dot().unwrap();
-            let num_dp = rwrr.accept(BaseBudgetDispatcher);
+            let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
-            println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
-            let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
+            println!("DEBUG SCORE {}", rwrr.accept(Score));
+            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
                 relation_with_private_query.private_query()
@@ -1406,8 +1387,8 @@ mod tests {
         let relations = database.relations();
         let query = parse(r#"
         WITH order_avg_price (order_id, avg_price) AS (SELECT order_id, avg(price) AS avg_price FROM item_table GROUP BY order_id),
-        order_sum_abs_price (order_id, sum_abs_price) AS (SELECT order_id, 2*sum(abs(price)) AS sum_abs_price FROM item_table GROUP BY order_id),
-        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price-order_avg_price.avg_price)/(0.1+abs(order_sum_abs_price.sum_abs_price)) AS normalized_price
+        order_sum_abs_price (order_id, sum_abs_price) AS (SELECT order_id, sum(abs(price)) AS sum_abs_price FROM item_table GROUP BY order_id),
+        normalized_prices AS (SELECT order_avg_price.order_id, (item_table.price-order_avg_price.avg_price)/(0.1+order_sum_abs_price.sum_abs_price) AS normalized_price
             FROM item_table JOIN order_avg_price ON item_table.order_id=order_avg_price.order_id JOIN order_sum_abs_price ON item_table.order_id=order_sum_abs_price.order_id)
         SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
         "#,
@@ -1417,7 +1398,7 @@ mod tests {
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
         ]));
-        let protected_entity = ProtectedEntity::from(vec![
+        let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
                 vec![
@@ -1433,21 +1414,21 @@ mod tests {
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
-        let relation_with_rules = relation.set_rewriting_rules(BaseRewritingRulesSetter::new(
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
             synthetic_data,
-            protected_entity,
+            privacy_unit,
             budget,
         ));
         relation_with_rules.display_dot().unwrap();
-        let relation_with_rules =
-            relation_with_rules.map_rewriting_rules(BaseRewritingRulesEliminator);
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules.display_dot().unwrap();
-        for rwrr in relation_with_rules.select_rewriting_rules(BaseRewritingRulesSelector) {
+        for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
             rwrr.display_dot().unwrap();
-            let num_dp = rwrr.accept(BaseBudgetDispatcher);
+            let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
-            println!("DEBUG SCORE {}", rwrr.accept(BaseScore));
-            let relation_with_private_query = rwrr.rewrite(BaseRewriter(&relations));
+            println!("DEBUG SCORE {}", rwrr.accept(Score));
+            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
                 relation_with_private_query.private_query()
@@ -1457,46 +1438,5 @@ mod tests {
                 .display_dot()
                 .unwrap();
         }
-    }
-
-    #[test]
-    fn test_rewrite_with_differential_privacy() {
-        let database = postgresql::test_database();
-        let relations = database.relations();
-        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
-            (vec!["item_table"], Identifier::from("item_table")),
-            (vec!["order_table"], Identifier::from("order_table")),
-            (vec!["user_table"], Identifier::from("user_table")),
-        ]));
-        let protected_entity = ProtectedEntity::from(vec![
-            (
-                "item_table",
-                vec![
-                    ("order_id", "order_table", "id"),
-                    ("user_id", "user_table", "id"),
-                ],
-                "name",
-            ),
-            ("order_table", vec![("user_id", "user_table", "id")], "name"),
-            ("user_table", vec![], "name"),
-        ]);
-        let budget = Budget::new(1., 1e-3);
-        let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = rewrite_with_differential_privacy(
-            relation,
-            relations,
-            synthetic_data,
-            protected_entity,
-            budget,
-        );
-        relation_with_private_query
-            .relation()
-            .display_dot()
-            .unwrap();
-        println!(
-            "PrivateQuery = {}",
-            relation_with_private_query.private_query()
-        );
     }
 }

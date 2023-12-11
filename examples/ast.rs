@@ -68,6 +68,7 @@ fn build_ast() -> Result<(), &'static str> {
         offset: None,
         fetch: None,
         locks: vec![],
+        limit_by: vec![],
     };
     println!("{}\n", query);
     // A CTE
@@ -127,6 +128,9 @@ fn main() -> Result<(), &'static str> {
 
     // Print an AST with Values
     print_ast("(VALUES (1), (2), (3)) AS t1")?;
+
+    // Print an AST with count(*)
+    print_ast("SELECT COUNT(*) FROM table_1")?;
 
     Ok(())
 }
