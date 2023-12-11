@@ -168,14 +168,14 @@ impl fmt::Display for Function {
 
 impl Variant for Function {}
 
-/// Implemant random function constructor (same thing but no macro here)
+/// Implement some function constructor (same thing but no macro here)
 impl Function {
     pub fn random(n: usize) -> Function {
         Function::new(function::Function::Random(n), vec![])
     }
 }
 
-/// Implemant random expression constructor (same thing but no macro here)
+/// Implement random expression constructor (same thing but no macro here)
 impl Expr {
     pub fn random(n: usize) -> Expr {
         Expr::from(Function::random(n))
@@ -242,6 +242,37 @@ impl Expr {
 }
 
 /// Implement unary function constructors
+macro_rules! impl_nullary_function_constructors {
+    ($( $Function:ident ),*) => {
+        impl Function {
+            paste! {
+                $(pub fn [<$Function:snake>]() -> Function {
+                    Function::new(function::Function::$Function, vec![])
+                }
+                )*
+            }
+        }
+
+        impl Expr {
+            paste! {
+                $(pub fn [<$Function:snake>]() -> Expr {
+                    Expr::from(Function::[<$Function:snake>]())
+                }
+                )*
+            }
+        }
+    };
+}
+
+impl_nullary_function_constructors!(
+    Pi,
+    Newid,
+    CurrentDate,
+    CurrentTime,
+    CurrentTimestamp
+);
+
+/// Implement unary function constructors
 macro_rules! impl_unary_function_constructors {
     ($( $Function:ident ),*) => {
         impl Function {
@@ -284,7 +315,26 @@ impl_unary_function_constructors!(
     CastAsBoolean,
     CastAsDateTime,
     CastAsDate,
-    CastAsTime
+    CastAsTime,
+    Ceil,
+    Floor,
+    Sign,
+    Unhex,
+    ExtractYear,
+    ExtractMonth,
+    ExtractDay,
+    ExtractHour,
+    ExtractMinute,
+    ExtractSecond,
+    ExtractMicrosecond,
+    ExtractMillisecond,
+    ExtractDow,
+    ExtractWeek,
+    Dayname,
+    Quarter,
+    Date,
+    UnixTimestamp,
+    IsNull
 ); // TODO Complete that
 
 /// Implement binary function constructors
@@ -339,7 +389,18 @@ impl_binary_function_constructors!(
     Coalesce,
     Rtrim,
     Ltrim,
-    Substr
+    Substr,
+    Trunc,
+    Round,
+    RegexpContains,
+    Encode,
+    Decode,
+    DateFormat,
+    FromUnixtime,
+    Like,
+    Ilike,
+    Choose,
+    IsBool
 );
 
 /// Implement ternary function constructors
@@ -367,7 +428,34 @@ macro_rules! impl_ternary_function_constructors {
     };
 }
 
-impl_ternary_function_constructors!(Case, SubstrWithSize);
+impl_ternary_function_constructors!(Case, SubstrWithSize, RegexpReplace, DatetimeDiff);
+
+/// Implement quaternary function constructors
+macro_rules! impl_quaternary_function_constructors {
+    ($( $Function:ident ),*) => {
+        impl Function {
+            paste! {
+                $(
+                    pub fn [<$Function:snake>]<F: Into<Expr>, S: Into<Expr>, T: Into<Expr>, U: Into<Expr>>(first: F, second: S, third: T, fourth: U) -> Function {
+                        Function::new(function::Function::$Function, vec![Arc::new(first.into()), Arc::new(second.into()), Arc::new(third.into()), Arc::new(fourth.into())])
+                    }
+                )*
+            }
+        }
+
+        impl Expr {
+            paste! {
+                $(
+                    pub fn [<$Function:snake>]<F: Into<Expr>, S: Into<Expr>, T: Into<Expr>, U: Into<Expr>>(first: F, second: S, third: T, fourth: U) -> Expr {
+                        Expr::from(Function::[<$Function:snake>](first, second, third, fourth))
+                    }
+                )*
+            }
+        }
+    };
+}
+
+impl_quaternary_function_constructors!(RegexpExtract);
 
 /// Implement nary function constructors
 macro_rules! impl_nary_function_constructors {
@@ -474,7 +562,7 @@ macro_rules! impl_aggregation_constructors {
     };
 }
 
-impl_aggregation_constructors!(First, Last, Min, Max, Count, Mean, Sum, Var, Std);
+impl_aggregation_constructors!(First, Last, Min, Max, Count, Mean, Sum, Var, Std, CountDistinct, MeanDistinct, SumDistinct, VarDistinct, StdDistinct);
 
 /// An aggregate function expression
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -1316,45 +1404,37 @@ impl DataType {
             | (function::Function::GtEq, [left, right])
             | (function::Function::Lt, [right, left])
             | (function::Function::LtEq, [right, left]) => {
-                let left_dt = left.super_image(&datatype).unwrap();
-                let left_dt = if let DataType::Optional(o) = left_dt {
-                    o.data_type().clone()
-                } else {
-                    left_dt
-                };
-                let right_dt = right.super_image(&datatype).unwrap();
-                let right_dt = if let DataType::Optional(o) = right_dt {
-                    o.data_type().clone()
-                } else {
-                    right_dt
-                };
-                let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
-                if let Expr::Column(col) = left {
-                    let dt = data_type::function::greatest()
-                        .super_image(&set)
-                        .unwrap()
-                        .super_intersection(&left_dt)
-                        .unwrap();
-                    datatype = datatype.replace(col, dt)
+                let left_dt = left.super_image(&datatype);
+                let right_dt = right.super_image(&datatype);
+                if let (Ok(left_dt), Ok(right_dt)) = (left_dt, right_dt) {
+                    let left_dt = if let DataType::Optional(o) = left_dt {
+                        o.data_type().clone()
+                    } else {
+                        left_dt
+                    };
+                    let right_dt = if let DataType::Optional(o) = right_dt {
+                        o.data_type().clone()
+                    } else {
+                        right_dt
+                    };
+                    let set = DataType::structured_from_data_types([left_dt.clone(), right_dt.clone()]);
+                    if let (Expr::Column(col), Ok(dt)) = (left, data_type::function::greatest().super_image(&set)) {
+                        datatype = datatype.replace(col, dt.super_intersection(&left_dt).unwrap())
+                    }
+                    if let (Expr::Column(col), Ok(dt)) = (right, data_type::function::least().super_image(&set)) {
+                        datatype = datatype.replace(col, dt.super_intersection(&right_dt).unwrap())
+                    }
                 }
-                if let Expr::Column(col) = right {
-                    let dt = data_type::function::least()
-                        .super_image(&set)
-                        .unwrap()
-                        .super_intersection(&right_dt)
-                        .unwrap();
-                    datatype = datatype.replace(col, dt)
-                }
-            }
+            },
             (function::Function::Eq, [left, right]) => {
-                let left_dt = left.super_image(&datatype).unwrap();
-                let right_dt = right.super_image(&datatype).unwrap();
-                let dt = left_dt.super_intersection(&right_dt).unwrap();
-                if let Expr::Column(col) = left {
-                    datatype = datatype.replace(&col, dt.clone())
-                }
-                if let Expr::Column(col) = right {
-                    datatype = datatype.replace(&col, dt)
+                if let (Ok(left_dt), Ok(right_dt)) = (left.super_image(&datatype), right.super_image(&datatype)) {
+                    let dt = left_dt.super_intersection(&right_dt).unwrap();
+                    if let Expr::Column(col) = left {
+                        datatype = datatype.replace(&col, dt.clone())
+                    }
+                    if let Expr::Column(col) = right {
+                        datatype = datatype.replace(&col, dt)
+                    }
                 }
             }
             (function::Function::InList, [Expr::Column(col), Expr::Value(Value::List(l))]) => {
@@ -2910,6 +2990,82 @@ mod tests {
     }
 
     #[test]
+    fn test_cast_float_integer() {
+        println!("float => integer");
+        let expression = Expr::cast_as_integer(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::float_values([1.1, 1.9, 5.49])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_values([1, 2, 5])
+        );
+        let set = DataType::structured([
+            ("col1", DataType::float_interval(1.1, 5.49)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_interval(1, 5)
+        );
+        let set = DataType::structured([
+            ("col1", DataType::float_interval(1.1, 1.49)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_value(1)
+        );
+
+        println!("integer => float");
+        let expression = Expr::cast_as_float(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::integer_values([1, 4, 7])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_values([1., 4., 7.])
+        );
+        let set = DataType::structured([
+            ("col1", DataType::integer_interval(1, 7)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_interval(1., 7.)
+        );
+    }
+
+    #[test]
     fn test_cast_float_text() {
         println!("float => text");
         let expression = Expr::cast_as_text(
@@ -2992,6 +3148,170 @@ mod tests {
         assert_eq!(
             expression.super_image(&set).unwrap(),
             DataType::boolean_value(false)
+        );
+    }
+
+    #[test]
+    fn test_sign() {
+        println!("sign");
+        let expression = Expr::sign(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("col1", DataType::float_interval(-10., 1.)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_interval(-1, 1)
+        );
+
+        let set = DataType::structured([
+            ("col1", DataType::integer_min(-0)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_interval(0, 1)
+        );
+
+        let set = DataType::structured([
+            ("col1", DataType::float_min(1.)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_value(1)
+        );
+    }
+
+    #[test]
+    fn test_random() {
+        println!("random");
+        let expression = Expr::random(2);
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("col1", DataType::float()),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_interval(0., 1.)
+        );
+    }
+
+    #[test]
+    fn test_pi() {
+        println!("pi");
+        let expression = Expr::pi();
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("col1", DataType::float()),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_value(3.141592653589793)
+        );
+    }
+
+    #[test]
+    fn test_regexp_contains() {
+        println!("regexp_contains(value, regexp)");
+        let expression = expr!(regexp_contains(value, regexp));
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("value", DataType::text_values(["a@foo.com".to_string(), "b@bar.org".to_string()])),
+            ("regexp", DataType::text_value(r"^[\w.+-]+@foo\.com|[\w.+-]+@bar\.org$".to_string())),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::boolean()
+        );
+    }
+
+    #[test]
+    fn test_regexp_extract() {
+        println!("regexp_extract(value, regexp, position, occ)");
+        let expression = expr!(regexp_extract(value, regexp, position, occ));
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("value", DataType::text_value("ab".to_string())),
+            ("regexp", DataType::text_value(r"*b".to_string())),
+            ("position", DataType::integer_value(0)),
+            ("occ", DataType::integer_value(1)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::optional(DataType::text())
+        );
+    }
+
+    #[test]
+    fn test_regexp_replace() {
+        println!("regexp_extract(value, regexp, replacement)");
+        let expression = expr!(regexp_replace(value, regexp, replacement));
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+
+        let set = DataType::structured([
+            ("value", DataType::text_value("ab".to_string())),
+            ("regexp", DataType::text_value(r"*b".to_string())),
+            ("replacement", DataType::text())
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::text()
         );
     }
 }

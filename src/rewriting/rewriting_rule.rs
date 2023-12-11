@@ -7,14 +7,14 @@ use crate::{
     builder::{Ready, With},
     differential_privacy::{
         budget::Budget,
-        private_query::{self, PrivateQuery},
+        private_query::PrivateQuery,
     },
     hierarchy::Hierarchy,
     privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
-    synthetic_data::{self, SyntheticData},
-    visitor::{Acceptor, Dependencies, Visited, Visitor},
+    synthetic_data::SyntheticData,
+    visitor::{Acceptor, Visited, Visitor},
 };
 
 /// A simple Property object to tag Relations properties
@@ -620,11 +620,18 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 ),
             ]
         } else {
-            vec![RewritingRule::new(
-                vec![],
-                Property::Public,
-                Parameters::None,
-            )]
+            vec![
+                RewritingRule::new(
+                    vec![],
+                    Property::Public,
+                    Parameters::None,
+                ),
+                RewritingRule::new(
+                    vec![],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(self.synthetic_data.clone()),
+                ),
+            ]
         }
     }
 
@@ -707,15 +714,15 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
-                vec![Property::PrivacyUnitPreserving, Property::Published],
-                Property::PrivacyUnitPreserving,
-                Parameters::PrivacyUnit(self.privacy_unit.clone()),
-            ),
-            RewritingRule::new(
                 vec![
                     Property::DifferentiallyPrivate,
                     Property::PrivacyUnitPreserving,
                 ],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
+                vec![Property::PrivacyUnitPreserving, Property::Published],
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
@@ -1393,6 +1400,65 @@ mod tests {
         SELECT order_id, sum(normalized_price) FROM normalized_prices GROUP BY order_id
         "#,
         ).unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        // Add rewritting rules
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            synthetic_data,
+            privacy_unit,
+            budget,
+        ));
+        relation_with_rules.display_dot().unwrap();
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        relation_with_rules.display_dot().unwrap();
+        for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
+            rwrr.display_dot().unwrap();
+            let num_dp = rwrr.accept(BudgetDispatcher);
+            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("DEBUG SCORE {}", rwrr.accept(Score));
+            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
+            relation_with_private_query
+                .relation()
+                .display_dot()
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_set_eliminate_select_rewriting_rules_synthetic() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        // Print relations with paths
+        for (p, r) in relations.iter() {
+            println!("{} -> {r}", p.into_iter().join("."))
+        }
+        let query = parse(
+            "SELECT order_id, price FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)",
+        )
+        .unwrap();
         let synthetic_data = SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),

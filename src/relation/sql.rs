@@ -67,6 +67,7 @@ fn values_query(rows: Vec<Vec<ast::Expr>>) -> ast::Query {
         fetch: None,
         locks: vec![],
         limit_by: vec![],
+        for_clause: None,
     }
 }
 
@@ -116,6 +117,7 @@ fn set_operation(
         fetch: None,
         locks: vec![],
         limit_by: vec![],
+        for_clause: None,
     }
 }
 

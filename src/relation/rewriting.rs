@@ -663,6 +663,20 @@ impl Relation {
         }
     }
 
+    /// GROUP BY all the fields. This mimicks the sql `DISTINCT` in the
+    /// `SELECT` clause.
+    pub fn distinct(self) -> Relation {
+        let fields = self.schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect::<Vec<_>>();
+        Relation::reduce()
+            .input(self)
+            .with_iter(fields.iter().map(|f| (f, Expr::first(Expr::col(f)))))
+            .group_by_iter(fields.iter().map(|f| Expr::col(f)))
+            .build()
+    }
+
     /// Build a relation whose output fields are to the aggregations in `aggregates`
     /// applied on the UNIQUE values of the column `column` and grouped by the columns in `group_by`.
     /// If `grouping_by` is not empty, we order by the grouping expressions.
@@ -740,6 +754,40 @@ impl Relation {
             .left_names(left_names)
             .right_names(right_names)
             .build())
+    }
+
+    /// Returns the outer join between `self` and `right` where
+    /// the output names of the fields are conserved.
+    /// The joining criteria is the equality of columns with the same name
+    pub fn natural_inner_join(self, right: Self) -> Relation {
+        let mut left_names: Vec<String> = vec![];
+        let mut right_names: Vec<String> = vec![];
+        let mut names: Vec<(String, Expr)> = vec![];
+        for f in self.fields() {
+            let col = f.name().to_string();
+            left_names.push(col.clone());
+            names.push((col.clone(), Expr::col(col)));
+        }
+        for f in right.fields() {
+            let col = f.name().to_string();
+            if left_names.contains(&col) {
+                right_names.push(format!("right_{}", col));
+            } else {
+                right_names.push(col.clone());
+                names.push((col.clone(), Expr::col(col)));
+            }
+        }
+        let join: Relation = Relation::join()
+            .left(self.clone())
+            .right(right.clone())
+            .inner()
+            .left_names(left_names)
+            .right_names(right_names)
+            .build();
+        Relation::map()
+            .input(join)
+            .with_iter(names)
+            .build()
     }
 }
 
@@ -1889,5 +1937,56 @@ mod tests {
                 .collect::<Vec<_>>(),
             names_aggs
         );
+    }
+
+    #[test]
+    fn test_distinct() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // Table
+        let distinct_relation = table.clone().distinct();
+        assert_eq!(distinct_relation.schema(), table.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), table.schema().len())
+        }
+
+        // Map
+        let relation: Relation = Relation::map()
+            .input(table.clone())
+            .with(expr!(a * b))
+            .with(("my_c", expr!(c)))
+            .build();
+        let distinct_relation = relation.clone().distinct();
+        assert_eq!(distinct_relation.schema(), relation.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), relation.schema().len())
+        }
+
+        // Reduce
+        let relation: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(expr!(count(a)))
+            //.with_group_by_column("c")
+            .with(("twice_c", expr!(first(2*c))))
+            .group_by(expr!(c))
+            .build();
+        let distinct_relation = relation.clone().distinct();
+        distinct_relation.display_dot();
+        assert_eq!(distinct_relation.schema(), relation.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), relation.schema().len())
+        }
     }
 }

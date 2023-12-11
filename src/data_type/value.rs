@@ -259,7 +259,7 @@ impl Variant for Boolean {
 impl_variant_conversions!(Boolean);
 
 /// Integer value
-#[derive(Clone, Hash, PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
+#[derive(Clone, Hash, PartialEq, PartialOrd, Debug, Deserialize, Serialize, Eq)]
 pub struct Integer(i64);
 
 impl DataTyped for Integer {
@@ -332,6 +332,8 @@ impl_variant_conversions!(Enum);
 /// Float value
 #[derive(Clone, PartialEq, PartialOrd, Debug, Deserialize, Serialize)]
 pub struct Float(f64);
+
+impl Eq for Float {}
 
 #[allow(clippy::derive_hash_xor_eq)]
 impl hash::Hash for Float {

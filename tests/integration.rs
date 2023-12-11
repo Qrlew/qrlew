@@ -90,8 +90,13 @@ const QUERIES: &[&str] = &[
     SELECT * FROM t1 UNION SELECT * FROM t2",
     // Some joins
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
+    // Some string functions
     "SELECT UPPER(z) FROM table_2 LIMIT 5",
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
+    // distinct
+    "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d",
+    "SELECT DISTINCt c, d FROM table_1",
+    "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c"
 ];
 
 #[cfg(feature = "sqlite")]

@@ -1,7 +1,7 @@
 //! Convert Expr into ast::Expr
 use crate::{
     ast,
-    data_type::DataType,
+    data_type::{DataType, Boolean},
     expr::{self, Expr},
     visitor::Acceptor,
 };
@@ -178,17 +178,61 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::Lower
             | expr::function::Function::Upper
             | expr::function::Function::Random(_)
+            | expr::function::Function::Pi
             | expr::function::Function::Least
             | expr::function::Function::Greatest
             | expr::function::Function::Coalesce
             | expr::function::Function::Rtrim
             | expr::function::Function::Ltrim
             | expr::function::Function::Substr
-            | expr::function::Function::SubstrWithSize => ast::Expr::Function(ast::Function {
+            | expr::function::Function::SubstrWithSize
+            | expr::function::Function::Ceil
+            | expr::function::Function::Floor
+            | expr::function::Function::Sign
+            | expr::function::Function::RegexpContains
+            | expr::function::Function::RegexpReplace
+            | expr::function::Function::Unhex
+            | expr::function::Function::Encode
+            | expr::function::Function::Decode
+            | expr::function::Function::Newid
+            | expr::function::Function::Dayname
+            | expr::function::Function::DateFormat
+            | expr::function::Function::Quarter
+            | expr::function::Function::DatetimeDiff
+            | expr::function::Function::Date
+            | expr::function::Function::FromUnixtime
+            | expr::function::Function::UnixTimestamp => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
                     .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                    .collect(),
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::function::Function::RegexpExtract => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: vec![arguments[0].clone(), arguments[1].clone(), arguments[2].clone(), arguments[3].clone()]
+                    .into_iter()
+                    .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                    .collect(),
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::function::Function::Round
+            | expr::function::Function::Trunc => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: arguments
+                    .into_iter()
+                    .filter_map(|e| (e!=ast::Expr::Value(ast::Value::Number("1".to_string(), false))).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
                     .collect(),
                 over: None,
                 distinct: false,
@@ -253,6 +297,70 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::time().into(),
                 format: None,
+            },
+            expr::function::Function::CurrentDate
+            | expr::function::Function::CurrentTime
+            | expr::function::Function::CurrentTimestamp => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                args: vec![],
+                over: None,
+                distinct: false,
+                special: true,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::function::Function::ExtractYear => ast::Expr::Extract {field: ast::DateTimeField::Year, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMonth => ast::Expr::Extract {field: ast::DateTimeField::Month, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractDay => ast::Expr::Extract {field: ast::DateTimeField::Day, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractHour => ast::Expr::Extract {field: ast::DateTimeField::Hour, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMinute => ast::Expr::Extract {field: ast::DateTimeField::Minute, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractSecond => ast::Expr::Extract {field: ast::DateTimeField::Second, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMicrosecond => ast::Expr::Extract {field: ast::DateTimeField::Microsecond, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractMillisecond => ast::Expr::Extract {field: ast::DateTimeField::Millisecond, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractDow => ast::Expr::Extract {field: ast::DateTimeField::Dow, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractWeek => ast::Expr::Extract {field: ast::DateTimeField::Week, expr: arguments[0].clone().into()},
+            expr::function::Function::Like => ast::Expr::Like {
+                negated: false,
+                expr: arguments[0].clone().into(),
+                pattern: arguments[1].clone().into(),
+                escape_char: None,
+            },
+            expr::function::Function::Ilike => ast::Expr::ILike {
+                negated: false,
+                expr: arguments[0].clone().into(),
+                pattern: arguments[1].clone().into(),
+                escape_char: None,
+            },
+            expr::function::Function::Choose => if let ast::Expr::Tuple(t) = &arguments[1] {
+                ast::Expr::Function(ast::Function {
+                    name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                    args: vec![arguments[0].clone()]
+                        .into_iter()
+                        .chain(t.clone())
+                        .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                        .collect(),
+                    over: None,
+                    distinct: false,
+                    special: false,
+                    order_by: vec![],
+                    filter: None,
+                    null_treatment: None,
+                })
+            } else {
+                todo!()
+            },
+            expr::function::Function::IsNull => ast::Expr::IsNull(arguments[0].clone().into()),
+            expr::function::Function::IsBool => {
+                if let ast::Expr::Value(ast::Value::Boolean(b)) = arguments[1] {
+                    if b {
+                        ast::Expr::IsTrue(arguments[0].clone().into())
+                    } else {
+                        ast::Expr::IsFalse(arguments[0].clone().into())
+                    }
+                } else {
+                    unimplemented!()
+                }
             },
         }
     }
@@ -378,6 +486,81 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 filter: None,
                 null_treatment: None,
             }),
+            expr::aggregate::Aggregate::MeanDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("avg"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::CountDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("count"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::SumDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("sum"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::StdDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("stddev"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
+            expr::aggregate::Aggregate::VarDistinct => ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident {
+                    value: String::from("variance"),
+                    quote_style: None,
+                }]),
+                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                    argument,
+                ))],
+                over: None,
+                distinct: true,
+                special: false,
+                order_by: vec![],
+                filter: None,
+                null_treatment: None,
+            }),
         }
     }
 
@@ -453,6 +636,38 @@ mod tests {
 
         // CharLength
         let ast_expr: ast::Expr = parse_expr("position('x' in expr)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // Newid
+        let ast_expr: ast::Expr = parse_expr("newid()").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // encode
+        let ast_expr: ast::Expr = parse_expr("encode(col1, col2)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // decode
+        let ast_expr: ast::Expr = parse_expr("decode(col1, col2)").unwrap();
+        println!("ast::expr = {ast_expr}");
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(ast_expr, gen_expr);
+
+        // unhex
+        let ast_expr: ast::Expr = parse_expr("unhex(col1)").unwrap();
         println!("ast::expr = {ast_expr}");
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -555,6 +770,7 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         assert_eq!(gen_expr, parse_expr("substr(a, 0, 5)").unwrap());
     }
+
     #[test]
     fn test_cast() {
         let str_expr = "cast(a as varchar)";
@@ -588,5 +804,586 @@ mod tests {
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as date)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as time)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as timestamp)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_ceil() {
+        let str_expr = "ceil(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+
+    #[test]
+    fn test_floor() {
+        let str_expr = "floor(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_round() {
+        let str_expr = "round(a, 2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_trunc() {
+        let str_expr = "trunc(a, 4)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+    }
+
+    #[test]
+    fn test_sign() {
+        let str_expr = "sign(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_square() {
+        let str_expr = "square(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("pow(x, 2)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_log() {
+        let str_expr = "ln(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "log(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "log(b, x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(log(x)) / ((log(b)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "log10(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("(log(10)) / ((log(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "log2(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(log(2)) / ((log(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_trigo() {
+        let str_expr = "sin(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cos(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "tan(x)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(sin(x)) / ((cos(x)))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_random() {
+        let str_expr = "random()";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_pi() {
+        let str_expr = "pi()";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_degrees() {
+        let str_expr = "degrees(100)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("(100) * (((180) / ((pi()))))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_regexp_contains() {
+        let str_expr = "regexp_contains(col1, col2)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+    }
+
+    #[test]
+    fn test_regexp_extract() {
+        let str_expr = "regexp_extract(value, regexp)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, 0, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "regexp_substr(value, regexp)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, 0, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+
+        let str_expr = "regexp_extract(value, regexp, position)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, position, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "regexp_substr(value, regexp, position)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_extract(value, regexp, position, 1)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "regexp_extract(value, regexp, position, occurrence)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+    }
+
+    #[test]
+    fn test_regexp_replace() {
+        let str_expr = "regexp_replace(value, regexp, replacement)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("regexp_replace(value, regexp, replacement)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_current() {
+        // CURRENT_DATE
+        let str_expr = "current_date";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // CURRENT_TIME
+        let str_expr = "current_time";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // CURRENT_TIMESTAMP
+        let str_expr = "current_timestamp";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+    }
+
+    #[test]
+    fn test_extract() {
+        // EXTRACT(YEAR FROM col1)
+        let str_expr = "extract(year from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MONTH FROM col1)
+        let str_expr = "extract(month from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(DAY FROM col1)
+        let str_expr = "extract(day from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(HOUR FROM col1)
+        let str_expr = "extract(hour from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MINUTE FROM col1)
+        let str_expr = "extract(minute from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(SECOND FROM col1)
+        let str_expr = "extract(second from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MICROSECOND FROM col1)
+        let str_expr = "extract(microsecond from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(MILLISECOND FROM col1)
+        let str_expr = "extract(millisecond from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(DOW FROM col1)
+        let str_expr = "extract(dow from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // EXTRACT(WEEK FROM col1)
+        let str_expr = "extract(week from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+    }
+
+    #[test]
+    fn test_datetime_functions() {
+        // DAYNAME
+        let str_expr = "dayname(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // DATE_FORMAT
+        let str_expr = "date_format(col1, format_date)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // Quarter
+        let str_expr = "quarter(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // datetime_diff
+        let str_expr = "datetime_diff(col1, col2, col3)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // date
+        let str_expr = "date(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        // from_unixtime
+        let str_expr = "from_unixtime(col1, '%Y-%m-%d')";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "from_unixtime(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("from_unixtime(col1, '%Y-%m-%d %H:%i:%S')").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // unix_timestamp
+        let str_expr = "unix_timestamp(col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "unix_timestamp()";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        let true_expr = parse_expr("unix_timestamp(current_timestamp)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_boolean_expressions() {
+        // like
+        let str_expr = "col1 LIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "col1 NOT LIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not(col1 LIKE 'a%')").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // ilike
+        let str_expr = "col1 ILIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "col1 NOT ILIKE 'a%'";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not(col1 ILIKE 'a%')").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // Between
+        let str_expr = "Price BETWEEN 10 AND 20";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("((Price) >= (10)) AND ((Price) <= (20))").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        // IS
+        let str_expr = "col1 IS null";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        assert_eq!(gen_expr, ast_expr);
+
+        let str_expr = "col1 IS NOT null";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not (col1 IS null)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS true";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("cast(col1 as boolean) IS true)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS NOT true";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not (cast(col1 as boolean) IS true)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS false";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("cast(col1 as boolean) IS false)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+
+        let str_expr = "col1 IS NOT false";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        let true_expr = parse_expr("not (cast(col1 as boolean) IS false)").unwrap();
+        assert_eq!(gen_expr, true_expr);
+    }
+
+    #[test]
+    fn test_choose() {
+        let str_expr = "choose(3, 'a', 'b', 'c')";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
     }
 }

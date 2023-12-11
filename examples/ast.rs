@@ -69,6 +69,7 @@ fn build_ast() -> Result<(), &'static str> {
         fetch: None,
         locks: vec![],
         limit_by: vec![],
+        for_clause: None,
     };
     println!("{}\n", query);
     // A CTE
@@ -96,9 +97,8 @@ fn build_ast() -> Result<(), &'static str> {
 
 fn print_ast(query: &str) -> Result<(), &'static str> {
     let query = parse(query).unwrap();
-    println!("Printing the tree of {query}");
+    println!("\nPrinting the tree of {query}");
     println!("Tree = {:#?}", query);
-
     Ok(())
 }
 
