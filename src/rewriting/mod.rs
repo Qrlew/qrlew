@@ -405,4 +405,51 @@ mod tests {
         }
 
     }
+
+    #[test]
+    fn test_census() {
+        let census: Relation = Relation::table()
+            .name("census")
+            .schema(
+                vec![
+                    ("capital_loss", DataType::integer()),
+                    ("age", DataType::integer()),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(1000)
+            .build();
+        let relations: Hierarchy<Arc<Relation>> = vec![census]
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
+            .collect();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["census"], Identifier::from("census")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            ("census", vec![], "_PRIVACY_UNIT_ROW_"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+
+        let queries = [
+            "SELECT SUM(CAST(capital_loss AS float) / 100000.) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(capital_loss / 100000) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(CASE WHEN age > 90 THEN 1 ELSE 0 END) AS s1 FROM census WHERE age > 20 AND age < 90;"
+        ];
+        for query_str in queries {
+            println!("\n{query_str}");
+            let query = parse(query_str).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            relation.display_dot().unwrap();
+            let dp_relation = relation.rewrite_with_differential_privacy(
+                &relations,
+                synthetic_data.clone(),
+                privacy_unit.clone(),
+                budget.clone()
+            ).unwrap();
+            dp_relation.relation().display_dot().unwrap();
+        }
+
+    }
 }
