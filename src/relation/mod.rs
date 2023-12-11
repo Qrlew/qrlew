@@ -528,19 +528,6 @@ impl Reduce {
     pub fn group_by(&self) -> &[Column] {
         &self.group_by
     }
-    // /// Get group_by columns
-    // pub fn group_by_columns(&self) -> Vec<&Column> {
-    //     self.group_by
-    //         .iter()
-    //         .filter_map(|e| {
-    //             if let Expr::Column(column) = e {
-    //                 Some(column)
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect()
-    // }
     /// Get the input
     pub fn input(&self) -> &Relation {
         &self.input
