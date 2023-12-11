@@ -701,6 +701,16 @@ impl JoinOperator {
             JoinOperator::Cross => (false, false),
         }
     }
+
+    pub fn is_natural(&self) -> bool {
+        match self {
+            JoinOperator::Inner(c)
+            | JoinOperator::LeftOuter(c)
+            | JoinOperator::RightOuter(c)
+            | JoinOperator::FullOuter(c) if matches!(c, JoinConstraint::Natural) => true,
+            _ => false
+        }
+    }
 }
 
 impl DataType {
@@ -965,22 +975,26 @@ impl Join {
                     },
                 )
             });
+
         let right_fields = right_names
             .into_iter()
             .zip(right_schema.iter())
-            .map(|(name, field)| {
-                Field::new(
-                    name,
-                    if transform_datatype_in_optional_right {
-                        DataType::optional(field.data_type())
-                    } else {
-                        field.data_type()
-                    },
-                    if left_is_unique {
-                        field.constraint()
-                    } else {
-                        None
-                    },
+            .filter_map(|(name, field)| {
+                (operator.is_natural() && !left_schema.fields_names().contains(&field.name()))
+                .then_some(
+                    Field::new(
+                        name,
+                        if transform_datatype_in_optional_right {
+                            DataType::optional(field.data_type())
+                        } else {
+                            field.data_type()
+                        },
+                        if left_is_unique {
+                            field.constraint()
+                        } else {
+                            None
+                        },
+                    )
                 )
             });
         left_fields.chain(right_fields).collect()
@@ -1864,6 +1878,35 @@ mod tests {
         println!("join.names() = {}", join.names());
         let relation = Relation::from(join);
         println!("relation = {}", relation);
+        println!("relation.data_type() = {}", relation.data_type());
+        println!("relation.schema() = {}", relation.schema());
+    }
+
+    #[test]
+    fn test_natural_join_builder() {
+        let schema1: Schema = vec![
+            ("a", DataType::integer_interval(-5, 5)),
+            ("b", DataType::integer_interval(-2, 2)),
+        ]
+        .into_iter()
+        .collect();
+        let table1: Relation = Relation::table().name("table1").schema(schema1).build();
+        let schema2: Schema = vec![
+            ("a", DataType::integer_interval(0, 10)),
+            ("c", DataType::integer_interval(0, 20)),
+        ]
+        .into_iter()
+        .collect();
+        let table2: Relation = Relation::table().name("table1").schema(schema2).build();
+
+        let join: Join = Relation::join()
+            .left(table1.clone())
+            .right(table2.clone())
+            .inner()
+            .build();
+        println!("join.names() = {}", join.names());
+        let relation = Relation::from(join);
+        relation.display_dot().unwrap();
         println!("relation.data_type() = {}", relation.data_type());
         println!("relation.schema() = {}", relation.schema());
     }

@@ -95,8 +95,9 @@ const QUERIES: &[&str] = &[
     "SELECT LOWER(z) FROM table_2 LIMIT 5",
     // distinct
     "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d",
-    "SELECT DISTINCt c, d FROM table_1",
-    "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c"
+    "SELECT DISTINCT c, d FROM table_1",
+    "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
+    "SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;"
 ];
 
 #[cfg(feature = "sqlite")]
