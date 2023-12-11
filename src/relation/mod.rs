@@ -500,7 +500,10 @@ impl Reduce {
                         aggregate_column
                             .super_image(&input_columns_data_type)
                             .unwrap(),
-                        if has_one_group && aggregate_column.aggregate() == &Aggregate::First {
+                        if aggregate_column.aggregate() == &Aggregate::First && (
+                            has_one_group ||
+                            input.schema().field(aggregate_column.column_name().unwrap()).unwrap().constraint() == Some(Constraint::Unique)
+                        ){
                             Some(Constraint::Unique)
                         } else {
                             None

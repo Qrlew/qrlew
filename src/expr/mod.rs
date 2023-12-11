@@ -2990,6 +2990,82 @@ mod tests {
     }
 
     #[test]
+    fn test_cast_float_integer() {
+        println!("float => integer");
+        let expression = Expr::cast_as_integer(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::float_values([1.1, 1.9, 5.49])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_values([1, 2, 5])
+        );
+        let set = DataType::structured([
+            ("col1", DataType::float_interval(1.1, 5.49)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_interval(1, 5)
+        );
+        let set = DataType::structured([
+            ("col1", DataType::float_interval(1.1, 1.49)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::integer_value(1)
+        );
+
+        println!("integer => float");
+        let expression = Expr::cast_as_float(
+            Expr::col("col1".to_string())
+        );
+        println!("expression = {}", expression);
+        println!("expression domain = {}", expression.domain());
+        println!("expression co domain = {}", expression.co_domain());
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("col1", DataType::integer_values([1, 4, 7])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_values([1., 4., 7.])
+        );
+        let set = DataType::structured([
+            ("col1", DataType::integer_interval(1, 7)),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
+        );
+        assert_eq!(
+            expression.super_image(&set).unwrap(),
+            DataType::float_interval(1., 7.)
+        );
+    }
+
+    #[test]
     fn test_cast_float_text() {
         println!("float => text");
         let expression = Expr::cast_as_text(

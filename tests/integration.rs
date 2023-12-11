@@ -98,6 +98,10 @@ const QUERIES: &[&str] = &[
     "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d DESC",
     "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
     "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
+    // DISTINCT
+    "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d",
+    "SELECT DISTINCt c, d FROM table_1",
+    "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
 ];
 
 #[cfg(feature = "sqlite")]

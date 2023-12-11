@@ -148,6 +148,8 @@ impl PUPRelation {
                 let one_col = format!("_ONE_{}", col_name);
                 let sum_col = format!("_SUM_{}", col_name);
                 let count_col = format!("_COUNT_{}", col_name);
+                let square_col = format!("_SQUARE_{}", col_name);
+                let sum_square_col = format!("_SUM_{}", square_col);
                 match aggregate.aggregate() {
                     aggregate::Aggregate::First => {
                         assert!(group_by_names.contains(&col_name.as_str()));
@@ -170,15 +172,63 @@ impl PUPRelation {
                     aggregate::Aggregate::Count => {
                         input_b = input_b.with((one_col.as_str(), Expr::val(1.)));
                         sums.push((count_col.clone(), one_col));
-                        output_b = output_b.with((name, Expr::col(count_col)));
+                        output_b = output_b.with((name, Expr::cast_as_integer(Expr::col(count_col))));
                     }
                     aggregate::Aggregate::Sum => {
                         input_b = input_b.with((col_name.as_str(), Expr::col(col_name.as_str())));
                         sums.push((sum_col.clone(), col_name));
                         output_b = output_b.with((name, Expr::col(sum_col)));
                     }
-                    aggregate::Aggregate::Std => todo!(),
-                    aggregate::Aggregate::Var => todo!(),
+                    aggregate::Aggregate::Std => {
+                        input_b = input_b
+                            .with((col_name.as_str(), Expr::col(col_name.as_str())))
+                            .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
+                            .with((one_col.as_str(), Expr::val(1.)));
+                        sums.push((count_col.clone(), one_col));
+                        sums.push((sum_col.clone(), col_name));
+                        sums.push((sum_square_col.clone(), square_col));
+                        output_b = output_b.with((
+                            name,
+                            Expr::sqrt(Expr::greatest(
+                                Expr::val(0.),
+                                Expr::minus(
+                                    Expr::divide(
+                                        Expr::col(sum_square_col),
+                                        Expr::greatest(Expr::val(1.), Expr::col(count_col.clone())),
+                                    ),
+                                    Expr::divide(
+                                        Expr::col(sum_col),
+                                        Expr::greatest(Expr::val(1.), Expr::col(count_col)),
+                                    ),
+                                )
+                            ))
+                        ))
+                    }
+                    aggregate::Aggregate::Var => {
+                        input_b = input_b
+                            .with((col_name.as_str(), Expr::col(col_name.as_str())))
+                            .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
+                            .with((one_col.as_str(), Expr::val(1.)));
+                        sums.push((count_col.clone(), one_col));
+                        sums.push((sum_col.clone(), col_name));
+                        sums.push((sum_square_col.clone(), square_col));
+                        output_b = output_b.with((
+                            name,
+                            Expr::greatest(
+                                Expr::val(0.),
+                                Expr::minus(
+                                    Expr::divide(
+                                        Expr::col(sum_square_col),
+                                        Expr::greatest(Expr::val(1.), Expr::col(count_col.clone())),
+                                    ),
+                                    Expr::divide(
+                                        Expr::col(sum_col),
+                                        Expr::greatest(Expr::val(1.), Expr::col(count_col)),
+                                    ),
+                                )
+                            )
+                        ))
+                    }
                     _ => (),
                 }
                 (input_b, sums, output_b)
@@ -529,6 +579,8 @@ mod tests {
                 ("count_price".to_string(), AggregateColumn::count("price")),
                 ("sum_price".to_string(), AggregateColumn::sum("price")),
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
+                ("var_price".to_string(), AggregateColumn::var("price")),
+                ("std_price".to_string(), AggregateColumn::std("price")),
             ],
             vec![],
             pup_table.deref().clone().into(),
@@ -540,17 +592,19 @@ mod tests {
             .differentially_private_aggregates(epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
-        assert_eq!(dp_relation.schema().len(), 3);
+        assert_eq!(dp_relation.schema().len(), 5);
+        println!("data_type = {}", dp_relation.data_type());
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured(vec![
                 ("count_price", DataType::float()),
                 ("sum_price", DataType::float()),
                 ("avg_price", DataType::float()),
+                ("var_price", DataType::float_min(0.)),
+                ("std_price", DataType::float_min(0.)),
             ])));
-
         let query: &str = &ast::Query::from(&relation).to_string();
-        println!("{query}");
+        println!("\n{query}");
         _ = database.query(query).unwrap();
     }
 
@@ -588,6 +642,8 @@ mod tests {
                 ("count_price".to_string(), AggregateColumn::count("price")),
                 ("sum_price".to_string(), AggregateColumn::sum("price")),
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
+                ("var_price".to_string(), AggregateColumn::var("price")),
+                ("std_price".to_string(), AggregateColumn::std("price")),
             ],
             vec!["item".into()],
             pup_table.deref().clone().into(),
@@ -599,13 +655,15 @@ mod tests {
             .differentially_private_aggregates(epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
-        assert_eq!(dp_relation.schema().len(), 3);
+        assert_eq!(dp_relation.schema().len(), 5);
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured(vec![
                 ("count_price", DataType::float()),
                 ("sum_price", DataType::float()),
                 ("avg_price", DataType::float()),
+                ("var_price", DataType::float_min(0.)),
+                ("std_price", DataType::float_min(0.)),
             ])));
 
         let query: &str = &ast::Query::from(&relation).to_string();
@@ -994,16 +1052,22 @@ mod tests {
         .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
         .with(("count_b", AggregateColumn::count("b")))
         .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
+        .with(("avg_distinct_b", AggregateColumn::mean_distinct("b")))
+        .with(("var_distinct_b", AggregateColumn::var_distinct("b")))
+        .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
         .build();
         let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
-        //dp_relation.relation().display_dot().unwrap();
+        dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.relation().data_type(),
             DataType::structured([
                 ("sum_a", DataType::float_interval(-2000., 2000.)),
                 ("sum_distinct_a", DataType::float_interval(-2000., 2000.)),
-                ("count_b", DataType::float_interval(0., 1000.)),
-                ("count_distinct_b", DataType::float_interval(0., 1000.)),
+                ("count_b", DataType::integer_interval(0, 1000)),
+                ("count_distinct_b", DataType::integer_interval(0, 1000)),
+                ("avg_distinct_b", DataType::float_interval(0., 10000.)),
+                ("var_distinct_b", DataType::float_interval(0., 100000.)),
+                ("std_distinct_b", DataType::float_interval(0., 316.22776601683796)),
             ])
         );
 
@@ -1015,6 +1079,9 @@ mod tests {
         .with(("count_b", AggregateColumn::count("b")))
         .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
         .with(("my_c", AggregateColumn::first("c")))
+        .with(("avg_distinct_b", AggregateColumn::mean_distinct("b")))
+        .with(("var_distinct_b", AggregateColumn::var_distinct("b")))
+        .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
         .group_by(expr!(c))
         .build();
         let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
@@ -1024,9 +1091,12 @@ mod tests {
             DataType::structured([
                 ("sum_a", DataType::float_interval(-2000., 2000.)),
                 ("sum_distinct_a", DataType::float_interval(-2000., 2000.)),
-                ("count_b", DataType::float_interval(0., 1000.)),
-                ("count_distinct_b", DataType::float_interval(0., 1000.)),
+                ("count_b", DataType::integer_interval(0, 1000)),
+                ("count_distinct_b", DataType::integer_interval(0, 1000)),
                 ("my_c", DataType::float_interval(10., 20.)),
+                ("avg_distinct_b", DataType::float_interval(0., 10000.)),
+                ("var_distinct_b", DataType::float_interval(0., 100000.)),
+                ("std_distinct_b", DataType::float_interval(0., 316.22776601683796)),
             ])
         );
     }

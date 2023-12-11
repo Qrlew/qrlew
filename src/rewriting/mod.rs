@@ -195,6 +195,43 @@ mod tests {
     }
 
     #[test]
+    fn test_rewrite_with_differential_privacy_with_row_privacy() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                PrivacyUnit::privacy_unit_row(),
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::privacy_unit_row()),
+            ("user_table", vec![], PrivacyUnit::privacy_unit_row()),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        let relation_with_private_query = relation
+            .rewrite_with_differential_privacy(&relations, synthetic_data, privacy_unit, budget)
+            .unwrap();
+        relation_with_private_query
+            .relation()
+            .display_dot()
+            .unwrap();
+        println!(
+            "PrivateQuery = {}",
+            relation_with_private_query.private_query()
+        );
+    }
+
+    #[test]
     fn test_rewrite_as_privacy_unit_preserving() {
         let database = postgresql::test_database();
         let relations = database.relations();
@@ -215,6 +252,43 @@ mod tests {
             ),
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        let relation_with_private_query = relation
+            .rewrite_as_privacy_unit_preserving(&relations, synthetic_data, privacy_unit, budget)
+            .unwrap();
+        relation_with_private_query
+            .relation()
+            .display_dot()
+            .unwrap();
+        println!(
+            "PrivateQuery = {}",
+            relation_with_private_query.private_query()
+        );
+    }
+
+    #[test]
+    fn test_rewrite_as_privacy_unit_preserving_with_row_privacy() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse("SELECT * FROM order_table").unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                PrivacyUnit::privacy_unit_row(),
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::privacy_unit_row()),
+            ("user_table", vec![], PrivacyUnit::privacy_unit_row()),
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
@@ -328,6 +402,53 @@ mod tests {
                 budget.clone()
             ).unwrap();
             //dp_relation.relation().display_dot().unwrap();
+        }
+
+    }
+
+    #[test]
+    fn test_census() {
+        let census: Relation = Relation::table()
+            .name("census")
+            .schema(
+                vec![
+                    ("capital_loss", DataType::integer()),
+                    ("age", DataType::integer()),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(1000)
+            .build();
+        let relations: Hierarchy<Arc<Relation>> = vec![census]
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
+            .collect();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["census"], Identifier::from("census")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            ("census", vec![], "_PRIVACY_UNIT_ROW_"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+
+        let queries = [
+            "SELECT SUM(CAST(capital_loss AS float) / 100000.) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(capital_loss / 100000) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(CASE WHEN age > 90 THEN 1 ELSE 0 END) AS s1 FROM census WHERE age > 20 AND age < 90;"
+        ];
+        for query_str in queries {
+            println!("\n{query_str}");
+            let query = parse(query_str).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            relation.display_dot().unwrap();
+            let dp_relation = relation.rewrite_with_differential_privacy(
+                &relations,
+                synthetic_data.clone(),
+                privacy_unit.clone(),
+                budget.clone()
+            ).unwrap();
+            dp_relation.relation().display_dot().unwrap();
         }
 
     }

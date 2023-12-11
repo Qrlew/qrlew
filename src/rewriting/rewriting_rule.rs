@@ -13,8 +13,8 @@ use crate::{
     privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
-    synthetic_data::{self, SyntheticData},
-    visitor::{Acceptor, Dependencies, Visited, Visitor},
+    synthetic_data::SyntheticData,
+    visitor::{Acceptor, Visited, Visitor},
 };
 
 /// A simple Property object to tag Relations properties

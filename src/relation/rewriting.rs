@@ -453,20 +453,25 @@ impl Relation {
         let value_clippings: HashMap<&str, f64> = value_clippings.into_iter().collect();
         // Compute the norm
         let norms = self.clone().l2_norms(
-            entities.clone(),
+            entities,
             groups.clone(),
             value_clippings.keys().cloned().collect(),
         );
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
             if value_clippings.contains_key(&field_name) {
-                Expr::divide(
-                    Expr::val(1),
-                    Expr::greatest(
+                let value_clipping = value_clippings[&field_name];
+                if value_clipping == 0.0 {
+                    Expr::val(value_clipping)
+                } else {
+                    Expr::divide(
                         Expr::val(1),
-                        Expr::divide(expr.clone(), Expr::val(value_clippings[&field_name])),
-                    ),
-                )
+                        Expr::greatest(
+                            Expr::val(1),
+                            Expr::divide(expr.clone(), Expr::val(value_clipping)),
+                        ),
+                    )
+                }
             } else {
                 expr
             }
@@ -661,6 +666,20 @@ impl Relation {
                 .input(red)
                 .build()
         }
+    }
+
+    /// GROUP BY all the fields. This mimicks the sql `DISTINCT` in the
+    /// `SELECT` clause.
+    pub fn distinct(self) -> Relation {
+        let fields = self.schema()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect::<Vec<_>>();
+        Relation::reduce()
+            .input(self)
+            .with_iter(fields.iter().map(|f| (f, Expr::first(Expr::col(f)))))
+            .group_by_iter(fields.iter().map(|f| Expr::col(f)))
+            .build()
     }
 
     /// Build a relation whose output fields are to the aggregations in `aggregates`
@@ -1923,5 +1942,56 @@ mod tests {
                 .collect::<Vec<_>>(),
             names_aggs
         );
+    }
+
+    #[test]
+    fn test_distinct() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .build(),
+            )
+            .build();
+
+        // Table
+        let distinct_relation = table.clone().distinct();
+        assert_eq!(distinct_relation.schema(), table.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), table.schema().len())
+        }
+
+        // Map
+        let relation: Relation = Relation::map()
+            .input(table.clone())
+            .with(expr!(a * b))
+            .with(("my_c", expr!(c)))
+            .build();
+        let distinct_relation = relation.clone().distinct();
+        assert_eq!(distinct_relation.schema(), relation.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), relation.schema().len())
+        }
+
+        // Reduce
+        let relation: Relation = Relation::reduce()
+            .input(table.clone())
+            .with(expr!(count(a)))
+            //.with_group_by_column("c")
+            .with(("twice_c", expr!(first(2*c))))
+            .group_by(expr!(c))
+            .build();
+        let distinct_relation = relation.clone().distinct();
+        distinct_relation.display_dot();
+        assert_eq!(distinct_relation.schema(), relation.schema());
+        assert!(matches!(distinct_relation, Relation::Reduce(_)));
+        if let Relation::Reduce(red) = distinct_relation {
+            assert_eq!(red.group_by.len(), relation.schema().len())
+        }
     }
 }
