@@ -155,6 +155,7 @@ impl IntoDialectTranslator for MSSQLTranslator {
             fetch: None,
             locks: vec![],
             limit_by: vec![],
+            for_clause: None,
         }
     }
 
@@ -320,10 +321,7 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
         // It seems to be a bug in sqlx such that when using Varchar for text when pushing data to sql it fails
         //DataType::Text(_) => ast::DataType::Text,
-        DataType::Text(_) => ast::DataType::Varchar(Some(ast::CharacterLength {
-            length: 8000 as u64,
-            unit: None,
-        })),
+        DataType::Text(_) => ast::DataType::Varchar(None),
         //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL,
         DataType::Optional(o) => translate_data_type(o.data_type().clone()),
         _ => dtype.into(),

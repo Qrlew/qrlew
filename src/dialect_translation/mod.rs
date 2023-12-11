@@ -162,6 +162,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                     offset: None,
                     fetch: None,
                     locks: vec![],
+                    for_clause: None, 
                 }
             }
 
@@ -221,7 +222,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                     table_name: table.path().clone().into(),
                     columns: table.schema().iter().map(|f| f.name().into()).collect(),
                     overwrite: false,
-                    source: Box::new(ast::Query {
+                    source: Some(Box::new(ast::Query {
                         with: None,
                         body: Box::new(ast::SetExpr::Values(ast::Values {
                             explicit_row: false,
@@ -239,7 +240,8 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                         offset: None,
                         fetch: None,
                         locks: vec![],
-                    }),
+                        for_clause: None,
+                    })),
                     partitioned: None,
                     after_columns: vec![],
                     table: false,
@@ -465,6 +467,11 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                     expr::aggregate::Aggregate::AggGroups => self.from_agg_groups(arg),
                     expr::aggregate::Aggregate::Std => self.from_std(arg),
                     expr::aggregate::Aggregate::Var => self.from_var(arg),
+                    expr::aggregate::Aggregate::MeanDistinct => self.from_mean_distinct(arg),
+                    expr::aggregate::Aggregate::CountDistinct => self.from_count_distinct(arg),
+                    expr::aggregate::Aggregate::SumDistinct => self.from_sum_distinct(arg),
+                    expr::aggregate::Aggregate::StdDistinct => self.from_std_distinct(arg),
+                    expr::aggregate::Aggregate::VarDistinct => self.from_var_distinct(arg),
                 }
             }
 
@@ -473,7 +480,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
             unary_function_ast_constructor!(
                 Exp, Ln, Log, Abs, Sin, Cos, Sqrt, CharLength, Lower, Upper, Md5, Min, Max, Median,
                 NUnique, First, Last, Mean, List, Count, Quantile, Quantiles, Sum, AggGroups, Std,
-                Var
+                Var, MeanDistinct, CountDistinct, SumDistinct, StdDistinct, VarDistinct
             );
 
             nary_function_ast_constructor!(Pow, Concat, Position, Least, Greatest);
