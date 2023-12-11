@@ -453,20 +453,25 @@ impl Relation {
         let value_clippings: HashMap<&str, f64> = value_clippings.into_iter().collect();
         // Compute the norm
         let norms = self.clone().l2_norms(
-            entities.clone(),
+            entities,
             groups.clone(),
             value_clippings.keys().cloned().collect(),
         );
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
             if value_clippings.contains_key(&field_name) {
-                Expr::divide(
-                    Expr::val(1),
-                    Expr::greatest(
+                let value_clipping = value_clippings[&field_name];
+                if value_clipping == 0.0 {
+                    Expr::val(value_clipping)
+                } else {
+                    Expr::divide(
                         Expr::val(1),
-                        Expr::divide(expr.clone(), Expr::val(value_clippings[&field_name])),
-                    ),
-                )
+                        Expr::greatest(
+                            Expr::val(1),
+                            Expr::divide(expr.clone(), Expr::val(value_clipping)),
+                        ),
+                    )
+                }
             } else {
                 expr
             }
