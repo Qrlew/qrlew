@@ -418,36 +418,6 @@ impl And<Expr> for Map {
     }
 }
 
-impl And<Column> for Map {
-    type Product = (Map, Column);
-
-    fn and(self, col: Column) -> Self::Product {
-        let Map {
-            named_exprs,
-            filter,
-            order_by,
-            reduce,
-        } = self;
-        // Add the expr to the next split if needed
-        let (reduce, col) = if let Some(r) = reduce {
-            let (r, expr) = r.and(col);
-            (Some(r), expr)
-        } else {
-            (None, col)
-        };
-        // Add matched sub-expressions
-        (
-            Map::new(
-                named_exprs.into_iter().chain(vec![(col.last().unwrap().to_string(), Expr::Column(col.clone()))]).collect(),
-                filter,
-                order_by,
-                reduce,
-            ),
-            col,
-        )
-    }
-}
-
 #[derive(Clone, Default, Debug, Hash, PartialEq, Eq)]
 pub struct Reduce {
     pub named_aggregates: Vec<(String, AggregateColumn)>,
@@ -614,8 +584,8 @@ impl And<Self> for Reduce {
                     self.group_by
                         .into_iter()
                         .fold((map, vec![]), |(map, mut group_by), col| {
-                            let (map, col) = map.and(col);
-                            group_by.push(col);
+                            let (map, col) = map.and(Expr::from(col));
+                            group_by.push(col.try_into().unwrap());
                             (map, group_by)
                         });
                 Reduce::new(
@@ -641,8 +611,8 @@ impl And<Self> for Reduce {
                         .group_by
                         .into_iter()
                         .fold((map, vec![]), |(map, mut group_by), col| {
-                            let (map, col) = map.and(col);
-                            group_by.push(col);
+                            let (map, col) = map.and(Expr::from(col));
+                            group_by.push(col.try_into().unwrap());
                             (map, group_by)
                         });
                 Reduce::new(
@@ -714,35 +684,6 @@ impl And<Expr> for Reduce {
                 map,
             ),
             expr,
-        )
-    }
-}
-
-impl And<Column> for Reduce {
-    type Product = (Reduce, Column);
-
-    fn and(self, col: Column) -> Self::Product {
-        let Reduce {
-            named_aggregates,
-            group_by,
-            map,
-        } = self;
-        // Add the expr to the next split if needed
-        let (map, col) = if let Some(m) = map {
-            let (m, expr) = m.and(col);
-            (Some(m), expr)
-        } else {
-            (None, col)
-        };
-        (
-            Reduce::new(
-                named_aggregates
-                    .into_iter()
-                    .chain(vec![(col.last().unwrap().to_string(), AggregateColumn::first(col.last().unwrap().to_string()))]).collect(),
-                group_by.into_iter().chain(vec![col.clone()]).collect(),
-                map,
-            ),
-            col,
         )
     }
 }
