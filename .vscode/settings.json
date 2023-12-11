@@ -1,4 +1,5 @@
 {
+    "rust-analyzer.server.extraEnv": { "RUSTUP_TOOLCHAIN": "stable" },
     "rust-analyzer.check.features": [
         "sqlite",
     ],
@@ -10,4 +11,5 @@
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml"
     ],
+    "rust-analyzer.cargo.sysroot": "discover",
 }

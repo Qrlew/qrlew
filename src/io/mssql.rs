@@ -33,7 +33,7 @@ use std::{
 const DB: &str = "qrlew-mssql-test";
 const PORT: u16 = 1433;
 const USER: &str = "SA";
-const PASSWORD: &str = "MyPass@word";
+const PASSWORD: &str = "Strong@Passw0rd";
 
 impl From<sqlx::Error> for Error {
     fn from(err: sqlx::Error) -> Self {
