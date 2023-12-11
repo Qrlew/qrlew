@@ -11,7 +11,7 @@ use crate::{
     ast,
     builder::{Ready, With, WithIterator, WithoutContext},
     dialect::{Dialect, GenericDialect},
-    expr::{Expr, Identifier, Split},
+    expr::{Expr, Identifier, Split, Reduce},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
     parser::Parser,
@@ -315,25 +315,6 @@ impl<'a> VisitedQueryRelations<'a> {
                 .map(|e| e.with(columns).try_into())
                 .collect::<Result<Vec<Expr>>>()?,
         };
-        let exprs:HashMap<Expr, String> = named_exprs
-            .iter()
-            .cloned()
-            .map(|(name, x)| (x, name))
-            .collect();
-        // let mut named_exprs = named_exprs.into_iter().chain(
-        //     group_by.iter()
-        //     .cloned()
-        //     .map(|gx| (
-        //         exprs
-        //         .get(&gx)
-        //         .unwrap_or(&namer::name_from_content(FIELD, &gx))
-        //         .to_string(),
-        //         gx)
-        //     )
-        //     .collect::<Vec<_>>()
-        // ).collect::<Vec<_>>();
-
-
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
@@ -355,14 +336,20 @@ impl<'a> VisitedQueryRelations<'a> {
         } else {
             None
         };
-
         // Build the Map or Reduce based on the type of split
-        let split = group_by.into_iter()
-            .fold(
-                Split::from_iter(named_exprs),
-                |s, expr| s.and(Split::Reduce(Split::group_by(expr)))
+        // If group_by is non-empty, start with them so that aggregations can take them into account
+        let split = if group_by.is_empty() {
+            Split::from_iter(named_exprs)
+        } else {
+            let group_by = group_by.into_iter()
+            .fold(Split::Reduce(Reduce::default()),
+            |s, expr| s.and(Split::Reduce(Split::group_by(expr)))
             );
-        println!("split = {}", split);
+            named_exprs.into_iter()
+            .fold(group_by,
+                |s, named_expr| s.and(named_expr.into())
+            )
+        };
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()

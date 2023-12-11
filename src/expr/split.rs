@@ -985,4 +985,12 @@ mod tests {
         ]);
         println!("split = {split}");
     }
+
+    #[test]
+    fn test_split_map_reduce_map_group_by_expr() {
+        let split = Split::from(("b", expr!(2*count(1 + y))));
+        let split = split.and(Split::group_by(expr!(x-y)).into());
+        let split = split.and(Split::from(("a", expr!(x-y))));
+        println!("split = {split}");
+    }
 }
