@@ -1984,7 +1984,7 @@ mod tests {
             .with(expr!(count(a)))
             //.with_group_by_column("c")
             .with(("twice_c", expr!(first(2*c))))
-            .group_by(expr!(c))
+            .group_by(expr!(2*c))
             .build();
         let distinct_relation = relation.clone().distinct();
         distinct_relation.display_dot();
