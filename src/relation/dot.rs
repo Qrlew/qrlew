@@ -113,7 +113,7 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
                     join.right()
                         .schema()
                         .iter()
-                        .filter_map(|f| (join.operator().is_natural() && !join.left().schema().fields_names().contains(&f.name()))
+                        .filter_map(|f| (join.operator().is_natural() && !join.left().schema().field(&f.name()).is_ok())
                             .then_some(vec![Join::right_name(), f.name()])
                         )
                 )

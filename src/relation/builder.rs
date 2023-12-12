@@ -852,6 +852,9 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .name
             .clone()
             .unwrap_or(namer::name_from_content(JOIN, &self));
+        let operator = self
+            .operator
+            .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
         let left_names = self
             .left
             .0
@@ -861,10 +864,14 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .map(|(i, field)| {
                 self.names
                     .get(&[Join::left_name().to_string(), field.name().to_string()])
-                    .unwrap_or(self.left_names.get(i).unwrap_or(&namer::name_from_content(
-                        FIELD,
-                        &(Join::left_name(), &field),
-                    )))
+                    .unwrap_or(
+                        self.left_names.get(i)
+                        .unwrap_or(
+                            &operator.is_natural()
+                            .then_some(field.name().to_string())
+                            .unwrap_or(namer::name_from_content(FIELD,&(Join::left_name(), &field)))
+                        )
+                    )
                     .to_string()
             })
             .collect();
@@ -877,16 +884,17 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .map(|(i, field)| {
                 self.names
                     .get(&[Join::right_name().to_string(), field.name().to_string()])
-                    .unwrap_or(self.right_names.get(i).unwrap_or(&namer::name_from_content(
-                        FIELD,
-                        &(Join::right_name(), &field),
-                    )))
+                    .unwrap_or(
+                        self.left_names.get(i)
+                        .unwrap_or(
+                            &operator.is_natural()
+                            .then_some(field.name().to_string())
+                            .unwrap_or(namer::name_from_content(FIELD,&(Join::left_name(), &field)))
+                        )
+                    )
                     .to_string()
             })
             .collect();
-        let operator = self
-            .operator
-            .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
         Ok(Join::new(
             name,
             left_names,

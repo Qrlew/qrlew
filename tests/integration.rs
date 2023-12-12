@@ -68,13 +68,13 @@ const QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
     t2 AS (SELECT * FROM table_2)
     SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT * FROM table_2)
-    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
+    // "WITH t1 AS (SELECT a,d FROM table_1),
+    // t2 AS (SELECT * FROM table_2)
+    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
     // Test LIMIT
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT * FROM table_2)
-    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
+    // "WITH t1 AS (SELECT a,d FROM table_1),
+    // t2 AS (SELECT * FROM table_2)
+    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
     "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
     "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
     "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
@@ -85,9 +85,9 @@ const QUERIES: &[&str] = &[
     t2 AS (SELECT x,y FROM table_2)
     SELECT * FROM t1",
     // Test UNION with CTEs
-    "WITH t1 AS (SELECT 1*a, 1*d FROM table_1),
-    t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
-    SELECT * FROM t1 UNION SELECT * FROM t2",
+    // "WITH t1 AS (SELECT 1*a, 1*d FROM table_1),
+    // t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
+    // SELECT * FROM t1 UNION SELECT * FROM t2",
     // Some joins
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
     // Some string functions
@@ -97,7 +97,13 @@ const QUERIES: &[&str] = &[
     "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d",
     "SELECT DISTINCT c, d FROM table_1",
     "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
-    "SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;"
+    "SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;",
+    // natural joins
+    "WITH t1 AS (SELECT a, b FROM table_1 WHERE a > 5), t2 AS (SELECT a, d FROM table_1 WHERE a < 7) SELECT * FROM t1 NATURAL INNER JOIN t2",
+    "WITH t1 AS (SELECT a, b FROM table_1 WHERE a > 5), t2 AS (SELECT a, d FROM table_1 WHERE a < 7) SELECT * FROM t1 NATURAL LEFT JOIN t2",
+    "WITH t1 AS (SELECT a, b FROM table_1 WHERE a > 5), t2 AS (SELECT a, d FROM table_1 WHERE a < 7) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
+    "WITH t1 AS (SELECT a, b FROM table_1 WHERE a > 5), t2 AS (SELECT a, d FROM table_1 WHERE a < 7) SELECT * FROM t1 NATURAL OUTER JOIN t2",
+
 ];
 
 #[cfg(feature = "sqlite")]

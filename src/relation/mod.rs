@@ -961,26 +961,36 @@ impl Join {
             .into_iter()
             .zip(left_schema.iter())
             .map(|(name, field)| {
-                Field::new(
-                    name,
-                    if transform_datatype_in_optional_left {
-                        DataType::optional(field.data_type())
-                    } else {
-                        field.data_type()
-                    },
-                    if right_is_unique {
-                        field.constraint()
-                    } else {
+                let (data_type, constraint) = if (
+                    matches!(operator, JoinOperator::RightOuter(JoinConstraint::Natural))
+                    && right_schema.field(&field.name()).is_ok()
+                ) { // if the join is of type NATURAL RIGHT then the duplicate fields are the fields from the right Relation
+                    let right_field = right_schema.field(&field.name()).unwrap();
+                    (right_field.data_type(), right_field.constraint())
+                } else if (
+                    matches!(operator, JoinOperator::FullOuter(JoinConstraint::Natural))
+                    && right_schema.field(&field.name()).is_ok()
+                ) { // if the join is of type NATURAL FULL then the datatype of the duplicate fields is the union of the left and right datatypes
+                    let right_field = right_schema.field(&field.name()).unwrap();
+                    (
+                        field.data_type().super_union(&right_field.data_type()).unwrap(),
                         None
-                    },
-                )
+                    )
+                } else {
+                    (
+                        transform_datatype_in_optional_left.then_some(DataType::optional(field.data_type()))
+                        .unwrap_or(field.data_type()),
+                        right_is_unique.then_some(field.constraint()).unwrap_or(None)
+                    )
+                };
+                Field::new(name, data_type, constraint)
             });
 
         let right_fields = right_names
             .into_iter()
             .zip(right_schema.iter())
             .filter_map(|(name, field)| {
-                (operator.is_natural() && !left_schema.fields_names().contains(&field.name()))
+                (operator.is_natural() && !left_schema.field(&field.name()).is_ok()) // we filter the duplicate fields
                 .then_some(
                     Field::new(
                         name,
@@ -1899,16 +1909,69 @@ mod tests {
         .collect();
         let table2: Relation = Relation::table().name("table1").schema(schema2).build();
 
-        let join: Join = Relation::join()
+        // natural inner join
+        let relation: Relation = Relation::join()
             .left(table1.clone())
             .right(table2.clone())
             .inner()
             .build();
-        println!("join.names() = {}", join.names());
-        let relation = Relation::from(join);
         relation.display_dot().unwrap();
-        println!("relation.data_type() = {}", relation.data_type());
-        println!("relation.schema() = {}", relation.schema());
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured([
+                ("a", DataType::integer_interval(0, 5)),
+                ("b", DataType::integer_interval(-2, 2)),
+                ("c", DataType::integer_interval(0, 20))
+            ])
+        );
+
+        // natural left join
+        let relation: Relation = Relation::join()
+            .left(table1.clone())
+            .right(table2.clone())
+            .left_outer()
+            .build();
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured([
+                ("a", DataType::integer_interval(-5, 5)),
+                ("b", DataType::integer_interval(-2, 2)),
+                ("c", DataType::optional(DataType::integer_interval(0, 20)))
+            ])
+        );
+
+        // natural right join
+        let relation: Relation = Relation::join()
+            .left(table1.clone())
+            .right(table2.clone())
+            .right_outer()
+            .build();
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured([
+                ("a", DataType::integer_interval(0, 10)),
+                ("b", DataType::optional(DataType::integer_interval(-2, 2))),
+                ("c", DataType::integer_interval(0, 20))
+            ])
+        );
+
+        // natural full join
+        let relation: Relation = Relation::join()
+            .left(table1.clone())
+            .right(table2.clone())
+            .full_outer()
+            .build();
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured([
+                ("a", DataType::integer_interval(-5, 10)),
+                ("b", DataType::optional(DataType::integer_interval(-2, 2))),
+                ("c", DataType::optional(DataType::integer_interval(0, 20)))
+            ])
+        );
     }
 
     #[test]

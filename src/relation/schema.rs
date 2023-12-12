@@ -61,10 +61,6 @@ impl Schema {
         &self.fields
     }
 
-    pub fn fields_names(&self) -> Vec<&str> {
-        self.fields.iter().map(|f| f.name()).collect()
-    }
-
     /// Access a field by name
     pub fn field(&self, name: &str) -> Result<&Field> {
         if let Some(index) = self.fields.iter().position(|f| f.name() == name) {
