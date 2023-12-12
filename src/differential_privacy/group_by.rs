@@ -22,7 +22,7 @@ impl Reduce {
                 .with_iter(
                     self.group_by()
                         .into_iter()
-                        .map(|x| (x.to_string(), x.clone()))
+                        .map(|col| (col.to_string(), Expr::Column(col.clone())))
                         .collect::<Vec<_>>(),
                 )
                 .with((

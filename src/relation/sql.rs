@@ -324,7 +324,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 table_with_joins(table_factor(reduce.input.as_ref().into(), None), vec![]),
                 None,
                 ast::GroupByExpr::Expressions(
-                    reduce.group_by.iter().map(ast::Expr::from).collect(),
+                    reduce.group_by.iter().map(|col| ast::Expr::from(&Expr::Column(col.clone()))).collect(),
                 ),
                 vec![],
                 None,
