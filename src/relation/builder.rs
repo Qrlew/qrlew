@@ -852,6 +852,9 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .name
             .clone()
             .unwrap_or(namer::name_from_content(JOIN, &self));
+        let operator = self
+            .operator
+            .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
         let left_names = self
             .left
             .0
@@ -884,9 +887,6 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
                     .to_string()
             })
             .collect();
-        let operator = self
-            .operator
-            .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
         Ok(Join::new(
             name,
             left_names,
