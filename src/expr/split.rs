@@ -36,9 +36,13 @@ impl Split {
     }
 
     pub fn group_by(expr: Expr) -> Reduce {
-        let name = namer::name_from_content(FIELD, &expr);
-        let map = Map::new(vec![(name.clone(), expr)], None, vec![], None);
-        Reduce::new(vec![], vec![name.into()], Some(map))
+        if let Expr::Column(col) = expr {// If the expression is a column
+            Reduce::new(vec![], vec![col], None)
+        } else {// If not
+            let name = namer::name_from_content(FIELD, &expr);
+            let map = Map::new(vec![(name.clone(), expr)], None, vec![], None);
+            Reduce::new(vec![], vec![name.into()], Some(map))
+        }
     }
 
     pub fn into_map(self) -> Map {
