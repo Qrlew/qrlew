@@ -946,26 +946,16 @@ impl Join {
             .into_iter()
             .zip(left_schema.iter())
             .map(|(name, field)| {
-                let (data_type, constraint) = if (
-                    matches!(operator, JoinOperator::RightOuter(JoinConstraint::Natural))
-                    && right_schema.field(&field.name()).is_ok()
-                ) { // if the join is of type NATURAL RIGHT then the duplicate fields are the fields from the right Relation
+                let (data_type, constraint) = if matches!(operator, JoinOperator::RightOuter(JoinConstraint::Natural)) && right_schema.field(&field.name()).is_ok() {
                     let right_field = right_schema.field(&field.name()).unwrap();
                     (right_field.data_type(), right_field.constraint())
-                } else if (
-                    matches!(operator, JoinOperator::FullOuter(JoinConstraint::Natural))
-                    && right_schema.field(&field.name()).is_ok()
-                ) { // if the join is of type NATURAL FULL then the datatype of the duplicate fields is the union of the left and right datatypes
+                } else if matches!(operator, JoinOperator::FullOuter(JoinConstraint::Natural)) && right_schema.field(&field.name()).is_ok() {
                     let right_field = right_schema.field(&field.name()).unwrap();
-                    (
-                        field.data_type().super_union(&right_field.data_type()).unwrap(),
-                        None
-                    )
+                    (field.data_type().super_union(&right_field.data_type()).unwrap(), None)
                 } else {
                     (
-                        transform_datatype_in_optional_left.then_some(DataType::optional(field.data_type()))
-                        .unwrap_or(field.data_type()),
-                        right_is_unique.then_some(field.constraint()).unwrap_or(None)
+                        transform_datatype_in_optional_left.then_some(DataType::optional(field.data_type())).unwrap_or(field.data_type()),
+                        right_is_unique.then_some(field.constraint()).unwrap_or(None),
                     )
                 };
                 Field::new(name, data_type, constraint)
@@ -974,22 +964,16 @@ impl Join {
             .into_iter()
             .zip(right_schema.iter())
             .filter_map(|(name, field)| {
-                (!operator.is_natural() || left_schema.field(&field.name()).is_err()) // we filter the duplicate fields
-                .then_some(
-                    Field::new(
-                        name,
-                        if transform_datatype_in_optional_right {
-                            DataType::optional(field.data_type())
-                        } else {
-                            field.data_type()
-                        },
-                        if left_is_unique {
-                            field.constraint()
-                        } else {
-                            None
-                        },
-                    )
-                )
+                (!operator.is_natural() || left_schema.field(&field.name()).is_err())
+                .then_some(Field::new(
+                    name,
+                    if transform_datatype_in_optional_right {
+                        DataType::optional(field.data_type())
+                    } else {
+                        field.data_type()
+                    },
+                    if left_is_unique { field.constraint() } else { None },
+                ))
             });
         left_fields.chain(right_fields).collect()
     }
