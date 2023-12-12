@@ -938,18 +938,22 @@ impl Join {
             .into_iter()
             .zip(left_schema.iter())
             .map(|(name, field)| {
-                let (data_type, constraint) = match operator {
-                    JoinOperator::RightOuter(JoinConstraint::Natural) if right_schema.field(&field.name()).is_ok() => {
-                        // if `field` is present in both `left` and `right` and the operator is of type NATURAL RIGHT OUTER, the datatype of the field is the datatype of the right field
-                        let right_field =  right_schema.field(&field.name()).unwrap();
+                let (data_type, constraint) = match (operator, right_schema.field(&field.name())) {
+                    (JoinOperator::RightOuter(JoinConstraint::Natural), Ok(right_field)) => {
+                        // if
+                        // - operator is of type NATURAL RIGHT OUTER and
+                        // - `field` is present in both the `left` and `right` relations
+                        // then the datatype of the corresponding field in the JOIN is the datatype of the right field
                         (right_field.data_type(), right_field.constraint())
                     },
-                    JoinOperator::FullOuter(JoinConstraint::Natural) if right_schema.field(&field.name()).is_ok() => {
-                        // if `field` is present in both `left` and `right` and the operator is of type NATURAL FULL OUTER, the datatype of the field is the super union of the datatypes of the right and left field datatypes
-                        let right_field = right_schema.field(&field.name()).unwrap();
+                    (JoinOperator::FullOuter(JoinConstraint::Natural), Ok(right_field)) => {
+                        // if
+                        // - operator is of type NATURAL RIGHT OUTER and
+                        // - `field` is present in both the `left` and `right` relations
+                        // then the datatype of the corresponding field in the JOIN is the super union of the datatypes of the right and left field datatypes
                         (field.data_type().super_union(&right_field.data_type()).unwrap(), None)
                     },
-                    JoinOperator::RightOuter(_) | JoinOperator::FullOuter(_) => (
+                    (JoinOperator::RightOuter(_) | JoinOperator::FullOuter(_), _) => (
                         // if the operator if of type RIGHT or FULL OUTER (without NATURAL constraint), the current (left) field is an optional
                         DataType::optional(field.data_type()),
                         right_is_unique.then_some(field.constraint()).unwrap_or(None)
@@ -972,12 +976,10 @@ impl Join {
                     | JoinOperator::RightOuter(JoinConstraint::Natural)
                     | JoinOperator::FullOuter(JoinConstraint::Natural) if left_schema.field(&field.name()).is_ok() => None, // remove the duplicates when JoinConstaint is Natural
                     JoinOperator::LeftOuter(_) | JoinOperator::FullOuter(_) => Some((
-                        // if the operator if of type LEFT or FULL OUTER (without NATURAL constraint), the current (right) field is an optional
                         DataType::optional(field.data_type()),
                         left_is_unique.then_some(field.constraint()).unwrap_or(None)
                     )),
                     _ => Some((
-                        // if the operator if of type RIGHT or FULL OUTER (without NATURAL constraint), the current (right) field is an optional
                         field.data_type(),
                         left_is_unique.then_some(field.constraint()).unwrap_or(None)
                     ))
