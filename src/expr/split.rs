@@ -1,7 +1,7 @@
 //! The splits with some improvements
 //! Each split has named Expr and anonymous exprs
 use super::{
-    aggregate, function, visitor::Acceptor, Aggregate, AggregateColumn, Column, Expr, Function,
+    aggregate, function, visitor::Acceptor, AggregateColumn, Column, Expr, Function,
     Identifier, Value, Visitor,
 };
 use crate::{
@@ -36,7 +36,13 @@ impl Split {
     }
 
     pub fn group_by(expr: Expr) -> Reduce {
-        Reduce::new(vec![], vec![expr], None)
+        if let Expr::Column(col) = expr {// If the expression is a column
+            Reduce::new(vec![], vec![col], None)
+        } else {// If not
+            let name = namer::name_from_content(FIELD, &expr);
+            let map = Map::new(vec![(name.clone(), expr)], None, vec![], None);
+            Reduce::new(vec![], vec![name.into()], Some(map))
+        }
     }
 
     pub fn into_map(self) -> Map {
@@ -419,14 +425,14 @@ impl And<Expr> for Map {
 #[derive(Clone, Default, Debug, Hash, PartialEq, Eq)]
 pub struct Reduce {
     pub named_aggregates: Vec<(String, AggregateColumn)>,
-    pub group_by: Vec<Expr>,
+    pub group_by: Vec<Column>,
     pub map: Option<Box<Map>>,
 }
 
 impl Reduce {
     pub fn new(
         named_aggregates: Vec<(String, AggregateColumn)>,
-        group_by: Vec<Expr>,
+        group_by: Vec<Column>,
         map: Option<Map>,
     ) -> Self {
         Reduce {
@@ -440,7 +446,7 @@ impl Reduce {
         &self.named_aggregates
     }
 
-    pub fn group_by(&self) -> &[Expr] {
+    pub fn group_by(&self) -> &[Column] {
         &self.group_by
     }
 
@@ -581,9 +587,9 @@ impl And<Self> for Reduce {
                 let (map, group_by) =
                     self.group_by
                         .into_iter()
-                        .fold((map, vec![]), |(map, mut group_by), expr| {
-                            let (map, expr) = map.and(expr);
-                            group_by.push(expr);
+                        .fold((map, vec![]), |(map, mut group_by), col| {
+                            let (map, col) = map.and(Expr::from(col));
+                            group_by.push(col.try_into().unwrap());
                             (map, group_by)
                         });
                 Reduce::new(
@@ -608,9 +614,9 @@ impl And<Self> for Reduce {
                     other
                         .group_by
                         .into_iter()
-                        .fold((map, vec![]), |(map, mut group_by), expr| {
-                            let (map, expr) = map.and(expr);
-                            group_by.push(expr);
+                        .fold((map, vec![]), |(map, mut group_by), col| {
+                            let (map, col) = map.and(Expr::from(col));
+                            group_by.push(col.try_into().unwrap());
                             (map, group_by)
                         });
                 Reduce::new(
@@ -663,7 +669,7 @@ impl And<Expr> for Reduce {
                 group_by
                     .clone()
                     .into_iter()
-                    .map(|e| (namer::name_from_content(FIELD, &e), e)),
+                    .map(|col| (namer::name_from_content(FIELD, &col), Expr::Column(col))),
             )
             .unique()
             .collect();
@@ -789,8 +795,6 @@ impl<S: Into<String>> FromIterator<(S, Expr)> for Split {
 
 #[cfg(test)]
 mod tests {
-    use crate::expr::implementation::aggregate;
-
     use super::*;
 
     #[test]
@@ -822,10 +826,11 @@ mod tests {
             None,
         );
         println!("reduce = {reduce}");
-        let reduce = reduce.and(Reduce::new(vec![], vec![Expr::col("z")], None));
+
+        let reduce = reduce.and(Reduce::new(vec![], vec!["z".into()], None));
         println!("reduce and group by = {}", reduce);
         assert_eq!(reduce.len(), 1);
-        let map = reduce.into_map();
+        let map = reduce.clone().into_map();
         println!("reduce into map = {}", map);
         assert_eq!(map.len(), 2);
     }
@@ -923,6 +928,14 @@ mod tests {
             ("b", expr!(count(1 + y))),
             ("c", expr!(c)),
         ]);
+        println!("split = {split}");
+    }
+
+    #[test]
+    fn test_split_map_reduce_map_group_by_expr() {
+        let split = Split::from(("b", expr!(2*count(1 + y))));
+        let split = split.and(Split::group_by(expr!(x-y)).into());
+        let split = split.and(Split::from(("a", expr!(x-y))));
         println!("split = {split}");
     }
 }

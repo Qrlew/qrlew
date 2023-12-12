@@ -11,7 +11,7 @@ use crate::{
     ast,
     builder::{Ready, With, WithIterator, WithoutContext},
     dialect::{Dialect, GenericDialect},
-    expr::{Expr, Identifier, Split},
+    expr::{Expr, Identifier, Split, Reduce},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
     parser::Parser,
@@ -21,6 +21,7 @@ use crate::{
     },
     tokenizer::Tokenizer,
     visitor::{Acceptor, Dependencies, Visited},
+    types::And
 };
 use itertools::Itertools;
 use std::{
@@ -28,7 +29,7 @@ use std::{
     iter::{once, Iterator},
     result,
     str::FromStr,
-    sync::Arc,
+    sync::Arc, collections::HashMap,
 };
 
 /*
@@ -307,14 +308,13 @@ impl<'a> VisitedQueryRelations<'a> {
             }
         }
         // Prepare the GROUP BY
-        let group_by: Result<Vec<Expr>> = match group_by {
+        let group_by  = match group_by {
             ast::GroupByExpr::All => todo!(),
             ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
                 .iter()
                 .map(|e| e.with(columns).try_into())
-                .collect(),
+                .collect::<Result<Vec<Expr>>>()?,
         };
-
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
@@ -324,22 +324,32 @@ impl<'a> VisitedQueryRelations<'a> {
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
                 .collect();
             expr = expr.replace(columns).0;
-            if let Ok(g) = &group_by {
-                let columns = g
-                    .iter()
-                    .filter_map(|x| {
-                        matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone())))
-                    })
-                    .collect();
-                expr = expr.replace(columns).0;
-            }
+            let columns = group_by
+                .iter()
+                .filter_map(|x| {
+                    matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone())))
+                })
+                .collect();
+            expr = expr.replace(columns).0;
             named_exprs.push((having_name.clone(), expr));
             Some(having_name)
         } else {
             None
         };
         // Build the Map or Reduce based on the type of split
-        let split = Split::from_iter(named_exprs);
+        // If group_by is non-empty, start with them so that aggregations can take them into account
+        let split = if group_by.is_empty() {
+            Split::from_iter(named_exprs)
+        } else {
+            let group_by = group_by.clone().into_iter()
+            .fold(Split::Reduce(Reduce::default()),
+            |s, expr| s.and(Split::Reduce(Split::group_by(expr)))
+            );
+            named_exprs.into_iter()
+            .fold(group_by,
+                |s, named_expr| s.and(named_expr.into())
+            )
+        };
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
@@ -350,13 +360,13 @@ impl<'a> VisitedQueryRelations<'a> {
             Split::Map(map) => {
                 let builder = Relation::map().split(map);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
+                let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
+                let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
         };
@@ -615,7 +625,8 @@ mod tests {
         builder::Ready,
         data_type::{DataType, DataTyped, Variant},
         display::Dot,
-        relation::{schema::Schema, Constraint},
+        relation::schema::Schema,
+        io::{Database, postgresql}
     };
 
     #[test]
@@ -1207,6 +1218,36 @@ mod tests {
     }
 
     #[test]
+    fn test_group_by_exprs() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let query_str = "SELECT 3*d, COUNT(*) AS my_count FROM table_1 GROUP BY 3*d;";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        println!("relation = {relation}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("field_fp0x", DataType::integer_interval(0, 30)),
+                ("my_count", DataType::integer_interval(0, 10)),
+            ])
+        );
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+    }
+
+    #[test]
     fn test_distinct_in_select() {
         let query = parse("SELECT DISTINCT a, b FROM table_1;").unwrap();
         let schema_1: Schema = vec![
@@ -1223,7 +1264,7 @@ mod tests {
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
             &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
-        ))
+            ))
         .unwrap();
         relation.display_dot().unwrap();
         println!("relation = {relation}");

@@ -14,7 +14,7 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
     synthetic_data::SyntheticData,
-    visitor::{Acceptor, Visited, Visitor},
+    visitor::{Acceptor, Visited, Visitor}, display::Dot,
 };
 
 /// A simple Property object to tag Relations properties
