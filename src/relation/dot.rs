@@ -440,8 +440,6 @@ mod tests {
         let join: Relation = Relation::join()
             .name("join")
             .cross()
-            //.using("a")
-            //.on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
             .left(left)
             .right(right)
             .build();

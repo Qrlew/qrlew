@@ -187,7 +187,7 @@ impl<'a> VisitedQueryRelations<'a> {
                     ))
                 )
             },
-            ast::JoinConstraint::Natural => { // When joining table_1 with table_2, the NATURAL condition is equivalent to a "ON table_1.col1 = table_2.col1 AND table_1.col2 = table_2.col2" where col1, col2... are the columns present in both table_1 and table_2
+            ast::JoinConstraint::Natural => { // the NATURAL condition is equivalent to a "ON _LEFT_.col1 = _RIGHT_.col1 AND _LEFT_.col2 = _RIGHT_.col2" where col1, col2... are the columns present in both tables
                 let tables = columns.iter()
                 .map(|(k, _)| k.iter().take(k.len() - 1).map(|s| s.to_string()).collect::<Vec<_>>())
                 .dedup()
@@ -282,7 +282,7 @@ impl<'a> VisitedQueryRelations<'a> {
                     join.field_inputs().map(|(f, i)| (i, f.into())).collect();
                 let composed_columns = all_columns.and_then(new_columns.clone());
 
-                // If the join contraint is of type "USING" or "NATURAL", add a map for removing du duplicate columns
+                // If the join contraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
                 let relation = match &ast_join.join_operator {
                     ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
                     | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Using(v))

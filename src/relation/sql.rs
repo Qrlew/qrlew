@@ -675,7 +675,6 @@ mod tests {
         let join: Relation = Relation::join()
             .name("join")
             .left_outer(Expr::val(true))
-            //.using("a")
             .on_eq("b", "b")
             .left(left)
             .right(right)
