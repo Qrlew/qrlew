@@ -1,4 +1,4 @@
-use super::{Error, Field, JoinConstraint, JoinOperator, Relation, Variant as _, Visitor};
+use super::{Error, Field, JoinOperator, Relation, Variant as _, Visitor};
 use crate::{
     data_type::DataTyped,
     display::{self, colors},
@@ -113,7 +113,7 @@ impl<'a> Visitor<'a, FieldDataTypes> for DotVisitor {
                     join.right()
                         .schema()
                         .iter()
-                        .map(|f| vec![Join::right_name(), f.name()]),
+                        .map(|f| vec![Join::right_name(), f.name()])
                 )
                 .zip(join.schema().iter())
                 .map(|(p, field)| {
@@ -242,31 +242,13 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             }
             Relation::Join(join) => {
                 let operator = match &join.operator {
-                    JoinOperator::Inner(JoinConstraint::On(expr))
-                    | JoinOperator::LeftOuter(JoinConstraint::On(expr))
-                    | JoinOperator::RightOuter(JoinConstraint::On(expr))
-                    | JoinOperator::FullOuter(JoinConstraint::On(expr)) => {
+                    JoinOperator::Inner(expr)
+                    | JoinOperator::LeftOuter(expr)
+                    | JoinOperator::RightOuter(expr)
+                    | JoinOperator::FullOuter(expr) => {
                         format!("<br/>{} ON {}", join.operator.to_string(), expr)
                     }
-                    JoinOperator::Inner(JoinConstraint::Using(identifiers))
-                    | JoinOperator::LeftOuter(JoinConstraint::Using(identifiers))
-                    | JoinOperator::RightOuter(JoinConstraint::Using(identifiers))
-                    | JoinOperator::FullOuter(JoinConstraint::Using(identifiers)) => format!(
-                        "<br/>{} USING ({})",
-                        join.operator.to_string(),
-                        identifiers.iter().join(", ")
-                    ),
-                    JoinOperator::Inner(JoinConstraint::Natural)
-                    | JoinOperator::LeftOuter(JoinConstraint::Natural)
-                    | JoinOperator::RightOuter(JoinConstraint::Natural)
-                    | JoinOperator::FullOuter(JoinConstraint::Natural) => {
-                        format!("<br/>NATURAL {}", join.operator.to_string())
-                    }
-                    JoinOperator::Inner(JoinConstraint::None)
-                    | JoinOperator::LeftOuter(JoinConstraint::None)
-                    | JoinOperator::RightOuter(JoinConstraint::None)
-                    | JoinOperator::FullOuter(JoinConstraint::None)
-                    | JoinOperator::Cross => format!("<br/>{}", join.operator.to_string()),
+                    JoinOperator::Cross => format!("<br/>{}", join.operator.to_string()),
                 };
                 format!(
                     "<b>{} size ∈ {}</b><br/>{}{}",
@@ -458,8 +440,6 @@ mod tests {
         let join: Relation = Relation::join()
             .name("join")
             .cross()
-            //.using("a")
-            //.on(Expr::eq(Expr::qcol("left", "b"), Expr::qcol("right", "b")))
             .left(left)
             .right(right)
             .build();

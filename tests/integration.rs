@@ -101,8 +101,19 @@ const QUERIES: &[&str] = &[
     "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
     // DISTINCT
     "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d",
-    "SELECT DISTINCt c, d FROM table_1",
+    "SELECT DISTINCT c, d FROM table_1",
     "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
+    "SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;",
+    // using joins
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 INNER JOIN t2 USING(a)",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 LEFT JOIN t2 USING(a)",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 RIGHT JOIN t2 USING(a)",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
+    // natural joins
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL INNER JOIN t2",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
 ];
 
 #[cfg(feature = "sqlite")]
@@ -139,7 +150,7 @@ fn test_on_postgresql() {
     for tab in database.tables() {
         println!("schema {} = {}", tab, tab.schema());
     }
-    for &query in POSTGRESQL_QUERIES.iter().chain(QUERIES) {
+    for &query in QUERIES.iter().chain(POSTGRESQL_QUERIES) {
         assert!(test_rewritten_eq(&mut database, query));
     }
 }

@@ -122,6 +122,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        ast,
         builder::{Ready, With},
         display::Dot,
         expr::Identifier,
@@ -159,9 +160,9 @@ mod tests {
 
     #[test]
     fn test_rewrite_with_differential_privacy() {
-        let database = postgresql::test_database();
+        let mut database = postgresql::test_database();
         let relations = database.relations();
-        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
+
         let synthetic_data = SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
@@ -180,18 +181,32 @@ mod tests {
             ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
-        let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation
-            .rewrite_with_differential_privacy(&relations, synthetic_data, privacy_unit, budget)
-            .unwrap();
-        relation_with_private_query
-            .relation()
-            .display_dot()
-            .unwrap();
-        println!(
-            "PrivateQuery = {}",
-            relation_with_private_query.private_query()
-        );
+
+        let queries = [
+            "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
+            "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
+        ];
+
+        for q in queries {
+            println!("=================================\n{q}");
+            let query = parse(q).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            let relation_with_private_query = relation
+                .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), budget.clone())
+                .unwrap();
+            relation_with_private_query
+                .relation()
+                .display_dot()
+                .unwrap();
+            let dp_query = ast::Query::from(&relation_with_private_query.relation().clone()).to_string();
+            println!("\n{dp_query}");
+            _ = database
+                .query(dp_query.as_str())
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n");
+        }
     }
 
     #[test]

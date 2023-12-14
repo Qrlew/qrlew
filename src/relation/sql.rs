@@ -1,6 +1,6 @@
 //! Methods to convert Relations to ast::Query
 use super::{
-    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
+    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
     SetOperator, SetQuantifier, Table, Values, Variant as _, Visitor,
 };
 use crate::{
@@ -33,36 +33,20 @@ impl From<Identifier> for ast::ObjectName {
     }
 }
 
-impl From<JoinConstraint> for ast::JoinConstraint {
-    fn from(value: JoinConstraint) -> Self {
-        match value {
-            JoinConstraint::On(expr) => ast::JoinConstraint::On(ast::Expr::from(&expr)),
-            JoinConstraint::Using(idents) => ast::JoinConstraint::Using(
-                idents
-                    .into_iter()
-                    .map(|ident| ident.try_into().unwrap())
-                    .collect(),
-            ),
-            JoinConstraint::Natural => ast::JoinConstraint::Natural,
-            JoinConstraint::None => ast::JoinConstraint::None,
-        }
-    }
-}
-
 impl From<JoinOperator> for ast::JoinOperator {
     fn from(value: JoinOperator) -> Self {
         match value {
-            JoinOperator::Inner(join_constraint) => {
-                ast::JoinOperator::Inner(join_constraint.into())
+            JoinOperator::Inner(expr) => {
+                ast::JoinOperator::Inner(ast::JoinConstraint::On(ast::Expr::from(&expr)))
             }
-            JoinOperator::LeftOuter(join_constraint) => {
-                ast::JoinOperator::LeftOuter(join_constraint.into())
+            JoinOperator::LeftOuter(expr) => {
+                ast::JoinOperator::LeftOuter(ast::JoinConstraint::On(ast::Expr::from(&expr)))
             }
-            JoinOperator::RightOuter(join_constraint) => {
-                ast::JoinOperator::RightOuter(join_constraint.into())
+            JoinOperator::RightOuter(expr) => {
+                ast::JoinOperator::RightOuter(ast::JoinConstraint::On(ast::Expr::from(&expr)))
             }
-            JoinOperator::FullOuter(join_constraint) => {
-                ast::JoinOperator::FullOuter(join_constraint.into())
+            JoinOperator::FullOuter(expr) => {
+                ast::JoinOperator::FullOuter(ast::JoinConstraint::On(ast::Expr::from(&expr)))
             }
             JoinOperator::Cross => ast::JoinOperator::CrossJoin,
         }
@@ -690,8 +674,7 @@ mod tests {
 
         let join: Relation = Relation::join()
             .name("join")
-            .left_outer()
-            //.using("a")
+            .left_outer(Expr::val(true))
             .on_eq("b", "b")
             .left(left)
             .right(right)

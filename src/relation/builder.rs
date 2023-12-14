@@ -3,7 +3,7 @@ use std::{hash::Hash, sync::Arc};
 use itertools::Itertools;
 
 use super::{
-    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
+    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
     SetOperator, SetQuantifier, Table, Values, Variant,
 };
 use crate::{
@@ -692,23 +692,23 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
         self
     }
 
-    pub fn inner(mut self) -> Self {
-        self.operator = Some(JoinOperator::Inner(JoinConstraint::Natural));
+    pub fn inner(mut self, expr: Expr) -> Self {
+        self.operator = Some(JoinOperator::Inner(expr));
         self
     }
 
-    pub fn left_outer(mut self) -> Self {
-        self.operator = Some(JoinOperator::LeftOuter(JoinConstraint::Natural));
+    pub fn left_outer(mut self, expr: Expr) -> Self {
+        self.operator = Some(JoinOperator::LeftOuter(expr));
         self
     }
 
-    pub fn right_outer(mut self) -> Self {
-        self.operator = Some(JoinOperator::RightOuter(JoinConstraint::Natural));
+    pub fn right_outer(mut self, expr: Expr) -> Self {
+        self.operator = Some(JoinOperator::RightOuter(expr));
         self
     }
 
-    pub fn full_outer(mut self) -> Self {
-        self.operator = Some(JoinOperator::FullOuter(JoinConstraint::Natural));
+    pub fn full_outer(mut self, expr: Expr) -> Self {
+        self.operator = Some(JoinOperator::FullOuter(expr));
         self
     }
 
@@ -719,18 +719,12 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
     /// Add an on condition
     pub fn on(mut self, expr: Expr) -> Self {
         self.operator = match self.operator {
-            Some(JoinOperator::Inner(_)) => Some(JoinOperator::Inner(JoinConstraint::On(expr))),
-            Some(JoinOperator::LeftOuter(_)) => {
-                Some(JoinOperator::LeftOuter(JoinConstraint::On(expr)))
-            }
-            Some(JoinOperator::RightOuter(_)) => {
-                Some(JoinOperator::RightOuter(JoinConstraint::On(expr)))
-            }
-            Some(JoinOperator::FullOuter(_)) => {
-                Some(JoinOperator::FullOuter(JoinConstraint::On(expr)))
-            }
+            Some(JoinOperator::Inner(_)) => Some(JoinOperator::Inner(expr)),
+            Some(JoinOperator::LeftOuter(_)) => Some(JoinOperator::LeftOuter(expr)),
+            Some(JoinOperator::RightOuter(_)) => Some(JoinOperator::RightOuter(expr)),
+            Some(JoinOperator::FullOuter(_)) => Some(JoinOperator::FullOuter(expr)),
             Some(JoinOperator::Cross) => Some(JoinOperator::Cross),
-            None => Some(JoinOperator::Inner(JoinConstraint::On(expr))),
+            None => Some(JoinOperator::Inner(expr)),
         };
         self
     }
@@ -751,56 +745,11 @@ impl<RequireLeftInput, RequireRightInput> JoinBuilder<RequireLeftInput, RequireR
     /// Add a condition to the ON
     pub fn and(mut self, expr: Expr) -> Self {
         self.operator = match self.operator {
-            Some(JoinOperator::Inner(JoinConstraint::On(on))) => {
-                Some(JoinOperator::Inner(JoinConstraint::On(Expr::and(expr, on))))
-            }
-            Some(JoinOperator::LeftOuter(JoinConstraint::On(on))) => Some(JoinOperator::LeftOuter(
-                JoinConstraint::On(Expr::and(expr, on)),
-            )),
-            Some(JoinOperator::RightOuter(JoinConstraint::On(on))) => Some(
-                JoinOperator::RightOuter(JoinConstraint::On(Expr::and(expr, on))),
-            ),
-            Some(JoinOperator::FullOuter(JoinConstraint::On(on))) => Some(JoinOperator::FullOuter(
-                JoinConstraint::On(Expr::and(expr, on)),
-            )),
+            Some(JoinOperator::Inner(x)) => Some(JoinOperator::Inner(Expr::and(expr, x))),
+            Some(JoinOperator::LeftOuter(x)) => Some(JoinOperator::LeftOuter(Expr::and(expr, x))),
+            Some(JoinOperator::RightOuter(x)) => Some(JoinOperator::RightOuter(Expr::and(expr, x))),
+            Some(JoinOperator::FullOuter(x)) => Some(JoinOperator::FullOuter(Expr::and(expr, x))),
             op => op,
-        };
-        self
-    }
-    /// Add a using condition
-    pub fn using<I: Into<Identifier>>(mut self, using: I) -> Self {
-        let using: Identifier = using.into();
-        self.operator = match self.operator {
-            Some(JoinOperator::Inner(JoinConstraint::Using(mut identifiers))) => {
-                identifiers.push(using);
-                Some(JoinOperator::Inner(JoinConstraint::Using(identifiers)))
-            }
-            Some(JoinOperator::LeftOuter(JoinConstraint::Using(mut identifiers))) => {
-                identifiers.push(using);
-                Some(JoinOperator::LeftOuter(JoinConstraint::Using(identifiers)))
-            }
-            Some(JoinOperator::RightOuter(JoinConstraint::Using(mut identifiers))) => {
-                identifiers.push(using);
-                Some(JoinOperator::RightOuter(JoinConstraint::Using(identifiers)))
-            }
-            Some(JoinOperator::FullOuter(JoinConstraint::Using(mut identifiers))) => {
-                identifiers.push(using);
-                Some(JoinOperator::FullOuter(JoinConstraint::Using(identifiers)))
-            }
-            Some(JoinOperator::Inner(_)) => {
-                Some(JoinOperator::Inner(JoinConstraint::Using(vec![using])))
-            }
-            Some(JoinOperator::LeftOuter(_)) => {
-                Some(JoinOperator::LeftOuter(JoinConstraint::Using(vec![using])))
-            }
-            Some(JoinOperator::RightOuter(_)) => {
-                Some(JoinOperator::RightOuter(JoinConstraint::Using(vec![using])))
-            }
-            Some(JoinOperator::FullOuter(_)) => {
-                Some(JoinOperator::FullOuter(JoinConstraint::Using(vec![using])))
-            }
-            Some(JoinOperator::Cross) => Some(JoinOperator::Cross),
-            None => Some(JoinOperator::Inner(JoinConstraint::Using(vec![using]))),
         };
         self
     }
@@ -867,6 +816,9 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .name
             .clone()
             .unwrap_or(namer::name_from_content(JOIN, &self));
+        let operator = self
+            .operator
+            .unwrap_or(JoinOperator::Cross);
         let left_names = self
             .left
             .0
@@ -899,9 +851,6 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
                     .to_string()
             })
             .collect();
-        let operator = self
-            .operator
-            .unwrap_or(JoinOperator::Inner(JoinConstraint::Natural));
         Ok(Join::new(
             name,
             left_names,
@@ -1262,8 +1211,7 @@ mod tests {
         let join: Relation = Relation::join()
             .left(table1)
             .right(table2)
-            .left_outer()
-            .on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c"))])
+            .left_outer(Expr::eq(Expr::col("a"), Expr::col("c")))
             .left_names(vec!["a1", "b1"])
             //.on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c")), Expr::eq(Expr::col("b"), Expr::col("d"))])
             .build();
@@ -1492,7 +1440,7 @@ mod tests {
         let join: Relation = Relation::join()
             .left(table1.clone())
             .right(table1.clone())
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("d", "d")
             .names(Hierarchy::<String>::from_iter(vec![
                 ([Join::left_name(), "a"], "a1".to_string()),

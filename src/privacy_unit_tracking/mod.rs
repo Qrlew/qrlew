@@ -174,8 +174,7 @@ impl Relation {
             referred_relation
         };
         let join: Relation = Relation::join()
-            .inner()
-            .on(Expr::eq(
+            .inner(Expr::eq(
                 Expr::qcol(Join::right_name(), &referring_id),
                 Expr::qcol(Join::left_name(), &referred_id),
             ))
@@ -670,7 +669,7 @@ mod tests {
             .deref()
             .clone();
         let join: Join = Join::builder()
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("order_id", "id")
             .left(left.clone())
             .right(right.clone())
@@ -739,7 +738,7 @@ mod tests {
             .deref()
             .clone();
         let join: Join = Join::builder()
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("item", "item")
             .left(table.clone())
             .right(table.clone())
