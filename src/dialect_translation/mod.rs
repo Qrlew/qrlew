@@ -501,7 +501,6 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                 let ast_expr = self.expr(expr);
                 cast_builder(ast_expr, ast::DataType::Datetime(Some(64)))
             }
-
             fn from_case(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                 let ast_exprs: Vec<ast::Expr> =
                     exprs.into_iter().map(|expr| self.expr(expr)).collect();

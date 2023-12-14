@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::{IntoDialectTranslator, IntoRelationTranslator, Result};
-use sqlparser::{ast, dialect::MsSqlDialect};
+use sqlparser::{ast::{self, CharacterLength}, dialect::MsSqlDialect};
 #[derive(Clone, Copy)]
 pub struct MSSQLTranslator;
 
@@ -320,8 +320,10 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
         // It seems to be a bug in sqlx such that when using Varchar for text when pushing data to sql it fails
-        //DataType::Text(_) => ast::DataType::Text,
-        DataType::Text(_) => ast::DataType::Varchar(None),
+        //DataType::Text(_) => ast::DataType::Text, // When reading the dataset I get unsupported data type Text. Probably is the sqlx type protobuf for MSSQL 
+        //DataType::Float(_) => ast::DataType::Real, // it would fail if there are floats with scientific notation
+        //DataType::Text(_) => ast::DataType::Varchar(None),
+        DataType::Text(_) => ast::DataType::Nvarchar(Some(255)),
         //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL,
         DataType::Optional(o) => translate_data_type(o.data_type().clone()),
         _ => dtype.into(),
@@ -345,10 +347,30 @@ mod tests {
         display::Dot,
         expr::Expr,
         namer,
-        relation::{schema::Schema, Relation},
-        sql::{parse, parse_with_dialect, relation::QueryWithRelations},
+        relation::{schema::Schema, Relation, Variant as _},
+        sql::{parse, parse_with_dialect, relation::QueryWithRelations}, io::{mssql, Database as _},
     };
     use std::sync::Arc;
+
+    #[test]
+    fn test_limit() {
+        let mut database = mssql::test_database();
+        let relations = database.relations();
+
+        let query = "SELECT * FROM table_1 LIMIT 30";
+
+        let relation = Relation::try_from(
+            With::with(&parse(query).unwrap(), &relations),
+        )
+        .unwrap();
+
+        let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
+        let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
+        println!("{}", translated_query);
+
+        let _ = database.query(translated_query).unwrap();
+    }
+
 
     #[test]
     fn test_translation() {

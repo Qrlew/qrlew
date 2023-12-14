@@ -1,8 +1,6 @@
-// Creating an mssql connector. Careful this is still in beta:
-// TODO:
-// MSSQL doesn't support IF NOT EXISTS in create table. If the table exists a runtime error will be rised
-// In MSSQL the boolean type is create with the BIT keyword but in the sqlparser is not possible to define a DataType BIT
-// Date, Datetime and Interval are not yes supported
+/// Creating an mssql connector. This is experimental.
+/// There are some types that are not supported
+/// Date, Datetime and Interval are not yes supported
 
 use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 use crate::{
@@ -76,7 +74,6 @@ impl Database {
     /// `docker run --name qrlew-mssql-test -p 1433:1433 -d mssql`
     fn build_pool_from_existing() -> Result<Pool<Mssql>> {
         log::info!("Try to get an existing DB");
-        println!("FROM inside build_pool_from_existing...");
         let rt = tokio::runtime::Runtime::new().unwrap();
         let pool = rt.block_on(async_connect(&format!(
             "mssql://{}:{}@localhost:{}/master?encrypt=false",
@@ -85,41 +82,13 @@ impl Database {
             Database::port(),
         )))?;
         Ok(pool)
-        // let find_tables_query =
-        //     "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
-        // let table_names: Vec<String> = rt
-        //     .block_on(async_query(find_tables_query, &mut connection))?
-        //     .iter()
-        //     .map(|r| {
-        //         let val_as_str: String = r.to_vec()[0].clone().try_into().unwrap();
-        //         val_as_str
-        //     })
-        //     .collect();
-        // if table_names.is_empty() {
-        //     Database {
-        //         name,
-        //         tables: vec![],
-        //         pool,
-        //         drop: false,
-        //     }
-        //     .with_tables(tables)
-        // } else {
-        //     Ok(Database {
-        //         name,
-        //         tables,
-        //         pool,
-        //         drop: false,
-        //     })
-        // }
     }
 
     // /// Get a Database from a container
     fn build_pool_from_container(name: String) -> Result<Pool<Mssql>> {
-        println!("FROM inside build_pool_from_container...");
         let mut mssql_container = MSSQL_CONTAINER.lock().unwrap();
 
         if *mssql_container == false {
-            println!("FROM inside mssql_container == false");
             // A new container will be started
             *mssql_container = true;
 
@@ -135,9 +104,9 @@ impl Database {
                 .success()
             {
                 log::debug!("Starting the DB");
-                print!("\nTRY to start the container\n");
                 // If the container does not exist, start a new container
-                // Run: `docker run -e "ACCEPT_EULA=1" -e "MSSQL_SA_PASSWORD=MyPass@word" -e "MSSQL_USER=SA" -p 1433:1433 -d --name=qrlew-mssql-test mcr.microsoft.com/azure-sql-edge`
+                // Run: `docker run -e "ACCEPT_EULA=1" -e "MSSQL_SA_PASSWORD=Strong@Passw0rd" -e "MSSQL_USER=SA" -p 1433:1433 -d --name=qrlew-mssql-test mcr.microsoft.com/azure-sql-edge`
+                // docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=Strong@Passw0rd' -p 1433:1433 --name mssql -d mcr.microsoft.com/mssql/server:2019-latest
                 let output = Command::new("docker")
                     .arg("run")
                     .arg("--name")
@@ -156,39 +125,26 @@ impl Database {
                     .output()?;
                 log::info!("{:?}", output);
                 log::info!("Waiting for the DB to start");
-                // [!NOTE] sqlcmd tool is not available inside the ARM64 version of SQL Edge containers.
-                // FROM https://hub.docker.com/_/microsoft-azure-sql-edge
-
-                
-
-                // while !Command::new("docker")
-                //     .arg("exec")
-                //     .arg(&name)
-                //     .arg("/bin/bash")
-                //     .arg("&&")
-                //     .arg("echo")
-                //     .arg("1")
-                //     .status()?
-                //     .success()
-                // while !Command::new("docker")
-                //     .arg("exec")
-                //     .arg(&name)
-                //     .arg("sqlcmd")
-                //     .arg("-S")
-                //     .arg(format!("localhost,{port}"))
-                //     .arg("-U")
-                //     .arg("SA")
-                //     .arg("-P")
-                //     .arg("{PASSWORD}")
-                //     .arg("-Q")
-                //     .arg("SELECT 1")
-                //     .status()?
-                //     .success()
-                // {
-                //     thread::sleep(time::Duration::from_millis(500));
-                //     log::info!("Waiting...");
-                // }
-                thread::sleep(time::Duration::from_millis(5000));
+                // execute "SELECT 1" to check that the server is up and running
+                while !Command::new("docker")
+                    .arg("exec")
+                    .arg(&name)
+                    .arg("/opt/mssql-tools/bin/sqlcmd")
+                    .arg("-S")
+                    .arg(format!("localhost,{port}"))
+                    .arg("-U")
+                    .arg("SA")
+                    .arg("-P")
+                    .arg(format!("{PASSWORD}"))
+                    .arg("-Q")
+                    .arg("SELECT 1 AS connection_successful")
+                    .status()?
+                    .success()
+                {
+                    thread::sleep(time::Duration::from_millis(2000));
+                    log::info!("Waiting...");
+                }
+                //thread::sleep(time::Duration::from_millis(5000));
                 log::info!("{}", "DB ready".red());
             }
 
@@ -201,7 +157,6 @@ impl Database {
             )))?;
             Ok(pool)
         } else {
-            println!("FROM inside mssql_container == true");
             Database::build_pool_from_existing()
         }
     }
@@ -228,7 +183,7 @@ impl Database {
                     Schema::empty()
                         .with(("x", DataType::integer_interval(0, 100)))
                         .with(("y", DataType::optional(DataType::text())))
-                        .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))),
+                        .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))), //Can't push these? why?
                 )
                 .build(),
             TableBuilder::new()
@@ -320,7 +275,7 @@ impl DatabaseTrait for Database {
         let pool = mssql_pool.as_ref().unwrap().clone();
         let find_tables_query =
             "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
-        let table_names: Vec<String> = rt
+        let table_names_in_db: Vec<String> = rt
             .block_on(async_query(find_tables_query, &pool))?
             .iter()
             .map(|r| {
@@ -328,15 +283,18 @@ impl DatabaseTrait for Database {
                 val_as_str
             })
             .collect();
-        println!("Found Tables: {:?}", table_names);
-        if table_names.is_empty() {
+        let tables_to_be_created: Vec<Table> = tables.iter()
+            .filter(|tab|!table_names_in_db.contains(&tab.path().head().unwrap().to_string()))
+            .cloned()
+            .collect();
+        if !tables_to_be_created.is_empty() {
             Database {
                 name,
                 tables: vec![],
                 pool,
                 drop: false,
             }
-            .with_tables(tables)
+            .with_tables(tables_to_be_created)
         } else {
             Ok(Database {
                 name,
@@ -392,7 +350,6 @@ impl DatabaseTrait for Database {
     }
 
     fn query(&mut self, query: &str) -> Result<Vec<value::List>> {
-        println!("FROM inside query...");
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async_query(query, &self.pool))
     }
@@ -402,9 +359,7 @@ async fn async_query(
     query_str: &str,
     pool: &Pool<Mssql>,
 ) -> Result<Vec<value::List>> {
-    println!("FROM inside async_query: {}", query_str);
     let rows = sqlx::query(query_str).fetch_all(pool).await?;
-
     Ok(rows
         .iter()
         .map(|row: &MssqlRow| {
@@ -491,44 +446,44 @@ impl Decode<'_, mssql::Mssql> for SqlValue {
     fn decode(value: MssqlValueRef<'_>) -> std::result::Result<Self, sqlx::error::BoxDynError> {
         let binding = value.type_info();
         let type_info = binding.as_ref();
-        match type_info.name() {
-            "BIT" => Ok(Value::from(<bool as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "INT" => {
-                Ok(Value::from((<i32 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?)
+        if value.is_null() {
+            Ok(Value::from(None).try_into()?)
+        } else {
+            match type_info.name() {
+                "BIT" => Ok(Value::from(<bool as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "INT" => Ok(Value::from((<i32 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?),
+                "BIGINT" => Ok(Value::from(<i64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "BINARY" => todo!(),
+                "CHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "DATE" => todo!(),
+                "DATETIME" => todo!(),
+                "DATETIME2" => todo!(),
+                "DATETIMEOFFSET" => todo!(),
+                "DECIMAL" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "FLOAT" =>  Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "IMAGE" => todo!(),
+                "MONEY" => todo!(),
+                "NCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "NTEXT" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "NUMERIC" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "NVARCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "REAL" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "SMALLDATETIME" => todo!(),
+                "SMALLINT" => Ok(Value::from((<i16 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?),
+                "SMALLMONEY" => todo!(),
+                "SQL_VARIANT" => todo!(),
+                "TEXT" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "TIME" => todo!(),
+                "TIMESTAMP" => todo!(),
+                "TINYINT" => todo!(),
+                "UNIQUEIDENTIFIER" => todo!(),
+                "VARBINARY" => todo!(),
+                "VARCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "XML" => todo!(),
+                _ => Err(Box::new(sqlx::Error::Decode(
+                    format!("Unhandled type: {}", type_info.name()).into(),
+                ))),
             }
-            "BIGINT" => Ok(Value::from(<i64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "BINARY" => todo!(),
-            "CHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "DATE" => todo!(),
-            "DATETIME" => todo!(),
-            "DATETIME2" => todo!(),
-            "DATETIMEOFFSET" => todo!(),
-            "DECIMAL" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "FLOAT" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "IMAGE" => todo!(),
-            "MONEY" => todo!(),
-            "NCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "NTEXT" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "NUMERIC" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "NVARCHAR" => {
-                Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
-            }
-            "REAL" => todo!(),
-            "SMALLDATETIME" => todo!(),
-            "SMALLINT" => todo!(),
-            "SMALLMONEY" => todo!(),
-            "SQL_VARIANT" => todo!(),
-            "TEXT" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "TIME" => todo!(),
-            "TIMESTAMP" => todo!(),
-            "TINYINT" => todo!(),
-            "UNIQUEIDENTIFIER" => todo!(),
-            "VARBINARY" => todo!(),
-            "VARCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-            "XML" => todo!(),
-            _ => Err(Box::new(sqlx::Error::Decode(
-                format!("Unhandled type: {}", type_info.name()).into(),
-            ))),
         }
     }
 }
@@ -604,57 +559,42 @@ mod tests {
 
     use super::*;
 
-    // This attribute is necessary to use async code in tests
     #[tokio::test]
-    async fn test_mssql_connection() -> Result<()> {
-        let connection_string = "mssql://SA:MyPass@word@localhost:1433/master?encrypt=false";
-        //let connection_options = MssqlConnectOptions::new(po);
-        let connection_options = MssqlConnectOptions::from_str(connection_string)?;
+    async fn test_insert_table_with_pool() -> Result<()> {
+        let connection_string = "mssql://SA:Strong@Passw0rd@localhost:1433/master?encrypt=false";
+        let pool = MssqlPoolOptions::new().test_before_acquire(true).connect(connection_string).await?;
 
-        // Establish a connection to the database.
-        let mut connection = MssqlConnection::connect_with(&connection_options).await?;
+        let table_name = "table_5";
 
-        let sql_query =
-            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo'";
-        // Execute a query.
-        let rows = sqlx::query(sql_query).fetch_all(&mut connection).await?;
+        let _ = Command::new("docker")
+            .arg("exec")
+            .arg("qrlew-mssql-test_0")
+            .arg("/opt/mssql-tools/bin/sqlcmd")
+            .arg("-S")
+            .arg(format!("localhost,1433"))
+            .arg("-U")
+            .arg("SA")
+            .arg("-P")
+            .arg(format!("Strong@Passw0rd"))
+            .arg("-Q")
+            .arg(format!("DROP TABLE {table_name};  "))
+            .status()?
+            .success();
 
-        let rows_as_vec: Vec<value::List> = rows
-            .iter()
-            .map(|row: &MssqlRow| {
-                let values: Vec<SqlValue> = (0..row.len())
-                    .map(|i| {
-                        let val: SqlValue = row.get(i);
-                        val
-                    })
-                    .collect();
-                value::List::from_iter(values.into_iter().map(|v| v.try_into().expect("Convert")))
-            })
-            .collect();
-        println!("{:#?}", rows_as_vec);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_insert_table() -> Result<()> {
-        let connection_string = "mssql://SA:MyPass@word@localhost:1433/master?encrypt=false";
-        let connection_options = MssqlConnectOptions::from_str(connection_string)?;
-        let mut conn = MssqlConnection::connect_with(&connection_options).await?;
-
-        let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
 
         let table: Table = TableBuilder::new()
-            .path(["table_2"])
-            .name("table_2")
-            .size(5)
+            .path([table_name])
+            .name(table_name)
+            .size(10)
             .schema(
                 Schema::empty()
-                    .with(("f", DataType::float_interval(0.0, 10.0)))
+                    // .with(("f", DataType::float_interval(0.0, 10.0)))
                     .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
-                    .with(("x", DataType::integer_interval(0, 100)))
-                    .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
+                    // .with(("x", DataType::integer_interval(0, 100)))
+                    // .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
             )
             .build();
+        let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
 
         let ins_stat = &table.insert("@p", MSSQLTranslator).to_string();
         let create_stat = &table.create(MSSQLTranslator).to_string();
@@ -663,7 +603,7 @@ mod tests {
         println!("{}\n", create_stat);
         println!("{}\n", ins_stat);
 
-        let _ = sqlx::query(&create_stat[..]).execute(&mut conn).await?;
+        let _ = pool.execute(&create_stat[..]).await?;
 
         for _ in 1..100 {
             let structured: value::Struct =
@@ -678,47 +618,14 @@ mod tests {
             for value in &values {
                 insert_query = insert_query.bind(value);
             }
-            println!("before execution");
-            insert_query.execute(&mut conn).await?;
+            println!("before insert");
+            let _ = pool.execute(insert_query).await?;
+            //rt.block_on(async_execute(insert_query, &pool))?;
+            println!("after insert");
+
+            let r = pool.execute(&format!("SELECT TOP(5) z from {table_name}")[..]).await?;
             println!("after execution");
-        }
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_insert_strings() -> Result<()> {
-        let connection_string = "mssql://SA:MyPass@word@localhost:1433/master?encrypt=false";
-        let connection_options = MssqlConnectOptions::from_str(connection_string)?;
-        let mut conn = MssqlConnection::connect_with(&connection_options).await?;
-        let _ = conn.execute("CREATE TABLE users (id FLOAT);").await?;
-
-        for index in 1..=2_i32 {
-            let done = sqlx::query("INSERT INTO users (id) VALUES (@p1)")
-                .bind(index as f64)
-                .execute(&mut conn)
-                .await?;
-
-            assert_eq!(done.rows_affected(), 1);
-        }
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_insert_strings_with_pool() -> Result<()> {
-        let connection_string = "mssql://SA:MyPass@word@localhost:1433/master?encrypt=false";
-        let pool = MssqlPoolOptions::new().test_before_acquire(true).connect(connection_string).await?;
-
-        // let connection_options = MssqlConnectOptions::from_str(connection_string)?;
-        // let mut conn = MssqlConnection::connect_with(&connection_options).await?;
-        let _ = pool.execute("CREATE TABLE users (id FLOAT);").await?;
-
-        for index in 1..=2_i32 {
-            let done = sqlx::query("INSERT INTO users (id) VALUES (@p1)")
-                .bind(index as f64)
-                .execute(&pool)
-                .await?;
-
-            assert_eq!(done.rows_affected(), 1);
+            println!("results: {:?}", r);
         }
         Ok(())
     }
@@ -726,11 +633,42 @@ mod tests {
     #[test]
     fn database_display() -> Result<()> {
         let mut database = test_database();
-        let query = "SELECT COUNT(*) FROM table_1";
+        let query = "SELECT TOP (10) * FROM table_1";
         println!("\n{query}");
         for row in database.query(query)? {
             println!("{}", row);
         }
+
+        let query = "SELECT TOP (10) * FROM table_2";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
+
+        let query = "SELECT TOP (10) * FROM user_table";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
+
+        let query = "SELECT TOP (10) * FROM large_user_table";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
+
+        let query = "SELECT TOP (10) * FROM order_table";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
+
+        let query = "SELECT TOP (10) * FROM item_table";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
+
         Ok(())
     }
 }
