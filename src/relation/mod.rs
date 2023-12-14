@@ -623,10 +623,10 @@ impl Variant for Reduce {
 /// Join type
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum JoinOperator {
-    Inner(JoinConstraint),
-    LeftOuter(JoinConstraint),
-    RightOuter(JoinConstraint),
-    FullOuter(JoinConstraint),
+    Inner(Expr),
+    LeftOuter(Expr),
+    RightOuter(Expr),
+    FullOuter(Expr),
     Cross,
 }
 
@@ -678,22 +678,55 @@ impl JoinOperator {
 
     fn has_unique_constraint(&self, left_schema: &Schema, right_schema: &Schema) -> (bool, bool) {
         match self {
-            JoinOperator::Inner(c)
-            | JoinOperator::LeftOuter(c)
-            | JoinOperator::RightOuter(c)
-            | JoinOperator::FullOuter(c) => c.has_unique_constraint(left_schema, right_schema),
-            JoinOperator::Cross => (false, false),
-        }
-    }
-
-    // Returns true is the contraint is Natural
-    pub fn is_natural(&self) -> bool {
-        match self {
-            JoinOperator::Inner(c)
-            | JoinOperator::LeftOuter(c)
-            | JoinOperator::RightOuter(c)
-            | JoinOperator::FullOuter(c) if matches!(c, JoinConstraint::Natural) => true,
-            _ => false
+            JoinOperator::Inner(Expr::Function(f))
+            | JoinOperator::LeftOuter(Expr::Function(f))
+            | JoinOperator::RightOuter(Expr::Function(f))
+            | JoinOperator::FullOuter(Expr::Function(f)) if f.function() == function::Function::Eq => {
+                let fields_with_unique_or_primary_key_constraint = Hierarchy::from_iter(
+                    left_schema
+                        .iter()
+                        .map(|f| {
+                            (
+                                vec![Join::left_name(), f.name()],
+                                f.has_unique_or_primary_key_constraint(),
+                            )
+                        })
+                        .chain(right_schema.iter().map(|f| {
+                            (
+                                vec![Join::right_name(), f.name()],
+                                f.has_unique_or_primary_key_constraint(),
+                            )
+                        })),
+                );
+                    let mut left = false;
+                    let mut right = false;
+                    if let Expr::Column(c) = &f.arguments()[0] {
+                        if fields_with_unique_or_primary_key_constraint
+                            .get_key_value(c)
+                            .unwrap()
+                            .0[0]
+                            == Join::left_name()
+                        {
+                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        } else {
+                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        }
+                    }
+                    if let Expr::Column(c) = &f.arguments()[1] {
+                        if fields_with_unique_or_primary_key_constraint
+                            .get_key_value(c)
+                            .unwrap()
+                            .0[0]
+                            == Join::left_name()
+                        {
+                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        } else {
+                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        }
+                    }
+                (left, right)
+            },
+            _ => (false, false),
         }
     }
 }
@@ -703,12 +736,8 @@ impl DataType {
     /// filtered by the `Expr` equivalent to the `JoinOperator`
     fn filter_by_join_operator(&self, join_op: &JoinOperator) -> DataType {
         match join_op {
-            JoinOperator::Inner(c) => {
-                let x = Expr::from((c, self));
-                self.filter(&x)
-            }
-            JoinOperator::LeftOuter(c) => {
-                let x = Expr::from((c, self));
+            JoinOperator::Inner(x) => self.filter(&x),
+            JoinOperator::LeftOuter(x) => {
                 let filtered_data_type = self.filter(&x);
                 DataType::structured([
                     (Join::left_name(), self[Join::left_name()].clone()),
@@ -718,8 +747,7 @@ impl DataType {
                     ),
                 ])
             }
-            JoinOperator::RightOuter(c) => {
-                let x = Expr::from((c, self));
+            JoinOperator::RightOuter(x) => {
                 let filtered_data_type = self.filter(&x);
                 DataType::structured([
                     (
@@ -747,135 +775,6 @@ impl fmt::Display for JoinOperator {
                 JoinOperator::Cross => "CROSS",
             }
         )
-    }
-}
-
-/// Join constraint
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub enum JoinConstraint {
-    On(Expr),
-    Using(Vec<Identifier>),
-    Natural,
-    None,
-}
-
-impl JoinConstraint {
-    /// Rename all exprs in the constraint
-    pub fn rename<'a>(&'a self, columns: &'a Hierarchy<Identifier>) -> Self {
-        match self {
-            JoinConstraint::On(expr) => JoinConstraint::On(expr.rename(columns)),
-            JoinConstraint::Using(identifiers) => JoinConstraint::Using(
-                identifiers
-                    .iter()
-                    .map(|i| columns.get(i).unwrap().clone())
-                    .collect(),
-            ),
-            JoinConstraint::Natural => JoinConstraint::Natural,
-            JoinConstraint::None => JoinConstraint::None,
-        }
-    }
-
-    /// Returns a tuple of bool where
-    /// the first (resp. second) item is `true` if
-    /// - the current `JoinConstraint` is an `On`
-    ///     - the wrapped expression if of type `(Column(_) = Column(_))` AND
-    ///     - the field of column belonging to the left (resp. right) relation has a `Unique` or `PrimaryKey` constraint
-    /// - the current `JoinConstraint`` is a `Using`: the field of column belonging to the left (resp. right) relation has a `Unique` or `PrimaryKey` constraint
-    pub fn has_unique_constraint(
-        &self,
-        left_schema: &Schema,
-        right_schema: &Schema,
-    ) -> (bool, bool) {
-        match self {
-            JoinConstraint::On(x) => match x {
-                Expr::Function(f) if f.function() == function::Function::Eq => {
-                    let fields_with_unique_or_primary_key_constraint = Hierarchy::from_iter(
-                        left_schema
-                            .iter()
-                            .map(|f| {
-                                (
-                                    vec![Join::left_name(), f.name()],
-                                    f.has_unique_or_primary_key_constraint(),
-                                )
-                            })
-                            .chain(right_schema.iter().map(|f| {
-                                (
-                                    vec![Join::right_name(), f.name()],
-                                    f.has_unique_or_primary_key_constraint(),
-                                )
-                            })),
-                    );
-                    let mut left = false;
-                    let mut right = false;
-                    if let Expr::Column(c) = &f.arguments()[0] {
-                        if fields_with_unique_or_primary_key_constraint
-                            .get_key_value(c)
-                            .unwrap()
-                            .0[0]
-                            == Join::left_name()
-                        {
-                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        } else {
-                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        }
-                    }
-                    if let Expr::Column(c) = &f.arguments()[1] {
-                        if fields_with_unique_or_primary_key_constraint
-                            .get_key_value(c)
-                            .unwrap()
-                            .0[0]
-                            == Join::left_name()
-                        {
-                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        } else {
-                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        }
-                    }
-                    (left, right)
-                }
-                _ => (false, false),
-            },
-            JoinConstraint::Using(v) if v.len() == 1 => {
-                let left = left_schema
-                    .field(v[0].last().unwrap())
-                    .map(|f| f.has_unique_or_primary_key_constraint())
-                    .unwrap_or(false);
-                let right = right_schema
-                    .field(v[0].last().unwrap())
-                    .map(|f| f.has_unique_or_primary_key_constraint())
-                    .unwrap_or(false);
-                (left, right)
-            }
-            _ => (false, false),
-        }
-    }
-}
-
-impl From<(&JoinConstraint, &DataType)> for Expr {
-    fn from(value: (&JoinConstraint, &DataType)) -> Self {
-        let (constraint, dt) = value;
-        match constraint {
-            JoinConstraint::On(x) => x.clone(),
-            JoinConstraint::Using(x) => x.iter().fold(Expr::val(true), |f, v| {
-                Expr::and(
-                    f,
-                    Expr::eq(
-                        Expr::qcol(Join::left_name(), v.head().unwrap()),
-                        Expr::qcol(Join::right_name(), v.head().unwrap()),
-                    ),
-                )
-            }),
-            JoinConstraint::Natural => {
-                let h = dt[Join::right_name()].hierarchy();
-                let v = dt[Join::left_name()]
-                    .hierarchy()
-                    .into_iter()
-                    .filter_map(|(s, _)| h.get(&s).map(|_| Identifier::from(s)))
-                    .collect::<Vec<_>>();
-                (&JoinConstraint::Using(v), dt).into()
-            }
-            JoinConstraint::None => Expr::val(true),
-        }
     }
 }
 
@@ -934,57 +833,36 @@ impl Join {
         let (left_schema, right_schema) = operator.filtered_schemas(left, right);
         let (left_is_unique, right_is_unique) =
             operator.has_unique_constraint(left.schema(), right.schema());
+        let transform_datatype_in_optional_left: bool = match operator {
+            JoinOperator::LeftOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross => false,
+            _ => true,
+        };
+        let transform_datatype_in_optional_right = match operator {
+            JoinOperator::RightOuter(_) | JoinOperator::Inner(_) | JoinOperator::Cross => false,
+            _ => true,
+        };
         let left_fields = left_names
             .into_iter()
             .zip(left_schema.iter())
-            .map(|(name, field)| {
-                let (data_type, constraint) = match (operator, right_schema.field(&field.name())) {
-                    (JoinOperator::RightOuter(JoinConstraint::Natural), Ok(right_field)) => {
-                        // if
-                        // - operator is of type NATURAL RIGHT OUTER and
-                        // - `field` is present in both the `left` and `right` relations
-                        // then the datatype of the corresponding field in the JOIN is the datatype of the right field
-                        (right_field.data_type(), right_field.constraint())
-                    },
-                    (JoinOperator::FullOuter(JoinConstraint::Natural), Ok(right_field)) => {
-                        // if
-                        // - operator is of type NATURAL RIGHT OUTER and
-                        // - `field` is present in both the `left` and `right` relations
-                        // then the datatype of the corresponding field in the JOIN is the super union of the datatypes of the right and left field datatypes
-                        (field.data_type().super_union(&right_field.data_type()).unwrap(), None)
-                    },
-                    (JoinOperator::RightOuter(_) | JoinOperator::FullOuter(_), _) => (
-                        // if the operator if of type RIGHT or FULL OUTER (without NATURAL constraint), the current (left) field is an optional
-                        DataType::optional(field.data_type()),
-                        right_is_unique.then_some(field.constraint()).unwrap_or(None)
-                    ),
-                    _ => (
-                        field.data_type(),
-                        right_is_unique.then_some(field.constraint()).unwrap_or(None)
-                    )
-                };
-                Field::new(name, data_type, constraint)
-            });
+            .map(|(name, field)|
+                Field::new(
+                    name,
+                    transform_datatype_in_optional_left.then_some(DataType::optional(field.data_type()))
+                        .unwrap_or(field.data_type()),
+                    right_is_unique.then_some(field.constraint()).unwrap_or(None)
+                )
+        );
 
         let right_fields = right_names
             .into_iter()
             .zip(right_schema.iter())
-            .filter_map(|(name, field)| {
-                let data_type_constraint = match operator {
-                    JoinOperator::Inner(JoinConstraint::Natural)
-                    | JoinOperator::LeftOuter(JoinConstraint::Natural)
-                    | JoinOperator::RightOuter(JoinConstraint::Natural)
-                    | JoinOperator::FullOuter(JoinConstraint::Natural) if left_schema.field(&field.name()).is_ok() => None, // remove the duplicates when JoinConstaint is Natural
-                    JoinOperator::LeftOuter(_) | JoinOperator::FullOuter(_) => Some((
-                        DataType::optional(field.data_type()),
-                        left_is_unique.then_some(field.constraint()).unwrap_or(None)
-                    )),
-                    _ => Some((
-                        field.data_type(),
-                        left_is_unique.then_some(field.constraint()).unwrap_or(None)
-                    ))
-                };
-                data_type_constraint.map(|(data_type, constraint)| Field::new(name, data_type, constraint))
+            .map(|(name, field)| {
+                Field::new(
+                    name,
+                    transform_datatype_in_optional_right.then_some(DataType::optional(field.data_type()))
+                        .unwrap_or(field.data_type()),
+                    left_is_unique.then_some(field.constraint()).unwrap_or(None)
+                )
             });
         left_fields.chain(right_fields).collect()
     }
@@ -1067,19 +945,10 @@ impl fmt::Display for Join {
             .collect();
         let operator = format!("{} {}", self.operator, "JOIN".to_string().bold().blue());
         let constraint = match &self.operator {
-            JoinOperator::Inner(constraint)
-            | JoinOperator::LeftOuter(constraint)
-            | JoinOperator::RightOuter(constraint)
-            | JoinOperator::FullOuter(constraint) => match constraint {
-                JoinConstraint::On(expr) => format!("{} {}", "ON".to_string().bold().blue(), expr),
-                JoinConstraint::Using(identifiers) => format!(
-                    "{} {}",
-                    "USING".to_string().bold().blue(),
-                    identifiers.iter().join(", ")
-                ),
-                JoinConstraint::Natural => todo!(),
-                JoinConstraint::None => todo!(),
-            },
+            JoinOperator::Inner(expr)
+            | JoinOperator::LeftOuter(expr)
+            | JoinOperator::RightOuter(expr)
+            | JoinOperator::FullOuter(expr) => format!("{} {}", "ON".to_string().bold().blue(), expr),
             JoinOperator::Cross => format!(""),
         };
         write!(
@@ -1847,7 +1716,7 @@ mod tests {
         let left: Relation = Relation::table().name("left").schema(left_schema).build();
         let right: Relation = Relation::table().name("right").schema(right_schema).build();
         let join: Join = Relation::join()
-            .inner()
+            .inner(Expr::val(true))
             .on(Expr::eq(
                 Expr::qcol(LEFT_INPUT_NAME, "id"),
                 Expr::qcol(RIGHT_INPUT_NAME, "id"),
@@ -1877,8 +1746,7 @@ mod tests {
         let join: Join = Relation::join()
             .left(table.clone())
             .right(table.clone())
-            .left_outer()
-            .on(Expr::eq(
+            .left_outer(Expr::eq(
                 Expr::qcol(LEFT_INPUT_NAME, "id"),
                 Expr::qcol(RIGHT_INPUT_NAME, "id"),
             ))
@@ -2065,66 +1933,6 @@ mod tests {
     }
 
     #[test]
-    fn test_from_join_constraint() {
-        let table1 = DataType::structured([
-            ("a", DataType::float_interval(-10., 10.)),
-            ("b", DataType::integer_interval(-8, 34)),
-            ("c", DataType::float_interval(0., 50.)),
-        ]);
-        let table2 = DataType::structured([
-            ("a", DataType::float_interval(0., 20.)),
-            ("b", DataType::integer_interval(-1, 14)),
-            ("d", DataType::integer_interval(-10, 20)),
-        ]);
-        let data_type =
-            DataType::structured([(Join::left_name(), table1), (Join::right_name(), table2)]);
-
-        // ON
-        let x = Expr::eq(Expr::qcol(Join::left_name(), "a"), Expr::col("d"));
-        let jc_x = Expr::from((&JoinConstraint::On(x.clone()), &data_type));
-        assert_eq!(jc_x, x);
-
-        // USING
-        let v = vec![Identifier::from_name("a"), Identifier::from_name("b")];
-        let true_x = Expr::and(
-            Expr::and(
-                Expr::val(true),
-                Expr::eq(
-                    Expr::qcol(Join::left_name(), "a"),
-                    Expr::qcol(Join::right_name(), "a"),
-                ),
-            ),
-            Expr::eq(
-                Expr::qcol(Join::left_name(), "b"),
-                Expr::qcol(Join::right_name(), "b"),
-            ),
-        );
-        let jc_x = Expr::from((&JoinConstraint::Using(v), &data_type));
-        assert_eq!(jc_x, true_x);
-
-        // NATURAL
-        let true_x = Expr::and(
-            Expr::and(
-                Expr::val(true),
-                Expr::eq(
-                    Expr::qcol(Join::left_name(), "a"),
-                    Expr::qcol(Join::right_name(), "a"),
-                ),
-            ),
-            Expr::eq(
-                Expr::qcol(Join::left_name(), "b"),
-                Expr::qcol(Join::right_name(), "b"),
-            ),
-        );
-        let jc_x = Expr::from((&JoinConstraint::Natural, &data_type));
-        assert_eq!(jc_x, true_x);
-
-        // NONE
-        let jc_x = Expr::from((&JoinConstraint::None, &data_type));
-        assert_eq!(jc_x, Expr::val(true));
-    }
-
-    #[test]
     fn test_filter_data_type_inner_join() {
         let table1 = DataType::structured([
             ("a", DataType::float_interval(-3., 3.)),
@@ -2144,7 +1952,7 @@ mod tests {
             Expr::qcol(Join::left_name(), "a"),
             Expr::qcol(Join::right_name(), "d"),
         );
-        let join_op = JoinOperator::Inner(JoinConstraint::On(x.clone()));
+        let join_op = JoinOperator::Inner(x.clone());
         let filtered_table1 = DataType::structured([
             ("a", DataType::integer_interval(-2, 1)),
             ("b", DataType::integer_interval(-1, 3)),
@@ -2163,53 +1971,6 @@ mod tests {
             data_type.filter_by_join_operator(&join_op),
             filtered_data_type
         );
-
-        // USING
-        let v = vec![Identifier::from_name("a")];
-        let join_op = JoinOperator::Inner(JoinConstraint::Using(v));
-        let filtered_table1 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-1, 3)),
-            ("c", DataType::float_interval(0., 5.)),
-        ]);
-        let filtered_table2 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-2, 2)),
-            ("d", DataType::integer_interval(-2, 1)),
-        ]);
-        let filtered_data_type = DataType::structured([
-            (Join::left_name(), filtered_table1),
-            (Join::right_name(), filtered_table2),
-        ]);
-        assert_eq!(
-            data_type.filter_by_join_operator(&join_op),
-            filtered_data_type
-        );
-
-        // NATURAL
-        let join_op = JoinOperator::Inner(JoinConstraint::Natural);
-        let filtered_table1 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-1, 2)),
-            ("c", DataType::float_interval(0., 5.)),
-        ]);
-        let filtered_table2 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-1, 2)),
-            ("d", DataType::integer_interval(-2, 1)),
-        ]);
-        let filtered_data_type = DataType::structured([
-            (Join::left_name(), filtered_table1),
-            (Join::right_name(), filtered_table2),
-        ]);
-        assert_eq!(
-            data_type.filter_by_join_operator(&join_op),
-            filtered_data_type
-        );
-
-        // NONE
-        let join_op = JoinOperator::Inner(JoinConstraint::None);
-        assert_eq!(data_type.filter_by_join_operator(&join_op), data_type);
     }
 
     #[test]
@@ -2234,7 +1995,7 @@ mod tests {
             Expr::qcol(Join::left_name(), "a"),
             Expr::qcol(Join::right_name(), "d"),
         );
-        let join_op = JoinOperator::LeftOuter(JoinConstraint::On(x.clone()));
+        let join_op = JoinOperator::LeftOuter(x.clone());
         let filtered_table2 = DataType::structured([
             ("a", DataType::float_interval(0., 20.)),
             ("b", DataType::integer_interval(-2, 2)),
@@ -2248,43 +2009,6 @@ mod tests {
             data_type.filter_by_join_operator(&join_op),
             filtered_data_type
         );
-
-        // USING
-        let v = vec![Identifier::from_name("a")];
-        let join_op = JoinOperator::LeftOuter(JoinConstraint::Using(v));
-        let filtered_table2 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-2, 2)),
-            ("d", DataType::integer_interval(-2, 1)),
-        ]);
-        let filtered_data_type = DataType::structured([
-            (Join::left_name(), table1.clone()),
-            (Join::right_name(), filtered_table2),
-        ]);
-        assert_eq!(
-            data_type.filter_by_join_operator(&join_op),
-            filtered_data_type
-        );
-
-        // NATURAL
-        let join_op = JoinOperator::LeftOuter(JoinConstraint::Natural);
-        let filtered_table2 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-1, 2)),
-            ("d", DataType::integer_interval(-2, 1)),
-        ]);
-        let filtered_data_type = DataType::structured([
-            (Join::left_name(), table1.clone()),
-            (Join::right_name(), filtered_table2),
-        ]);
-        assert_eq!(
-            data_type.filter_by_join_operator(&join_op),
-            filtered_data_type
-        );
-
-        // NONE
-        let join_op = JoinOperator::LeftOuter(JoinConstraint::None);
-        assert_eq!(data_type.filter_by_join_operator(&join_op), data_type);
     }
 
     #[test]
@@ -2309,7 +2033,7 @@ mod tests {
             Expr::qcol(Join::left_name(), "a"),
             Expr::qcol(Join::right_name(), "d"),
         );
-        let join_op = JoinOperator::RightOuter(JoinConstraint::On(x.clone()));
+        let join_op = JoinOperator::RightOuter(x.clone());
         let filtered_table1 = DataType::structured([
             ("a", DataType::integer_interval(-2, 1)),
             ("b", DataType::integer_interval(-1, 3)),
@@ -2323,43 +2047,6 @@ mod tests {
             data_type.filter_by_join_operator(&join_op),
             filtered_data_type
         );
-
-        // USING
-        let v = vec![Identifier::from_name("a")];
-        let join_op = JoinOperator::RightOuter(JoinConstraint::Using(v));
-        let filtered_table1 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-1, 3)),
-            ("c", DataType::float_interval(0., 5.)),
-        ]);
-        let filtered_data_type = DataType::structured([
-            (Join::left_name(), filtered_table1),
-            (Join::right_name(), table2.clone()),
-        ]);
-        assert_eq!(
-            data_type.filter_by_join_operator(&join_op),
-            filtered_data_type
-        );
-
-        // NATURAL
-        let join_op = JoinOperator::RightOuter(JoinConstraint::Natural);
-        let filtered_table1 = DataType::structured([
-            ("a", DataType::float_interval(0., 3.)),
-            ("b", DataType::integer_interval(-1, 2)),
-            ("c", DataType::float_interval(0., 5.)),
-        ]);
-        let filtered_data_type = DataType::structured([
-            (Join::left_name(), filtered_table1),
-            (Join::right_name(), table2.clone()),
-        ]);
-        assert_eq!(
-            data_type.filter_by_join_operator(&join_op),
-            filtered_data_type
-        );
-
-        // NONE
-        let join_op = JoinOperator::RightOuter(JoinConstraint::None);
-        assert_eq!(data_type.filter_by_join_operator(&join_op), data_type);
     }
 
     #[test]
@@ -2395,7 +2082,7 @@ mod tests {
 
         let join: Join = Relation::join()
             .name("join")
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("a", "a")
             .left(table1.clone())
             .right(table2.clone())
@@ -2404,7 +2091,7 @@ mod tests {
 
         let join: Join = Relation::join()
             .name("join")
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("a", "a")
             .left(table2.clone())
             .right(table1.clone())
@@ -2413,7 +2100,7 @@ mod tests {
 
         let join: Join = Relation::join()
             .name("join")
-            .left_outer()
+            .left_outer(Expr::val(true))
             .on_eq("a", "a")
             .left(table2.clone())
             .right(table1.clone())
@@ -2422,7 +2109,7 @@ mod tests {
 
         let join: Join = Relation::join()
             .name("join")
-            .right_outer()
+            .right_outer(Expr::val(true))
             .on_eq("a", "a")
             .left(table2.clone())
             .right(table1.clone())
@@ -2431,7 +2118,7 @@ mod tests {
 
         let join: Join = Relation::join()
             .name("join")
-            .full_outer()
+            .full_outer(Expr::val(true))
             .on_eq("a", "a")
             .left(table2.clone())
             .right(table1.clone())
@@ -2440,7 +2127,7 @@ mod tests {
 
         let join: Join = Relation::join()
             .name("join")
-            .full_outer()
+            .full_outer(Expr::val(true))
             .on_eq("a", "b")
             .left(table2.clone())
             .right(table1.clone())
@@ -2502,7 +2189,7 @@ mod tests {
         map.display_dot().unwrap();
 
         let join: Relation = Relation::join()
-            .inner()
+            .inner(Expr::val(true))
             .left(table1)
             .right(map)
             .on_eq("b", "my_b")
@@ -2547,7 +2234,7 @@ mod tests {
         // the joining columns are not unique
         let join: Join = Relation::join()
             .name("join")
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("b", "a")
             .left(table1.clone())
             .right(table2.clone())
@@ -2569,7 +2256,7 @@ mod tests {
         // the left joining column is unique
         let join: Join = Relation::join()
             .name("join")
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("a", "a")
             .left(table1.clone())
             .right(table2.clone())
@@ -2591,7 +2278,7 @@ mod tests {
         // the right joining column is unique
         let join: Join = Relation::join()
             .name("join")
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("b", "d")
             .left(table1.clone())
             .right(table2.clone())
@@ -2613,7 +2300,7 @@ mod tests {
         // the joining columns are  unique
         let join: Join = Relation::join()
             .name("join")
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("a", "d")
             .left(table1.clone())
             .right(table2.clone())
@@ -2631,95 +2318,5 @@ mod tests {
         .into_iter()
         .collect();
         assert_eq!(join.schema(), &correct_schema);
-    }
-
-    #[test]
-    fn test_natural_join_builder() {
-        let schema1: Schema = vec![
-            ("a", DataType::integer_interval(-5, 5)),
-            ("b", DataType::integer_interval(-2, 2)),
-        ]
-        .into_iter()
-        .collect();
-        let table1: Relation = Relation::table().name("table1").schema(schema1).build();
-        let schema2: Schema = vec![
-            ("a", DataType::integer_interval(0, 10)),
-            ("c", DataType::integer_interval(0, 20)),
-        ]
-        .into_iter()
-        .collect();
-        let table2: Relation = Relation::table().name("table1").schema(schema2).build();
-
-        // natural inner join
-        let relation: Relation = Relation::join()
-            .left(table1.clone())
-            .right(table2.clone())
-            .left_names(vec!["a", "b"])
-            .right_names(vec!["my_a", "c"])
-            .inner()
-            .build();
-        relation.display_dot().unwrap();
-        assert_eq!(
-            relation.data_type(),
-            DataType::structured([
-                ("a", DataType::integer_interval(0, 5)),
-                ("b", DataType::integer_interval(-2, 2)),
-                ("c", DataType::integer_interval(0, 20))
-            ])
-        );
-
-        // natural left join
-        let relation: Relation = Relation::join()
-            .left(table1.clone())
-            .right(table2.clone())
-            .left_names(vec!["a", "b"])
-            .right_names(vec!["my_a", "c"])
-            .left_outer()
-            .build();
-        relation.display_dot().unwrap();
-        assert_eq!(
-            relation.data_type(),
-            DataType::structured([
-                ("a", DataType::integer_interval(-5, 5)),
-                ("b", DataType::integer_interval(-2, 2)),
-                ("c", DataType::optional(DataType::integer_interval(0, 20)))
-            ])
-        );
-
-        // natural right join
-        let relation: Relation = Relation::join()
-            .left(table1.clone())
-            .right(table2.clone())
-            .left_names(vec!["a", "b"])
-            .right_names(vec!["my_a", "c"])
-            .right_outer()
-            .build();
-        relation.display_dot().unwrap();
-        assert_eq!(
-            relation.data_type(),
-            DataType::structured([
-                ("a", DataType::integer_interval(0, 10)),
-                ("b", DataType::optional(DataType::integer_interval(-2, 2))),
-                ("c", DataType::integer_interval(0, 20))
-            ])
-        );
-
-        // natural full join
-        let relation: Relation = Relation::join()
-            .left(table1.clone())
-            .right(table2.clone())
-            .left_names(vec!["a", "b"])
-            .right_names(vec!["my_a", "c"])
-            .full_outer()
-            .build();
-        relation.display_dot().unwrap();
-        assert_eq!(
-            relation.data_type(),
-            DataType::structured([
-                ("a", DataType::integer_interval(-5, 10)),
-                ("b", DataType::optional(DataType::integer_interval(-2, 2))),
-                ("c", DataType::optional(DataType::integer_interval(0, 20)))
-            ])
-        );
     }
 }

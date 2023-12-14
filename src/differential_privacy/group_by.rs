@@ -189,7 +189,7 @@ impl Relation {
             .right_names(right_names.clone())
             .left(left)
             .left_names(left_names.clone())
-            .left_outer()
+            .left_outer(Expr::val(true))
             .on_iter(on)
             .build();
 
@@ -561,7 +561,7 @@ mod tests {
             .deref()
             .clone();
         let join: Join = Join::builder()
-            .inner()
+            .inner(Expr::val(true))
             .on_eq("order_id", "id")
             .left(left.clone())
             .right(right.clone())

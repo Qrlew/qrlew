@@ -184,7 +184,7 @@ mod tests {
 
         let queries = [
             "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
-            "SELECT sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
+            "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
         ];
 
         for q in queries {
