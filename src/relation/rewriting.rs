@@ -361,8 +361,13 @@ impl Relation {
                 .build(),
         }
     }
-    /// Sum values for each group.
-    /// Groups form the basis of a vector space, the sums are the coordinates.
+    /// Returns a `Relation::Reduce` built from the current `Relation`.
+    /// - The group by columns are specified in the `groups` parameter.
+    /// - The aggregates are the sum of the columns, where each column is identified by the second element of the corresponding tuple in the `values` parameter.
+    ///
+    /// Field names of the output `Relation`:
+    /// - If the aggregation is `First`, the field name is the name of the column.
+    /// - If the aggregation is `Sum`, the field name is the first element of the corresponding tuple in the `values` parameter.
     pub fn sums_by_group(self, groups: Vec<&str>, values: Vec<(&str, &str)>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
         reduce = groups
@@ -434,11 +439,13 @@ impl Relation {
             })
     }
 
-    /// This transform multiplies the values in `self` relation by their corresponding `scale_factors`.
-    /// `scale_factors` contains the entities scaling factors and the vectors columns
-    /// `self` contains the coordinates, the base and vectors columns
-    pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relation) -> Self {
-        // TODO fix this
+    /// Returns a Relation with rescaled columns specified in `values`.
+///
+/// The resulting relation consists of:
+/// - The original fields from the current relation.
+/// - Rescaled columns, where each rescaled column is a product of the original column (specified by the second element of the corresponding tuple in `values`)
+///   and its scaling factor output by `scale_factors` Relation
+pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relation) -> Self {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
             .inner(Expr::val(true))
@@ -459,7 +466,6 @@ impl Relation {
             .left(self)
             .right(scale_factors)
             .build();
-        //TODO: Multiply the values by the factors
         let fields = join.schema()
             .iter()
             .map(|field| (field.name(), Expr::col(field.name())))
@@ -1057,8 +1063,6 @@ mod tests {
             database.query(&query.to_string()).unwrap(),
             database.query(expected_query).unwrap()
         );
-
-        println!("\n=================\n");
         // group by and aggregates have the same argument
         let mut relation = relations
             .get(&["user_table".into()])
@@ -1066,7 +1070,7 @@ mod tests {
             .as_ref()
             .clone();
         relation = relation.l2_norms("id", vec!["age"], vec!["age"]);
-        relation.display_dot();
+        relation.display_dot().unwrap();
     }
 
     #[test]
