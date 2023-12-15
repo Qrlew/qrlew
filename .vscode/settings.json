@@ -13,4 +13,5 @@
         "./Cargo.toml",
     ],
     "rust-analyzer.cargo.sysroot": "discover",
+    "rust-analyzer.showUnlinkedFileNotification": false,
 }
