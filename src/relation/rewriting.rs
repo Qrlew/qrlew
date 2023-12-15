@@ -6,8 +6,8 @@ use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, function::Function, DataType, DataTyped, Variant as _},
     expr::{self, aggregate, Aggregate, Expr, Value, Identifier},
-    io, namer, relation::{self, LEFT_INPUT_NAME, RIGHT_INPUT_NAME},
-    hierarchy::Hierarchy,
+    io, namer::{self, name_from_content}, relation::{self, LEFT_INPUT_NAME, RIGHT_INPUT_NAME},
+    hierarchy::Hierarchy, display::Dot,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -164,31 +164,6 @@ impl Reduce {
     pub fn with_name(mut self, name: String) -> Reduce {
         self.name = name;
         self
-    }
-
-    /// Clip all sums in the `Reduce`
-    pub fn l2_clipped_all_sums(&self, entities: &str) -> Result<Relation> {
-        let mut input_entities: Option<&str> = None;
-        let input_groups: Vec<&str> = self.group_by_names();
-        let mut clipping_values: Vec<(&str, f64)> = vec![];
-        let mut names: HashMap<&str, &str> = HashMap::new();
-        for (name, aggregate) in self.named_aggregates() {
-            if name == entities {
-                input_entities = aggregate.column().last().ok();
-            } else if aggregate.aggregate() == &aggregate::Aggregate::Sum {
-                let value_name = aggregate.column().last()?;
-                let value_data_type = self.input().schema()[value_name].data_type();
-                let absolute_bound = value_data_type.absolute_upper_bound().unwrap_or(1.0);
-                names.insert(value_name, name);
-                clipping_values.push((value_name, absolute_bound)) // TODO Set a better clipping value
-            }
-        }
-        let input_entities = input_entities.ok_or(Error::invalid_arguments(entities))?;
-        Ok(self
-            .input()
-            .clone()
-            .l2_clipped_sums(input_entities, input_groups, clipping_values)
-            .rename_fields(|s, _| names.get(s).unwrap_or(&s).to_string()))
     }
 
     /// Rename fields
@@ -388,7 +363,7 @@ impl Relation {
     }
     /// Sum values for each group.
     /// Groups form the basis of a vector space, the sums are the coordinates.
-    pub fn sums_by_group(self, groups: Vec<&str>, values: Vec<&str>) -> Self {
+    pub fn sums_by_group(self, groups: Vec<&str>, values: Vec<(&str, &str)>) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
         reduce = groups
             .into_iter()
@@ -396,7 +371,10 @@ impl Relation {
         reduce = reduce.with_iter(
             values
                 .into_iter()
-                .map(|c| (c, Expr::sum(Expr::col(c.to_string())))),
+                .map(|(name, col)| (
+                    name,
+                    Expr::sum(Expr::col(col.to_string())))
+                ),
         );
         reduce.build()
     }
@@ -404,23 +382,38 @@ impl Relation {
     pub fn l1_norms(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
         let mut entities_groups = vec![entities];
         entities_groups.extend(groups.clone());
-        self.sums_by_group(entities_groups, values.clone())
+        let names = values.iter()
+            .map(|v| format!("_NORM_{}", v))
+            .collect::<Vec<_>>();
+        let names = names.iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>();
+        self.sums_by_group(entities_groups, names.iter().cloned().zip(values.clone()).collect())
             .map_fields(|field, expr| {
-                if values.contains(&field) {
+                if names.contains(&field) {
                     Expr::abs(expr)
                 } else {
                     expr
                 }
             })
-            .sums_by_group(vec![entities], values)
+            .sums_by_group(
+                vec![entities],
+                values.iter().cloned().zip(names).collect()
+            )
     }
     /// Compute L2 norms of the vectors formed by the group values for each entities
     pub fn l2_norms(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
         let mut entities_groups = vec![entities];
         entities_groups.extend(groups.clone());
-        self.sums_by_group(entities_groups, values.clone())
+        let names = values.iter()
+            .map(|v| format!("_NORM_{}", v))
+            .collect::<Vec<_>>();
+        let names = names.iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>();
+        self.sums_by_group(entities_groups, names.iter().cloned().zip(values.clone()).collect())
             .map_fields(|field_name, expr| {
-                if values.contains(&field_name) {
+                if names.contains(&field_name) {
                     // TODO Remove abs
                     // Abs is here to signal a positive number
                     Expr::abs(Expr::multiply(expr.clone(), expr))
@@ -428,7 +421,10 @@ impl Relation {
                     expr
                 }
             })
-            .sums_by_group(vec![entities], values.clone())
+            .sums_by_group(
+                vec![entities],
+                values.iter().cloned().zip(names).collect()
+            )
             .map_fields(|field_name, expr| {
                 if values.contains(&field_name) {
                     Expr::sqrt(expr)
@@ -463,7 +459,7 @@ impl Relation {
             .left(self)
             .right(scale_factors)
             .build();
-        // Multiply the values by the factors
+        //Multiply the values by the factors
         join.map_fields(|field_name, expr| {
             if values.contains(&field_name) {
                 Expr::multiply(expr, Expr::col(format!("_SCALE_FACTOR_{}", field_name)))
@@ -476,14 +472,21 @@ impl Relation {
     /// For each coordinate, rescale the columns by 1 / greatest(1, norm_l2/C)
     /// where the l2 norm is computed for each elecment of `vectors`
     /// The `self` relation must contain the vectors, base and coordinates columns
+    /// For the grouping columns, the name of the output fields is the name of the column
+    /// For the clipping values, it is given by the first item of each tuple in `value_clippings`
     pub fn l2_clipped_sums(
         self,
         entities: &str,
         groups: Vec<&str>,
-        value_clippings: Vec<(&str, f64)>,
+        value_clippings: Vec<(&str, &str, f64)>,
     ) -> Self {
+        let named_values = value_clippings.iter()
+            .map(|(s1, s2, _)| (s1.to_string(), format!("_CLIPPED_{}", s2)))
+            .collect::<Vec<_>>();
         // Arrange the values
-        let value_clippings: HashMap<&str, f64> = value_clippings.into_iter().collect();
+        let value_clippings: HashMap<&str, f64> = value_clippings.iter()
+            .map(|(_, s, f)| (*s, *f))
+            .collect();
         // Compute the norm
         let norms = self.clone().l2_norms(
             entities,
@@ -509,20 +512,50 @@ impl Relation {
                 expr
             }
         });
-        let clipped_relation = self.scale(
+        let clipped_relation = self.clone().scale(
             entities,
             value_clippings.keys().cloned().collect(),
             scaling_factors,
         );
-        clipped_relation.sums_by_group(groups, value_clippings.keys().cloned().collect())
-    }
-
-    /// Clip sums in the first `Reduce`s found
-    pub fn l2_clipped_all_sums(&self, entities: &str) -> Result<Self> {
-        match self {
-            Relation::Reduce(reduce) => reduce.l2_clipped_all_sums(entities),
-            _ => todo!(),
-        }
+        // Join the clipped relation with the `self` relation then filter fields.
+        // The resulting relation is composed by the fields of the `self` relation
+        // and their clipped values whose name is prefixed by `_CLIPPED_`
+        let left_names = self.fields()
+            .into_iter()
+            .map(|field| field.name())
+            .collect::<Vec<_>>();
+        let join: Relation = Relation::join()
+            .inner(Expr::val(true))
+            .on_eq(entities, entities)
+            .left_names(left_names.clone())
+            .right_names(
+                clipped_relation
+                    .fields()
+                    .into_iter()
+                    .map(|field| format!("_CLIPPED_{}", field.name()))
+                    .collect(),
+            )
+            .left(self.clone())
+            .right(clipped_relation)
+            .build();
+        let fields = left_names.into_iter()
+            .chain(named_values.iter().map(|(_, s)| s.as_str()))
+            .collect::<Vec<_>>();
+        let clipped_relation:Relation = Relation::map()
+            .with_iter(join.schema().iter().filter_map(|f| {
+                fields.contains(&f.name()).then_some((f.name(), Expr::col(f.name())))
+            }))
+            .input(join)
+            // the join has squared the size of the relation. force the size to be equal to the `self` relation size
+            .limit(*self.size().max().unwrap() as usize)
+            .build();
+        // Aggregate
+        clipped_relation.sums_by_group(
+            groups,
+            named_values.iter()
+            .map(|(s1, s2)| (s1.as_str(), s2.as_str()))
+            .collect()
+        )
     }
 
     /// Add gaussian noise of a given standard deviation to the given columns
@@ -934,6 +967,7 @@ mod tests {
     fn test_sums_by_group() {
         let database = postgresql::test_database();
         let relations = database.relations();
+
         let mut relation = relations
             .get(&["item_table".into()])
             .unwrap()
@@ -943,7 +977,7 @@ mod tests {
         println!("Before: {}", &ast::Query::from(&relation));
         relation.display_dot().unwrap();
         // Sum by group
-        relation = relation.sums_by_group(vec!["order_id"], vec!["price"]);
+        relation = relation.sums_by_group(vec!["order_id"], vec![("sum_price", "price")]);
         // Print query after
         println!("After: {}", &ast::Query::from(&relation));
         relation.display_dot().unwrap();
@@ -951,7 +985,23 @@ mod tests {
             relation.data_type(),
             DataType::structured(vec![
                 ("order_id", DataType::integer_interval(0, 100)),
-                ("price", DataType::float_interval(0., 15000.)),
+                ("sum_price", DataType::float_interval(0., 15000.)),
+            ])
+        );
+
+        // group by and aggregates have the same argument
+        let mut relation = relations
+            .get(&["item_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        relation = relation.sums_by_group(vec!["price"], vec![("sum_price", "price")]);
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("price", DataType::float_interval(0., 50.)),
+                ("sum_price", DataType::float_interval(0., 15000.)),
             ])
         );
     }
@@ -992,6 +1042,14 @@ mod tests {
         {
             println!("{row}");
         }
+
+        // group by and aggregates have the same argument
+        let mut relation = relations
+            .get(&["user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        relation = relation.l1_norms("id", vec!["age"], vec!["age"]);
     }
 
     #[test]
@@ -1014,6 +1072,16 @@ mod tests {
             database.query(&query.to_string()).unwrap(),
             database.query(expected_query).unwrap()
         );
+
+        println!("\n=================\n");
+        // group by and aggregates have the same argument
+        let mut relation = relations
+            .get(&["user_table".into()])
+            .unwrap()
+            .as_ref()
+            .clone();
+        relation = relation.l2_norms("id", vec!["age"], vec!["age"]);
+        relation.display_dot();
     }
 
     #[test]
@@ -1039,10 +1107,19 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let amount_norm = table.l2_norms("order_id", vec!["item"], vec!["price"]);
+        let amount_norm = table.clone().l2_norms("order_id", vec!["item"], vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query = "SELECT order_id, SQRT(SUM(sum_by_group)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
+        assert_eq!(
+            database.query(query).unwrap(),
+            database.query(valid_query).unwrap()
+        );
+        // L2 Norm when group by and aggregates have the same argument
+        let amount_norm = table.l2_norms("order_id", vec!["price"], vec!["price"]);
+        amount_norm.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&amount_norm).to_string();
+        let valid_query = "SELECT order_id, SQRT(SUM(sum_by_group)) FROM (SELECT order_id, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, price) AS subquery GROUP BY order_id";
         assert_eq!(
             database.query(query).unwrap(),
             database.query(valid_query).unwrap()
@@ -1177,7 +1254,7 @@ mod tests {
     fn test_l2_clipped_sums() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let mut relation = relations
+        let relation = relations
             .get(&["user_table".into()])
             .unwrap()
             .as_ref()
@@ -1187,7 +1264,7 @@ mod tests {
         let clipped_relation =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("age", 20.)]);
+                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", 20.)]);
         clipped_relation.display_dot().unwrap();
         // Print query
         let query = &ast::Query::from(&clipped_relation).to_string();
@@ -1201,7 +1278,7 @@ mod tests {
         let clipped_relation_100 =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("age", norm)]);
+                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", norm)]);
         for row in database
             .query(&ast::Query::from(&clipped_relation_100).to_string())
             .unwrap()
@@ -1214,7 +1291,7 @@ mod tests {
         let clipped_relation_1000 =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("age", norm)]);
+                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", norm)]);
         for row in database
             .query(&ast::Query::from(&clipped_relation_1000).to_string())
             .unwrap()
@@ -1235,7 +1312,7 @@ mod tests {
         let clipped_relation_10000 =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("age", norm)]);
+                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", norm)]);
         for row in database
             .query(&ast::Query::from(&clipped_relation_10000).to_string())
             .unwrap()
@@ -1246,10 +1323,18 @@ mod tests {
             database
                 .query(&ast::Query::from(&clipped_relation_1000).to_string())
                 .unwrap()
-                == database
-                    .query(&ast::Query::from(&clipped_relation_10000).to_string())
-                    .unwrap()
+            == database
+                .query(&ast::Query::from(&clipped_relation_10000).to_string())
+                .unwrap()
         );
+        println!("*************");
+        for row in database
+            .query(&ast::Query::from(&clipped_relation_1000).to_string())
+            .unwrap()
+        {
+            println!("{row}");
+        }
+        println!("*************");
         for row in database
             .query("SELECT city, sum(age) FROM user_table GROUP BY city")
             .unwrap()
@@ -1260,34 +1345,10 @@ mod tests {
             database
                 .query(&ast::Query::from(&clipped_relation_1000).to_string())
                 .unwrap()
-                == database
-                    .query("SELECT city, sum(age) FROM user_table GROUP BY city")
-                    .unwrap()
+            == database
+                .query("SELECT city, sum(age) FROM user_table GROUP BY city")
+                .unwrap()
         );
-    }
-
-    #[test]
-    fn test_l2_clipped_all_sums_reduce() {
-        let mut database = postgresql::test_database();
-        let relations = database.relations();
-
-        let table = relations
-            .get(&["item_table".into()])
-            .unwrap()
-            .as_ref()
-            .clone();
-
-        // with GROUP BY
-        let my_relation: Relation = Relation::reduce()
-            .input(table.clone())
-            .with(("sum_price", Expr::sum(Expr::col("price"))))
-            .group_by(Expr::col("item"))
-            .with_group_by_column("order_id")
-            .build();
-
-        my_relation.display_dot().unwrap();
-        let clipped_relation = my_relation.l2_clipped_all_sums("order_id").unwrap();
-        clipped_relation.display_dot().unwrap();
     }
 
     #[test]
@@ -1320,7 +1381,7 @@ mod tests {
 
     #[test]
     fn test_rename_fields() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
 
         let table = relations

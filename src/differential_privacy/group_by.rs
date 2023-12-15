@@ -707,4 +707,63 @@ mod tests {
         println!("{:?}", city_keys);
         assert_eq!(city_keys, correct_keys);
     }
+
+    #[test]
+    fn test_differentially_private_group_by_spefic_aggregate() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with((
+                        PrivacyUnit::privacy_unit(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        PrivacyUnit::privacy_unit_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
+                    .build(),
+            )
+            .size(100)
+            .build();
+        let (epsilon, delta) = (1., 1e-3);
+
+        // GROUP BY and the aggregate input the same column
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .group_by(expr!(a))
+            .input(table.clone())
+            .build();
+        let (dp_relation, private_query) = reduce
+            .differentially_private_group_by(epsilon, delta)
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(
+            dp_relation.data_type(),
+            DataType::structured([("a", DataType::integer_range(1..=10))])
+        );
+
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .with_group_by_column("a")
+            .input(table.clone())
+            .build();
+        let (dp_relation, private_query) = reduce
+            .differentially_private_group_by(epsilon, delta)
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(
+            dp_relation.data_type(),
+            DataType::structured([("a", DataType::integer_range(1..=10))])
+        );
+    }
 }
