@@ -250,11 +250,6 @@ impl PUPRelation {
                 delta,
             )?
             .into();
-        // let names: HashMap<String, String> =
-        //     named_sums.into_iter().map(|(s1, s2)| (s2, s1)).collect();
-        // let input = dp_relation;
-        // .rename_fields(|n, _| names.get(n).unwrap_or(&n.to_string()).to_string());
-        // input.display_dot();
         let dp_relation = output_builder
         .input(dp_relation)
         .build();
