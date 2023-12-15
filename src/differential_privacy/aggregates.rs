@@ -56,7 +56,7 @@ impl Relation {
             .into();
         // DPRelation::new(self.add_gaussian_noise(noise_multipliers), private_query)
         DPRelation::new(
-            self.add_clipped_gaussian_noise(noise_multipliers),
+            self.add_clipped_gaussian_noise(&noise_multipliers),
             private_query,
         )
     }
@@ -96,8 +96,8 @@ impl PUPRelation {
         // Clip the relation
         let clipped_relation = self.deref().clone().l2_clipped_sums(
             self.privacy_unit(),
-            group_by_names,
-            input_values_bound.clone(),
+            &group_by_names,
+            &input_values_bound,
         );
         let input_values_bound = input_values_bound
             .iter()

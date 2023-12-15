@@ -368,14 +368,14 @@ impl Relation {
     /// Field names of the output `Relation`:
     /// - If the aggregation is `First`, the field name is the name of the column.
     /// - If the aggregation is `Sum`, the field name is the first element of the corresponding tuple in the `values` parameter.
-    pub fn sums_by_group(self, groups: Vec<&str>, values: Vec<(&str, &str)>) -> Self {
+    pub fn sums_by_group(self, groups: &[&str], values: &[(&str, &str)]) -> Self {
         let mut reduce = Relation::reduce().input(self.clone());
         reduce = groups
-            .into_iter()
-            .fold(reduce, |acc, s| acc.with_group_by_column(s));
+            .iter()
+            .fold(reduce, |acc, s| acc.with_group_by_column(*s));
         reduce = reduce.with_iter(
             values
-                .into_iter()
+                .iter().copied()
                 .map(|(name, col)| (
                     name,
                     Expr::sum(Expr::col(col.to_string())))
@@ -384,16 +384,16 @@ impl Relation {
         reduce.build()
     }
     /// Compute L1 norms of the vectors formed by the group values for each entities
-    pub fn l1_norms(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
+    pub fn l1_norms(self, entities: &str, groups: &[&str], values: &[&str]) -> Self {
         let mut entities_groups = vec![entities];
-        entities_groups.extend(groups.clone());
+        entities_groups.extend(groups.iter());
         let names = values.iter()
             .map(|v| format!("_NORM_{}", v))
             .collect::<Vec<_>>();
         let names = names.iter()
             .map(|s| s.as_str())
             .collect::<Vec<_>>();
-        self.sums_by_group(entities_groups, names.iter().cloned().zip(values.clone()).collect())
+        self.sums_by_group(&entities_groups, &names.iter().cloned().zip(values.iter().copied()).collect::<Vec<_>>())
             .map_fields(|field, expr| {
                 if names.contains(&field) {
                     Expr::abs(expr)
@@ -402,12 +402,12 @@ impl Relation {
                 }
             })
             .sums_by_group(
-                vec![entities],
-                values.iter().cloned().zip(names).collect()
+                &vec![entities],
+                &values.iter().cloned().zip(names).collect::<Vec<_>>()
             )
     }
     /// Compute L2 norms of the vectors formed by the group values for each entities
-    pub fn l2_norms(self, entities: &str, groups: Vec<&str>, values: Vec<&str>) -> Self {
+    pub fn l2_norms(self, entities: &str, groups: &[&str], values: &[&str]) -> Self {
         let mut entities_groups = vec![entities];
         entities_groups.extend(groups.clone());
         let names = values.iter()
@@ -416,7 +416,7 @@ impl Relation {
         let names = names.iter()
             .map(|s| s.as_str())
             .collect::<Vec<_>>();
-        self.sums_by_group(entities_groups, names.iter().cloned().zip(values.clone()).collect())
+        self.sums_by_group(&entities_groups, &names.iter().cloned().zip(values.iter().copied()).collect::<Vec<_>>())
             .map_fields(|field_name, expr| {
                 if names.contains(&field_name) {
                     // TODO Remove abs
@@ -427,8 +427,8 @@ impl Relation {
                 }
             })
             .sums_by_group(
-                vec![entities],
-                values.iter().cloned().zip(names).collect()
+                &vec![entities],
+                &values.iter().cloned().zip(names).collect::<Vec<_>>()
             )
             .map_fields(|field_name, expr| {
                 if values.contains(&field_name) {
@@ -470,11 +470,11 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
             .iter()
             .map(|field| (field.name(), Expr::col(field.name())))
             .chain(
-                values.into_iter()
+                values.iter().copied()
                     .map(|(name, col)| {
-                        let field_name = join.schema().field(*col).unwrap().name();
+                        let field_name = join.schema().field(col).unwrap().name();
                         (
-                            *name,
+                            name,
                             Expr::multiply(
                                 Expr::col(field_name),
                                 Expr::col(format!("_SCALE_FACTOR_{}", field_name))
@@ -497,21 +497,21 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
     pub fn l2_clipped_sums(
         self,
         entities: &str,
-        groups: Vec<&str>,
-        value_clippings: Vec<(&str, &str, f64)>,
+        groups: &[&str],
+        value_clippings: &[(&str, &str, f64)],
     ) -> Self {
-        let named_values = value_clippings.iter()
+        let named_values = value_clippings.iter().copied()
             .map(|(s1, s2, _)| (format!("_CLIPPED_{}", s2), s1.to_string(), s2.to_string()))
             .collect::<Vec<_>>();
         // Arrange the values
-        let value_clippings: HashMap<&str, (f64, &str)> = value_clippings.iter()
-            .map(|(s1, s2, f)| (*s2, (*f, *s1)))
+        let value_clippings: HashMap<&str, (f64, &str)> = value_clippings.iter().copied()
+            .map(|(s1, s2, f)| (s2, (f, s1)))
             .collect();
         // Compute the norm
         let norms = self.clone().l2_norms(
             entities,
-            groups.clone(),
-            value_clippings.keys().cloned().collect(),
+            groups,
+            &value_clippings.keys().cloned().collect::<Vec<_>>(),
         );
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
@@ -543,15 +543,15 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
         // Aggregate
         clipped_relation.sums_by_group(
             groups,
-            named_values.iter()
+            &named_values.iter()
                 .map(|(s1, s2, _)| (s2.as_str(), s1.as_str()))
                 .collect::<Vec<_>>()
         )
     }
 
     /// Add gaussian noise of a given standard deviation to the given columns
-    pub fn add_gaussian_noise(self, name_sigmas: Vec<(&str, f64)>) -> Relation {
-        let name_sigmas: HashMap<&str, f64> = name_sigmas.into_iter().collect();
+    pub fn add_gaussian_noise(self, name_sigmas: &[(&str, f64)]) -> Relation {
+        let name_sigmas: HashMap<&str, f64> = name_sigmas.iter().copied().collect();
         Relation::map()
             // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
             .with_iter(self.schema().iter().map(|f| {
@@ -569,8 +569,8 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
     }
 
     /// Add gaussian noise of a given standard deviation to the given columns, while keeping the column min and max
-    pub fn add_clipped_gaussian_noise(self, name_sigmas: Vec<(&str, f64)>) -> Relation {
-        let name_sigmas: HashMap<&str, f64> = name_sigmas.into_iter().collect();
+    pub fn add_clipped_gaussian_noise(self, name_sigmas: &[(&str, f64)]) -> Relation {
+        let name_sigmas: HashMap<&str, f64> = name_sigmas.iter().copied().collect();
         Relation::map()
             // .with_iter(name_sigmas.into_iter().map(|(name, sigma)| (name, Expr::col(name).add_gaussian_noise(sigma))))
             .with_iter(self.schema().iter().map(|f| {
@@ -689,9 +689,9 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
     }
 
     /// Returns a Relation whose fields have unique values
-    fn unique(self, columns: Vec<&str>) -> Relation {
+    fn unique(self, columns: &[&str]) -> Relation {
         let named_columns: Vec<(&str, Expr)> =
-            columns.into_iter().map(|c| (c, Expr::col(c))).collect();
+            columns.iter().copied().map(|c| (c, Expr::col(c))).collect();
 
         Relation::reduce()
             .group_by_iter(named_columns.iter().cloned().map(|(_, col)| col))
@@ -750,7 +750,7 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
     ) -> Relation {
         let mut columns = vec![column];
         columns.extend(group_by.iter());
-        let red = self.unique(columns);
+        let red = self.unique(&columns);
 
         // Build the second reduce
         let mut aggregates_exprs: Vec<(&str, Expr)> = vec![];
@@ -968,7 +968,7 @@ mod tests {
         println!("Before: {}", &ast::Query::from(&relation));
         relation.display_dot().unwrap();
         // Sum by group
-        relation = relation.sums_by_group(vec!["order_id"], vec![("sum_price", "price")]);
+        relation = relation.sums_by_group(&vec!["order_id"], &vec![("sum_price", "price")]);
         // Print query after
         println!("After: {}", &ast::Query::from(&relation));
         relation.display_dot().unwrap();
@@ -986,7 +986,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        relation = relation.sums_by_group(vec!["price"], vec![("sum_price", "price")]);
+        relation = relation.sums_by_group(&vec!["price"], &vec![("sum_price", "price")]);
         relation.display_dot().unwrap();
         assert_eq!(
             relation.data_type(),
@@ -1007,7 +1007,7 @@ mod tests {
             .as_ref()
             .clone();
         // Compute l1 norm
-        relation = relation.l1_norms("id", vec!["city"], vec!["age"]);
+        relation = relation.l1_norms("id", &vec!["city"], &vec!["age"]);
         // Print query
         let query = &ast::Query::from(&relation);
         println!("After: {}", query);
@@ -1040,7 +1040,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        relation = relation.l1_norms("id", vec!["age"], vec!["age"]);
+        relation = relation.l1_norms("id", &vec!["age"], &vec!["age"]);
     }
 
     #[test]
@@ -1053,7 +1053,7 @@ mod tests {
             .as_ref()
             .clone();
         // Compute l2 norm
-        relation = relation.l2_norms("id", vec!["city"], vec!["age"]);
+        relation = relation.l2_norms("id", &vec!["city"], &vec!["age"]);
         // Print query
         let query = &ast::Query::from(&relation);
         println!("After: {}", query);
@@ -1069,7 +1069,7 @@ mod tests {
             .unwrap()
             .as_ref()
             .clone();
-        relation = relation.l2_norms("id", vec!["age"], vec!["age"]);
+        relation = relation.l2_norms("id", &vec!["age"], &vec!["age"]);
         relation.display_dot().unwrap();
     }
 
@@ -1086,7 +1086,7 @@ mod tests {
         // L1 Norm
         let amount_norm = table
             .clone()
-            .l1_norms("order_id", vec!["item"], vec!["price"]);
+            .l1_norms("order_id", &vec!["item"], &vec!["price"]);
         // amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         println!("Query = {}", query);
@@ -1096,7 +1096,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let amount_norm = table.clone().l2_norms("order_id", vec!["item"], vec!["price"]);
+        let amount_norm = table.clone().l2_norms("order_id", &vec!["item"], &vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query = "SELECT order_id, SQRT(SUM(sum_by_group)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
@@ -1105,7 +1105,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm when group by and aggregates have the same argument
-        let amount_norm = table.l2_norms("order_id", vec!["price"], vec!["price"]);
+        let amount_norm = table.l2_norms("order_id", &vec!["price"], &vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query = "SELECT order_id, SQRT(SUM(sum_by_group)) FROM (SELECT order_id, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, price) AS subquery GROUP BY order_id";
@@ -1126,7 +1126,7 @@ mod tests {
             .as_ref()
             .clone();
         // L1 Norm
-        let amount_norm = table.clone().l1_norms("order_id", vec![], vec!["price"]);
+        let amount_norm = table.clone().l1_norms("order_id", &vec![], &vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &format!("{} ORDER BY order_id", ast::Query::from(&amount_norm));
         println!("Query = {}", query);
@@ -1138,7 +1138,7 @@ mod tests {
         );
 
         // L2 Norm
-        let amount_norm = table.l2_norms("order_id", vec![], vec!["price"]);
+        let amount_norm = table.l2_norms("order_id", &vec![], &vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &format!("{} ORDER BY order_id", ast::Query::from(&amount_norm));
         let valid_query =
@@ -1165,7 +1165,7 @@ mod tests {
         let relation_norm =
             relation
                 .clone()
-                .l1_norms("order_id", vec!["item"], vec!["price", "std_price"]);
+                .l1_norms("order_id", &vec!["item"], &vec!["price", "std_price"]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         //println!("Query = {}", query);
@@ -1175,7 +1175,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.l2_norms("order_id", vec!["item"], vec!["price", "std_price"]);
+        let relation_norm = relation.l2_norms("order_id", &["item"], &["price", "std_price"]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT order_id, SQRT(SUM(sum_1)), SQRT(SUM(sum_2)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_1, POWER(SUM(std_price), 2) AS sum_2 FROM ( SELECT price - 25 AS std_price, * FROM item_table ) AS intermediate_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
@@ -1214,7 +1214,7 @@ mod tests {
         // L1 Norm
         let relation_norm = relation
             .clone()
-            .l1_norms(user_id, vec![item, date], vec![price]);
+            .l1_norms(user_id, &[item, date], &[price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         println!("Query = {}", query);
@@ -1225,7 +1225,7 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let relation_norm = relation.l2_norms(user_id, vec![item, date], vec![price]);
+        let relation_norm = relation.l2_norms(user_id, &[item, date], &[price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         let valid_query = "SELECT user_id, SQRT(SUM(sum_1)) FROM (SELECT user_id, item, date, POWER(SUM(price), 2) AS sum_1 FROM item_table JOIN order_table ON item_table.order_id = order_table.id GROUP BY user_id, item, date) AS subquery GROUP BY user_id";
@@ -1253,7 +1253,7 @@ mod tests {
         let clipped_relation =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", 20.)]);
+                .l2_clipped_sums("id", &["city"], &[("clip_age", "age", 20.)]);
         clipped_relation.display_dot().unwrap();
         // Print query
         let query = &ast::Query::from(&clipped_relation).to_string();
@@ -1267,7 +1267,7 @@ mod tests {
         let clipped_relation_100 =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", norm)]);
+                .l2_clipped_sums("id", &["city"], &[("clip_age", "age", norm)]);
         for row in database
             .query(&ast::Query::from(&clipped_relation_100).to_string())
             .unwrap()
@@ -1280,7 +1280,7 @@ mod tests {
         let clipped_relation_1000 =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", norm)]);
+                .l2_clipped_sums("id", &["city"], &[("clip_age", "age", norm)]);
         for row in database
             .query(&ast::Query::from(&clipped_relation_1000).to_string())
             .unwrap()
@@ -1301,7 +1301,7 @@ mod tests {
         let clipped_relation_10000 =
             relation
                 .clone()
-                .l2_clipped_sums("id", vec!["city"], vec![("clip_age", "age", norm)]);
+                .l2_clipped_sums("id", &["city"], &[("clip_age", "age", norm)]);
         for row in database
             .query(&ast::Query::from(&clipped_relation_10000).to_string())
             .unwrap()
@@ -1351,7 +1351,7 @@ mod tests {
                 .with(&relations),
         )
         .unwrap();
-        let relation_with_noise = relation.add_gaussian_noise(vec![("z", 1.)]);
+        let relation_with_noise = relation.add_gaussian_noise(&[("z", 1.)]);
         println!("Schema = {}", relation_with_noise.schema());
         relation_with_noise.display_dot().unwrap();
 
@@ -1726,7 +1726,7 @@ mod tests {
             .build();
 
         // Without group by
-        let unique_rel = table.unique(vec!["a", "b"]);
+        let unique_rel = table.unique(&["a", "b"]);
         println!("{}", unique_rel);
         _ = unique_rel.display_dot();
     }

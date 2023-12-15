@@ -75,7 +75,7 @@ impl PUPRelation {
             COUNT_DISTINCT_PE_ID,
             private_query::gaussian_noise(epsilon, delta, 1.),
         )];
-        let rel = rel.add_gaussian_noise(name_sigmas);
+        let rel = rel.add_gaussian_noise(&name_sigmas);
 
         // Returns a `Relation::Map` with the right field names and with `COUNT(DISTINCT PE_ID) > tau`
         let tau = private_query::gaussian_tau(epsilon, delta, 1.0);
