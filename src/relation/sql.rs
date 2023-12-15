@@ -210,7 +210,7 @@ impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisit
                 table_with_joins(self.translator.table_factor(reduce.input.as_ref().into(), None), vec![]),
                 None,
                 ast::GroupByExpr::Expressions(
-                    reduce.group_by.iter().map(|epxr| self.translator.expr(epxr)).collect(),
+                    reduce.group_by.iter().map(|col| self.translator.expr(&Expr::Column(col.clone()))).collect(),
                 ),
                 vec![],
                 None,

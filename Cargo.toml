@@ -33,19 +33,13 @@ r2d2 = "0.8"
 r2d2_postgres = "0.18"
 rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
 statrs = "0.16.0"
-# TODO: make mssql dependencies optional
-sqlx = { version = "0.6", features = ["mssql", "runtime-tokio-native-tls", "offline", "any"] }
-tokio = { version = "1", features = ["full"] }
-tiberius =  { version = "0.10" }
-tokio-util = { version = "0.7", features = ["compat"] }
-async-std = { version = "1.12.0" , features = ["attributes"] }
-anyhow = "1"
-once_cell = "1.18"
+sqlx = { version = "0.6", features = ["mssql", "runtime-tokio-native-tls", "offline", "any"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
 
 [features]
 # Use SQLite for tests and examples
 sqlite = ["dep:rusqlite"]
-# mssql = ["sqlx"]
+mssql = ["dep:sqlx", "dep:tokio"]
 # Tests
 checked_injections = []
 # Multiplicity features are tested on large datasets (may take too much memory)

@@ -365,6 +365,7 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
 }
 
 #[cfg(test)]
+#[cfg(feature = "mssql")]
 mod tests {
     use sqlparser::dialect::{BigQueryDialect, GenericDialect};
 

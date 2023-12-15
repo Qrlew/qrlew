@@ -9,7 +9,6 @@ use crate::{
         value::{self, Value, Variant},
         DataTyped, List,
     },
-    dialect_translation::mssql::MSSQLTranslator,
     namer,
     relation::{Schema, Table, TableBuilder, Variant as _},
     DataType, Ready as _,
@@ -27,6 +26,9 @@ use sqlx::{
 use std::{
     env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
 };
+
+#[cfg(feature = "mssql")]
+use crate::{dialect_translation::mssql::MSSQLTranslator};
 
 const DB: &str = "qrlew-mssql-test";
 const PORT: u16 = 1433;

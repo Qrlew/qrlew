@@ -20,7 +20,7 @@ use crate::{
     data_type::DataTyped,
     expr::Identifier,
     hierarchy::Hierarchy,
-    relation::{JoinConstraint, JoinOperator, Table, Variant},
+    relation::{JoinOperator, Table, Variant},
     sql::{
         self, parse, parse_with_dialect,
         relation::{RelationWithColumns, VisitedQueryRelations},
@@ -33,6 +33,7 @@ use paste::paste;
 
 pub mod bigquery;
 pub mod hive;
+#[cfg(feature = "mssql")]
 pub mod mssql;
 pub mod mysql;
 pub mod postgres;
@@ -293,33 +294,19 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                 }
             }
 
-            fn join_constraint(&self, value: &JoinConstraint) -> ast::JoinConstraint {
-                match value {
-                    JoinConstraint::On(expr) => ast::JoinConstraint::On(self.expr(expr)),
-                    JoinConstraint::Using(idents) => ast::JoinConstraint::Using(
-                        idents
-                            .into_iter()
-                            .map(|ident| self.identifier(&ident)[0].clone())
-                            .collect(),
-                    ),
-                    JoinConstraint::Natural => ast::JoinConstraint::Natural,
-                    JoinConstraint::None => ast::JoinConstraint::None,
-                }
-            }
-
             fn join_operator(&self, value: &JoinOperator) -> ast::JoinOperator {
                 match value {
-                    JoinOperator::Inner(join_constraint) => {
-                        ast::JoinOperator::Inner(self.join_constraint(join_constraint))
+                    JoinOperator::Inner(expr) => {
+                        ast::JoinOperator::Inner(ast::JoinConstraint::On(self.expr(expr)))
                     }
-                    JoinOperator::LeftOuter(join_constraint) => {
-                        ast::JoinOperator::LeftOuter(self.join_constraint(join_constraint))
+                    JoinOperator::LeftOuter(expr) => {
+                        ast::JoinOperator::LeftOuter(ast::JoinConstraint::On(self.expr(expr)))
                     }
-                    JoinOperator::RightOuter(join_constraint) => {
-                        ast::JoinOperator::RightOuter(self.join_constraint(join_constraint))
+                    JoinOperator::RightOuter(expr) => {
+                        ast::JoinOperator::RightOuter(ast::JoinConstraint::On(self.expr(expr)))
                     }
-                    JoinOperator::FullOuter(join_constraint) => {
-                        ast::JoinOperator::FullOuter(self.join_constraint(join_constraint))
+                    JoinOperator::FullOuter(expr) => {
+                        ast::JoinOperator::FullOuter(ast::JoinConstraint::On(self.expr(expr)))
                     }
                     JoinOperator::Cross => ast::JoinOperator::CrossJoin,
                 }
