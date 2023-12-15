@@ -5,8 +5,9 @@ use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, function::Function, DataType, DataTyped, Variant as _},
-    expr::{self, aggregate, Aggregate, Expr, Value},
-    io, namer, relation,
+    expr::{self, aggregate, Aggregate, Expr, Value, Identifier},
+    io, namer, relation::{self, LEFT_INPUT_NAME, RIGHT_INPUT_NAME},
+    hierarchy::Hierarchy,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -222,6 +223,38 @@ impl Join {
         self.name = name;
         self
     }
+
+    /// Replace the duplicates fields specified in `columns` by their coalesce expression
+    /// Its mimicks teh behaviour of USING in SQL
+    pub fn remove_duplicates_and_coalesce(self, vec: Vec<String>, columns: &Hierarchy<Identifier>) -> Relation {
+        let fields = self.field_inputs()
+            .filter_map(|(name, id)| {
+                let col = id.as_ref().last().unwrap();
+                if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
+                    Some((
+                        name,
+                        Expr::coalesce(
+                            Expr::col(columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap()),
+                            Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap())
+                        )
+                    ))
+                } else {
+                    None
+                }
+            })
+            .chain(
+                self.field_inputs()
+                    .filter_map(|(name, id)| {
+                        let col = id.as_ref().last().unwrap();
+                        (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
+                    })
+            )
+            .collect::<Vec<_>>();
+        Relation::map()
+            .input(Relation::from(self))
+            .with_iter(fields)
+            .build()
+    }
 }
 
 /* Set
@@ -412,7 +445,7 @@ impl Relation {
         // TODO fix this
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
-            .inner()
+            .inner(Expr::val(true))
             .on_eq(entities, entities)
             .left_names(
                 self.fields()
@@ -453,20 +486,25 @@ impl Relation {
         let value_clippings: HashMap<&str, f64> = value_clippings.into_iter().collect();
         // Compute the norm
         let norms = self.clone().l2_norms(
-            entities.clone(),
+            entities,
             groups.clone(),
             value_clippings.keys().cloned().collect(),
         );
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
             if value_clippings.contains_key(&field_name) {
-                Expr::divide(
-                    Expr::val(1),
-                    Expr::greatest(
+                let value_clipping = value_clippings[&field_name];
+                if value_clipping == 0.0 {
+                    Expr::val(value_clipping)
+                } else {
+                    Expr::divide(
                         Expr::val(1),
-                        Expr::divide(expr.clone(), Expr::val(value_clippings[&field_name])),
-                    ),
-                )
+                        Expr::greatest(
+                            Expr::val(1),
+                            Expr::divide(expr.clone(), Expr::val(value_clipping)),
+                        ),
+                    )
+                }
             } else {
                 expr
             }
@@ -777,10 +815,25 @@ impl Relation {
                 names.push((col.clone(), Expr::col(col)));
             }
         }
+        let x = Expr::and_iter(
+            self.schema()
+            .iter()
+            .filter_map(|f| right.schema()
+                .field(f.name())
+                .is_ok()
+                .then_some(
+                    Expr::eq(
+                        Expr::qcol(LEFT_INPUT_NAME, f.name()),
+                        Expr::qcol(RIGHT_INPUT_NAME, f.name()),
+                    )
+                )
+            )
+        );
+
         let join: Relation = Relation::join()
             .left(self.clone())
             .right(right.clone())
-            .inner()
+            .inner(x)
             .left_names(left_names)
             .right_names(right_names)
             .build();
@@ -809,8 +862,6 @@ mod tests {
         relation::schema::Schema,
         sql::parse,
     };
-    use colored::Colorize;
-    use itertools::Itertools;
 
     #[test]
     fn test_with_computed_field() {
@@ -1861,7 +1912,7 @@ mod tests {
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
                 ("b".to_string(), AggregateColumn::first("b")),
             ],
-            vec![Expr::col("b")],
+            vec!["b".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
@@ -1880,7 +1931,7 @@ mod tests {
         let red = Reduce::new(
             "reduce_relation".to_string(),
             vec![("sum_a".to_string(), AggregateColumn::sum("a"))],
-            vec![Expr::col("b")],
+            vec!["b".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
@@ -1902,7 +1953,7 @@ mod tests {
                 ("b".to_string(), AggregateColumn::first("b")),
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
             ],
-            vec![Expr::col("b"), Expr::col("c")],
+            vec!["b".into(), "c".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
@@ -1924,7 +1975,7 @@ mod tests {
                 ("c".to_string(), AggregateColumn::first("c")),
                 ("sum_a".to_string(), AggregateColumn::sum("a")),
             ],
-            vec![Expr::col("b"), Expr::col("c")],
+            vec!["b".into(), "c".into()],
             Arc::new(table.clone()),
         );
         let red_with_grouping_columns = red.clone().with_grouping_columns();
@@ -1979,7 +2030,7 @@ mod tests {
             .with(expr!(count(a)))
             //.with_group_by_column("c")
             .with(("twice_c", expr!(first(2*c))))
-            .group_by(expr!(c))
+            .group_by(expr!(2*c))
             .build();
         let distinct_relation = relation.clone().distinct();
         distinct_relation.display_dot();

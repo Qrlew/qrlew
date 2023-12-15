@@ -11,16 +11,19 @@ use crate::{
     ast,
     builder::{Ready, With, WithIterator, WithoutContext},
     dialect::{Dialect, GenericDialect},
-    expr::{Expr, Identifier, Split},
+    expr::{Expr, Identifier, Split, Reduce},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
     parser::Parser,
     relation::{
-        Join, JoinConstraint, JoinOperator, MapBuilder, Relation, SetOperator, SetQuantifier,
+        Join, JoinOperator, MapBuilder, Relation, SetOperator, SetQuantifier,
         Variant as _, WithInput,
+        LEFT_INPUT_NAME, RIGHT_INPUT_NAME
     },
     tokenizer::Tokenizer,
-    visitor::{Acceptor, Dependencies, Visited}, dialect_translation::{IntoRelationTranslator, postgres::PostgresTranslator},
+    visitor::{Acceptor, Dependencies, Visited},
+    dialect_translation::{IntoRelationTranslator, postgres::PostgresTranslator},
+    types::And, display::Dot
 };
 use itertools::Itertools;
 use std::{
@@ -29,6 +32,7 @@ use std::{
     result,
     str::FromStr,
     sync::Arc,
+    ops::Deref
 };
 
 /*
@@ -177,18 +181,47 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
         &self,
         join_constraint: &ast::JoinConstraint,
         columns: &'a Hierarchy<Identifier>,
-    ) -> Result<JoinConstraint> {
-        match join_constraint {
-            ast::JoinConstraint::On(expr) => Ok(JoinConstraint::On(expr.with(columns).try_into()?)),
-            ast::JoinConstraint::Using(idents) => Ok(JoinConstraint::Using(
-                idents
-                    .into_iter()
-                    .map(|ident| Identifier::from(ident.value.clone()))
-                    .collect(),
-            )),
-            ast::JoinConstraint::Natural => Ok(JoinConstraint::Natural),
-            ast::JoinConstraint::None => Ok(JoinConstraint::None),
-        }
+    ) -> Result<Expr> {
+        Ok(match join_constraint {
+            ast::JoinConstraint::On(expr) => expr.with(columns).try_into()?,
+            ast::JoinConstraint::Using(idents) => { // the "Using (id)" condition is equivalent to "ON _LEFT_.id = _RIGHT_.id"
+                Expr::and_iter(
+                    idents.into_iter()
+                    .map(|id| Expr::eq(
+                        Expr::Column(Identifier::from(vec![LEFT_INPUT_NAME.to_string(), id.value.to_string()])),
+                        Expr::Column(Identifier::from(vec![RIGHT_INPUT_NAME.to_string(), id.value.to_string()])),
+                    ))
+                )
+            },
+            ast::JoinConstraint::Natural => { // the NATURAL condition is equivalent to a "ON _LEFT_.col1 = _RIGHT_.col1 AND _LEFT_.col2 = _RIGHT_.col2" where col1, col2... are the columns present in both tables
+                let tables = columns.iter()
+                .map(|(k, _)| k.iter().take(k.len() - 1).map(|s| s.to_string()).collect::<Vec<_>>())
+                .dedup()
+                .collect::<Vec<_>>();
+                assert_eq!(tables.len(), 2);
+                let columns_1 = columns.filter(tables[0].as_slice());
+                let columns_2 = columns.filter(tables[1].as_slice());
+                let columns_1 = columns_1
+                .iter()
+                .map(|(k, _)| k.last().unwrap())
+                .collect::<Vec<_>>();
+                let columns_2 = columns_2
+                .iter()
+                .map(|(k, _)| k.last().unwrap())
+                .collect::<Vec<_>>();
+
+                Expr::and_iter(
+                    columns_1
+                    .iter()
+                    .filter_map(|col| columns_2.contains(&col).then_some(col))
+                    .map(|id| Expr::eq(
+                        Expr::Column(Identifier::from(vec![LEFT_INPUT_NAME.to_string(), id.to_string()])),
+                        Expr::Column(Identifier::from(vec![RIGHT_INPUT_NAME.to_string(), id.to_string()]))
+                    ))
+                )
+            },
+            ast::JoinConstraint::None => todo!(),
+        })
     }
 
     fn try_from_join_operator_with_columns(
@@ -198,7 +231,7 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
     ) -> Result<JoinOperator> {
         match join_operator {
             ast::JoinOperator::Inner(join_constraint) => Ok(JoinOperator::Inner(
-                self.try_from_join_constraint_with_columns(join_constraint, columns)?,
+                self.try_from_join_constraint_with_columns(join_constraint, columns)?
             )),
             ast::JoinOperator::LeftOuter(join_constraint) => Ok(JoinOperator::LeftOuter(
                 self.try_from_join_constraint_with_columns(join_constraint, columns)?,
@@ -223,10 +256,10 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
         // Then the JOIN if needed
         let result = table_with_joins.joins.iter().fold(
             self.try_from_table_factor(&table_with_joins.relation),
-            |left, join| {
+            |left, ast_join| {
                 let RelationWithColumns(left_relation, left_columns) = left?;
                 let RelationWithColumns(right_relation, right_columns) =
-                    self.try_from_table_factor(&join.relation)?;
+                    self.try_from_table_factor(&ast_join.relation)?;
                 let left_columns = left_columns.map(|i| {
                     let mut v = vec![Join::left_name().to_string()];
                     v.extend(i.to_vec());
@@ -239,7 +272,7 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
                 });
                 let all_columns = left_columns.with(right_columns);
                 let operator = self.try_from_join_operator_with_columns(
-                    &join.join_operator,
+                    &ast_join.join_operator,
                     // &all_columns.filter_map(|i| Some(i.split_last().ok()?.0)),//TODO remove this
                     &all_columns,
                 )?;
@@ -249,13 +282,42 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
                     .left(left_relation)
                     .right(right_relation)
                     .build();
+
                 // We collect column mapping inputs should map to new names (hence the inversion)
                 let new_columns: Hierarchy<Identifier> =
                     join.field_inputs().map(|(f, i)| (i, f.into())).collect();
-                let composed_columns = all_columns.and_then(new_columns);
-                let relation = Arc::new(Relation::from(join));
+                let composed_columns = all_columns.and_then(new_columns.clone());
+
+                // If the join contraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
+                let relation = match &ast_join.join_operator {
+                    ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
+                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Using(v))
+                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(v))
+                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(v)) => {
+                        join.remove_duplicates_and_coalesce(
+                            v.into_iter().map(|id| id.value.to_string()).collect(),
+                            &new_columns
+                        )
+                    },
+                    ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
+                        let v = join.left().fields()
+                            .into_iter()
+                            .filter_map(|f| join.right().schema().field(f.name()).is_ok().then_some(f.name().to_string()))
+                            .collect();
+                        join.remove_duplicates_and_coalesce(v,&new_columns)
+                    },
+                    ast::JoinOperator::LeftSemi(_) => todo!(),
+                    ast::JoinOperator::RightSemi(_) => todo!(),
+                    ast::JoinOperator::LeftAnti(_) => todo!(),
+                    ast::JoinOperator::RightAnti(_) => todo!(),
+                    _ => Relation::from(join),
+                };
+
                 // We should compose hierarchies
-                Ok(RelationWithColumns::new(relation, composed_columns))
+                Ok(RelationWithColumns::new(Arc::new(relation), composed_columns))
             },
         );
         result
@@ -314,14 +376,13 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
             }
         }
         // Prepare the GROUP BY
-        let group_by: Result<Vec<Expr>> = match group_by {
+        let group_by  = match group_by {
             ast::GroupByExpr::All => todo!(),
             ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
                 .iter()
                 .map(|e| e.with(columns).try_into())
-                .collect(),
+                .collect::<Result<Vec<Expr>>>()?,
         };
-
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
@@ -331,22 +392,32 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
                 .collect();
             expr = expr.replace(columns).0;
-            if let Ok(g) = &group_by {
-                let columns = g
-                    .iter()
-                    .filter_map(|x| {
-                        matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone())))
-                    })
-                    .collect();
-                expr = expr.replace(columns).0;
-            }
+            let columns = group_by
+                .iter()
+                .filter_map(|x| {
+                    matches!(x, Expr::Column(_)).then_some((x.clone(), Expr::first(x.clone())))
+                })
+                .collect();
+            expr = expr.replace(columns).0;
             named_exprs.push((having_name.clone(), expr));
             Some(having_name)
         } else {
             None
         };
         // Build the Map or Reduce based on the type of split
-        let split = Split::from_iter(named_exprs);
+        // If group_by is non-empty, start with them so that aggregations can take them into account
+        let split = if group_by.is_empty() {
+            Split::from_iter(named_exprs)
+        } else {
+            let group_by = group_by.clone().into_iter()
+            .fold(Split::Reduce(Reduce::default()),
+            |s, expr| s.and(Split::Reduce(Split::group_by(expr)))
+            );
+            named_exprs.into_iter()
+            .fold(group_by,
+                |s, named_expr| s.and(named_expr.into())
+            )
+        };
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
@@ -357,13 +428,13 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
             Split::Map(map) => {
                 let builder = Relation::map().split(map);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
+                let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
             Split::Reduce(reduce) => {
                 let builder = Relation::reduce().split(reduce);
                 let builder = filter.into_iter().fold(builder, |b, e| b.filter(e));
-                let builder = group_by?.into_iter().fold(builder, |b, e| b.group_by(e));
+                let builder = group_by.into_iter().fold(builder, |b, e| b.group_by(e));
                 builder.input(from).build()
             }
         };
@@ -639,7 +710,8 @@ mod tests {
         builder::Ready,
         data_type::{DataType, DataTyped, Variant},
         display::Dot,
-        relation::{schema::Schema, Constraint},
+        relation::schema::Schema,
+        io::{Database, postgresql}
     };
 
     #[test]
@@ -1231,6 +1303,36 @@ mod tests {
     }
 
     #[test]
+    fn test_group_by_exprs() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let query_str = "SELECT 3*d, COUNT(*) AS my_count FROM table_1 GROUP BY 3*d;";
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        println!("relation = {relation}");
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("field_fp0x", DataType::integer_interval(0, 30)),
+                ("my_count", DataType::integer_interval(0, 10)),
+            ])
+        );
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+    }
+
+    #[test]
     fn test_distinct_in_select() {
         let query = parse("SELECT DISTINCT a, b FROM table_1;").unwrap();
         let schema_1: Schema = vec![
@@ -1247,7 +1349,7 @@ mod tests {
         let relation = Relation::try_from(QueryWithRelations::new(
             &query,
             &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
-        ))
+            ))
         .unwrap();
         relation.display_dot().unwrap();
         println!("relation = {relation}");
@@ -1258,5 +1360,194 @@ mod tests {
                 ("b", DataType::float_interval(0., 10.)),
             ])
         );
+    }
+
+    #[test]
+    fn test_join_with_using() {
+        namer::reset();
+        let table_1: Relation = Relation::table()
+            .name("table_1")
+            .schema(
+                vec![
+                    ("a", DataType::integer_interval(0, 10)),
+                    ("b", DataType::float_interval(20., 50.)),
+                ].into_iter()
+                .collect::<Schema>()
+            )
+            .size(100)
+            .build();
+        let table_2: Relation  = Relation::table()
+            .name("table_2")
+            .schema(
+                vec![
+                    ("a", DataType::integer_interval(-5, 5)),
+                    ("c", DataType::float()),
+                ].into_iter()
+                .collect::<Schema>()
+            )
+            .size(100)
+            .build();
+        let relations = Hierarchy::from([
+            (["schema", "table_1"], Arc::new(table_1)),
+            (["schema", "table_2"], Arc::new(table_2)),
+        ]);
+
+        // INNER JOIN
+        let query = parse("SELECT * FROM table_1 INNER JOIN table_2 USING (a)").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::integer_interval(0, 5)));
+            assert_eq!(s[1], Arc::new(DataType::float_interval(20., 50.)));
+            assert_eq!(s[2], Arc::new(DataType::float()));
+        }
+
+        // LEFT JOIN
+        let query = parse("SELECT * FROM table_1 LEFT JOIN table_2 USING (a)").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::integer_interval(0, 10)));
+            assert_eq!(s[1], Arc::new(DataType::float_interval(20., 50.)));
+            assert_eq!(s[2], Arc::new(DataType::optional(DataType::float())));
+        }
+
+        // RIGHT JOIN
+        let query = parse("SELECT * FROM table_1 RIGHT JOIN table_2 USING (a)").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::integer_interval(-5, 5)));
+            assert_eq!(s[1], Arc::new(DataType::optional(DataType::float_interval(20., 50.))));
+            assert_eq!(s[2], Arc::new(DataType::float()));
+        }
+
+        // FULL JOIN
+        let query = parse("SELECT * FROM table_1 FULL JOIN table_2 USING (a)").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::optional(DataType::integer_interval(-5, 10))));
+            assert_eq!(s[1], Arc::new(DataType::optional(DataType::float_interval(20., 50.))));
+            assert_eq!(s[2], Arc::new(DataType::optional(DataType::float())));
+        }
+    }
+
+    #[test]
+    fn test_join_with_natural() {
+        namer::reset();
+        let table_1: Relation = Relation::table()
+            .name("table_1")
+            .schema(
+                vec![
+                    ("a", DataType::integer_interval(0, 10)),
+                    ("b", DataType::float_interval(20., 50.)),
+                    ("d", DataType::float_interval(-10., 50.)),
+                ].into_iter()
+                .collect::<Schema>()
+            )
+            .size(100)
+            .build();
+        let table_2: Relation  = Relation::table()
+            .name("table_2")
+            .schema(
+                vec![
+                    ("a", DataType::integer_interval(-5, 5)),
+                    ("c", DataType::float()),
+                    ("d", DataType::float_interval(10., 100.)),
+                ].into_iter()
+                .collect::<Schema>()
+            )
+            .size(100)
+            .build();
+        let relations = Hierarchy::from([
+            (["schema", "table_1"], Arc::new(table_1)),
+            (["schema", "table_2"], Arc::new(table_2)),
+        ]);
+
+        // INNER JOIN
+        let query = parse("SELECT * FROM table_1 NATURAL INNER JOIN table_2").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::integer_interval(0, 5)));
+            assert_eq!(s[1], Arc::new(DataType::float_interval(10., 50.)));
+            assert_eq!(s[2], Arc::new(DataType::float_interval(20., 50.)));
+            assert_eq!(s[3], Arc::new(DataType::float()));
+        }
+
+        // LEFT JOIN
+        let query = parse("SELECT * FROM table_1 NATURAL LEFT JOIN table_2").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::integer_interval(0, 10)));
+            assert_eq!(s[1], Arc::new(DataType::float_interval(-10., 50.)));
+            assert_eq!(s[2], Arc::new(DataType::float_interval(20., 50.)));
+            assert_eq!(s[3], Arc::new(DataType::optional(DataType::float())));
+        }
+
+        // RIGHT JOIN
+        let query = parse("SELECT * FROM table_1 NATURAL RIGHT JOIN table_2").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::integer_interval(-5, 5)));
+            assert_eq!(s[1], Arc::new(DataType::float_interval(10., 100.)));
+            assert_eq!(s[2], Arc::new(DataType::optional(DataType::float_interval(20., 50.))));
+            assert_eq!(s[3], Arc::new(DataType::float()));
+
+        }
+
+        // FULL JOIN
+        let query = parse("SELECT * FROM table_1 NATURAL FULL JOIN table_2").unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+            ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        assert!(matches!(relation.data_type(), DataType::Struct(_)));
+        if let DataType::Struct(s) = relation.data_type() {
+            assert_eq!(s[0], Arc::new(DataType::optional(DataType::integer_interval(-5, 10))));
+            assert_eq!(s[1], Arc::new(DataType::optional(DataType::float_interval(-10., 100.))));
+            assert_eq!(s[2], Arc::new(DataType::optional(DataType::float_interval(20., 50.))));
+            assert_eq!(s[3], Arc::new(DataType::optional(DataType::float())));
+        }
     }
 }

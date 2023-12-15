@@ -122,6 +122,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        ast,
         builder::{Ready, With},
         display::Dot,
         expr::Identifier,
@@ -159,9 +160,9 @@ mod tests {
 
     #[test]
     fn test_rewrite_with_differential_privacy() {
-        let database = postgresql::test_database();
+        let mut database = postgresql::test_database();
         let relations = database.relations();
-        let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
+
         let synthetic_data = SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
@@ -180,18 +181,32 @@ mod tests {
             ("user_table", vec![], "name"),
         ]);
         let budget = Budget::new(1., 1e-3);
-        let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation
-            .rewrite_with_differential_privacy(&relations, synthetic_data, privacy_unit, budget)
-            .unwrap();
-        relation_with_private_query
-            .relation()
-            .display_dot()
-            .unwrap();
-        println!(
-            "PrivateQuery = {}",
-            relation_with_private_query.private_query()
-        );
+
+        let queries = [
+            "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
+            "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
+        ];
+
+        for q in queries {
+            println!("=================================\n{q}");
+            let query = parse(q).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            let relation_with_private_query = relation
+                .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), budget.clone())
+                .unwrap();
+            relation_with_private_query
+                .relation()
+                .display_dot()
+                .unwrap();
+            let dp_query = ast::Query::from(&relation_with_private_query.relation().clone()).to_string();
+            println!("\n{dp_query}");
+            _ = database
+                .query(dp_query.as_str())
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n");
+        }
     }
 
     #[test]
@@ -402,6 +417,53 @@ mod tests {
                 budget.clone()
             ).unwrap();
             //dp_relation.relation().display_dot().unwrap();
+        }
+
+    }
+
+    #[test]
+    fn test_census() {
+        let census: Relation = Relation::table()
+            .name("census")
+            .schema(
+                vec![
+                    ("capital_loss", DataType::integer()),
+                    ("age", DataType::integer()),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(1000)
+            .build();
+        let relations: Hierarchy<Arc<Relation>> = vec![census]
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
+            .collect();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["census"], Identifier::from("census")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            ("census", vec![], "_PRIVACY_UNIT_ROW_"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+
+        let queries = [
+            "SELECT SUM(CAST(capital_loss AS float) / 100000.) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(capital_loss / 100000) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(CASE WHEN age > 90 THEN 1 ELSE 0 END) AS s1 FROM census WHERE age > 20 AND age < 90;"
+        ];
+        for query_str in queries {
+            println!("\n{query_str}");
+            let query = parse(query_str).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            relation.display_dot().unwrap();
+            let dp_relation = relation.rewrite_with_differential_privacy(
+                &relations,
+                synthetic_data.clone(),
+                privacy_unit.clone(),
+                budget.clone()
+            ).unwrap();
+            dp_relation.relation().display_dot().unwrap();
         }
 
     }

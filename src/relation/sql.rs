@@ -2,7 +2,7 @@
 use serde::de::value;
 
 use super::{
-    Error, Join, JoinConstraint, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
+    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set,
     SetOperator, SetQuantifier, Table, Values, Variant as _, Visitor,
 };
 use crate::{
@@ -505,8 +505,7 @@ mod tests {
 
         let join: Relation = Relation::join()
             .name("join")
-            .left_outer()
-            //.using("a")
+            .left_outer(Expr::val(true))
             .on_eq("b", "b")
             .left(left)
             .right(right)

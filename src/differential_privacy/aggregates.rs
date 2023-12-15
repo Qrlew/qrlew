@@ -112,7 +112,7 @@ impl PUPRelation {
     pub fn differentially_private_aggregates(
         self,
         named_aggregates: Vec<(&str, AggregateColumn)>,
-        group_by: &[Expr],
+        group_by: &[Column],
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
@@ -135,11 +135,9 @@ impl PUPRelation {
         (input_builder, group_by_names) =
             group_by
                 .into_iter()
-                .fold((input_builder, group_by_names), |(mut b, mut v), x| {
-                    if let Expr::Column(c) = x {
-                        b = b.with((c.last().unwrap(), x.clone()));
-                        v.push(c.last().unwrap());
-                    }
+                .fold((input_builder, group_by_names), |(mut b, mut v), c| {
+                    b = b.with((c.last().unwrap(), Expr::Column(c.clone())));
+                    v.push(c.last().unwrap());
                     (b, v)
                 });
 
@@ -325,7 +323,7 @@ impl Reduce {
         }
 
         first_aggs.extend(
-            self.group_by_columns()
+            self.group_by()
             .into_iter()
             .map(|x| (x.to_string(), AggregateColumn::new(aggregate::Aggregate::First, x.clone())))
             .collect::<Vec<_>>()
@@ -358,7 +356,7 @@ impl Reduce {
         let builder = Relation::reduce()
             .input(self.input().clone());
         if let Some(identifier) = identifier {
-            let mut group_by = self.group_by_columns()
+            let mut group_by = self.group_by()
                 .into_iter()
                 .map(|c| c.clone())
                 .collect::<Vec<_>>();
@@ -525,7 +523,7 @@ mod tests {
         let reduce = Reduce::new(
             "my_reduce".to_string(),
             vec![("my_sum_price".to_string(), AggregateColumn::sum("price"))],
-            vec![Expr::col("item")],
+            vec!["item".into()],
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
@@ -647,7 +645,7 @@ mod tests {
                 ("var_price".to_string(), AggregateColumn::var("price")),
                 ("std_price".to_string(), AggregateColumn::std("price")),
             ],
-            vec![expr!(item)],
+            vec!["item".into()],
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
@@ -685,7 +683,7 @@ mod tests {
                 ("my_item".to_string(), AggregateColumn::first("item")),
                 ("avg_price".to_string(), AggregateColumn::mean("price")),
             ],
-            vec![Expr::col("item")],
+            vec!["item".into()],
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
@@ -748,7 +746,7 @@ mod tests {
                 ("sum_distinct_price".to_string(), AggregateColumn::sum_distinct("price")),
                 ("item".to_string(), AggregateColumn::first("item")),
             ],
-            vec![expr!(item)],
+            vec!["item".into()],
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
