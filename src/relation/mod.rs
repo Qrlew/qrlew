@@ -1684,13 +1684,28 @@ mod tests {
             .with(("my_sum", Expr::sum(Expr::col("b"))))
             .with(("my_a", Expr::first(expr!(3 * a))))
             .group_by(expr!(3 * a))
-            .input(table)
+            .input(table.clone())
             .build();
         assert_eq!(
             reduce.data_type(),
             DataType::structured([
                 ("my_sum", DataType::float_interval(0., 100.)),
                 ("my_a", DataType::integer_interval(0, 30)),
+            ])
+        );
+
+        // GROUP BY and aggregates have the same argument
+        let reduce: Relation = Relation::reduce()
+            .with(("my_sum", Expr::sum(Expr::col("a"))))
+            .with(("my_a", Expr::first(expr!(a))))
+            .group_by(expr!(a))
+            .input(table)
+            .build();
+        assert_eq!(
+            reduce.data_type(),
+            DataType::structured([
+                ("my_sum", DataType::integer_interval(0, 1000)),
+                ("my_a", DataType::integer_interval(0, 10)),
             ])
         );
     }

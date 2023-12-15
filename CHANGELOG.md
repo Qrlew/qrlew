@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
+- Fixed bug when using the same column in the GROUP BY and an Aggregate function [#222](https://github.com/Qrlew/qrlew/issues/222)
 - Natural joins [#221](https://github.com/Qrlew/qrlew/issues/221)
 - When the clipping factor is zero, multiply by zero instead of dividing by 1 / clipping_factor [#218](https://github.com/Qrlew/qrlew/issues/218)
 

@@ -69,7 +69,7 @@ impl PUPRelation {
     /// The budget is equally splitted among the sums.
     fn differentially_private_sums(
         self,
-        sums: Vec<&str>,
+        sums: Vec<(&str, &str)>,
         group_by_names: Vec<&str>,
         epsilon: f64,
         delta: f64,
@@ -82,8 +82,9 @@ impl PUPRelation {
 
         let input_values_bound = sums
             .iter()
-            .map(|c| {
+            .map(|(s, c)| {
                 (
+                    *s,
                     *c,
                     self.schema()[*c]
                         .data_type()
@@ -92,18 +93,19 @@ impl PUPRelation {
                 )
             })
             .collect::<Vec<_>>();
-
         // Clip the relation
         let clipped_relation = self.deref().clone().l2_clipped_sums(
             self.privacy_unit(),
             group_by_names,
             input_values_bound.clone(),
         );
-
+        let input_values_bound = input_values_bound
+            .iter()
+            .map(|(s, _, f)| (*s, *f))
+            .collect::<Vec<_>>();
         let (dp_clipped_relation, private_query) = clipped_relation
             .gaussian_mechanisms(epsilon, delta, input_values_bound)
             .into();
-
         Ok(DPRelation::new(dp_clipped_relation, private_query))
     }
 
@@ -241,21 +243,16 @@ impl PUPRelation {
             .differentially_private_sums(
                 named_sums
                     .iter() // Convert &str to String
-                    .map(|(_, s)| s.as_str())
-                    .collect::<Vec<&str>>(),
+                    .map(|(s1, s2)| (s1.as_str(), s2.as_str()))
+                    .collect::<Vec<_>>(),
                 group_by_names,
                 epsilon,
                 delta,
             )?
             .into();
-        let names: HashMap<String, String> =
-            named_sums.into_iter().map(|(s1, s2)| (s2, s1)).collect();
         let dp_relation = output_builder
-            .input(
-                dp_relation
-                    .rename_fields(|n, _| names.get(n).unwrap_or(&n.to_string()).to_string()),
-            )
-            .build();
+        .input(dp_relation)
+        .build();
         Ok(DPRelation::new(dp_relation, private_query))
     }
 }
@@ -481,7 +478,7 @@ mod tests {
 
         let dp_relation = PUPRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differentially_private_sums(vec!["price"], vec![], epsilon, delta)
+            .differentially_private_sums(vec![("sum_price", "price")], vec![], epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
         matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
@@ -527,11 +524,11 @@ mod tests {
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
-        relation.display_dot().unwrap();
+        //relation.display_dot().unwrap();
 
         let dp_relation = PUPRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differentially_private_sums(vec!["price"], vec!["item"], epsilon, delta)
+            .differentially_private_sums(vec![("sum_price", "price")], vec!["item"], epsilon, delta)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 2);
@@ -543,6 +540,55 @@ mod tests {
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
         _ = database.query(query).unwrap();
+    }
+
+    #[test]
+    fn test_differentially_private_sums_group_by_aggregate() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with((
+                        PrivacyUnit::privacy_unit(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        PrivacyUnit::privacy_unit_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
+                    .build(),
+            )
+            .size(100)
+            .build();
+        let (epsilon, delta) = (1., 1e-3);
+
+        // GROUP BY and the aggregate input the same column
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .group_by(expr!(a))
+            .input(table.clone())
+            .build();
+        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+            .unwrap()
+            .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], epsilon, delta)
+            .unwrap();
+        dp_relation.display_dot().unwrap();
+
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .with_group_by_column("a")
+            .input(table.clone())
+            .build();
+        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+            .unwrap()
+            .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], epsilon, delta)
+            .unwrap();
+        dp_relation.display_dot().unwrap();
     }
 
     #[test]
@@ -593,7 +639,6 @@ mod tests {
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 5);
-        println!("data_type = {}", dp_relation.data_type());
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured(vec![
@@ -1101,4 +1146,80 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_differentially_private_group_by_aggregate() {
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::integer_range(1..=10)))
+                    .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
+                    .with(("c", DataType::integer_range(5..=20)))
+                    .with((
+                        PrivacyUnit::privacy_unit(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        PrivacyUnit::privacy_unit_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
+                    .build(),
+            )
+            .size(100)
+            .build();
+        let (epsilon, delta) = (1., 1e-3);
+
+        // GROUP BY and the aggregate input the same column
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .with_group_by_column("a")
+            .input(table.clone())
+            .build();
+        let (dp_relation, private_query) = reduce
+        .differentially_private_aggregates(epsilon.clone(), delta.clone())
+        .unwrap()
+        .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+                epsilon.clone(),
+                delta.clone(),
+                10.
+            )
+        );
+        assert_eq!(
+            dp_relation.data_type(),
+            DataType::structured([
+                ("sum_a", DataType::float_interval(0., 1000.)),
+                ("a", DataType::integer_range(1..=10)
+            )])
+        );
+
+
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .group_by(expr!(a))
+            .input(table.clone())
+            .build();
+        let (dp_relation, private_query) = reduce
+        .differentially_private_aggregates(epsilon.clone(), delta.clone())
+        .unwrap()
+        .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+                epsilon.clone(),
+                delta.clone(),
+                10.
+            )
+        );
+        assert_eq!(
+            dp_relation.data_type(),
+            DataType::structured([("sum_a", DataType::float_interval(0., 1000.)),])
+        );
+    }
 }
