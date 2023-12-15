@@ -27,7 +27,6 @@ use std::{
     env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
 };
 
-#[cfg(feature = "mssql")]
 use crate::{dialect_translation::mssql::MSSQLTranslator};
 
 const DB: &str = "qrlew-mssql-test";
