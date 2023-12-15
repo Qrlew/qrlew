@@ -112,6 +112,40 @@ impl IntoDialectTranslator for MSSQLTranslator {
         })
     }
 
+    fn from_char_length(&self, expr: &expr::Expr) -> ast::Expr {
+        todo!()
+    }
+
+    fn from_cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
+        todo!()
+    }
+
+    fn from_cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
+        let casted_to_integer = expr::Expr::cast_as_integer(expr.clone());
+        ast::Expr::from(&casted_to_integer)
+    }
+
+    // fn from_extract_epoch(&self, expr: &expr::Expr) -> ast::Expr {
+    //     //EXTRACT(EPOCH FROM col1) is not supported yet
+    //     todo!()
+    // }
+
+
+
+    // used during onboarding in order to have datetime with a proper format.
+    // This is not needed when we will remove the cast in string of the datetime
+    // during the onboarding
+    // CAST(col AS VARCHAR/TEXT) -> CONVERT(VARCHAR, col, 126)
+
+
+    // TODO because not supported yet.
+    // EXTRACT(epoch FROM column) -> DATEDIFF(SECOND, '19700101', column)
+    // Concat(a, b) has to take at least 2 args, it can take empty string as well.
+    // onboarding, charset query: SELECT DISTINCT REGEXP_SPLIT_TO_TABLE(anon_2.name ,'') AS "regexp_split" ...
+    // onboarding, sampling, remove WHERE RAND().
+    // onboarding CAST(col AS Boolean) -> CAST(col AS BIT)
+    // onboarding Literal True/Fale -> 1/0.
+
     /// MSSQL queries don't support LIMIT but TOP in the SELECT statement instated
     fn query(
         &self,
@@ -330,11 +364,6 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
     }
 }
 
-// TODO Relation -> To Dialect aware AST
-// Encode(Decode(source, 'hex'), 'escape') -> CONVERT( VARCHAR(MAX), CONVERT(VARBINARY(MAX), '50726976617465', 2),  0): Encode/Decode not supported functions
-// EXTRACT(epoch FROM column) -> DATEDIFF(SECOND, '19700101', column): EXTRACT not supported functions
-// CoalesceFunction
-
 #[cfg(test)]
 mod tests {
     use sqlparser::dialect::{BigQueryDialect, GenericDialect};
@@ -348,7 +377,7 @@ mod tests {
         expr::Expr,
         namer,
         relation::{schema::Schema, Relation, Variant as _},
-        sql::{parse, parse_with_dialect, relation::QueryWithRelations}, io::{mssql, Database as _},
+        sql::{parse, parse_with_dialect, relation::QueryWithRelations, parse_expr}, io::{mssql, Database as _},
     };
     use std::sync::Arc;
 
@@ -371,6 +400,66 @@ mod tests {
         let _ = database.query(translated_query).unwrap();
     }
 
+    #[test]
+    fn test_cast_as_text() {
+        let str_expr = "cast(a as varchar)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr, gen_expr);
+
+        let str_expr = "cast(a as varchar)";
+    }
+
+    #[test]
+    fn test_cast() {
+        let mut database = mssql::test_database();
+        let relations = database.relations();
+
+        let query = r#"""
+        SELECT a AS a, CAST(1 AS BOOLEAN) AS col FROM table_1
+        """#;
+
+        let relation = Relation::try_from(
+            With::with(&parse(query).unwrap(), &relations),
+        )
+        .unwrap();
+
+        let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
+        let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
+        println!("{}", translated_query);
+
+        let _ = database.query(translated_query).unwrap();
+        // let str_expr = "cast(a as varchar)";
+        // let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        // let expr = Expr::try_from(&ast_expr).unwrap();
+        // let aa = match expr {
+        //     Expr::Function(_) => todo!(),
+        // };
+        // println!("expr = {}", expr)
+    }
+
+    #[test]
+    fn test_cast_bis() {
+        let mut database = mssql::test_database();
+        let relations = database.relations();
+        let query = parse(r#"""
+        SELECT
+            CAST(CASE WHEN a > 1 THEN 1 ELSE 0 END AS BOOLEAN) as col
+        FROM table_1
+        """#).unwrap();
+
+        let relation = Relation::try_from(
+            With::with(&query, &relations),
+        )
+        .unwrap();
+
+        let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
+        let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
+        println!("{}", translated_query);
+    }
 
     #[test]
     fn test_translation() {

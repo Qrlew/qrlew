@@ -423,7 +423,8 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                         CastAsText,
                         CastAsFloat,
                         CastAsInteger,
-                        CastAsDateTime
+                        CastAsDateTime,
+                        CastAsBoolean
                     ),
                     (Pow, Case, Position, Least, Greatest),
                     match func.function() {
@@ -496,6 +497,10 @@ macro_rules! into_dialect_tranlator_trait_constructor {
             fn from_cast_as_integer(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
                 cast_builder(ast_expr, ast::DataType::Integer(Some(64)))
+            }
+            fn from_cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
+                let ast_expr = self.expr(expr);
+                cast_builder(ast_expr, ast::DataType::Boolean)
             }
             fn from_cast_as_date_time(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
