@@ -342,7 +342,7 @@ impl<'a> VisitedQueryRelations<'a> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
-        let columns = &names.map(|s| s.clone().into());
+        let mut columns = &names.map(|s| s.clone().into());
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -367,7 +367,6 @@ impl<'a> VisitedQueryRelations<'a> {
                 }
             }
         }
-        // Prepare the GROUP BY
         let group_by  = match group_by {
             ast::GroupByExpr::All => todo!(),
             ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
@@ -375,6 +374,21 @@ impl<'a> VisitedQueryRelations<'a> {
                 .map(|e| e.with(columns).try_into())
                 .collect::<Result<Vec<Expr>>>()?,
         };
+        // If the GROUP BY contains aliases, then replace them by the corresponding expression in `named_exprs`.
+        // Note that we mimic postgres behaviour and support only GROUP BY alias column (no other expressions are allowed)
+        // The aliases cannot be used in HAVING
+        let group_by = group_by.into_iter()
+            .map(|x| match &x {
+                Expr::Column(c) if columns.get_key_value(&c).is_none() && c.len() == 1 => {
+                    named_exprs
+                        .iter()
+                        .find(|&(name, _)| name == &c[0])
+                        .map(|(_, expr)| expr.clone())
+                        .unwrap_or(x)
+                },
+                _ => x
+            })
+            .collect::<Vec<_>>();
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
@@ -1014,6 +1028,42 @@ mod tests {
         let q = ast::Query::from(&relation);
         println!("query = {q}");
         relation.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_group_by_alias() {
+        let query = parse(
+            "
+            SELECT a AS my_a, SUM(b) AS sum_b FROM table_1 GROUP BY my_a;
+        ",
+        )
+        .unwrap();
+        let schema_1: Schema = vec![
+            ("a", DataType::integer()),
+            ("b", DataType::float_interval(-10., 10.)),
+        ]
+        .into_iter()
+        .collect();
+        let table_1 = Relation::table()
+            .name("tab_1")
+            .schema(schema_1.clone())
+            .size(100)
+            .build();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
+        ))
+        .unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+        relation.display_dot().unwrap();
+        assert_eq!(
+            relation.data_type(),
+            DataType::structured(vec![
+                ("my_a", DataType::integer()),
+                ("sum_b", DataType::float_interval(-1000., 1000.)),
+            ])
+        );
     }
 
     #[test]
