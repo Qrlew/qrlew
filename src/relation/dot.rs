@@ -217,8 +217,15 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     ),
                     _ => "".to_string(),
                 };
+                let offset = match map.offset {
+                    Some(offset) => format!(
+                        "<br/>OFFSET {}",
+                        dot::escape_html(offset.to_string().as_str())
+                    ),
+                    _ => "".to_string(),
+                };
                 format!(
-                    "<b>{} size ∈ {}</b><br/>{}{filter}{order_by}{limit}",
+                    "<b>{} size ∈ {}</b><br/>{}{filter}{order_by}{limit}{offset}",
                     map.name().to_uppercase(),
                     map.size(),
                     &node.1

@@ -530,48 +530,61 @@ impl<'a> VisitedQueryRelations<'a> {
         }
     }
 
+    fn try_from_offset(&self, offset: &'a ast::Offset) -> Result<usize> {
+        if let ast::Expr::Value(ast::Value::Number(number, false)) = &offset.value {
+            Ok(usize::from_str(&number)?)
+        } else {
+            Err(Error::parsing_error(offset))
+        }
+    }
+
     /// Convert a Query into a Relation
     fn try_from_query(&self, query: &'a ast::Query) -> Result<Arc<Relation>> {
         let ast::Query {
             body,
             order_by,
             limit,
+            offset,
             ..
         } = query;
         match body.as_ref() {
             ast::SetExpr::Select(select) => {
                 let RelationWithColumns(relation, columns) =
                     self.try_from_select(select.as_ref())?;
-                // let names = &columns.filter_map(|i| Some(i.split_last().ok()?.0));//TODO remove this
-                if order_by.is_empty() && limit.is_none() {
+                if order_by.is_empty() && limit.is_none() && offset.is_none() {
                     Ok(relation)
                 } else {
                     // Build a relation with ORDER BY and LIMIT if needed
-                    let relation_bulider = Relation::map();
+                    let relation_builder = Relation::map();
                     // We add all the columns
                     let relation_builder = relation
                         .schema()
                         .iter()
-                        .fold(relation_bulider, |builder, field| {
+                        .fold(relation_builder, |builder, field| {
                             builder.with((field.name(), Expr::col(field.name())))
                         });
                     // Add input
-                    let relation_bulider = relation_builder.input(relation);
+                    let relation_builder = relation_builder.input(relation);
                     // Add ORDER BYs
-                    let relation_bulider: Result<MapBuilder<WithInput>> = order_by.iter().fold(
-                        Ok(relation_bulider),
+                    let relation_builder: Result<MapBuilder<WithInput>> = order_by.iter().fold(
+                        Ok(relation_builder),
                         |builder, ast::OrderByExpr { expr, asc, .. }| {
                             Ok(builder?
                                 .order_by(expr.with(&columns).try_into()?, asc.unwrap_or(true)))
                         },
                     );
                     // Add LIMITs
-                    let relation_bulider: Result<MapBuilder<WithInput>> =
-                        limit.iter().fold(relation_bulider, |builder, limit| {
+                    let relation_builder: Result<MapBuilder<WithInput>> =
+                        limit.iter().fold(relation_builder, |builder, limit| {
                             Ok(builder?.limit(self.try_from_limit(limit)?))
                         });
+                    // Add OFFSET
+                    let relation_builder: Result<MapBuilder<WithInput>> =
+                    offset.iter().fold(relation_builder, |builder, offset| {
+                        Ok(builder?.offset(self.try_from_offset(offset)?))
+                    });
                     // Build a relation with ORDER BY and LIMIT
-                    Ok(Arc::new(relation_bulider?.try_build()?))
+                    Ok(Arc::new(relation_builder?.try_build()?))
                 }
             }
             ast::SetExpr::SetOperation {
@@ -585,13 +598,13 @@ impl<'a> VisitedQueryRelations<'a> {
                         self.try_from_select(left_select.as_ref())?;
                     let RelationWithColumns(right_relation, _right_columns) =
                         self.try_from_select(right_select.as_ref())?;
-                    let relation_bulider = Relation::set()
+                    let relation_builder = Relation::set()
                         .operator(op.clone().into())
                         .quantifier(set_quantifier.clone().into())
                         .left(left_relation)
                         .right(right_relation);
                     // Build a Relation from set operation
-                    Ok(Arc::new(relation_bulider.try_build()?))
+                    Ok(Arc::new(relation_builder.try_build()?))
                 }
                 _ => panic!("We only support set operations over SELECTs"),
             },
