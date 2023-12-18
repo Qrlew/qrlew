@@ -13,7 +13,7 @@ use crate::{
     differential_privacy::private_query::PrivateQuery,
     expr, privacy_unit_tracking,
     relation::{rewriting, Reduce, Relation},
-    Ready,
+    Ready, data_type::function::Aggregate,
 };
 use std::{error, fmt, ops::Deref, result};
 
@@ -114,6 +114,12 @@ impl From<(Relation, PrivateQuery)> for DPRelation {
 }
 
 impl Reduce {
+    fn has_only_first_aggregations(&self) -> bool {
+        self.aggregate()
+            .iter()
+            .all(|agg| agg.aggregate() == &expr::aggregate::Aggregate::First)
+    }
+
     /// Rewrite a `Reduce` into DP:
     ///     - Protect the grouping keys
     ///     - Add noise on the aggregations
@@ -125,6 +131,14 @@ impl Reduce {
         delta_tau_thresholding: f64,
     ) -> Result<DPRelation> {
         let mut private_query = PrivateQuery::null();
+
+        let has_only_first_agg = self.has_only_first_aggregations();
+        let (epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding) = if has_only_first_agg {
+            // if the current Reduce has no aggregation other than First, the dp rewritting in only the protection of the grouping keys
+            (0., 0., epsilon_tau_thresholding + epsilon, delta_tau_thresholding + delta)
+        } else {
+            (epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding)
+        };
 
         // DP rewrite group by
         let reduce_with_dp_group_by = if self.group_by().is_empty() {
@@ -157,10 +171,15 @@ impl Reduce {
         };
 
         // DP rewrite aggregates
-        let (dp_relation, private_query_agg) = reduce_with_dp_group_by
-            .differentially_private_aggregates(epsilon, delta)?
-            .into();
-        private_query = private_query.compose(private_query_agg);
+        let dp_relation = if has_only_first_agg {
+            Relation::from(reduce_with_dp_group_by)
+        } else {
+            let (dp_relation, private_query_agg) = reduce_with_dp_group_by
+                .differentially_private_aggregates(epsilon, delta)?
+                .into();
+            private_query = private_query.compose(private_query_agg);
+            dp_relation
+        };
         Ok((dp_relation, private_query).into())
     }
 }

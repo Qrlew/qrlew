@@ -236,26 +236,24 @@ impl PUPRelation {
                 (input_b, sums, output_b)
             },
         );
+        if named_sums.len() == 0 {
+            return Err(Error::DPCompilationError("Cannot dp compile aggregations if there is no aggregations".to_string()))
+        }
 
-        let (dp_relation, private_query) = if named_sums.len() == 0 {
-            // If `self` contains only `First` aggregations, do not rewrite these aggregations.
-            // `self`` is already dp since the grouping keys have been protected during the 1st step of the rewriting.
-            (self.deref().clone(), PrivateQuery::null())
-        } else {
+
         let input: Relation = input_builder.input(self.deref().clone()).build();
-            let pup_input = PUPRelation::try_from(input)?;
-                pup_input
-                .differentially_private_sums(
-                    named_sums
-                        .iter() // Convert &str to String
-                        .map(|(s1, s2)| (s1.as_str(), s2.as_str()))
-                        .collect::<Vec<_>>(),
-                    group_by_names,
-                    epsilon,
-                    delta,
-                )?
-                .into()
-        };
+        let pup_input = PUPRelation::try_from(input)?;
+        let (dp_relation, private_query) = pup_input
+            .differentially_private_sums(
+                named_sums
+                    .iter() // Convert &str to String
+                    .map(|(s1, s2)| (s1.as_str(), s2.as_str()))
+                    .collect::<Vec<_>>(),
+                group_by_names,
+                epsilon,
+                delta,
+            )?
+            .into();
         let dp_relation = output_builder
             .input(dp_relation)
             .build();
