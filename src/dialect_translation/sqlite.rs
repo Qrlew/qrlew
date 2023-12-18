@@ -1,20 +1,12 @@
 use crate::{relation::sql::FromRelationVisitor, visitor::Acceptor, Relation};
 
-use super::IntoDialectTranslator;
+use super::RelationToQueryTranslator;
 use sqlparser::{ast, dialect::SQLiteDialect};
 #[derive(Clone, Copy)]
 pub struct SQLiteTranslator;
 
-impl IntoDialectTranslator for SQLiteTranslator {}
+impl RelationToQueryTranslator for SQLiteTranslator {}
 
-// pub struct RelationWithSQLiteTranslator<'a>(pub &'a Relation, pub &'a SQLiteTranslator);
-
-// impl<'a> From<RelationWithSQLiteTranslator<'a>> for ast::Query {
-//     fn from(value: RelationWithSQLiteTranslator) -> Self {
-//         let RelationWithSQLiteTranslator(relation, translator) = value;
-//         relation.accept(FromRelationVisitor::new(translator))
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -29,7 +21,4 @@ mod tests {
         sql::parse,
     };
     use std::sync::Arc;
-
-    #[test]
-    fn test_xxx() {}
 }

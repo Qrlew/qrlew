@@ -610,14 +610,6 @@ mod tests {
 
     #[test]
     fn test_string_functions() {
-        //Encode(Decode(source, 'hex'), 'escape')
-        let ast_expr: ast::Expr = parse_expr("Encode(Decode(source, 'hex'), 'escape')").unwrap();
-        println!("ast::expr = {ast_expr}");
-        let expr = Expr::try_from(&ast_expr).unwrap();
-        println!("expr = {}", expr);
-        let gen_expr = ast::Expr::from(&expr);
-        assert_eq!(ast_expr, gen_expr);
-
         // Lower
         let ast_expr: ast::Expr = parse_expr("lower(my_expr)").unwrap();
         println!("ast::expr = {ast_expr}");

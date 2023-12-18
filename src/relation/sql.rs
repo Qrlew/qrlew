@@ -9,17 +9,17 @@ use crate::{
     ast,
     data_type::{DataType, DataTyped},
     expr::{identifier::Identifier, Expr},
-    visitor::Acceptor, dialect_translation::{IntoDialectTranslator, postgres::PostgresTranslator},
+    visitor::Acceptor, dialect_translation::{RelationToQueryTranslator, postgres::PostgresTranslator},
 };
 use std::{collections::HashSet, convert::TryFrom, iter::Iterator, ops::Deref};
 
 /// A simple Relation -> ast::Query conversion Visitor using CTE
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct FromRelationVisitor<T: IntoDialectTranslator> {
+pub struct FromRelationVisitor<T: RelationToQueryTranslator> {
     translator: T
 }
 
-impl<T: IntoDialectTranslator> FromRelationVisitor<T> {
+impl<T: RelationToQueryTranslator> FromRelationVisitor<T> {
     pub fn new(translator: T) -> Self {
         FromRelationVisitor { translator }
     }
@@ -121,7 +121,7 @@ fn set_operation(
     }
 }
 
-impl<'a, T: IntoDialectTranslator> Visitor<'a, ast::Query> for FromRelationVisitor<T> {
+impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationVisitor<T> {
     fn table(&self, table: &'a Table) -> ast::Query {
         self.translator.query(
             vec![],
@@ -384,11 +384,11 @@ impl From<&Relation> for ast::Query {
 
 impl Table {
     /// Build the CREATE TABLE statement
-    pub fn create<T: IntoDialectTranslator>(&self, translator: T) -> ast::Statement {
+    pub fn create<T: RelationToQueryTranslator>(&self, translator: T) -> ast::Statement {
         translator.create(self)
     }
 
-    pub fn insert<T: IntoDialectTranslator>(&self, prefix: &str, translator: T) -> ast::Statement {
+    pub fn insert<T: RelationToQueryTranslator>(&self, prefix: &str, translator: T) -> ast::Statement {
         translator.insert(prefix, self)
     }
 }

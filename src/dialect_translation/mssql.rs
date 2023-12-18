@@ -7,12 +7,12 @@ use crate::{
     WithoutContext,
 };
 
-use super::{IntoDialectTranslator, IntoRelationTranslator, Result};
+use super::{RelationToQueryTranslator, QueryToRelationTranslator, Result};
 use sqlparser::{ast::{self, CharacterLength}, dialect::MsSqlDialect};
 #[derive(Clone, Copy)]
 pub struct MSSQLTranslator;
 
-impl IntoDialectTranslator for MSSQLTranslator {
+impl RelationToQueryTranslator for MSSQLTranslator {
     /// Identifiers are back quoted
     fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
         let quoting_char: char = '"';
@@ -244,14 +244,14 @@ impl IntoDialectTranslator for MSSQLTranslator {
     }
 }
 
-impl IntoRelationTranslator for MSSQLTranslator {
+impl QueryToRelationTranslator for MSSQLTranslator {
     type D = MsSqlDialect;
 
     fn dialect(&self) -> Self::D {
         MsSqlDialect {}
     }
 
-    fn try_from_function(
+    fn try_function(
         &self,
         func: &ast::Function,
         context: &Hierarchy<expr::Identifier>,
@@ -259,18 +259,18 @@ impl IntoRelationTranslator for MSSQLTranslator {
         let function_name: &str = &func.name.0.iter().next().unwrap().value.to_lowercase()[..];
 
         match function_name {
-            "log" => self.try_into_ln(func, context),
-            "convert" => self.try_into_md5(func, context),
-            // "rand" => self.try_into_random(func, context),
+            "log" => self.try_ln(func, context),
+            "convert" => self.try_md5(func, context),
+            // "rand" => self.try_random(func, context),
             _ => {
-                // I can't call IntoRelationTranslator::try_from_function since it is overriden. I can still use expr::Expr::try_from.
+                // I can't call IntoRelationTranslator::try_function since it is overriden. I can still use expr::Expr::try_from.
                 let expr = ast::Expr::Function(func.clone());
                 expr::Expr::try_from(expr.with(context))
             }
         }
     }
     /// CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2) to Converting MD5(X)
-    fn try_into_md5(
+    fn try_md5(
         &self,
         func: &ast::Function,
         context: &Hierarchy<expr::Identifier>,
@@ -288,7 +288,7 @@ impl IntoRelationTranslator for MSSQLTranslator {
             if is_first_arg_valid && is_last_arg_valid && extract_x_arg.is_some() {
                 // Code to execute when both booleans are true and the option is Some
                 let converted_x_arg =
-                    self.try_from_function_args(vec![extract_x_arg.unwrap()], context)?;
+                    self.try_function_args(vec![extract_x_arg.unwrap()], context)?;
                 Ok(expr::Expr::md5(converted_x_arg[0].clone()))
             } else {
                 let expr = ast::Expr::Function(func.clone());

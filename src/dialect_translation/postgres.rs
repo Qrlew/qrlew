@@ -7,19 +7,39 @@ use crate::{
         parse_with_dialect, query_names::IntoQueryNamesVisitor, relation::TryIntoRelationVisitor,
     },
     visitor::Acceptor,
-    Relation,
+    Relation, expr,
 };
 
-use super::{IntoDialectTranslator, IntoRelationTranslator};
+use super::{RelationToQueryTranslator, QueryToRelationTranslator, function_builder};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
 use crate::sql::{Error, Result};
 #[derive(Clone, Copy)]
 pub struct PostgresTranslator;
 
-impl IntoDialectTranslator for PostgresTranslator {}
+impl RelationToQueryTranslator for PostgresTranslator {
+    fn first(&self, expr: &expr::Expr) -> ast::Expr {
+        ast::Expr::from(expr)
+    }
 
-impl IntoRelationTranslator for PostgresTranslator {
+    fn mean(&self, expr: &expr::Expr) -> ast::Expr {
+        let arg = self.expr(expr);
+        function_builder("AVG", vec![arg], false)
+    }
+
+    fn var(&self, expr: &expr::Expr) -> ast::Expr {
+        let arg = self.expr(expr);
+        function_builder("VARIANCE", vec![arg], false,)
+    }
+
+    fn std(&self, expr: &expr::Expr) -> ast::Expr {
+        let arg = self.expr(expr);
+        function_builder("STDDEV", vec![arg], false)
+    }
+
+}
+
+impl QueryToRelationTranslator for PostgresTranslator {
     type D = PostgreSqlDialect;
 
     fn dialect(&self) -> Self::D {
@@ -90,6 +110,16 @@ mod tests {
         sql::{parse, relation::QueryWithRelations},
     };
     use std::sync::Arc;
+
+    #[test]
+    fn test_query() -> Result<()> {
+        let translator = PostgresTranslator;
+        let query_str = "SELECT COUNT(DISTINCT col) FROM schema.table";
+        let query = parse_with_dialect(query_str, translator.dialect())?;
+        println!("{:?}", query);
+        Ok(())
+    }
+
 
     #[test]
     fn test_map() -> Result<()> {

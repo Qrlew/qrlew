@@ -46,8 +46,8 @@ macro_rules! nullary_function_ast_constructor {
     ($( $enum:ident ),*) => {
         paste! {
             $(
-                fn [<from_$enum:snake>](&self) -> ast::Expr {
-                    function_builder(stringify!([<$enum:upper>]), vec![])
+                fn [<$enum:snake>](&self) -> ast::Expr {
+                    function_builder(stringify!([<$enum:upper>]), vec![], false)
                 }
             )*
         }
@@ -59,9 +59,9 @@ macro_rules! unary_function_ast_constructor {
     ($( $enum:ident ),*) => {
         paste! {
             $(
-                fn [<from_$enum:snake>](&self, expr: &expr::Expr) -> ast::Expr {
+                fn [<$enum:snake>](&self, expr: &expr::Expr) -> ast::Expr {
                     let ast_expr = self.expr(expr);
-                    function_builder(stringify!([<$enum:upper>]), vec![ast_expr])
+                    function_builder(stringify!([<$enum:upper>]), vec![ast_expr], false)
                 }
             )*
         }
@@ -73,9 +73,9 @@ macro_rules! nary_function_ast_constructor {
     ($( $enum:ident ),*) => {
         paste! {
             $(
-                fn [<from_$enum:snake>](&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+                fn [<$enum:snake>](&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                     let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-                    function_builder(stringify!([<$enum:upper>]), ast_exprs)
+                    function_builder(stringify!([<$enum:upper>]), ast_exprs, false)
                 }
             )*
         }
@@ -89,7 +89,7 @@ macro_rules! function_match_constructor {
         $args:expr,
         $func:expr,
         ($($binary_op:ident),*),
-        ($($nullay:ident),*),
+        ($($nullray:ident),*),
         ($($unary:ident),*),
         ($($nary:ident),*),
         $default:expr
@@ -101,19 +101,19 @@ macro_rules! function_match_constructor {
                     expr::function::Function::$binary_op => binary_op_builder($self.expr($args[0]), ast::BinaryOperator::$binary_op, $self.expr($args[1])),
                 )*
 
-                // expand arms for nullay
+                // expand arms for nullray
                 $(
-                    expr::function::Function::$nullay => $self.[<from_ $nullay:snake>](),
+                    expr::function::Function::$nullray => $self.[<$nullray:snake>](),
                 )*
 
                 // expand arms for unary
                 $(
-                    expr::function::Function::$unary => $self.[<from_ $unary:snake>]($args[0]),
+                    expr::function::Function::$unary => $self.[<$unary:snake>]($args[0]),
                 )*
 
                 // expand arms for nary
                 $(
-                    expr::function::Function::$nary => $self.[<from_ $nary:snake>]($args),
+                    expr::function::Function::$nary => $self.[<$nary:snake>]($args),
                 )*
                 _ => $default
             }
@@ -123,9 +123,9 @@ macro_rules! function_match_constructor {
 
 /// Trait constructor for building dialect dependent AST parts with default implementations.
 /// We use macros to reduce code repetition in generating functions to convert each Epression variant.
-macro_rules! into_dialect_tranlator_trait_constructor {
+macro_rules! relation_to_query_tranlator_trait_constructor {
     () => {
-        pub trait IntoDialectTranslator {
+        pub trait RelationToQueryTranslator {
             fn query(
                 &self,
                 with: Vec<ast::Cte>,
@@ -314,15 +314,15 @@ macro_rules! into_dialect_tranlator_trait_constructor {
 
             fn expr(&self, expr: &expr::Expr) -> ast::Expr {
                 match expr {
-                    expr::Expr::Column(ident) => self.from_column(ident),
-                    expr::Expr::Value(value) => self.from_value(value),
-                    expr::Expr::Function(func) => self.from_function(func),
-                    expr::Expr::Aggregate(agg) => self.from_aggregate(agg),
+                    expr::Expr::Column(ident) => self.column(ident),
+                    expr::Expr::Value(value) => self.value(value),
+                    expr::Expr::Function(func) => self.function(func),
+                    expr::Expr::Aggregate(agg) => self.aggregate(agg),
                     expr::Expr::Struct(_) => todo!(),
                 }
             }
 
-            fn from_column(&self, ident: &expr::Identifier) -> ast::Expr {
+            fn column(&self, ident: &expr::Identifier) -> ast::Expr {
                 let ast_iden = self.identifier(ident);
                 if ast_iden.len() > 1 {
                     ast::Expr::CompoundIdentifier(ast_iden)
@@ -331,7 +331,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                 }
             }
 
-            fn from_value(&self, value: &expr::Value) -> ast::Expr {
+            fn value(&self, value: &expr::Value) -> ast::Expr {
                 match value {
                     expr::Value::Unit(_) => ast::Expr::Value(ast::Value::Null),
                     expr::Value::Boolean(b) => ast::Expr::Value(ast::Value::Boolean(**b)),
@@ -352,7 +352,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                     expr::Value::List(l) => ast::Expr::Tuple(
                         l.to_vec()
                             .iter()
-                            .map(|v| self.from_value(v))
+                            .map(|v| self.value(v))
                             .collect::<Vec<ast::Expr>>(),
                     ),
                     expr::Value::Set(_) => todo!(),
@@ -366,7 +366,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                 }
             }
 
-            fn from_function(&self, func: &Function) -> ast::Expr {
+            fn function(&self, func: &Function) -> ast::Expr {
                 let binding = func.arguments();
                 let args: Vec<&expr::Expr> = binding.iter().collect();
 
@@ -374,6 +374,7 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                     self,
                     args,
                     func.function(),
+                    //binary op functions match
                     (
                         Plus,
                         Minus,
@@ -394,7 +395,15 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                         BitwiseAnd,
                         BitwiseXor
                     ),
-                    (),
+                    //nullary op functions match
+                    (
+                        Pi,
+                        Newid,
+                        CurrentDate,
+                        CurrentTime,
+                        CurrentTimestamp
+                    ),
+                    //unary functions
                     (
                         Exp,
                         Ln,
@@ -408,12 +417,59 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                         Upper,
                         Md5,
                         CastAsText,
-                        CastAsFloat,
                         CastAsInteger,
+                        CastAsFloat,
+                        CastAsBoolean,
                         CastAsDateTime,
-                        CastAsBoolean
+                        Ceil,
+                        Floor,
+                        CastAsDate,
+                        CastAsTime,
+                        Sign,
+                        Unhex,
+                        ExtractYear,
+                        ExtractMonth,
+                        ExtractDay,
+                        ExtractHour,
+                        ExtractMinute,
+                        ExtractSecond,
+                        ExtractMicrosecond,
+                        ExtractMillisecond,
+                        ExtractDow,
+                        ExtractWeek,
+                        Dayname,
+                        UnixTimestamp,
+                        Quarter,
+                        Date,
+                        IsNull
                     ),
-                    (Pow, Case, Position, Least, Greatest),
+                    //nary functions
+                    (
+                        Pow,
+                        Position,
+                        Least,
+                        Greatest,
+                        Coalesce,
+                        Rtrim,
+                        Ltrim,
+                        Substr,
+                        Round,
+                        Trunc,
+                        RegexpContains,
+                        Encode,
+                        Decode,
+                        FromUnixtime,
+                        DateFormat,
+                        Choose,
+                        Like,
+                        Ilike,
+                        IsBool,
+                        Case,
+                        SubstrWithSize,
+                        RegexpExtract,
+                        RegexpReplace,
+                        DatetimeDiff
+                    ),
                     match func.function() {
                         expr::function::Function::Opposite =>
                             unary_op_builder(ast::UnaryOperator::Minus, self.expr(args[0])),
@@ -430,88 +486,117 @@ macro_rules! into_dialect_tranlator_trait_constructor {
                                 todo!()
                             }
                         }
-                        expr::function::Function::Random(_) => self.from_random(),
-                        expr::function::Function::Concat(_) => self.from_concat(args),
+                        expr::function::Function::Random(_) => self.random(),
+                        expr::function::Function::Concat(_) => self.concat(args),
                         _ => todo!(),
                     }
                 )
             }
 
-            fn from_aggregate(&self, agg: &expr::Aggregate) -> ast::Expr {
+            fn aggregate(&self, agg: &expr::Aggregate) -> ast::Expr {
                 let arg = agg.argument();
                 match agg.aggregate() {
-                    expr::aggregate::Aggregate::Min => self.from_min(arg),
-                    expr::aggregate::Aggregate::Max => self.from_max(arg),
-                    expr::aggregate::Aggregate::Median => self.from_median(arg),
-                    expr::aggregate::Aggregate::NUnique => self.from_n_unique(arg),
-                    expr::aggregate::Aggregate::First => self.from_first(arg),
-                    expr::aggregate::Aggregate::Last => self.from_last(arg),
-                    expr::aggregate::Aggregate::Mean => self.from_mean(arg),
-                    expr::aggregate::Aggregate::List => self.from_list(arg),
-                    expr::aggregate::Aggregate::Count => self.from_count(arg),
-                    expr::aggregate::Aggregate::Quantile(_) => self.from_quantile(arg),
-                    expr::aggregate::Aggregate::Quantiles(_) => self.from_quantiles(arg),
-                    expr::aggregate::Aggregate::Sum => self.from_sum(arg),
-                    expr::aggregate::Aggregate::AggGroups => self.from_agg_groups(arg),
-                    expr::aggregate::Aggregate::Std => self.from_std(arg),
-                    expr::aggregate::Aggregate::Var => self.from_var(arg),
-                    expr::aggregate::Aggregate::MeanDistinct => self.from_mean_distinct(arg),
-                    expr::aggregate::Aggregate::CountDistinct => self.from_count_distinct(arg),
-                    expr::aggregate::Aggregate::SumDistinct => self.from_sum_distinct(arg),
-                    expr::aggregate::Aggregate::StdDistinct => self.from_std_distinct(arg),
-                    expr::aggregate::Aggregate::VarDistinct => self.from_var_distinct(arg),
+                    expr::aggregate::Aggregate::Min => self.min(arg),
+                    expr::aggregate::Aggregate::Max => self.max(arg),
+                    expr::aggregate::Aggregate::Median => self.median(arg),
+                    expr::aggregate::Aggregate::NUnique => self.n_unique(arg),
+                    expr::aggregate::Aggregate::First => self.first(arg),
+                    expr::aggregate::Aggregate::Last => self.last(arg),
+                    expr::aggregate::Aggregate::Mean => self.mean(arg),
+                    expr::aggregate::Aggregate::List => self.list(arg),
+                    expr::aggregate::Aggregate::Count => self.count(arg),
+                    expr::aggregate::Aggregate::Quantile(_) => self.quantile(arg),
+                    expr::aggregate::Aggregate::Quantiles(_) => self.quantiles(arg),
+                    expr::aggregate::Aggregate::Sum => self.sum(arg),
+                    expr::aggregate::Aggregate::AggGroups => self.agg_groups(arg),
+                    expr::aggregate::Aggregate::Std => self.std(arg),
+                    expr::aggregate::Aggregate::Var => self.var(arg),
+                    expr::aggregate::Aggregate::MeanDistinct => self.mean_distinct(arg),
+                    expr::aggregate::Aggregate::CountDistinct => self.count_distinct(arg),
+                    expr::aggregate::Aggregate::SumDistinct => self.sum_distinct(arg),
+                    expr::aggregate::Aggregate::StdDistinct => self.std_distinct(arg),
+                    expr::aggregate::Aggregate::VarDistinct => self.var_distinct(arg),
                 }
             }
 
-            nullary_function_ast_constructor!(Random);
+            nullary_function_ast_constructor!(Random, Pi, Newid, CurrentDate, CurrentTime, CurrentTimestamp);
 
             unary_function_ast_constructor!(
-                Exp, Ln, Log, Abs, Sin, Cos, Sqrt, CharLength, Lower, Upper, Md5, Min, Max, Median,
+                Exp, Ln, Log, Abs, Sin, Cos, Sqrt, CharLength, Lower, Upper, Md5,
+                Ceil, Floor, CastAsDate, CastAsTime, Sign, Unhex, ExtractYear, ExtractMonth,
+                ExtractDay, ExtractHour, ExtractMinute, ExtractSecond, ExtractMicrosecond,
+                ExtractMillisecond, ExtractDow, ExtractWeek, Dayname, UnixTimestamp, Quarter,
+                Date, IsNull, Min, Max, Median,
                 NUnique, First, Last, Mean, List, Count, Quantile, Quantiles, Sum, AggGroups, Std,
-                Var, MeanDistinct, CountDistinct, SumDistinct, StdDistinct, VarDistinct
+                Var
             );
 
-            nary_function_ast_constructor!(Pow, Concat, Position, Least, Greatest);
+            nary_function_ast_constructor!(
+                Pow, Position, Least, Greatest, Coalesce, Rtrim, Ltrim, Substr,
+                Round, Trunc, RegexpContains, Encode, Decode, FromUnixtime,
+                DateFormat, Choose, Like, Ilike, IsBool, SubstrWithSize,
+                RegexpExtract, RegexpReplace, DatetimeDiff, Concat
+            );
 
-            fn from_cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
+            fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
                 cast_builder(ast_expr, ast::DataType::Text)
             }
-            fn from_cast_as_float(&self, expr: &expr::Expr) -> ast::Expr {
+            fn cast_as_float(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Float(Some(64)))
+                cast_builder(ast_expr, ast::DataType::Float(None))
             }
-            fn from_cast_as_integer(&self, expr: &expr::Expr) -> ast::Expr {
+            fn cast_as_integer(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Integer(Some(64)))
+                cast_builder(ast_expr, ast::DataType::Integer(None))
             }
-            fn from_cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
+            fn cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
                 cast_builder(ast_expr, ast::DataType::Boolean)
             }
-            fn from_cast_as_date_time(&self, expr: &expr::Expr) -> ast::Expr {
+            fn cast_as_date_time(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Datetime(Some(64)))
+                cast_builder(ast_expr, ast::DataType::Datetime(None))
             }
-            fn from_case(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+            fn case(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                 let ast_exprs: Vec<ast::Expr> =
                     exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 case_builder(ast_exprs)
+            }
+            fn count_distinct(&self, expr: &expr::Expr) -> ast::Expr {
+                let arg = self.expr(expr);
+                function_builder("COUNT", vec![arg], true)
+            }
+            fn sum_distinct(&self, expr: &expr::Expr) -> ast::Expr {
+                let arg = self.expr(expr);
+                function_builder("SUM", vec![arg], true)
+            }
+            fn mean_distinct(&self, expr: &expr::Expr) -> ast::Expr {
+                let arg = self.expr(expr);
+                function_builder("AVG", vec![arg], true)
+            }
+            fn std_distinct(&self, expr: &expr::Expr) -> ast::Expr {
+                let arg = self.expr(expr);
+                function_builder("STDDEV", vec![arg], true)
+            }
+            fn var_distinct(&self, expr: &expr::Expr) -> ast::Expr {
+                let arg = self.expr(expr);
+                function_builder("VARIANCE", vec![arg], true)
             }
         }
     };
 }
 
-into_dialect_tranlator_trait_constructor!();
+relation_to_query_tranlator_trait_constructor!();
 
 /// Constructors for creating functions that convert AST functions with
 /// a single args to annequivalent sarus functions
-macro_rules! try_into_unary_function_constructor {
+macro_rules! try_unary_function_constructor {
     ($( $enum:ident ),*) => {
         paste! {
             $(
-                fn [<try_into_ $enum:snake>](&self, arg: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
-                    let converted = self.try_from_function_args(vec![arg.clone()], context)?;
+                fn [<try_ $enum:snake>](&self, arg: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
+                    let converted = self.try_function_args(vec![arg.clone()], context)?;
                     Ok(expr::Expr::[<$enum:snake>](converted[0]))
                 }
             )*
@@ -531,7 +616,7 @@ macro_rules! try_into_unary_function_constructor {
 //         paste! {
 //             match $func_name {
 //                 $(
-//                     stringify!([<$unary_function:lower>]) => $self.[<try_from_ $unary_function:snake>]($args[0], $context),
+//                     stringify!([<$unary_function:lower>]) => $self.[<try_ $unary_function:snake>]($args[0], $context),
 //                 )*
 //                 _ => $default
 //             }
@@ -542,25 +627,25 @@ macro_rules! try_into_unary_function_constructor {
 /// Build Sarus Relatioin from dialect speciific AST
 // macro_rules! into_ralation_tranlator_trait_constructor {
 //     () => {
-pub trait IntoRelationTranslator {
+pub trait QueryToRelationTranslator {
     type D: Dialect;
 
     fn dialect(&self) -> Self::D;
 
     // It converts ast Expressions to sarus expressions
-    fn try_from_expr(
+    fn try_expr(
         &self,
         expr: &ast::Expr,
         context: &Hierarchy<Identifier>,
     ) -> Result<expr::Expr> {
         match expr {
-            ast::Expr::Function(func) => self.try_from_function(func, context),
+            ast::Expr::Function(func) => self.try_function(func, context),
             _ => expr::Expr::try_from(expr.with(context)),
         }
     }
 
     // The construction of qrlew expressions depends dynamically from the function name
-    fn try_from_function(
+    fn try_function(
         &self,
         func: &ast::Function,
         context: &Hierarchy<Identifier>,
@@ -568,9 +653,9 @@ pub trait IntoRelationTranslator {
         let function_name: &str = &func.name.0.iter().next().unwrap().value.to_lowercase()[..];
 
         match function_name {
-            "log" => self.try_into_ln(func, context),
-            "md5" => self.try_into_md5(func, context),
-            // "random" => self.try_into_random(),
+            "log" => self.try_ln(func, context),
+            "md5" => self.try_md5(func, context),
+            // "random" => self.try_random(),
             _ => {
                 let expr = ast::Expr::Function(func.clone());
                 expr::Expr::try_from(expr.with(context))
@@ -578,25 +663,25 @@ pub trait IntoRelationTranslator {
         }
     }
 
-    fn try_into_ln(
+    fn try_ln(
         &self,
         func: &ast::Function,
         context: &Hierarchy<Identifier>,
     ) -> Result<expr::Expr> {
-        let converted = self.try_from_function_args(func.args.clone(), context)?;
+        let converted = self.try_function_args(func.args.clone(), context)?;
         Ok(expr::Expr::ln(converted[0].clone()))
     }
 
-    fn try_into_md5(
+    fn try_md5(
         &self,
         func: &ast::Function,
         context: &Hierarchy<Identifier>,
     ) -> Result<expr::Expr> {
-        let converted = self.try_from_function_args(func.args.clone(), context)?;
+        let converted = self.try_function_args(func.args.clone(), context)?;
         Ok(expr::Expr::md5(converted[0].clone()))
     }
 
-    fn try_from_function_args(
+    fn try_function_args(
         &self,
         args: Vec<ast::FunctionArg>,
         context: &Hierarchy<Identifier>,
@@ -604,20 +689,20 @@ pub trait IntoRelationTranslator {
         args.iter()
             .map(|func_arg| match func_arg {
                 ast::FunctionArg::Named { name: _, arg } => {
-                    self.try_from_function_arg_expr(arg, context)
+                    self.try_function_arg_expr(arg, context)
                 }
-                ast::FunctionArg::Unnamed(arg) => self.try_from_function_arg_expr(arg, context),
+                ast::FunctionArg::Unnamed(arg) => self.try_function_arg_expr(arg, context),
             })
             .collect()
     }
 
-    fn try_from_function_arg_expr(
+    fn try_function_arg_expr(
         &self,
         func_arg_expr: &ast::FunctionArgExpr,
         context: &Hierarchy<Identifier>,
     ) -> Result<expr::Expr> {
         match func_arg_expr {
-            ast::FunctionArgExpr::Expr(e) => self.try_from_expr(e, context),
+            ast::FunctionArgExpr::Expr(e) => self.try_expr(e, context),
             ast::FunctionArgExpr::QualifiedWildcard(o) => todo!(),
             ast::FunctionArgExpr::Wildcard => todo!(),
         }
@@ -631,7 +716,7 @@ pub trait IntoRelationTranslator {
 // Helpers
 
 // AST Function expression builder
-fn function_builder(name: &str, exprs: Vec<ast::Expr>) -> ast::Expr {
+fn function_builder(name: &str, exprs: Vec<ast::Expr>, distinct: bool) -> ast::Expr {
     let function_args: Vec<ast::FunctionArg> = exprs
         .into_iter()
         .map(|e| {
@@ -645,7 +730,7 @@ fn function_builder(name: &str, exprs: Vec<ast::Expr>) -> ast::Expr {
         name,
         args: function_args,
         over: None,
-        distinct: false,
+        distinct: distinct,
         special: false,
         order_by: vec![],
         filter: None,
@@ -690,9 +775,9 @@ fn unary_op_builder(op: ast::UnaryOperator, expr: ast::Expr) -> ast::Expr {
     }
 }
 
-pub struct RelationWithTranslator<'a, T: IntoDialectTranslator>(pub &'a Relation, pub T);
+pub struct RelationWithTranslator<'a, T: RelationToQueryTranslator>(pub &'a Relation, pub T);
 
-impl<'a, T: IntoDialectTranslator> From<RelationWithTranslator<'a, T>> for ast::Query {
+impl<'a, T: RelationToQueryTranslator> From<RelationWithTranslator<'a, T>> for ast::Query {
     fn from(value: RelationWithTranslator<'a, T>) -> Self {
         let RelationWithTranslator(rel, translator) = value;
         rel.accept(FromRelationVisitor::new(translator))

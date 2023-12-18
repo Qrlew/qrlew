@@ -22,7 +22,7 @@ use crate::{
     },
     tokenizer::Tokenizer,
     visitor::{Acceptor, Dependencies, Visited},
-    dialect_translation::{IntoRelationTranslator, postgres::PostgresTranslator},
+    dialect_translation::{QueryToRelationTranslator, postgres::PostgresTranslator},
     types::And, display::Dot
 };
 use itertools::Itertools;
@@ -44,13 +44,13 @@ This is done in the query_names module.
 /// The Hierarchy of Relations is the context in which the query is converted, typically the list of tables with their Path
 /// The QueryNames is the map of sub-query referrenced by their names, so that links can be unfolded
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct TryIntoRelationVisitor<'a, T: IntoRelationTranslator + Copy + Clone> {
+pub struct TryIntoRelationVisitor<'a, T: QueryToRelationTranslator + Copy + Clone> {
     relations: &'a Hierarchy<Arc<Relation>>,
     query_names: QueryNames<'a>,
     translator: T
 }
 
-impl<'a, T: IntoRelationTranslator + Copy + Clone> TryIntoRelationVisitor<'a, T> {
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryIntoRelationVisitor<'a, T> {
     pub fn new(relations: &'a Hierarchy<Arc<Relation>>, query_names: QueryNames<'a>, translator: T) -> Self {
         TryIntoRelationVisitor{ relations, query_names, translator }
     }
@@ -95,13 +95,13 @@ impl RelationWithColumns {
 }
 
 /// A struct to hold the query being visited and its Relations
-pub struct VisitedQueryRelations<'a, T: IntoRelationTranslator + Copy + Clone>{
+pub struct VisitedQueryRelations<'a, T: QueryToRelationTranslator + Copy + Clone>{
     relations: Hierarchy<Arc<Relation>>,
     visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
     translator: T
 }
 
-impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> {
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> {
     fn new(
         try_into_relation_visitor: &TryIntoRelationVisitor<'a, T>,
         query: &'a ast::Query,
@@ -360,11 +360,11 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
                         }
                         expr => namer::name_from_content(FIELD, &expr),
                     },
-                    self.translator.try_from_expr(expr,columns)?
+                    self.translator.try_expr(expr,columns)?
                     //Expr::try_from(expr.with(columns))?,
                 )),
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
-                    named_exprs.push((alias.clone().value, self.translator.try_from_expr(expr,columns)?))
+                    named_exprs.push((alias.clone().value, self.translator.try_expr(expr,columns)?))
                     //named_exprs.push((alias.clone().value, Expr::try_from(expr.with(columns))?))
                 }
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
@@ -386,7 +386,7 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
-            let mut expr = self.translator.try_from_expr(expr,columns)?; //Expr::try_from(expr.with(columns))?;
+            let mut expr = self.translator.try_expr(expr,columns)?; //Expr::try_from(expr.with(columns))?;
             let columns = named_exprs
                 .iter()
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
@@ -593,7 +593,7 @@ impl<'a, T: IntoRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> 
     }
 }
 
-impl<'a, T:IntoRelationTranslator + Copy + Clone> Visitor<'a, Result<Arc<Relation>>> for TryIntoRelationVisitor<'a, T> {
+impl<'a, T:QueryToRelationTranslator + Copy + Clone> Visitor<'a, Result<Arc<Relation>>> for TryIntoRelationVisitor<'a, T> {
     fn dependencies(&self, acceptor: &'a ast::Query) -> Dependencies<'a, ast::Query> {
         let TryIntoRelationVisitor{relations, query_names, translator} = self;
         let mut dependencies = acceptor.dependencies();
@@ -668,7 +668,7 @@ impl<'a> TryFrom<QueryWithRelations<'a>> for Relation {
     }
 }
 
-impl<'a, T: IntoRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelations<'a>, T)> for Relation {
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelations<'a>, T)> for Relation {
     type Error = Error;
 
     fn try_from(value: (QueryWithRelations<'a>, T)) -> result::Result<Self, Self::Error> {
