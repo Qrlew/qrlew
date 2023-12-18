@@ -342,7 +342,7 @@ impl<'a> VisitedQueryRelations<'a> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
-        let mut columns = &names.map(|s| s.clone().into());
+        let columns = &names.map(|s| s.clone().into());
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
