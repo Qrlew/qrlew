@@ -13,7 +13,7 @@ use crate::{
     differential_privacy::private_query::PrivateQuery,
     expr, privacy_unit_tracking,
     relation::{rewriting, Reduce, Relation},
-    Ready,
+    Ready, data_type::function::Aggregate,
 };
 use std::{error, fmt, ops::Deref, result};
 

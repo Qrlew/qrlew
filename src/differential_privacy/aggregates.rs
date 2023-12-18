@@ -35,28 +35,36 @@ impl Relation {
             // Cf. Theorem A.1. in (Dwork, Roth et al. 2014)
             log::warn!("Warning, epsilon>1 the gaussian mechanism applied will not be exactly epsilon,delta-DP!")
         }
+
         let number_of_agg = bounds.len() as f64;
-        let noise_multipliers = bounds
-            .into_iter()
-            .map(|(name, bound)| {
-                (
-                    name,
-                    private_query::gaussian_noise(
-                        epsilon / number_of_agg,
-                        delta / number_of_agg,
-                        bound,
-                    ),
-                )
-            })
-            .collect::<Vec<_>>();
-        let private_query = noise_multipliers
-            .iter()
-            .map(|(_, n)| PrivateQuery::Gaussian(*n))
-            .collect::<Vec<_>>()
-            .into();
-        // DPRelation::new(self.add_gaussian_noise(noise_multipliers), private_query)
+        let (dp_relation, private_query) = if number_of_agg > 0. {
+            let noise_multipliers = bounds
+                .into_iter()
+                .map(|(name, bound)| {
+                    (
+                        name,
+                        private_query::gaussian_noise(
+                            epsilon / number_of_agg,
+                            delta / number_of_agg,
+                            bound,
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let private_query = noise_multipliers
+                .iter()
+                .map(|(_, n)| PrivateQuery::Gaussian(*n))
+                .collect::<Vec<_>>()
+                .into();
+            (
+                self.add_clipped_gaussian_noise(&noise_multipliers),
+                private_query
+            )
+        } else {
+            (self, PrivateQuery::null())
+        };
         DPRelation::new(
-            self.add_clipped_gaussian_noise(&noise_multipliers),
+            dp_relation,
             private_query,
         )
     }
@@ -251,8 +259,8 @@ impl PUPRelation {
             )?
             .into();
         let dp_relation = output_builder
-        .input(dp_relation)
-        .build();
+            .input(dp_relation)
+            .build();
         Ok(DPRelation::new(dp_relation, private_query))
     }
 }
@@ -271,7 +279,7 @@ impl Reduce {
         let epsilon = epsilon / (cmp::max(reduces.len(), 1) as f64);
         let delta = delta / (cmp::max(reduces.len(), 1) as f64);
 
-        // Rewritten into differential privacy each `Reduce` then join them.
+        // Rewrite into differential privacy each `Reduce` then join them.
         let (relation, private_query) = reduces.iter()
             .map(|r| pup_input.clone().differentially_private_aggregates(
                 r.named_aggregates()
@@ -319,19 +327,22 @@ impl Reduce {
             }
         }
 
-        first_aggs.extend(
-            self.group_by()
-            .into_iter()
-            .map(|x| (x.to_string(), AggregateColumn::new(aggregate::Aggregate::First, x.clone())))
-            .collect::<Vec<_>>()
-        );
-
-        distinct_map.into_iter()
-            .map(|(identifier, mut aggs)| {
-                aggs.extend(first_aggs.clone());
-                self.rewrite_distinct(identifier, aggs)
-            })
-            .collect()
+        if distinct_map.len() == 0 {
+            vec![self.clone()]
+        } else {
+            first_aggs.extend(
+                self.group_by()
+                .into_iter()
+                .map(|x| (x.to_string(), AggregateColumn::new(aggregate::Aggregate::First, x.clone())))
+                .collect::<Vec<_>>()
+            );
+            distinct_map.into_iter()
+                .map(|(identifier, mut aggs)| {
+                    aggs.extend(first_aggs.clone());
+                    self.rewrite_distinct(identifier, aggs)
+                })
+                .collect()
+        }
     }
 
     /// Rewrite the `DISTINCT` aggregate with a `GROUP BY`
@@ -980,6 +991,15 @@ mod tests {
         Relation::from(reduces[0].clone()).display_dot().unwrap();
         Relation::from(reduces[1].clone()).display_dot().unwrap();
         Relation::from(reduces[2].clone()).display_dot().unwrap();
+
+        // reduce without any aggregation
+        let reduce: Reduce = Relation::reduce()
+        .input(table.clone())
+        .with_group_by_column("a")
+        .with_group_by_column("c")
+        .build();
+        let reduces = reduce.split_distinct_aggregates();
+        assert_eq!(reduces.len(), 1);
     }
 
     #[test]
