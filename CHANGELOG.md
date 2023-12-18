@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2023-12-18
+### Added
+- Unsupported DP aggregations are handled gracefully
+
 ## [0.5.6] - 2023-12-18
 ### Fixed
 - Fixed bug when using the same column in the GROUP BY and an Aggregate function [#222](https://github.com/Qrlew/qrlew/issues/222)
