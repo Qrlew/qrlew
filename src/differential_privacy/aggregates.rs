@@ -238,6 +238,8 @@ impl PUPRelation {
         );
 
         let (dp_relation, private_query) = if named_sums.len() == 0 {
+            // If `self` contains only `First` aggregations, do not rewrite these aggregations.
+            // `self`` is already dp since the grouping keys have been protected during the 1st step of the rewriting.
             (self.deref().clone(), PrivateQuery::null())
         } else {
         let input: Relation = input_builder.input(self.deref().clone()).build();
