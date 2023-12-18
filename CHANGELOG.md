@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Natural joins [#221](https://github.com/Qrlew/qrlew/issues/221)
 - When the clipping factor is zero, multiply by zero instead of dividing by 1 / clipping_factor [#218](https://github.com/Qrlew/qrlew/issues/218)
 - GROUP BY column alias [#223](https://github.com/Qrlew/qrlew/issues/223)
-- DP compilation for Reduce that contains only First aggregations [#224](https://github.com/Qrlew/qrlew/issues/224)
+- DP compilation for Reduce that contains only First aggregations [#225](https://github.com/Qrlew/qrlew/issues/225)
 ## Added
 - OFFSET [#224](https://github.com/Qrlew/qrlew/issues/224)
 
