@@ -87,6 +87,7 @@ fn query(
     group_by: ast::GroupByExpr,
     order_by: Vec<ast::OrderByExpr>,
     limit: Option<ast::Expr>,
+    offset: Option<ast::Offset>,
 ) -> ast::Query {
     ast::Query {
         with: (!with.is_empty()).then_some(ast::With {
@@ -111,7 +112,7 @@ fn query(
         }))),
         order_by,
         limit,
-        offset: None,
+        offset,
         fetch: None,
         locks: vec![],
         limit_by: vec![],
@@ -231,6 +232,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
+            None,
         )
     }
 
@@ -268,6 +270,8 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                     .collect(),
                 map.limit
                     .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
+                map.offset
+                    .map(|offset| ast::Offset{value: ast::Expr::Value(ast::Value::Number(offset.to_string(), false)), rows: ast::OffsetRows::None})
             ),
         ));
         query(
@@ -279,6 +283,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             vec![],
             map.limit
                 .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
+            None
         )
     }
 
@@ -312,6 +317,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 ),
                 vec![],
                 None,
+                None,
             ),
         ));
         query(
@@ -321,6 +327,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
+            None,
             None,
         )
     }
@@ -363,6 +370,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
                 ast::GroupByExpr::Expressions(vec![]),
                 vec![],
                 None,
+                None,
             ),
         ));
         query(
@@ -372,6 +380,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
+            None,
             None,
         )
     }
@@ -413,6 +422,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
+            None,
         )
     }
 
@@ -453,6 +463,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
+            None,
         );
         let input_ctes = vec![cte(
             values.name().into(),
@@ -466,6 +477,7 @@ impl<'a> Visitor<'a, ast::Query> for FromRelationVisitor {
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
+            None,
             None,
         )
     }
@@ -614,6 +626,7 @@ mod tests {
                 .input(join.clone())
                 .with(Expr::col(join[0].name()) + Expr::col(join[1].name()))
                 .limit(100)
+                .offset(20)
                 .build(),
         );
         let join_2: Arc<Relation> = Arc::new(

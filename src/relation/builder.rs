@@ -102,6 +102,7 @@ pub struct MapBuilder<RequireInput> {
     name: Option<String>,
     split: Split,
     limit: Option<usize>,
+    offset: Option<usize>,
     // The ultimate input
     input: RequireInput,
 }
@@ -167,6 +168,11 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
+    pub fn offset(mut self, offset: usize) -> Self {
+        self.offset = Some(offset.into());
+        self
+    }
+
     /// Initialize a builder with filtered existing map
     pub fn filter_fields_with<P: Fn(&str) -> bool>(
         self,
@@ -179,6 +185,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
             filter,
             order_by,
             limit,
+            offset,
             schema,
             input,
             ..
@@ -202,6 +209,8 @@ impl<RequireInput> MapBuilder<RequireInput> {
             .fold(builder, |b, o| b.order_by(o.expr, o.asc));
         // Limit
         let builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        // Offset
+        let builder = offset.into_iter().fold(builder, |b, l| b.offset(l));
         builder
     }
 
@@ -213,6 +222,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
             filter,
             order_by,
             limit,
+            offset,
             schema,
             input,
             ..
@@ -234,6 +244,8 @@ impl<RequireInput> MapBuilder<RequireInput> {
             .fold(builder, |b, o| b.order_by(o.expr, o.asc));
         // Limit
         let builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        // Offset
+        let builder = offset.into_iter().fold(builder, |b, l| b.offset(l));
         builder
     }
 
@@ -249,6 +261,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
             filter,
             order_by,
             limit,
+            offset,
             schema,
             input,
             ..
@@ -270,6 +283,8 @@ impl<RequireInput> MapBuilder<RequireInput> {
             .fold(builder, |b, o| b.order_by(o.expr, o.asc));
         // Limit
         let builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        // Offset
+        let builder = offset.into_iter().fold(builder, |b, l| b.offset(l));
         builder
     }
 
@@ -281,6 +296,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
             filter,
             order_by,
             limit,
+            offset,
             schema,
             input,
             ..
@@ -307,6 +323,8 @@ impl<RequireInput> MapBuilder<RequireInput> {
             .fold(builder, |b, o| b.order_by(o.expr, o.asc));
         // Limit
         let builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        // Offset
+        let builder = offset.into_iter().fold(builder, |b, l| b.offset(l));
         builder
     }
 
@@ -315,6 +333,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
             name: self.name,
             split: self.split,
             limit: self.limit,
+            offset: self.offset,
             input: WithInput(input.into()),
         }
     }
@@ -342,6 +361,7 @@ impl<RequireInput> With<Map, MapBuilder<WithInput>> for MapBuilder<RequireInput>
             filter,
             order_by,
             limit,
+            offset,
             schema,
             input,
             ..
@@ -363,6 +383,8 @@ impl<RequireInput> With<Map, MapBuilder<WithInput>> for MapBuilder<RequireInput>
             .fold(builder, |b, o| b.order_by(o.expr, o.asc));
         // Limit
         let builder = limit.into_iter().fold(builder, |b, l| b.limit(l));
+        // Offset
+        let builder = offset.into_iter().fold(builder, |b, l| b.offset(l));
         builder
     }
 }
@@ -403,6 +425,7 @@ impl Ready<Map> for MapBuilder<WithInput> {
                     .map(|(e, a)| OrderBy::new(e, a))
                     .collect(),
                 self.limit,
+                self.offset,
                 input,
             ))
         } else {
