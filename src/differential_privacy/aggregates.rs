@@ -237,22 +237,26 @@ impl PUPRelation {
             },
         );
 
+        let (dp_relation, private_query) = if named_sums.len() == 0 {
+            (self.deref().clone(), PrivateQuery::null())
+        } else {
         let input: Relation = input_builder.input(self.deref().clone()).build();
-        let pup_input = PUPRelation::try_from(input)?;
-        let (dp_relation, private_query) = pup_input
-            .differentially_private_sums(
-                named_sums
-                    .iter() // Convert &str to String
-                    .map(|(s1, s2)| (s1.as_str(), s2.as_str()))
-                    .collect::<Vec<_>>(),
-                group_by_names,
-                epsilon,
-                delta,
-            )?
-            .into();
+            let pup_input = PUPRelation::try_from(input)?;
+                pup_input
+                .differentially_private_sums(
+                    named_sums
+                        .iter() // Convert &str to String
+                        .map(|(s1, s2)| (s1.as_str(), s2.as_str()))
+                        .collect::<Vec<_>>(),
+                    group_by_names,
+                    epsilon,
+                    delta,
+                )?
+                .into()
+        };
         let dp_relation = output_builder
-        .input(dp_relation)
-        .build();
+            .input(dp_relation)
+            .build();
         Ok(DPRelation::new(dp_relation, private_query))
     }
 }
@@ -272,6 +276,9 @@ impl Reduce {
         let delta = delta / (cmp::max(reduces.len(), 1) as f64);
 
         // Rewritten into differential privacy each `Reduce` then join them.
+        if reduces.len() == 0 {
+            return Err(Error::DPCompilationError("Cannot rewrite into DP a Relation without any reduce.".to_string()))
+        }
         let (relation, private_query) = reduces.iter()
             .map(|r| pup_input.clone().differentially_private_aggregates(
                 r.named_aggregates()
@@ -319,19 +326,22 @@ impl Reduce {
             }
         }
 
-        first_aggs.extend(
-            self.group_by()
-            .into_iter()
-            .map(|x| (x.to_string(), AggregateColumn::new(aggregate::Aggregate::First, x.clone())))
-            .collect::<Vec<_>>()
-        );
-
-        distinct_map.into_iter()
-            .map(|(identifier, mut aggs)| {
-                aggs.extend(first_aggs.clone());
-                self.rewrite_distinct(identifier, aggs)
-            })
-            .collect()
+        if distinct_map.len() == 0 {
+            vec![self.clone()]
+        } else {
+            first_aggs.extend(
+                self.group_by()
+                .into_iter()
+                .map(|x| (x.to_string(), AggregateColumn::new(aggregate::Aggregate::First, x.clone())))
+                .collect::<Vec<_>>()
+            );
+            distinct_map.into_iter()
+                .map(|(identifier, mut aggs)| {
+                    aggs.extend(first_aggs.clone());
+                    self.rewrite_distinct(identifier, aggs)
+                })
+                .collect()
+        }
     }
 
     /// Rewrite the `DISTINCT` aggregate with a `GROUP BY`
@@ -980,6 +990,15 @@ mod tests {
         Relation::from(reduces[0].clone()).display_dot().unwrap();
         Relation::from(reduces[1].clone()).display_dot().unwrap();
         Relation::from(reduces[2].clone()).display_dot().unwrap();
+
+        // reduce without any aggregation
+        let reduce: Reduce = Relation::reduce()
+        .input(table.clone())
+        .with_group_by_column("a")
+        .with_group_by_column("c")
+        .build();
+        let reduces = reduce.split_distinct_aggregates();
+        assert_eq!(reduces.len(), 1);
     }
 
     #[test]
