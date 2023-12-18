@@ -9,7 +9,6 @@ use crate::{
     DataType, Ready, display::Dot,
 
 };
-use core::num;
 use std::{cmp, collections::HashMap, ops::Deref};
 
 impl Field {
@@ -280,7 +279,7 @@ impl Reduce {
         let epsilon = epsilon / (cmp::max(reduces.len(), 1) as f64);
         let delta = delta / (cmp::max(reduces.len(), 1) as f64);
 
-        // Rewritte into differential privacy each `Reduce` then join them.
+        // Rewrite into differential privacy each `Reduce` then join them.
         let (relation, private_query) = reduces.iter()
             .map(|r| pup_input.clone().differentially_private_aggregates(
                 r.named_aggregates()
