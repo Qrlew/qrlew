@@ -47,7 +47,7 @@ macro_rules! nullary_function_ast_constructor {
         paste! {
             $(
                 fn [<$enum:snake>](&self) -> ast::Expr {
-                    function_builder(stringify!([<$enum:upper>]), vec![], false)
+                    function_builder(stringify!([<$enum:snake:upper>]), vec![], false)
                 }
             )*
         }
@@ -61,7 +61,7 @@ macro_rules! unary_function_ast_constructor {
             $(
                 fn [<$enum:snake>](&self, expr: &expr::Expr) -> ast::Expr {
                     let ast_expr = self.expr(expr);
-                    function_builder(stringify!([<$enum:upper>]), vec![ast_expr], false)
+                    function_builder(stringify!([<$enum:snake:upper>]), vec![ast_expr], false)
                 }
             )*
         }
@@ -75,7 +75,7 @@ macro_rules! nary_function_ast_constructor {
             $(
                 fn [<$enum:snake>](&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                     let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-                    function_builder(stringify!([<$enum:upper>]), ast_exprs, false)
+                    function_builder(stringify!([<$enum:snake:upper>]), ast_exprs, false)
                 }
             )*
         }

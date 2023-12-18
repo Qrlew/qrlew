@@ -232,7 +232,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
                 args: arguments
                     .into_iter()
-                    .filter_map(|e| (e!=ast::Expr::Value(ast::Value::Number("1".to_string(), false))).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
+                    .filter_map(|e| (e!=ast::Expr::Value(ast::Value::Number("0".to_string(), false))).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
                     .collect(),
                 over: None,
                 distinct: false,
@@ -855,7 +855,23 @@ mod tests {
 
     #[test]
     fn test_round() {
-        let str_expr = "round(a, 2)";
+        let str_expr = "round(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+
+        let str_expr = "round(a, 1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+
+        let str_expr = "round(a, 1)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
@@ -866,6 +882,22 @@ mod tests {
 
     #[test]
     fn test_trunc() {
+        let str_expr = "trunc(a)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+
+        let str_expr = "trunc(a, 1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(ast_expr.to_string().to_lowercase(), gen_expr.to_string().to_lowercase());
+
         let str_expr = "trunc(a, 4)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();
