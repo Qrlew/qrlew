@@ -376,7 +376,7 @@ impl<'a> VisitedQueryRelations<'a> {
                 .collect::<Result<Vec<Expr>>>()?,
         };
         // If the GROUP BY contains aliases, then replace them by the corresponding expression in `named_exprs`.
-        // Note that we mimic postgres behaviour and support only GROUP BY alias column (no other expressions are allowed)
+        // Note that we mimic postgres behaviour and support only GROUP BY alias column (no other expressions containing aliases are allowed)
         // The aliases cannot be used in HAVING
         let group_by = group_by.into_iter()
             .map(|x| match &x {
