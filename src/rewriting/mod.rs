@@ -179,21 +179,25 @@ mod tests {
             ),
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
+            ("table_1", vec![], PrivacyUnit::privacy_unit_row())
         ]);
         let budget = Budget::new(1., 1e-3);
 
         let queries = [
-            "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
-            "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
-            "SELECT order_id, sum(order_id) FROM item_table GROUP BY order_id",
-            "SELECT order_id As my_order, sum(price) FROM item_table GROUP BY my_order",
-            "SELECT order_id, MAX(order_id), sum(price) FROM item_table GROUP BY order_id"
+            // "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
+            // "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
+            // "SELECT order_id, sum(order_id) FROM item_table GROUP BY order_id",
+            // "SELECT order_id As my_order, sum(price) FROM item_table GROUP BY my_order",
+            // "SELECT order_id, MAX(order_id), sum(price) FROM item_table GROUP BY order_id",
+            "WITH my_avg AS (SELECT AVG(price) AS avg_price, STDDEV(price) AS std_price FROM item_table WHERE price > 1.) SELECT AVG((price - avg_price) / std_price) FROM item_table CROSS JOIN my_avg WHERE std_price > 1.",
+            "WITH my_avg AS (SELECT MIN(price) AS min_price, MAX(price) AS max_price FROM item_table WHERE price > 1.) SELECT AVG(price - min_price) FROM item_table CROSS JOIN my_avg",
         ];
 
         for q in queries {
             println!("=================================\n{q}");
             let query = parse(q).unwrap();
             let relation = Relation::try_from(query.with(&relations)).unwrap();
+            relation.display_dot().unwrap();
             let relation_with_private_query = relation
                 .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), budget.clone())
                 .unwrap();

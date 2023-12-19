@@ -1109,6 +1109,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Soft,
                     );
+                    //relation_input.display_dot();
                     privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()
@@ -1210,6 +1211,10 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     [Property::Published, Property::PrivacyUnitPreserving],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
+                ) | (
+                    [Property::DifferentiallyPrivate, Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
                     let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
@@ -1224,9 +1229,14 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         )
                         .unwrap()
                         .into()
+
                 }
                 (
                     [Property::PrivacyUnitPreserving, Property::Published],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
+                ) | (
+                    [Property::PrivacyUnitPreserving, Property::DifferentiallyPrivate],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
@@ -1235,14 +1245,16 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    privacy_unit_tracking
+                    let rel:Relation = privacy_unit_tracking
                         .join_right_published(
                             join,
                             relation_left.try_into().unwrap(),
                             relation_right.try_into().unwrap(),
                         )
                         .unwrap()
-                        .into()
+                        .into();
+                    rel.display_dot();
+                    rel
                 }
                 _ => Relation::join()
                     .with(join.clone())
