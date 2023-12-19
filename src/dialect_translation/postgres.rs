@@ -102,56 +102,6 @@ impl QueryToRelationTranslator for PostgresTranslator {
     }
 }
 
-// // It should not exists outside the dialect translator module
-// struct PostgresQueryWithRelation<'a>(ast::Query, &'a Hierarchy<Arc<Relation>>);
-
-// impl<'a> PostgresQueryWithRelation<'a> {
-//     // Not public. Can't create a PostgresQueryWithRelation from any Query
-//     // you can only create PostgresQueryWithRelation using the try_from.
-//     fn new(query: ast::Query, relations: &'a Hierarchy<Arc<Relation>>) -> Self {
-//         PostgresQueryWithRelation(query, relations)
-//     }
-// }
-
-// impl<'a> TryFrom<(&'a str, &'a Hierarchy<Arc<Relation>>)> for PostgresQueryWithRelation<'a> {
-//     type Error = Error;
-
-//     fn try_from(value: (&'a str, &'a Hierarchy<Arc<Relation>>)) -> Result<Self> {
-//         let (query, relations) = value;
-//         let translator = PostgresTranslator;
-//         let ast = parse_with_dialect(query, translator.dialect())?;
-//         Ok(PostgresQueryWithRelation::new(ast, relations))
-//     }
-// }
-
-// impl<'a> TryFrom<PostgresQueryWithRelation<'a>> for Relation {
-//     type Error = Error;
-
-//     fn try_from(value: PostgresQueryWithRelation<'a>) -> Result<Self> {
-//         // Pull values from the object
-//         let PostgresQueryWithRelation(query, relations) = value;
-//         // Visit the query to get query names
-//         let query_names = query.accept(IntoQueryNamesVisitor);
-//         // Visit for conversion
-//         query
-//             .accept(TryIntoRelationVisitor::new(
-//                 relations,
-//                 query_names,
-//                 PostgresTranslator,
-//             ))
-//             .map(|r| r.as_ref().clone())
-//     }
-// }
-
-// pub struct RelationWithPostgresTranslator<'a>(pub &'a Relation, pub PostgresTranslator);
-
-// impl<'a> From<RelationWithPostgresTranslator<'a>> for ast::Query {
-//     fn from(value: RelationWithPostgresTranslator) -> Self {
-//         let RelationWithPostgresTranslator(relation, translator) = value;
-//         relation.accept(FromRelationVisitor::new(translator))
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
