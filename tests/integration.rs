@@ -80,7 +80,7 @@ const QUERIES: &[&str] = &[
     "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
     "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
     "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
-    // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
+    "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
     // Some WHERE and GROUP BY
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
     "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
@@ -94,10 +94,17 @@ const QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
-    // Test LIMIT
+    // Test LIMIT // OFFSET
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT * FROM table_2)
+    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z OFFSET 5",
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT * FROM table_2)
+    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17 OFFSET 5",
+
     "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
     "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
     "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
@@ -136,6 +143,7 @@ const QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
+    "SELECT a, SUM(a) FROM table_1 GROUP BY a"
 ];
 
 #[cfg(feature = "sqlite")]

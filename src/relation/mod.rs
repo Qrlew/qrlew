@@ -233,7 +233,7 @@ impl OrderBy {
 }
 
 /// Map Relation
-/// Maps, project, filter, sort, limit
+/// Maps, project, filter, sort, limit, offset
 /// Basically, it can pack many PUP transforms and propagates the range of variables
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Map {
@@ -247,6 +247,8 @@ pub struct Map {
     order_by: Vec<OrderBy>,
     /// The limit (LIMIT value)
     limit: Option<usize>,
+    /// The offset (OFFSET value)
+    offset: Option<usize>,
     /// The schema description of the output
     schema: Schema,
     /// The size of the Map
@@ -266,11 +268,12 @@ impl Map {
         filter: Option<Expr>,
         order_by: Vec<OrderBy>,
         limit: Option<usize>,
+        offset: Option<usize>,
         input: Arc<Relation>,
     ) -> Self {
         assert!(Split::from_iter(named_exprs.clone()).len() == 1);
         let (schema, exprs) = Map::schema_exprs(named_exprs, &filter, &input);
-        let size = Map::size(&input, limit);
+        let size = Map::size(&input, limit, offset);
         Map {
             name,
             projection: exprs,
@@ -279,6 +282,7 @@ impl Map {
             schema,
             size,
             limit,
+            offset,
             input,
         }
     }
@@ -315,12 +319,16 @@ impl Map {
 
     /// Compute the size of the map
     /// The size of the map has the same upper bound but no positive lower bound
-    /// In the case of a `limit` the uuper bound, the minimum between
-    /// the limit and the input max size is taken.
-    fn size(input: &Relation, limit: Option<usize>) -> Integer {
+    /// In the case of a `limit`  the upper bound, the minimum between
+    /// the limit and the max(0, input max size - offset) is taken.
+    fn size(input: &Relation, limit: Option<usize>, offset: Option<usize>) -> Integer {
         input.size().max().map_or_else(
             || Integer::from_min(0),
             |&max| {
+                let max = match offset {
+                    Some(offset_val) => std::cmp::max(0, max - offset_val as i64),
+                    None => max
+                };
                 Integer::from_interval(
                     0,
                     match limit {
@@ -346,6 +354,10 @@ impl Map {
     /// Get limit
     pub fn limit(&self) -> &Option<usize> {
         &self.limit
+    }
+    /// Get offset
+    pub fn offset(&self) -> &Option<usize> {
+        &self.offset
     }
     /// Get the input
     pub fn input(&self) -> &Relation {
@@ -404,6 +416,9 @@ impl fmt::Display for Map {
         }
         if let Some(limit) = &self.limit {
             query = format!("{} {} {}", query, "LIMIT".to_string().bold().blue(), limit)
+        }
+        if let Some(offset) = &self.offset {
+            query = format!("{} {} {}", query, "OFFSET".to_string().bold().blue(), offset)
         }
         write!(f, "{}", query)
     }
@@ -1636,16 +1651,18 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let table: Relation = Relation::table().schema(schema).name("my_table").build();
+        let table: Relation = Relation::table().schema(schema).name("my_table").size(100).build();
         let map: Relation = Relation::map()
             .with(("my_a", Expr::exp(Expr::col("a"))))
             .input(table)
             .with(Expr::col("b") + Expr::col("d"))
             .filter(Expr::gt(Expr::col("a"), expr!(0)))
+            .offset(20)
             .build();
         println!("map = {}", map);
         println!("map.data_type() = {:?}", map.data_type());
         map.display_dot().unwrap();
+        assert_eq!(*map.size().max().unwrap() as i64, 80);
         assert_eq!(
             map.schema().field_from_index(0).unwrap().data_type(),
             DataType::float_min(1.)
@@ -1686,13 +1703,28 @@ mod tests {
             .with(("my_sum", Expr::sum(Expr::col("b"))))
             .with(("my_a", Expr::first(expr!(3 * a))))
             .group_by(expr!(3 * a))
-            .input(table)
+            .input(table.clone())
             .build();
         assert_eq!(
             reduce.data_type(),
             DataType::structured([
                 ("my_sum", DataType::float_interval(0., 100.)),
                 ("my_a", DataType::integer_interval(0, 30)),
+            ])
+        );
+
+        // GROUP BY and aggregates have the same argument
+        let reduce: Relation = Relation::reduce()
+            .with(("my_sum", Expr::sum(Expr::col("a"))))
+            .with(("my_a", Expr::first(expr!(a))))
+            .group_by(expr!(a))
+            .input(table)
+            .build();
+        assert_eq!(
+            reduce.data_type(),
+            DataType::structured([
+                ("my_sum", DataType::integer_interval(0, 1000)),
+                ("my_a", DataType::integer_interval(0, 10)),
             ])
         );
     }

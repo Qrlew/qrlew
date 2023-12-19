@@ -133,6 +133,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
+            None,
         )
     }
 
@@ -170,6 +171,8 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                     .collect(),
                 map.limit
                     .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
+                map.offset
+                    .map(|offset| ast::Offset{value: ast::Expr::Value(ast::Value::Number(offset.to_string(), false)), rows: ast::OffsetRows::None})
             ),
         ));
         self.translator.query(
@@ -181,6 +184,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             vec![],
             map.limit
                 .map(|limit| ast::Expr::Value(ast::Value::Number(limit.to_string(), false))),
+            None
         )
     }
 
@@ -214,6 +218,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                 ),
                 vec![],
                 None,
+                None,
             ),
         ));
         self.translator.query(
@@ -223,6 +228,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
+            None,
             None,
         )
     }
@@ -265,6 +271,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                 ast::GroupByExpr::Expressions(vec![]),
                 vec![],
                 None,
+                None,
             ),
         ));
         self.translator.query(
@@ -274,6 +281,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
+            None,
             None,
         )
     }
@@ -315,6 +323,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
+            None,
         )
     }
 
@@ -355,6 +364,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
             None,
+            None,
         );
         let input_ctes = vec![self.translator.cte(
             values.name().into(),
@@ -368,6 +378,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             None,
             ast::GroupByExpr::Expressions(vec![]),
             vec![],
+            None,
             None,
         )
     }
@@ -445,6 +456,7 @@ mod tests {
                 .input(join.clone())
                 .with(Expr::col(join[0].name()) + Expr::col(join[1].name()))
                 .limit(100)
+                .offset(20)
                 .build(),
         );
         let join_2: Arc<Relation> = Arc::new(

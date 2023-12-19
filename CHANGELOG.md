@@ -6,9 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.6.0] - 2023-12-18
+### Added
+- Unsupported DP aggregations are handled gracefully
+- Rewrite into DP Reduce with MAX, MIN, QUANTILE(S), FIRST, LAST, MEDIAN if they are applied on a grouping column [#227](https://github.com/Qrlew/qrlew/issues/227)
+
+## [0.5.6] - 2023-12-18
 ### Fixed
+- Fixed bug when using the same column in the GROUP BY and an Aggregate function [#222](https://github.com/Qrlew/qrlew/issues/222)
 - Natural joins [#221](https://github.com/Qrlew/qrlew/issues/221)
 - When the clipping factor is zero, multiply by zero instead of dividing by 1 / clipping_factor [#218](https://github.com/Qrlew/qrlew/issues/218)
+- GROUP BY column alias [#223](https://github.com/Qrlew/qrlew/issues/223)
+- DP compilation for Reduce that contains only First aggregations [#225](https://github.com/Qrlew/qrlew/issues/225)
+## Added
+- OFFSET [#224](https://github.com/Qrlew/qrlew/issues/224)
 
 ## [0.5.5] - 2023-12-09
 ## Added

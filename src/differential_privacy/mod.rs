@@ -14,6 +14,7 @@ use crate::{
     expr, privacy_unit_tracking,
     relation::{rewriting, Reduce, Relation},
     Ready,
+    display::Dot
 };
 use std::{error, fmt, ops::Deref, result};
 
@@ -177,7 +178,7 @@ mod tests {
         io::{postgresql, Database},
         privacy_unit_tracking::PrivacyUnit,
         privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
-        relation::{Field, Map, Relation, Schema, Variant},
+        relation::{Field, Map, Relation, Schema, Variant, Constraint},
     };
     use std::collections::HashSet;
 
@@ -619,5 +620,68 @@ mod tests {
             .into_iter()
             .collect();
         assert_eq!(city_keys, correct_keys);
+    }
+
+    #[test]
+    fn test_dp_rewrite_reduce() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let table = relations
+            .get(&["table_1".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let (epsilon, delta) = (1., 1e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+
+        // privacy track the inputs
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
+            &relations,
+            vec![("table_1", vec![], PrivacyUnit::privacy_unit_row())],
+            Strategy::Hard,
+        ));
+        let pup_table = privacy_unit_tracking
+            .table(&table.try_into().unwrap())
+            .unwrap();
+        let reduce = Reduce::new(
+            "my_reduce".to_string(),
+            vec![
+                ("sum_a".to_string(), AggregateColumn::sum("a")),
+                ("d".to_string(), AggregateColumn::first("d")),
+                ("max_d".to_string(), AggregateColumn::max("d")),
+            ],
+            vec!["d".into()],
+            pup_table.deref().clone().into(),
+        );
+        let relation = Relation::from(reduce.clone());
+        relation.display_dot().unwrap();
+
+        let (dp_relation, private_query) = reduce
+            .differentially_private(
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding,
+            )
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            private_query,
+            PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding)
+                .compose(PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 10.))
+        );
+        let correct_schema: Schema = vec![
+            ("sum_a", DataType::float_interval(0., 100.), None),
+            ("d", DataType::integer_interval(0, 10), Some(Constraint::Unique)),
+            ("max_d", DataType::integer_interval(0, 10), Some(Constraint::Unique)),
+        ].into_iter()
+        .collect();
+        assert_eq!(dp_relation.schema(), &correct_schema);
+
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        println!("{query}");
+        _ = database.query(query).unwrap();
     }
 }

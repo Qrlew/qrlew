@@ -11,6 +11,7 @@ use crate::{
     },
     hierarchy::Hierarchy,
     privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
+    expr::aggregate::Aggregate,
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
     synthetic_data::SyntheticData,
@@ -666,17 +667,12 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
         reduce: &'a Reduce,
         input: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
-        vec![
+        let mut rewriting_rules = vec![
             RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(
                 vec![Property::Published],
                 Property::Published,
                 Parameters::None,
-            ),
-            RewritingRule::new(
-                vec![Property::PrivacyUnitPreserving],
-                Property::DifferentiallyPrivate,
-                Parameters::Budget(self.budget.clone()),
             ),
             RewritingRule::new(
                 vec![Property::SyntheticData],
@@ -688,7 +684,39 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Property::Published,
                 Parameters::SyntheticData(self.synthetic_data.clone()),
             ),
-        ]
+        ];
+        // We can compile into DP only if the aggregations are supported
+        if reduce.aggregate().iter().all(|f| {
+            match f.aggregate() {
+                Aggregate::Mean |
+                Aggregate::MeanDistinct |
+                Aggregate::Count |
+                Aggregate::CountDistinct |
+                Aggregate::Sum |
+                Aggregate::SumDistinct |
+                Aggregate::Std |
+                Aggregate::StdDistinct |
+                Aggregate::Var |
+                Aggregate::VarDistinct => true,
+                Aggregate::Min |
+                Aggregate::Max |
+                Aggregate::Median |
+                Aggregate::First |
+                Aggregate::Last |
+                Aggregate::Quantile(_) |
+                Aggregate::Quantiles(_) => reduce.group_by().contains(f.column()),
+                _ => false,
+            }
+        }) {
+            rewriting_rules.push(
+                RewritingRule::new(
+            vec![Property::PrivacyUnitPreserving],
+            Property::DifferentiallyPrivate,
+                    Parameters::Budget(self.budget.clone()),
+                )
+            )
+        }
+        rewriting_rules
     }
 
     fn join(
@@ -1459,6 +1487,116 @@ mod tests {
             "SELECT order_id, price FROM item_table WHERE order_id IN (1,2,3,4,5,6,7,8,9,10)",
         )
         .unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        // Add rewritting rules
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            synthetic_data,
+            privacy_unit,
+            budget,
+        ));
+        relation_with_rules.display_dot().unwrap();
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        relation_with_rules.display_dot().unwrap();
+        for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
+            rwrr.display_dot().unwrap();
+            let num_dp = rwrr.accept(BudgetDispatcher);
+            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("DEBUG SCORE {}", rwrr.accept(Score));
+            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
+            relation_with_private_query
+                .relation()
+                .display_dot()
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_dp_supported_aggregations_query() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse(r#"
+            SELECT order_id, sum(price) FROM item_table GROUP BY order_id
+        "#,
+        ).unwrap();
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        // Add rewritting rules
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            synthetic_data,
+            privacy_unit,
+            budget,
+        ));
+        relation_with_rules.display_dot().unwrap();
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        relation_with_rules.display_dot().unwrap();
+        for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
+            rwrr.display_dot().unwrap();
+            let num_dp = rwrr.accept(BudgetDispatcher);
+            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("DEBUG SCORE {}", rwrr.accept(Score));
+            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
+            relation_with_private_query
+                .relation()
+                .display_dot()
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_dp_unsupported_aggregations_query() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse(r#"
+            SELECT order_id, max(price) FROM item_table GROUP BY order_id
+        "#,
+        ).unwrap();
         let synthetic_data = SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
