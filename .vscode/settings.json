@@ -1,11 +1,9 @@
 {
     "rust-analyzer.server.extraEnv": { "RUSTUP_TOOLCHAIN": "stable" },
-    "rust-analyzer.check.features": [
-        "sqlite",
-    ],
     "rust-analyzer.cargo.features": [
         "graphviz_display",
         "sqlite",
+        "mssql"
     ],
     "editor.codeActionsOnSave": {},
     "rust-analyzer.cargo.buildScripts.overrideCommand": null,

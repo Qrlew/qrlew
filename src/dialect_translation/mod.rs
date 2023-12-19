@@ -23,7 +23,6 @@ use crate::{
     relation::{JoinOperator, Table, Variant},
     sql::{
         self, parse, parse_with_dialect,
-        relation::{RelationWithColumns, VisitedQueryRelations},
         Error, Result,
     },
     DataType, Relation,

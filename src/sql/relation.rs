@@ -44,14 +44,14 @@ This is done in the query_names module.
 /// The Hierarchy of Relations is the context in which the query is converted, typically the list of tables with their Path
 /// The QueryNames is the map of sub-query referrenced by their names, so that links can be unfolded
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct TryIntoRelationVisitor<'a, T: QueryToRelationTranslator + Copy + Clone> {
+struct TryIntoRelationVisitor<'a, T: QueryToRelationTranslator + Copy + Clone> {
     relations: &'a Hierarchy<Arc<Relation>>,
     query_names: QueryNames<'a>,
     translator: T
 }
 
 impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryIntoRelationVisitor<'a, T> {
-    pub fn new(relations: &'a Hierarchy<Arc<Relation>>, query_names: QueryNames<'a>, translator: T) -> Self {
+    fn new(relations: &'a Hierarchy<Arc<Relation>>, query_names: QueryNames<'a>, translator: T) -> Self {
         TryIntoRelationVisitor{ relations, query_names, translator }
     }
 }
@@ -86,7 +86,7 @@ impl From<ast::SetQuantifier> for SetQuantifier {
 // This is RelationWithColumns from_xxx method
 
 /// A struct to hold Relations with column mapping in the FROM
-pub struct RelationWithColumns(Arc<Relation>, Hierarchy<Identifier>);
+struct RelationWithColumns(Arc<Relation>, Hierarchy<Identifier>);
 
 impl RelationWithColumns {
     fn new(relation: Arc<Relation>, columns: Hierarchy<Identifier>) -> Self {
@@ -95,7 +95,7 @@ impl RelationWithColumns {
 }
 
 /// A struct to hold the query being visited and its Relations
-pub struct VisitedQueryRelations<'a, T: QueryToRelationTranslator + Copy + Clone>{
+struct VisitedQueryRelations<'a, T: QueryToRelationTranslator + Copy + Clone>{
     relations: Hierarchy<Arc<Relation>>,
     visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
     translator: T

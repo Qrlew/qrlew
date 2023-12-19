@@ -1606,10 +1606,6 @@ mod tests {
 
         assert_eq!(values.size(), &Integer::from(3 as i64));
         println!("{}", values);
-
-        let relation: Relation = values.into();
-        let query = ast::Query::from(&relation);
-        println!("{}", query);
     }
 
     #[test]

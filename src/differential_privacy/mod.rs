@@ -541,7 +541,6 @@ mod tests {
         println!("{}", private_query);
         dp_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&dp_relation).to_string();
-        println!("FINAL QUERY: {}", query);
         let results = database.query(query).unwrap();
         println!("results = {:?}", results);
         let city_keys: HashSet<_> = results
