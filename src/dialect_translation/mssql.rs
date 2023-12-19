@@ -165,6 +165,7 @@ impl RelationToQueryTranslator for MSSQLTranslator {
         group_by: ast::GroupByExpr,
         order_by: Vec<ast::OrderByExpr>,
         limit: Option<ast::Expr>,
+        offset: Option<ast::Offset>,
     ) -> ast::Query {
         let top = limit.map(|e| ast::Top {
             with_ties: false,
@@ -194,7 +195,7 @@ impl RelationToQueryTranslator for MSSQLTranslator {
             }))),
             order_by,
             limit: None,
-            offset: None,
+            offset: offset,
             fetch: None,
             locks: vec![],
             limit_by: vec![],

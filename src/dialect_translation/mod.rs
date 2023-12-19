@@ -131,6 +131,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 group_by: ast::GroupByExpr,
                 order_by: Vec<ast::OrderByExpr>,
                 limit: Option<ast::Expr>,
+                offset: Option<ast::Offset>,
             ) -> ast::Query {
                 ast::Query {
                     with: (!with.is_empty()).then_some(ast::With {
@@ -156,7 +157,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     order_by,
                     limit,
                     limit_by: vec![],
-                    offset: None,
+                    offset: offset,
                     fetch: None,
                     locks: vec![],
                     for_clause: None,
