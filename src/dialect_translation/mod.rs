@@ -21,10 +21,7 @@ use crate::{
     expr::Identifier,
     hierarchy::Hierarchy,
     relation::{JoinOperator, Table, Variant},
-    sql::{
-        self, parse, parse_with_dialect,
-        Error, Result,
-    },
+    sql::{self, parse, parse_with_dialect, Error, Result},
     DataType, Relation,
 };
 
@@ -162,7 +159,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     offset: None,
                     fetch: None,
                     locks: vec![],
-                    for_clause: None, 
+                    for_clause: None,
                 }
             }
 
@@ -395,13 +392,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                         BitwiseXor
                     ),
                     //nullary op functions match
-                    (
-                        Pi,
-                        Newid,
-                        CurrentDate,
-                        CurrentTime,
-                        CurrentTimestamp
-                    ),
+                    (Pi, Newid, CurrentDate, CurrentTime, CurrentTimestamp),
                     //unary functions
                     (
                         Exp,
@@ -518,23 +509,90 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 }
             }
 
-            nullary_function_ast_constructor!(Random, Pi, Newid, CurrentDate, CurrentTime, CurrentTimestamp);
+            nullary_function_ast_constructor!(
+                Random,
+                Pi,
+                Newid,
+                CurrentDate,
+                CurrentTime,
+                CurrentTimestamp
+            );
 
             unary_function_ast_constructor!(
-                Exp, Ln, Log, Abs, Sin, Cos, Sqrt, CharLength, Lower, Upper, Md5,
-                Ceil, Floor, CastAsDate, CastAsTime, Sign, Unhex, ExtractYear, ExtractMonth,
-                ExtractDay, ExtractHour, ExtractMinute, ExtractSecond, ExtractMicrosecond,
-                ExtractMillisecond, ExtractDow, ExtractWeek, Dayname, UnixTimestamp, Quarter,
-                Date, IsNull, Min, Max, Median,
-                NUnique, First, Last, Mean, List, Count, Quantile, Quantiles, Sum, AggGroups, Std,
+                Exp,
+                Ln,
+                Log,
+                Abs,
+                Sin,
+                Cos,
+                Sqrt,
+                CharLength,
+                Lower,
+                Upper,
+                Md5,
+                Ceil,
+                Floor,
+                CastAsDate,
+                CastAsTime,
+                Sign,
+                Unhex,
+                ExtractYear,
+                ExtractMonth,
+                ExtractDay,
+                ExtractHour,
+                ExtractMinute,
+                ExtractSecond,
+                ExtractMicrosecond,
+                ExtractMillisecond,
+                ExtractDow,
+                ExtractWeek,
+                Dayname,
+                UnixTimestamp,
+                Quarter,
+                Date,
+                IsNull,
+                Min,
+                Max,
+                Median,
+                NUnique,
+                First,
+                Last,
+                Mean,
+                List,
+                Count,
+                Quantile,
+                Quantiles,
+                Sum,
+                AggGroups,
+                Std,
                 Var
             );
 
             nary_function_ast_constructor!(
-                Pow, Position, Least, Greatest, Coalesce, Rtrim, Ltrim, Substr,
-                Round, Trunc, RegexpContains, Encode, Decode, FromUnixtime,
-                DateFormat, Choose, Like, Ilike, IsBool, SubstrWithSize,
-                RegexpExtract, RegexpReplace, DatetimeDiff, Concat
+                Pow,
+                Position,
+                Least,
+                Greatest,
+                Coalesce,
+                Rtrim,
+                Ltrim,
+                Substr,
+                Round,
+                Trunc,
+                RegexpContains,
+                Encode,
+                Decode,
+                FromUnixtime,
+                DateFormat,
+                Choose,
+                Like,
+                Ilike,
+                IsBool,
+                SubstrWithSize,
+                RegexpExtract,
+                RegexpReplace,
+                DatetimeDiff,
+                Concat
             );
 
             fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
@@ -632,11 +690,7 @@ pub trait QueryToRelationTranslator {
     fn dialect(&self) -> Self::D;
 
     // It converts ast Expressions to sarus expressions
-    fn try_expr(
-        &self,
-        expr: &ast::Expr,
-        context: &Hierarchy<Identifier>,
-    ) -> Result<expr::Expr> {
+    fn try_expr(&self, expr: &ast::Expr, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
         match expr {
             ast::Expr::Function(func) => self.try_function(func, context),
             _ => expr::Expr::try_from(expr.with(context)),
@@ -662,20 +716,12 @@ pub trait QueryToRelationTranslator {
         }
     }
 
-    fn try_ln(
-        &self,
-        func: &ast::Function,
-        context: &Hierarchy<Identifier>,
-    ) -> Result<expr::Expr> {
+    fn try_ln(&self, func: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
         let converted = self.try_function_args(func.args.clone(), context)?;
         Ok(expr::Expr::ln(converted[0].clone()))
     }
 
-    fn try_md5(
-        &self,
-        func: &ast::Function,
-        context: &Hierarchy<Identifier>,
-    ) -> Result<expr::Expr> {
+    fn try_md5(&self, func: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
         let converted = self.try_function_args(func.args.clone(), context)?;
         Ok(expr::Expr::md5(converted[0].clone()))
     }

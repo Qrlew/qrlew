@@ -7,8 +7,11 @@ use crate::{
     WithoutContext,
 };
 
-use super::{RelationToQueryTranslator, QueryToRelationTranslator, Result, function_builder};
-use sqlparser::{ast::{self, CharacterLength}, dialect::MsSqlDialect};
+use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator, Result};
+use sqlparser::{
+    ast::{self, CharacterLength},
+    dialect::MsSqlDialect,
+};
 #[derive(Clone, Copy)]
 pub struct MSSQLTranslator;
 
@@ -21,7 +24,7 @@ impl RelationToQueryTranslator for MSSQLTranslator {
             .map(|i| ast::Ident::with_quote(quoting_char, i))
             .collect()
     }
-    
+
     fn first(&self, expr: &expr::Expr) -> ast::Expr {
         ast::Expr::from(expr)
     }
@@ -51,9 +54,9 @@ impl RelationToQueryTranslator for MSSQLTranslator {
     fn md5(&self, expr: &expr::Expr) -> ast::Expr {
         // In sql parser 0.4 it has been introduced CONVERT as an expression
         // but if doesn't allow for a style argument (see the doc here:
-        // https://learn.microsoft.com/fr-fr/sql/t-sql/functions/cast-and-convert-transact-sql?view=sql-server-ver16) 
+        // https://learn.microsoft.com/fr-fr/sql/t-sql/functions/cast-and-convert-transact-sql?view=sql-server-ver16)
         // which is needed for the convertion.
-        // So we can't parse the fllowing: 
+        // So we can't parse the fllowing:
         // let input_sql = r#"
         // SELECT CONVERT(X, VARCHAR(MAX)) FROM table_x
         // "#;
@@ -370,7 +373,7 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
 #[cfg(test)]
 #[cfg(feature = "mssql")]
 mod tests {
-    use sqlparser::dialect::{GenericDialect};
+    use sqlparser::dialect::GenericDialect;
 
     use super::*;
     use crate::{
@@ -379,9 +382,10 @@ mod tests {
         dialect_translation::RelationWithTranslator,
         display::Dot,
         expr::Expr,
+        io::{mssql, Database as _},
         namer,
         relation::{schema::Schema, Relation, Variant as _},
-        sql::{parse, parse_with_dialect, relation::QueryWithRelations, parse_expr}, io::{mssql, Database as _},
+        sql::{parse, parse_expr, parse_with_dialect, relation::QueryWithRelations},
     };
     use std::sync::Arc;
 
@@ -392,10 +396,7 @@ mod tests {
 
         let query = "SELECT * FROM table_1 LIMIT 30";
 
-        let relation = Relation::try_from(
-            With::with(&parse(query).unwrap(), &relations),
-        )
-        .unwrap();
+        let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
 
         let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
         let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
@@ -411,10 +412,7 @@ mod tests {
 
         let query = "SELECT CAST(1 AS boolean) FROM table_2";
 
-        let relation = Relation::try_from(
-            With::with(&parse(query).unwrap(), &relations),
-        )
-        .unwrap();
+        let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
 
         let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
         let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
@@ -427,16 +425,16 @@ mod tests {
     fn test_cast_bis() {
         let mut database = mssql::test_database();
         let relations = database.relations();
-        let query = parse(r#"
+        let query = parse(
+            r#"
         SELECT
             CAST(CASE WHEN a > 1 THEN 1 ELSE 0 END AS BOOLEAN) as col
         FROM table_1
-        "#).unwrap();
-
-        let relation = Relation::try_from(
-            With::with(&query, &relations),
+        "#,
         )
         .unwrap();
+
+        let relation = Relation::try_from(With::with(&query, &relations)).unwrap();
 
         let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
         let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
@@ -444,7 +442,6 @@ mod tests {
 
         let _ = database.query(translated_query).unwrap();
     }
-
 
     fn assert_same_query_str(query_1: &str, query_2: &str) {
         let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();

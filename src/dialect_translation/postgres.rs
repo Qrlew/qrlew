@@ -1,16 +1,15 @@
 use std::sync::Arc;
 
 use crate::{
+    expr,
     hierarchy::Hierarchy,
     relation::sql::FromRelationVisitor,
-    sql::{
-        parse_with_dialect, query_names::IntoQueryNamesVisitor,
-    },
+    sql::{parse_with_dialect, query_names::IntoQueryNamesVisitor},
     visitor::Acceptor,
-    Relation, expr,
+    Relation,
 };
 
-use super::{RelationToQueryTranslator, QueryToRelationTranslator, function_builder};
+use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
 use crate::sql::{Error, Result};
@@ -29,7 +28,7 @@ impl RelationToQueryTranslator for PostgresTranslator {
 
     fn var(&self, expr: &expr::Expr) -> ast::Expr {
         let arg = self.expr(expr);
-        function_builder("VARIANCE", vec![arg], false,)
+        function_builder("VARIANCE", vec![arg], false)
     }
 
     fn std(&self, expr: &expr::Expr) -> ast::Expr {
@@ -49,9 +48,10 @@ impl RelationToQueryTranslator for PostgresTranslator {
             name: ast::ObjectName(vec![ast::Ident::from("TRUNC")]),
             args: ast_exprs
                 .into_iter()
-                .filter_map(
-                    |e| (e!=ast::Expr::Value(ast::Value::Number("0".to_string(), false))
-                ).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
+                .filter_map(|e| {
+                    (e != ast::Expr::Value(ast::Value::Number("0".to_string(), false)))
+                        .then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                })
                 .collect(),
             over: None,
             distinct: false,
@@ -70,9 +70,10 @@ impl RelationToQueryTranslator for PostgresTranslator {
             name: ast::ObjectName(vec![ast::Ident::from("ROUND")]),
             args: ast_exprs
                 .into_iter()
-                .filter_map(
-                    |e| (e!=ast::Expr::Value(ast::Value::Number("0".to_string(), false))
-                ).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
+                .filter_map(|e| {
+                    (e != ast::Expr::Value(ast::Value::Number("0".to_string(), false)))
+                        .then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                })
                 .collect(),
             over: None,
             distinct: false,
@@ -86,7 +87,10 @@ impl RelationToQueryTranslator for PostgresTranslator {
     fn position(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
         assert!(exprs.len() == 2);
         let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        ast::Expr::Position { expr: Box::new(ast_exprs[0].clone()), r#in: Box::new(ast_exprs[1].clone()) }
+        ast::Expr::Position {
+            expr: Box::new(ast_exprs[0].clone()),
+            r#in: Box::new(ast_exprs[1].clone()),
+        }
     }
 }
 
@@ -170,7 +174,6 @@ mod tests {
         println!("{:?}", query);
         Ok(())
     }
-
 
     #[test]
     fn test_map() -> Result<()> {

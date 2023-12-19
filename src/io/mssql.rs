@@ -1,7 +1,6 @@
 /// Creating an mssql connector. This is experimental.
 /// There are some types that are not supported
 /// Date, Datetime and Interval are not yes supported
-
 use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 use crate::{
     data_type::{
@@ -18,16 +17,18 @@ use rand::{rngs::StdRng, SeedableRng};
 use sqlx::{
     self,
     mssql::{
-        self, Mssql, MssqlArguments, MssqlConnectOptions, MssqlQueryResult, MssqlRow, MssqlValueRef, MssqlPoolOptions,
+        self, Mssql, MssqlArguments, MssqlConnectOptions, MssqlPoolOptions, MssqlQueryResult,
+        MssqlRow, MssqlValueRef,
     },
     query::Query,
-    Connection, Decode, Encode, MssqlConnection, Row, Type, TypeInfo, ValueRef as _, MssqlPool, Pool,
+    Connection, Decode, Encode, MssqlConnection, MssqlPool, Pool, Row, Type, TypeInfo,
+    ValueRef as _,
 };
 use std::{
     env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
 };
 
-use crate::{dialect_translation::mssql::MSSQLTranslator};
+use crate::dialect_translation::mssql::MSSQLTranslator;
 
 const DB: &str = "qrlew-mssql-test";
 const PORT: u16 = 1433;
@@ -269,7 +270,7 @@ impl DatabaseTrait for Database {
         if let None = *mssql_pool {
             *mssql_pool = Some(
                 Database::build_pool_from_existing()
-                .or_else(|_| Database::build_pool_from_container(name.clone()))?
+                    .or_else(|_| Database::build_pool_from_container(name.clone()))?,
             );
         }
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -284,8 +285,9 @@ impl DatabaseTrait for Database {
                 val_as_str
             })
             .collect();
-        let tables_to_be_created: Vec<Table> = tables.iter()
-            .filter(|tab|!table_names_in_db.contains(&tab.path().head().unwrap().to_string()))
+        let tables_to_be_created: Vec<Table> = tables
+            .iter()
+            .filter(|tab| !table_names_in_db.contains(&tab.path().head().unwrap().to_string()))
             .cloned()
             .collect();
         if !tables_to_be_created.is_empty() {
@@ -356,10 +358,7 @@ impl DatabaseTrait for Database {
     }
 }
 
-async fn async_query(
-    query_str: &str,
-    pool: &Pool<Mssql>,
-) -> Result<Vec<value::List>> {
+async fn async_query(query_str: &str, pool: &Pool<Mssql>) -> Result<Vec<value::List>> {
     let rows = sqlx::query(query_str).fetch_all(pool).await?;
     Ok(rows
         .iter()
@@ -383,7 +382,10 @@ async fn async_execute(
 }
 
 async fn async_connect(connection_string: &str) -> Result<MssqlPool> {
-    Ok(MssqlPoolOptions::new().max_connections(10).connect(connection_string).await?)
+    Ok(MssqlPoolOptions::new()
+        .max_connections(10)
+        .connect(connection_string)
+        .await?)
 }
 
 #[derive(Debug, Clone)]
@@ -452,34 +454,54 @@ impl Decode<'_, mssql::Mssql> for SqlValue {
         } else {
             match type_info.name() {
                 "BIT" => Ok(Value::from(<bool as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-                "INT" => Ok(Value::from((<i32 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?),
+                "INT" => Ok(
+                    Value::from((<i32 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?,
+                ),
                 "BIGINT" => Ok(Value::from(<i64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
                 "BINARY" => todo!(),
-                "CHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "CHAR" => {
+                    Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
                 "DATE" => todo!(),
                 "DATETIME" => todo!(),
                 "DATETIME2" => todo!(),
                 "DATETIMEOFFSET" => todo!(),
-                "DECIMAL" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-                "FLOAT" =>  Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "DECIMAL" => {
+                    Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
+                "FLOAT" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
                 "IMAGE" => todo!(),
                 "MONEY" => todo!(),
-                "NCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-                "NTEXT" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-                "NUMERIC" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
-                "NVARCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "NCHAR" => {
+                    Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
+                "NTEXT" => {
+                    Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
+                "NUMERIC" => {
+                    Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
+                "NVARCHAR" => {
+                    Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
                 "REAL" => Ok(Value::from(<f64 as Decode<'_, Mssql>>::decode(value)?).try_into()?),
                 "SMALLDATETIME" => todo!(),
-                "SMALLINT" => Ok(Value::from((<i16 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?),
+                "SMALLINT" => Ok(
+                    Value::from((<i16 as Decode<'_, Mssql>>::decode(value)?) as i64).try_into()?,
+                ),
                 "SMALLMONEY" => todo!(),
                 "SQL_VARIANT" => todo!(),
-                "TEXT" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "TEXT" => {
+                    Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
                 "TIME" => todo!(),
                 "TIMESTAMP" => todo!(),
                 "TINYINT" => todo!(),
                 "UNIQUEIDENTIFIER" => todo!(),
                 "VARBINARY" => todo!(),
-                "VARCHAR" => Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?),
+                "VARCHAR" => {
+                    Ok(Value::from(<String as Decode<'_, Mssql>>::decode(value)?).try_into()?)
+                }
                 "XML" => todo!(),
                 _ => Err(Box::new(sqlx::Error::Decode(
                     format!("Unhandled type: {}", type_info.name()).into(),
@@ -563,7 +585,10 @@ mod tests {
     #[tokio::test]
     async fn test_insert_table_with_pool() -> Result<()> {
         let connection_string = "mssql://SA:Strong@Passw0rd@localhost:1433/master?encrypt=false";
-        let pool = MssqlPoolOptions::new().test_before_acquire(true).connect(connection_string).await?;
+        let pool = MssqlPoolOptions::new()
+            .test_before_acquire(true)
+            .connect(connection_string)
+            .await?;
 
         let table_name = "table_5";
 
@@ -582,7 +607,6 @@ mod tests {
             .status()?
             .success();
 
-
         let table: Table = TableBuilder::new()
             .path([table_name])
             .name(table_name)
@@ -590,9 +614,8 @@ mod tests {
             .schema(
                 Schema::empty()
                     // .with(("f", DataType::float_interval(0.0, 10.0)))
-                    .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
-                    // .with(("x", DataType::integer_interval(0, 100)))
-                    // .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
+                    .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))), // .with(("x", DataType::integer_interval(0, 100)))
+                                                                                       // .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
             )
             .build();
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
@@ -624,7 +647,9 @@ mod tests {
             //rt.block_on(async_execute(insert_query, &pool))?;
             println!("after insert");
 
-            let r = pool.execute(&format!("SELECT TOP(5) z from {table_name}")[..]).await?;
+            let r = pool
+                .execute(&format!("SELECT TOP(5) z from {table_name}")[..])
+                .await?;
             println!("after execution");
             println!("results: {:?}", r);
         }

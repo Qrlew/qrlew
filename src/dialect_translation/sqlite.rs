@@ -7,7 +7,6 @@ pub struct SQLiteTranslator;
 
 impl RelationToQueryTranslator for SQLiteTranslator {}
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
