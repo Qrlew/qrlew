@@ -1109,7 +1109,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Soft,
                     );
-                    //relation_input.display_dot();
                     privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()
@@ -1229,7 +1228,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         )
                         .unwrap()
                         .into()
-
                 }
                 (
                     [Property::PrivacyUnitPreserving, Property::Published],
@@ -1245,16 +1243,14 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Hard,
                     );
-                    let rel:Relation = privacy_unit_tracking
+                    privacy_unit_tracking
                         .join_right_published(
                             join,
                             relation_left.try_into().unwrap(),
                             relation_right.try_into().unwrap(),
                         )
                         .unwrap()
-                        .into();
-                    rel.display_dot();
-                    rel
+                        .into()
                 }
                 _ => Relation::join()
                     .with(join.clone())
