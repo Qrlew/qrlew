@@ -706,7 +706,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Aggregate::Quantile(_) |
                 Aggregate::Quantiles(_) => reduce.group_by().contains(f.column()),
                 _ => false,
-                
+
             }
         }) {
             rewriting_rules.push(

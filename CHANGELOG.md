@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.6.0] - 2023-12-18
 ### Added
 - Unsupported DP aggregations are handled gracefully
+- Rewrite into DP Reduce with MAX, MIN, QUANTILE(S), FIRST, LAST, MEDIAN if they are applied on a grouping column [#227](https://github.com/Qrlew/qrlew/issues/227)
 
 ## [0.5.6] - 2023-12-18
 ### Fixed
