@@ -1210,6 +1210,10 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     [Property::Published, Property::PrivacyUnitPreserving],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
+                ) | (
+                    [Property::DifferentiallyPrivate, Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
                     let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
@@ -1227,6 +1231,10 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 }
                 (
                     [Property::PrivacyUnitPreserving, Property::Published],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
+                ) | (
+                    [Property::PrivacyUnitPreserving, Property::DifferentiallyPrivate],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {

@@ -382,7 +382,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         }
     }
 
-    /// Join privacy tracking from 2 PUP relations
+    /// Join privacy tracking from a published and a PUP relations
     pub fn join_left_published(
         //TODO this need to be cleaned (really)
         &self,
@@ -435,7 +435,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         PUPRelation::try_from(relation)
     }
 
-    /// Join privacy tracking from 2 PUP relations
+    /// Join privacy tracking from a PUP and a published relations
     pub fn join_right_published(
         //TODO this need to be cleaned (really)
         &self,
