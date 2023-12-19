@@ -187,6 +187,7 @@ mod tests {
             "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
             "SELECT order_id, sum(order_id) FROM item_table GROUP BY order_id",
             "SELECT order_id As my_order, sum(price) FROM item_table GROUP BY my_order",
+            "SELECT order_id, MAX(order_id), sum(price) FROM item_table GROUP BY order_id"
         ];
 
         for q in queries {

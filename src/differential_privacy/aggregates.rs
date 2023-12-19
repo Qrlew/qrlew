@@ -3,10 +3,10 @@ use crate::{
     data_type::DataTyped,
     differential_privacy::private_query::PrivateQuery,
     differential_privacy::{private_query, DPRelation, Error, Result},
-    expr::{aggregate, AggregateColumn, Expr, Column, Identifier},
+    expr::{aggregate::{self, Aggregate}, AggregateColumn, Expr, Column, Identifier},
     privacy_unit_tracking::PUPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant},
-    DataType, Ready, display::Dot,
+    DataType, Ready,
 
 };
 use std::{cmp, collections::HashMap, ops::Deref};
@@ -161,10 +161,16 @@ impl PUPRelation {
                 let square_col = format!("_SQUARE_{}", col_name);
                 let sum_square_col = format!("_SUM_{}", square_col);
                 match aggregate.aggregate() {
-                    aggregate::Aggregate::First => {
+                    Aggregate::Min |
+                    Aggregate::Max |
+                    Aggregate::Median |
+                    Aggregate::First |
+                    Aggregate::Last |
+                    Aggregate::Quantile(_) |
+                    Aggregate::Quantiles(_) => {
                         assert!(group_by_names.contains(&col_name.as_str()));
                         output_b = output_b.with((name, Expr::col(col_name.as_str())))
-                    }
+                    },
                     aggregate::Aggregate::Mean => {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
