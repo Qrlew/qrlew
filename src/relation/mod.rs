@@ -327,7 +327,7 @@ impl Map {
             |&max| {
                 let max = match offset {
                     Some(offset_val) => std::cmp::max(0, max - offset_val as i64),
-                    None => max
+                    None => max,
                 };
                 Integer::from_interval(
                     0,
@@ -418,7 +418,12 @@ impl fmt::Display for Map {
             query = format!("{} {} {}", query, "LIMIT".to_string().bold().blue(), limit)
         }
         if let Some(offset) = &self.offset {
-            query = format!("{} {} {}", query, "OFFSET".to_string().bold().blue(), offset)
+            query = format!(
+                "{} {} {}",
+                query,
+                "OFFSET".to_string().bold().blue(),
+                offset
+            )
         }
         write!(f, "{}", query)
     }
@@ -515,10 +520,15 @@ impl Reduce {
                         aggregate_column
                             .super_image(&input_columns_data_type)
                             .unwrap(),
-                        if aggregate_column.aggregate() == &Aggregate::First && (
-                            has_one_group ||
-                            input.schema().field(aggregate_column.column_name().unwrap()).unwrap().constraint() == Some(Constraint::Unique)
-                        ){
+                        if aggregate_column.aggregate() == &Aggregate::First
+                            && (has_one_group
+                                || input
+                                    .schema()
+                                    .field(aggregate_column.column_name().unwrap())
+                                    .unwrap()
+                                    .constraint()
+                                    == Some(Constraint::Unique))
+                        {
                             Some(Constraint::Unique)
                         } else {
                             None
@@ -570,7 +580,7 @@ impl Reduce {
     pub fn group_by_names(&self) -> Vec<&str> {
         self.group_by
             .iter()
-            .filter_map(|col| col.last().ok())// We should fail if there is an ambiguity
+            .filter_map(|col| col.last().ok()) // We should fail if there is an ambiguity
             .collect()
     }
 }
@@ -696,7 +706,9 @@ impl JoinOperator {
             JoinOperator::Inner(Expr::Function(f))
             | JoinOperator::LeftOuter(Expr::Function(f))
             | JoinOperator::RightOuter(Expr::Function(f))
-            | JoinOperator::FullOuter(Expr::Function(f)) if f.function() == function::Function::Eq => {
+            | JoinOperator::FullOuter(Expr::Function(f))
+                if f.function() == function::Function::Eq =>
+            {
                 let fields_with_unique_or_primary_key_constraint = Hierarchy::from_iter(
                     left_schema
                         .iter()
@@ -713,34 +725,34 @@ impl JoinOperator {
                             )
                         })),
                 );
-                    let mut left = false;
-                    let mut right = false;
-                    if let Expr::Column(c) = &f.arguments()[0] {
-                        if fields_with_unique_or_primary_key_constraint
-                            .get_key_value(c)
-                            .unwrap()
-                            .0[0]
-                            == Join::left_name()
-                        {
-                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        } else {
-                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        }
+                let mut left = false;
+                let mut right = false;
+                if let Expr::Column(c) = &f.arguments()[0] {
+                    if fields_with_unique_or_primary_key_constraint
+                        .get_key_value(c)
+                        .unwrap()
+                        .0[0]
+                        == Join::left_name()
+                    {
+                        left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                    } else {
+                        right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
                     }
-                    if let Expr::Column(c) = &f.arguments()[1] {
-                        if fields_with_unique_or_primary_key_constraint
-                            .get_key_value(c)
-                            .unwrap()
-                            .0[0]
-                            == Join::left_name()
-                        {
-                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        } else {
-                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                        }
+                }
+                if let Expr::Column(c) = &f.arguments()[1] {
+                    if fields_with_unique_or_primary_key_constraint
+                        .get_key_value(c)
+                        .unwrap()
+                        .0[0]
+                        == Join::left_name()
+                    {
+                        left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                    } else {
+                        right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
                     }
+                }
                 (left, right)
-            },
+            }
             _ => (false, false),
         }
     }
@@ -859,14 +871,17 @@ impl Join {
         let left_fields = left_names
             .into_iter()
             .zip(left_schema.iter())
-            .map(|(name, field)|
+            .map(|(name, field)| {
                 Field::new(
                     name,
-                    transform_datatype_in_optional_left.then_some(DataType::optional(field.data_type()))
+                    transform_datatype_in_optional_left
+                        .then_some(DataType::optional(field.data_type()))
                         .unwrap_or(field.data_type()),
-                    right_is_unique.then_some(field.constraint()).unwrap_or(None)
+                    right_is_unique
+                        .then_some(field.constraint())
+                        .unwrap_or(None),
                 )
-        );
+            });
 
         let right_fields = right_names
             .into_iter()
@@ -874,9 +889,10 @@ impl Join {
             .map(|(name, field)| {
                 Field::new(
                     name,
-                    transform_datatype_in_optional_right.then_some(DataType::optional(field.data_type()))
+                    transform_datatype_in_optional_right
+                        .then_some(DataType::optional(field.data_type()))
                         .unwrap_or(field.data_type()),
-                    left_is_unique.then_some(field.constraint()).unwrap_or(None)
+                    left_is_unique.then_some(field.constraint()).unwrap_or(None),
                 )
             });
         left_fields.chain(right_fields).collect()
@@ -963,7 +979,9 @@ impl fmt::Display for Join {
             JoinOperator::Inner(expr)
             | JoinOperator::LeftOuter(expr)
             | JoinOperator::RightOuter(expr)
-            | JoinOperator::FullOuter(expr) => format!("{} {}", "ON".to_string().bold().blue(), expr),
+            | JoinOperator::FullOuter(expr) => {
+                format!("{} {}", "ON".to_string().bold().blue(), expr)
+            }
             JoinOperator::Cross => format!(""),
         };
         write!(
@@ -1588,8 +1606,8 @@ impl Ready<Relation> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::{schema::Schema, *};
+    use crate::ast;
     use crate::{builder::With, data_type::DataType, display::Dot};
-    use crate::{ast};
 
     #[test]
     fn test_table() {
@@ -1651,7 +1669,11 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let table: Relation = Relation::table().schema(schema).name("my_table").size(100).build();
+        let table: Relation = Relation::table()
+            .schema(schema)
+            .name("my_table")
+            .size(100)
+            .build();
         let map: Relation = Relation::map()
             .with(("my_a", Expr::exp(Expr::col("a"))))
             .input(table)

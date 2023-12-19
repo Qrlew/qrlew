@@ -5,9 +5,12 @@ use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, function::Function, DataType, DataTyped, Variant as _},
-    expr::{self, aggregate, Aggregate, Expr, Value, Identifier},
-    io, namer::{self, name_from_content}, relation::{self, LEFT_INPUT_NAME, RIGHT_INPUT_NAME},
-    hierarchy::Hierarchy, display::Dot,
+    display::Dot,
+    expr::{self, aggregate, Aggregate, Expr, Identifier, Value},
+    hierarchy::Hierarchy,
+    io,
+    namer::{self, name_from_content},
+    relation::{self, LEFT_INPUT_NAME, RIGHT_INPUT_NAME},
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -201,8 +204,13 @@ impl Join {
 
     /// Replace the duplicates fields specified in `columns` by their coalesce expression
     /// Its mimicks teh behaviour of USING in SQL
-    pub fn remove_duplicates_and_coalesce(self, vec: Vec<String>, columns: &Hierarchy<Identifier>) -> Relation {
-        let fields = self.field_inputs()
+    pub fn remove_duplicates_and_coalesce(
+        self,
+        vec: Vec<String>,
+        columns: &Hierarchy<Identifier>,
+    ) -> Relation {
+        let fields = self
+            .field_inputs()
             .filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
                 if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
@@ -210,20 +218,17 @@ impl Join {
                         name,
                         Expr::coalesce(
                             Expr::col(columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap()),
-                            Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap())
-                        )
+                            Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap()),
+                        ),
                     ))
                 } else {
                     None
                 }
             })
-            .chain(
-                self.field_inputs()
-                    .filter_map(|(name, id)| {
-                        let col = id.as_ref().last().unwrap();
-                        (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
-                    })
-            )
+            .chain(self.field_inputs().filter_map(|(name, id)| {
+                let col = id.as_ref().last().unwrap();
+                (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
+            }))
             .collect::<Vec<_>>();
         Relation::map()
             .input(Relation::from(self))
@@ -375,11 +380,9 @@ impl Relation {
             .fold(reduce, |acc, s| acc.with_group_by_column(*s));
         reduce = reduce.with_iter(
             values
-                .iter().copied()
-                .map(|(name, col)| (
-                    name,
-                    Expr::sum(Expr::col(col.to_string())))
-                ),
+                .iter()
+                .copied()
+                .map(|(name, col)| (name, Expr::sum(Expr::col(col.to_string())))),
         );
         reduce.build()
     }
@@ -387,65 +390,77 @@ impl Relation {
     pub fn l1_norms(self, entities: &str, groups: &[&str], values: &[&str]) -> Self {
         let mut entities_groups = vec![entities];
         entities_groups.extend(groups.iter());
-        let names = values.iter()
+        let names = values
+            .iter()
             .map(|v| format!("_NORM_{}", v))
             .collect::<Vec<_>>();
-        let names = names.iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>();
-        self.sums_by_group(&entities_groups, &names.iter().cloned().zip(values.iter().copied()).collect::<Vec<_>>())
-            .map_fields(|field, expr| {
-                if names.contains(&field) {
-                    Expr::abs(expr)
-                } else {
-                    expr
-                }
-            })
-            .sums_by_group(
-                &vec![entities],
-                &values.iter().cloned().zip(names).collect::<Vec<_>>()
-            )
+        let names = names.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+        self.sums_by_group(
+            &entities_groups,
+            &names
+                .iter()
+                .cloned()
+                .zip(values.iter().copied())
+                .collect::<Vec<_>>(),
+        )
+        .map_fields(|field, expr| {
+            if names.contains(&field) {
+                Expr::abs(expr)
+            } else {
+                expr
+            }
+        })
+        .sums_by_group(
+            &vec![entities],
+            &values.iter().cloned().zip(names).collect::<Vec<_>>(),
+        )
     }
     /// Compute L2 norms of the vectors formed by the group values for each entities
     pub fn l2_norms(self, entities: &str, groups: &[&str], values: &[&str]) -> Self {
         let mut entities_groups = vec![entities];
         entities_groups.extend(groups.clone());
-        let names = values.iter()
+        let names = values
+            .iter()
             .map(|v| format!("_NORM_{}", v))
             .collect::<Vec<_>>();
-        let names = names.iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>();
-        self.sums_by_group(&entities_groups, &names.iter().cloned().zip(values.iter().copied()).collect::<Vec<_>>())
-            .map_fields(|field_name, expr| {
-                if names.contains(&field_name) {
-                    // TODO Remove abs
-                    // Abs is here to signal a positive number
-                    Expr::abs(Expr::multiply(expr.clone(), expr))
-                } else {
-                    expr
-                }
-            })
-            .sums_by_group(
-                &vec![entities],
-                &values.iter().cloned().zip(names).collect::<Vec<_>>()
-            )
-            .map_fields(|field_name, expr| {
-                if values.contains(&field_name) {
-                    Expr::sqrt(expr)
-                } else {
-                    expr
-                }
-            })
+        let names = names.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+        self.sums_by_group(
+            &entities_groups,
+            &names
+                .iter()
+                .cloned()
+                .zip(values.iter().copied())
+                .collect::<Vec<_>>(),
+        )
+        .map_fields(|field_name, expr| {
+            if names.contains(&field_name) {
+                // TODO Remove abs
+                // Abs is here to signal a positive number
+                Expr::abs(Expr::multiply(expr.clone(), expr))
+            } else {
+                expr
+            }
+        })
+        .sums_by_group(
+            &vec![entities],
+            &values.iter().cloned().zip(names).collect::<Vec<_>>(),
+        )
+        .map_fields(|field_name, expr| {
+            if values.contains(&field_name) {
+                Expr::sqrt(expr)
+            } else {
+                expr
+            }
+        })
     }
 
     /// Returns a Relation with rescaled columns specified in `values`.
-///
-/// The resulting relation consists of:
-/// - The original fields from the current relation.
-/// - Rescaled columns, where each rescaled column is a product of the original column (specified by the second element of the corresponding tuple in `values`)
-///   and its scaling factor output by `scale_factors` Relation
-pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relation) -> Self {
+    ///
+    /// The resulting relation consists of:
+    /// - The original fields from the current relation.
+    /// - Rescaled columns, where each rescaled column is a product of the original column (specified by the second element of the corresponding tuple in `values`)
+    ///   and its scaling factor output by `scale_factors` Relation
+    pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relation) -> Self {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
             .inner(Expr::val(true))
@@ -466,27 +481,22 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
             .left(self)
             .right(scale_factors)
             .build();
-        let fields = join.schema()
+        let fields = join
+            .schema()
             .iter()
             .map(|field| (field.name(), Expr::col(field.name())))
-            .chain(
-                values.iter().copied()
-                    .map(|(name, col)| {
-                        let field_name = join.schema().field(col).unwrap().name();
-                        (
-                            name,
-                            Expr::multiply(
-                                Expr::col(field_name),
-                                Expr::col(format!("_SCALE_FACTOR_{}", field_name))
-                            )
-                        )
-                    })
-            )
+            .chain(values.iter().copied().map(|(name, col)| {
+                let field_name = join.schema().field(col).unwrap().name();
+                (
+                    name,
+                    Expr::multiply(
+                        Expr::col(field_name),
+                        Expr::col(format!("_SCALE_FACTOR_{}", field_name)),
+                    ),
+                )
+            }))
             .collect::<Vec<_>>();
-        Relation::map()
-            .with_iter(fields)
-            .input(join)
-            .build()
+        Relation::map().with_iter(fields).input(join).build()
     }
 
     /// For each coordinate, rescale the columns by 1 / greatest(1, norm_l2/C)
@@ -500,11 +510,15 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
         groups: &[&str],
         value_clippings: &[(&str, &str, f64)],
     ) -> Self {
-        let named_values = value_clippings.iter().copied()
+        let named_values = value_clippings
+            .iter()
+            .copied()
             .map(|(s1, s2, _)| (format!("_CLIPPED_{}", s2), s1.to_string(), s2.to_string()))
             .collect::<Vec<_>>();
         // Arrange the values
-        let value_clippings: HashMap<&str, (f64, &str)> = value_clippings.iter().copied()
+        let value_clippings: HashMap<&str, (f64, &str)> = value_clippings
+            .iter()
+            .copied()
             .map(|(s1, s2, f)| (s2, (f, s1)))
             .collect();
         // Compute the norm
@@ -534,7 +548,8 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
         });
         let clipped_relation = self.clone().scale(
             entities,
-            named_values.iter()
+            named_values
+                .iter()
                 .map(|(s1, _, s2)| (s1.as_str(), s2.as_str()))
                 .collect::<Vec<_>>()
                 .as_slice(),
@@ -543,9 +558,10 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
         // Aggregate
         clipped_relation.sums_by_group(
             groups,
-            &named_values.iter()
+            &named_values
+                .iter()
                 .map(|(s1, s2, _)| (s2.as_str(), s1.as_str()))
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>(),
         )
     }
 
@@ -728,7 +744,8 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
     /// GROUP BY all the fields. This mimicks the sql `DISTINCT` in the
     /// `SELECT` clause.
     pub fn distinct(self) -> Relation {
-        let fields = self.schema()
+        let fields = self
+            .schema()
             .iter()
             .map(|f| f.name().to_string())
             .collect::<Vec<_>>();
@@ -839,20 +856,12 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
                 names.push((col.clone(), Expr::col(col)));
             }
         }
-        let x = Expr::and_iter(
-            self.schema()
-            .iter()
-            .filter_map(|f| right.schema()
-                .field(f.name())
-                .is_ok()
-                .then_some(
-                    Expr::eq(
-                        Expr::qcol(LEFT_INPUT_NAME, f.name()),
-                        Expr::qcol(RIGHT_INPUT_NAME, f.name()),
-                    )
-                )
-            )
-        );
+        let x = Expr::and_iter(self.schema().iter().filter_map(|f| {
+            right.schema().field(f.name()).is_ok().then_some(Expr::eq(
+                Expr::qcol(LEFT_INPUT_NAME, f.name()),
+                Expr::qcol(RIGHT_INPUT_NAME, f.name()),
+            ))
+        }));
 
         let join: Relation = Relation::join()
             .left(self.clone())
@@ -861,10 +870,7 @@ pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relat
             .left_names(left_names)
             .right_names(right_names)
             .build();
-        Relation::map()
-            .input(join)
-            .with_iter(names)
-            .build()
+        Relation::map().input(join).with_iter(names).build()
     }
 }
 
@@ -1096,7 +1102,9 @@ mod tests {
             database.query(valid_query).unwrap()
         );
         // L2 Norm
-        let amount_norm = table.clone().l2_norms("order_id", &vec!["item"], &vec!["price"]);
+        let amount_norm = table
+            .clone()
+            .l2_norms("order_id", &vec!["item"], &vec!["price"]);
         amount_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&amount_norm).to_string();
         let valid_query = "SELECT order_id, SQRT(SUM(sum_by_group)) FROM (SELECT order_id, item, POWER(SUM(price), 2) AS sum_by_group FROM item_table GROUP BY order_id, item) AS subquery GROUP BY order_id";
@@ -1212,9 +1220,7 @@ mod tests {
         let date = schema.field_from_index(6).unwrap().name();
 
         // L1 Norm
-        let relation_norm = relation
-            .clone()
-            .l1_norms(user_id, &[item, date], &[price]);
+        let relation_norm = relation.clone().l1_norms(user_id, &[item, date], &[price]);
         relation_norm.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation_norm).to_string();
         println!("Query = {}", query);
@@ -1312,9 +1318,9 @@ mod tests {
             database
                 .query(&ast::Query::from(&clipped_relation_1000).to_string())
                 .unwrap()
-            == database
-                .query(&ast::Query::from(&clipped_relation_10000).to_string())
-                .unwrap()
+                == database
+                    .query(&ast::Query::from(&clipped_relation_10000).to_string())
+                    .unwrap()
         );
         println!("*************");
         for row in database
@@ -1334,9 +1340,9 @@ mod tests {
             database
                 .query(&ast::Query::from(&clipped_relation_1000).to_string())
                 .unwrap()
-            == database
-                .query("SELECT city, sum(age) FROM user_table GROUP BY city")
-                .unwrap()
+                == database
+                    .query("SELECT city, sum(age) FROM user_table GROUP BY city")
+                    .unwrap()
         );
     }
 
@@ -2079,8 +2085,8 @@ mod tests {
             .input(table.clone())
             .with(expr!(count(a)))
             //.with_group_by_column("c")
-            .with(("twice_c", expr!(first(2*c))))
-            .group_by(expr!(2*c))
+            .with(("twice_c", expr!(first(2 * c))))
+            .group_by(expr!(2 * c))
             .build();
         let distinct_relation = relation.clone().distinct();
         distinct_relation.display_dot();
