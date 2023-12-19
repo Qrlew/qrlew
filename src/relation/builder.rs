@@ -620,7 +620,7 @@ impl Ready<Reduce> for ReduceBuilder<WithInput> {
                 ),
                 None => self.input.0,
             };
-            input.display_dot().unwrap();
+            //input.display_dot().unwrap();
             // Check that the First aggregate columns are in the GROUP BY
             reduce.named_aggregates.iter()
                 .filter_map(|(_, agg)| matches!(agg.aggregate(), expr::aggregate::Aggregate::First).then_some(agg.column()))
