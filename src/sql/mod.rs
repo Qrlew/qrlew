@@ -112,10 +112,11 @@ mod tests {
         builder::With,
         display::Dot,
         io::{postgresql, Database},
-        relation::Relation,
+        relation::Relation, DataType,
     };
     use colored::Colorize;
     use itertools::Itertools;
+    use sqlparser::dialect::BigQueryDialect;
     #[ignore]
     #[test]
     fn test_display() {

@@ -35,6 +35,7 @@ pub mod sql;
 pub mod synthetic_data;
 pub mod types;
 pub mod visitor;
+pub mod dialect_translation;
 
 pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
 pub use data_type::{value::Value, DataType};

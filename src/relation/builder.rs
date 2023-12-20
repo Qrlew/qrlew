@@ -3,16 +3,17 @@ use std::{hash::Hash, sync::Arc};
 use itertools::Itertools;
 
 use super::{
-    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set,
-    SetOperator, SetQuantifier, Table, Values, Variant,
+    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set, SetOperator,
+    SetQuantifier, Table, Values, Variant,
 };
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
+    display::Dot,
     expr::{self, AggregateColumn, Expr, Identifier, Split},
     hierarchy::Hierarchy,
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
-    And, display::Dot,
+    And,
 };
 
 // A Table builder
@@ -470,7 +471,7 @@ impl<RequireInput> ReduceBuilder<RequireInput> {
         self
     }
 
-    pub fn group_by_iter<E: Into<Expr>, I: IntoIterator<Item=E>>(self, iter: I) -> Self {
+    pub fn group_by_iter<E: Into<Expr>, I: IntoIterator<Item = E>>(self, iter: I) -> Self {
         iter.into_iter().fold(self, |w, i| w.group_by(i))
     }
 
@@ -644,15 +645,22 @@ impl Ready<Reduce> for ReduceBuilder<WithInput> {
                 None => self.input.0,
             };
             // Check that the First aggregate columns are in the GROUP BY
-            reduce.named_aggregates.iter()
-                .filter_map(|(_, agg)| matches!(agg.aggregate(), expr::aggregate::Aggregate::First).then_some(agg.column()))
-                .map(|col: &Identifier| if !reduce.group_by.contains(col) {
-                    Err(Error::InvalidRelation(format!(
-                        "First aggregate columns must be in the GROUP BY. Got: {}",
-                        col
-                    )))
-                } else {
-                    Ok(col)
+            reduce
+                .named_aggregates
+                .iter()
+                .filter_map(|(_, agg)| {
+                    matches!(agg.aggregate(), expr::aggregate::Aggregate::First)
+                        .then_some(agg.column())
+                })
+                .map(|col: &Identifier| {
+                    if !reduce.group_by.contains(col) {
+                        Err(Error::InvalidRelation(format!(
+                            "First aggregate columns must be in the GROUP BY. Got: {}",
+                            col
+                        )))
+                    } else {
+                        Ok(col)
+                    }
                 })
                 .collect::<Result<Vec<_>>>()?;
             // Build the Relation
@@ -838,9 +846,7 @@ impl Ready<Join> for JoinBuilder<WithInput, WithInput> {
             .name
             .clone()
             .unwrap_or(namer::name_from_content(JOIN, &self));
-        let operator = self
-            .operator
-            .unwrap_or(JoinOperator::Cross);
+        let operator = self.operator.unwrap_or(JoinOperator::Cross);
         let left_names = self
             .left
             .0

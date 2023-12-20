@@ -22,6 +22,7 @@ use crate::{
     },
     tokenizer::Tokenizer,
     visitor::{Acceptor, Dependencies, Visited},
+    dialect_translation::{QueryToRelationTranslator, postgres::PostgresTranslator},
     types::And, display::Dot
 };
 use itertools::Itertools;
@@ -43,11 +44,15 @@ This is done in the query_names module.
 /// The Hierarchy of Relations is the context in which the query is converted, typically the list of tables with their Path
 /// The QueryNames is the map of sub-query referrenced by their names, so that links can be unfolded
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-struct TryIntoRelationVisitor<'a>(&'a Hierarchy<Arc<Relation>>, QueryNames<'a>);
+struct TryIntoRelationVisitor<'a, T: QueryToRelationTranslator + Copy + Clone> {
+    relations: &'a Hierarchy<Arc<Relation>>,
+    query_names: QueryNames<'a>,
+    translator: T
+}
 
-impl<'a> TryIntoRelationVisitor<'a> {
-    fn new(relations: &'a Hierarchy<Arc<Relation>>, query_names: QueryNames<'a>) -> Self {
-        TryIntoRelationVisitor(relations, query_names)
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryIntoRelationVisitor<'a, T> {
+    fn new(relations: &'a Hierarchy<Arc<Relation>>, query_names: QueryNames<'a>, translator: T) -> Self {
+        TryIntoRelationVisitor{ relations, query_names, translator }
     }
 }
 
@@ -90,25 +95,26 @@ impl RelationWithColumns {
 }
 
 /// A struct to hold the query being visited and its Relations
-struct VisitedQueryRelations<'a>(
-    Hierarchy<Arc<Relation>>,
-    Visited<'a, ast::Query, Result<Arc<Relation>>>,
-);
+struct VisitedQueryRelations<'a, T: QueryToRelationTranslator + Copy + Clone>{
+    relations: Hierarchy<Arc<Relation>>,
+    visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
+    translator: T
+}
 
-impl<'a> VisitedQueryRelations<'a> {
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> {
     fn new(
-        try_into_relation_visitor: &TryIntoRelationVisitor<'a>,
+        try_into_relation_visitor: &TryIntoRelationVisitor<'a, T>,
         query: &'a ast::Query,
         visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
     ) -> Self {
-        let TryIntoRelationVisitor(relations, query_names) = try_into_relation_visitor;
+        let TryIntoRelationVisitor{relations, query_names, translator} = try_into_relation_visitor;
         let mut relations: Hierarchy<Arc<Relation>> = (*relations).clone();
         relations.extend(
             query_names
                 .name_referred(query)
                 .map(|(name, referred)| (name.clone(), visited.get(referred).clone().unwrap())),
         );
-        VisitedQueryRelations(relations, visited)
+        VisitedQueryRelations{relations, visited, translator: *translator}
     }
 
     /// Convert a TableFactor into a RelationWithColumns
@@ -116,7 +122,7 @@ impl<'a> VisitedQueryRelations<'a> {
         &self,
         table_factor: &'a ast::TableFactor,
     ) -> Result<RelationWithColumns> {
-        let VisitedQueryRelations(relations, visited) = self;
+        let VisitedQueryRelations{relations, visited, translator} = self;
         // Process the table_factor
 
         match &table_factor {
@@ -354,10 +360,12 @@ impl<'a> VisitedQueryRelations<'a> {
                         }
                         expr => namer::name_from_content(FIELD, &expr),
                     },
-                    Expr::try_from(expr.with(columns))?,
+                    self.translator.try_expr(expr,columns)?
+                    //Expr::try_from(expr.with(columns))?,
                 )),
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
-                    named_exprs.push((alias.clone().value, Expr::try_from(expr.with(columns))?))
+                    named_exprs.push((alias.clone().value, self.translator.try_expr(expr,columns)?))
+                    //named_exprs.push((alias.clone().value, Expr::try_from(expr.with(columns))?))
                 }
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
@@ -393,7 +401,7 @@ impl<'a> VisitedQueryRelations<'a> {
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
-            let mut expr = Expr::try_from(expr.with(columns))?;
+            let mut expr = self.translator.try_expr(expr,columns)?; //Expr::try_from(expr.with(columns))?;
             let columns = named_exprs
                 .iter()
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
@@ -613,9 +621,9 @@ impl<'a> VisitedQueryRelations<'a> {
     }
 }
 
-impl<'a> Visitor<'a, Result<Arc<Relation>>> for TryIntoRelationVisitor<'a> {
+impl<'a, T:QueryToRelationTranslator + Copy + Clone> Visitor<'a, Result<Arc<Relation>>> for TryIntoRelationVisitor<'a, T> {
     fn dependencies(&self, acceptor: &'a ast::Query) -> Dependencies<'a, ast::Query> {
-        let TryIntoRelationVisitor(_relations, query_names) = self;
+        let TryIntoRelationVisitor{relations, query_names, translator} = self;
         let mut dependencies = acceptor.dependencies();
         // Add subqueries from the body
         dependencies.extend(
@@ -683,10 +691,27 @@ impl<'a> TryFrom<QueryWithRelations<'a>> for Relation {
         let query_names = query.accept(IntoQueryNamesVisitor);
         // Visit for conversion
         query
-            .accept(TryIntoRelationVisitor::new(relations, query_names))
+            .accept(TryIntoRelationVisitor::new(relations, query_names, PostgresTranslator))
             .map(|r| r.as_ref().clone())
     }
 }
+
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelations<'a>, T)> for Relation {
+    type Error = Error;
+
+    fn try_from(value: (QueryWithRelations<'a>, T)) -> result::Result<Self, Self::Error> {
+        // Pull values from the object
+        let (QueryWithRelations(query, relations), translator) = value;
+        // Visit the query to get query names
+        let query_names = query.accept(IntoQueryNamesVisitor);
+        // Visit for conversion
+        query
+            .accept(TryIntoRelationVisitor::new(relations, query_names, translator))
+            .map(|r| r.as_ref().clone())
+    }
+}
+
+
 
 /// A simple SQL query parser with dialect
 pub fn parse_with_dialect<D: Dialect>(query: &str, dialect: D) -> Result<ast::Query> {

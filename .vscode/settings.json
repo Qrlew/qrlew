@@ -1,11 +1,15 @@
 {
-    "rust-analyzer.check.features": [
-        "sqlite",
-    ],
+    "rust-analyzer.server.extraEnv": { "RUSTUP_TOOLCHAIN": "stable" },
     "rust-analyzer.cargo.features": [
         "graphviz_display",
         "sqlite",
+        "mssql"
     ],
     "editor.codeActionsOnSave": {},
     "rust-analyzer.cargo.buildScripts.overrideCommand": null,
+    "rust-analyzer.linkedProjects": [
+        "./Cargo.toml",
+    ],
+    "rust-analyzer.cargo.sysroot": "discover",
+    "rust-analyzer.showUnlinkedFileNotification": false,
 }

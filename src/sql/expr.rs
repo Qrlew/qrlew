@@ -942,7 +942,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 let precision = if flat_args.len() > 1 {
                     flat_args[1].clone()
                 } else {
-                    Expr::val(1.)
+                    Expr::val(0)
                 };
                 Expr::round(
                     flat_args[0].clone(),
@@ -953,7 +953,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 let precision = if flat_args.len() > 1 {
                     flat_args[1].clone()
                 } else {
-                    Expr::val(1.)
+                    Expr::val(0)
                 };
                 Expr::trunc(
                     flat_args[0].clone(),

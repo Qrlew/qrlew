@@ -33,9 +33,24 @@ jobs:
                     # Maps tcp port 5432 on service container to the host
                     - 5432:5432
 
+            mssql:
+                image: mcr.microsoft.com/mssql/server:2019-latest
+                env:
+                    # Set the SA password
+                    SA_PASSWORD: "Strong@Passw0rd"
+                    # Accept the EULA
+                    ACCEPT_EULA: "Y"
+                ports:
+                    - 1433:1433
+                options: >-
+                    --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P 'Strong@Passw0rd' -Q 'SELECT 1'"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
         steps:
             - uses: actions/checkout@v3
             - name: Build
-              run: cargo build --verbose
+              run: cargo build --features mssql --verbose
             - name: Run tests
-              run: cargo test --verbose
+              run: cargo test --features mssql --verbose
