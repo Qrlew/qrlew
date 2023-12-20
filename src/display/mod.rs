@@ -78,11 +78,7 @@ impl Dot for Relation {
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
-            .or(
-                Command::new("xdg-open")
-                .arg(format!("http://localhost:8000/{name}.html"))
-                .output()
-            );
+            .expect("Error: this works on MacOS");
         Ok(())
     }
 }
@@ -101,11 +97,7 @@ impl Dot for WithContext<&Expr, DataType> {
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
-            .or(
-                Command::new("xdg-open")
-                .arg(format!("http://localhost:8000/{name}.html"))
-                .output()
-            );
+            .expect("Error: this works on MacOS");
         Ok(())
     }
 }
@@ -124,11 +116,7 @@ impl Dot for WithContext<&Expr, Value> {
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
-            .or(
-                Command::new("xdg-open")
-                .arg(format!("http://localhost:8000/{name}.html"))
-                .output()
-            );
+            .expect("Error: this works on MacOS");
         Ok(())
     }
 }
@@ -147,11 +135,7 @@ impl<'a> Dot for RelationWithRewritingRules<'a> {
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
-            .or(
-                Command::new("xdg-open")
-                .arg(format!("http://localhost:8000/{name}.html"))
-                .output()
-            );
+            .expect("Error: this works on MacOS");
         Ok(())
     }
 }
@@ -170,11 +154,7 @@ impl<'a> Dot for RelationWithRewritingRule<'a> {
         Command::new("open")
             .arg(format!("/tmp/{name}.html"))
             .output()
-            .or(
-                Command::new("xdg-open")
-                .arg(format!("http://localhost:8000/{name}.html"))
-                .output()
-            );
+            .expect("Error: this works on MacOS");
         Ok(())
     }
 }
