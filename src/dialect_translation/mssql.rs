@@ -117,14 +117,6 @@ impl RelationToQueryTranslator for MSSQLTranslator {
         })
     }
 
-    fn char_length(&self, expr: &expr::Expr) -> ast::Expr {
-        todo!()
-    }
-
-    fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
-        todo!()
-    }
-
     fn cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
         // It should be CAST(expr AS BIT) but BIT is not a valid ast::DataType
         // So we cast it to INT
@@ -147,7 +139,7 @@ impl RelationToQueryTranslator for MSSQLTranslator {
     // during the onboarding
     // CAST(col AS VARCHAR/TEXT) -> CONVERT(VARCHAR, col, 126)
 
-    // TODO because not supported yet.
+    // TODO: some functions are not supported yet.
     // EXTRACT(epoch FROM column) -> DATEDIFF(SECOND, '19700101', column)
     // Concat(a, b) has to take at least 2 args, it can take empty string as well.
     // onboarding, charset query: SELECT DISTINCT REGEXP_SPLIT_TO_TABLE(anon_2.name ,'') AS "regexp_split" ...

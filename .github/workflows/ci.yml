@@ -51,8 +51,6 @@ jobs:
         steps:
             - uses: actions/checkout@v3
             - name: Build
-              run: cargo build --verbose
+              run: cargo build --features mssql --verbose
             - name: Run tests
-              run: cargo test --verbose
-            - name: Run tests MSSQL
-              run: cargo test --features mssql dialect_translation::mssql --verbose
+              run: cargo test --features mssql --verbose
