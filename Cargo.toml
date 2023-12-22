@@ -36,10 +36,19 @@ statrs = "0.16.0"
 sqlx = { version = "0.6", features = ["mssql", "runtime-tokio-native-tls", "offline", "any"], optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 
+# bigquery dependencies
+gcp-bigquery-client = { version = "0.18", optional = true }
+#tokio-test = { version =  "0.4", optional = true }
+#rand = { version =  "0.8", optional = true }
+wiremock = { version = "0.5.19", optional = true }
+tempfile = { version = "3.6.0", optional = true }
+fake = { version = "2.6.1", optional = true }
+
 [features]
 # Use SQLite for tests and examples
 sqlite = ["dep:rusqlite"]
 mssql = ["dep:sqlx", "dep:tokio"]
+bigquery = ["dep:gcp-bigquery-client", "dep:wiremock", "dep:tempfile", "dep:fake"]
 # Tests
 checked_injections = []
 # Multiplicity features are tested on large datasets (may take too much memory)

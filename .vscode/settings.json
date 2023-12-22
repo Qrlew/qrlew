@@ -3,7 +3,8 @@
     "rust-analyzer.cargo.features": [
         "graphviz_display",
         "sqlite",
-        "mssql"
+        "mssql",
+        "bigquery"
     ],
     "editor.codeActionsOnSave": {},
     "rust-analyzer.cargo.buildScripts.overrideCommand": null,
