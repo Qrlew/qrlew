@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.0] - 2023-12-22
 ### Changed
-- Make synthetic data optional [#229](https://github.com/Qrlew/qrlew/issues/229)
+- Make synthetic data optional [#237](https://github.com/Qrlew/qrlew/issues/237)
 ### Fixed
 - DP rewriting for join of PUP and DP relations [#228](https://github.com/Qrlew/qrlew/issues/228)
 
