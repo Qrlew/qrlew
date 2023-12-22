@@ -578,7 +578,7 @@ impl<'a> RelationWithRewritingRule<'a> {
 /// A basic rewriting rule setter
 pub struct RewritingRulesSetter<'a> {
     relations: &'a Hierarchy<Arc<Relation>>,
-    synthetic_data: SyntheticData,
+    synthetic_data: Option<SyntheticData>,
     privacy_unit: PrivacyUnit,
     budget: Budget,
 }
@@ -586,7 +586,7 @@ pub struct RewritingRulesSetter<'a> {
 impl<'a> RewritingRulesSetter<'a> {
     pub fn new(
         relations: &'a Hierarchy<Arc<Relation>>,
-        synthetic_data: SyntheticData,
+        synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
         budget: Budget,
     ) -> RewritingRulesSetter {
@@ -601,7 +601,7 @@ impl<'a> RewritingRulesSetter<'a> {
 
 impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
     fn table(&self, table: &'a Table) -> Vec<RewritingRule> {
-        if self
+        let mut rewriting_rules = if self
             .privacy_unit
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
@@ -609,11 +609,6 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
         {
             vec![
                 RewritingRule::new(vec![], Property::Private, Parameters::None),
-                RewritingRule::new(
-                    vec![],
-                    Property::SyntheticData,
-                    Parameters::SyntheticData(self.synthetic_data.clone()),
-                ),
                 RewritingRule::new(
                     vec![],
                     Property::PrivacyUnitPreserving,
@@ -627,17 +622,22 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                     Property::Public,
                     Parameters::None,
                 ),
+            ]
+        };
+        if let Some(synthetic_data) = &self.synthetic_data {
+            rewriting_rules.push(
                 RewritingRule::new(
                     vec![],
                     Property::SyntheticData,
-                    Parameters::SyntheticData(self.synthetic_data.clone()),
-                ),
-            ]
+                    Parameters::SyntheticData(synthetic_data.clone()),
+                )
+            )
         }
+        rewriting_rules
     }
 
     fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
-        vec![
+        let mut rewriting_rules = vec![
             RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(
                 vec![Property::Published],
@@ -654,12 +654,17 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
-            RewritingRule::new(
-                vec![Property::SyntheticData],
-                Property::SyntheticData,
-                Parameters::SyntheticData(self.synthetic_data.clone()),
-            ),
-        ]
+        ];
+        if let Some(synthetic_data) = &self.synthetic_data {
+            rewriting_rules.push(
+                RewritingRule::new(
+                    vec![Property::SyntheticData],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(synthetic_data.clone()),
+                )
+            )
+        }
+        rewriting_rules
     }
 
     fn reduce(
@@ -673,18 +678,24 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 vec![Property::Published],
                 Property::Published,
                 Parameters::None,
-            ),
-            RewritingRule::new(
-                vec![Property::SyntheticData],
-                Property::SyntheticData,
-                Parameters::None,
-            ),
-            RewritingRule::new(
-                vec![Property::SyntheticData],
-                Property::Published,
-                Parameters::SyntheticData(self.synthetic_data.clone()),
-            ),
+            )
         ];
+        if let Some(synthetic_data) = &self.synthetic_data {
+            rewriting_rules.push(
+                RewritingRule::new(
+                    vec![Property::SyntheticData],
+                    Property::SyntheticData,
+                    Parameters::None,
+                )
+            );
+            rewriting_rules.push(
+                RewritingRule::new(
+                    vec![Property::SyntheticData],
+                    Property::Published,
+                    Parameters::SyntheticData(synthetic_data.clone()),
+                )
+            );
+        }
         // We can compile into DP only if the aggregations are supported
         if reduce.aggregate().iter().all(|f| {
             match f.aggregate() {
@@ -725,7 +736,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
         left: Arc<RelationWithRewritingRules<'a>>,
         right: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
-        vec![
+        let mut rewriting_rules = vec![
             RewritingRule::new(
                 vec![Property::Public, Property::Public],
                 Property::Public,
@@ -770,12 +781,17 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
-            RewritingRule::new(
-                vec![Property::SyntheticData, Property::SyntheticData],
-                Property::SyntheticData,
-                Parameters::SyntheticData(self.synthetic_data.clone()),
-            ),
-        ]
+        ];
+        if let Some(synthetic_data) = &self.synthetic_data {
+            rewriting_rules.push(
+                RewritingRule::new(
+                    vec![Property::SyntheticData, Property::SyntheticData],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(synthetic_data.clone()),
+                )
+            )
+        }
+        rewriting_rules
     }
 
     fn set(
@@ -784,7 +800,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
         left: Arc<RelationWithRewritingRules<'a>>,
         right: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
-        vec![
+        let mut rewriting_rules = vec![
             RewritingRule::new(
                 vec![Property::Public, Property::Public],
                 Property::Public,
@@ -803,23 +819,33 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
-            RewritingRule::new(
-                vec![Property::SyntheticData, Property::SyntheticData],
-                Property::SyntheticData,
-                Parameters::SyntheticData(self.synthetic_data.clone()),
-            ),
-        ]
+        ];
+        if let Some(synthetic_data) = &self.synthetic_data {
+            rewriting_rules.push(
+                RewritingRule::new(
+                    vec![Property::SyntheticData, Property::SyntheticData],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(synthetic_data.clone()),
+                )
+            )
+        }
+        rewriting_rules
     }
 
     fn values(&self, values: &'a Values) -> Vec<RewritingRule> {
-        vec![
-            RewritingRule::new(
-                vec![],
-                Property::SyntheticData,
-                Parameters::SyntheticData(self.synthetic_data.clone()),
-            ),
+        let mut rewriting_rules = vec![
             RewritingRule::new(vec![], Property::Public, Parameters::None),
-        ]
+        ];
+        if let Some(synthetic_data) = &self.synthetic_data {
+            rewriting_rules.push(
+                RewritingRule::new(
+                    vec![],
+                    Property::SyntheticData,
+                    Parameters::SyntheticData(synthetic_data.clone()),
+                )
+            )
+        }
+        rewriting_rules
     }
 }
 
@@ -1338,7 +1364,7 @@ mod tests {
         // Add rewritting rules
         let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
             &relations,
-            synthetic_data,
+            Some(synthetic_data),
             privacy_unit,
             budget,
         ));
@@ -1400,7 +1426,7 @@ mod tests {
         // Add rewritting rules
         let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
             &relations,
-            synthetic_data,
+            Some(synthetic_data),
             privacy_unit,
             budget,
         ));
@@ -1459,7 +1485,7 @@ mod tests {
         // Add rewritting rules
         let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
             &relations,
-            synthetic_data,
+            Some(synthetic_data),
             privacy_unit,
             budget,
         ));
@@ -1518,7 +1544,7 @@ mod tests {
         // Add rewritting rules
         let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
             &relations,
-            synthetic_data,
+            Some(synthetic_data),
             privacy_unit,
             budget,
         ));
@@ -1550,11 +1576,62 @@ mod tests {
             SELECT order_id, sum(price) FROM item_table GROUP BY order_id
         "#,
         ).unwrap();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
-        ]));
+        ])));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+        let budget = Budget::new(1., 1e-3);
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        // Add rewritting rules
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            synthetic_data,
+            privacy_unit,
+            budget,
+        ));
+        relation_with_rules.display_dot().unwrap();
+        let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        relation_with_rules.display_dot().unwrap();
+        for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
+            rwrr.display_dot().unwrap();
+            let num_dp = rwrr.accept(BudgetDispatcher);
+            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("DEBUG SCORE {}", rwrr.accept(Score));
+            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            println!(
+                "PrivateQuery: {:?}",
+                relation_with_private_query.private_query()
+            );
+            relation_with_private_query
+                .relation()
+                .display_dot()
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_no_synthetic_data() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = parse(r#"
+            SELECT order_id, sum(price) FROM item_table GROUP BY order_id
+        "#,
+        ).unwrap();
+        let synthetic_data = None;
         let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
@@ -1628,7 +1705,7 @@ mod tests {
         // Add rewritting rules
         let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
             &relations,
-            synthetic_data,
+            Some(synthetic_data),
             privacy_unit,
             budget,
         ));
