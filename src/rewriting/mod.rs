@@ -62,7 +62,7 @@ impl Relation {
     pub fn rewrite_as_privacy_unit_preserving<'a>(
         &'a self,
         relations: &'a Hierarchy<Arc<Relation>>,
-        synthetic_data: SyntheticData,
+        synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
         budget: Budget,
     ) -> Result<RelationWithPrivateQuery> {
@@ -90,7 +90,7 @@ impl Relation {
     pub fn rewrite_with_differential_privacy<'a>(
         &'a self,
         relations: &'a Hierarchy<Arc<Relation>>,
-        synthetic_data: SyntheticData,
+        synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
         budget: Budget,
     ) -> Result<RelationWithPrivateQuery> {
@@ -118,6 +118,8 @@ impl Relation {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use itertools::Itertools;
 
     use super::*;
@@ -163,11 +165,11 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
-        ]));
+        ])));
         let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
@@ -217,15 +219,68 @@ mod tests {
     }
 
     #[test]
+    fn test_rewrite_with_differential_privacy_no_synthetic_data() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let synthetic_data = None;
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+            ("table_1", vec![], PrivacyUnit::privacy_unit_row())
+        ]);
+        let budget = Budget::new(1., 1e-3);
+
+        let queries = [
+            "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
+            "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
+            "SELECT order_id, sum(order_id) FROM item_table GROUP BY order_id",
+            "SELECT order_id As my_order, sum(price) FROM item_table GROUP BY my_order",
+            "SELECT order_id, MAX(order_id), sum(price) FROM item_table GROUP BY order_id",
+            "WITH my_avg AS (SELECT AVG(price) AS avg_price, STDDEV(price) AS std_price FROM item_table WHERE price > 1.) SELECT AVG((price - avg_price) / std_price) FROM item_table CROSS JOIN my_avg WHERE std_price > 1.",
+        ];
+
+        for q in queries {
+            println!("=================================\n{q}");
+            let query = parse(q).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            relation.display_dot().unwrap();
+            let relation_with_private_query = relation
+                .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), budget.clone())
+                .unwrap();
+            relation_with_private_query
+                .relation()
+                .display_dot()
+                .unwrap();
+            let dp_query = ast::Query::from(&relation_with_private_query.relation().clone()).to_string();
+            println!("\n{dp_query}");
+            _ = database
+                .query(dp_query.as_str())
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n");
+        }
+    }
+
+    #[test]
     fn test_rewrite_with_differential_privacy_with_row_privacy() {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse("SELECT order_id, sum(price) FROM item_table GROUP BY order_id").unwrap();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
-        ]));
+        ])));
         let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
@@ -258,11 +313,11 @@ mod tests {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse("SELECT order_id, price FROM item_table").unwrap();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
-        ]));
+        ])));
         let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
@@ -295,11 +350,11 @@ mod tests {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = parse("SELECT * FROM order_table").unwrap();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
             (vec!["user_table"], Identifier::from("user_table")),
-        ]));
+        ])));
         let privacy_unit = PrivacyUnit::from(vec![
             (
                 "item_table",
@@ -389,11 +444,11 @@ mod tests {
             .iter()
             .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
             .collect();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["retail_transactions"], Identifier::from("synthetic_retail_transactions")),
             (vec!["retail_demographics"], Identifier::from("synthetic_retail_demographics")),
             (vec!["retail_products"], Identifier::from("synthetic_retail_products")),
-        ]));
+        ])));
         let privacy_unit = PrivacyUnit::from(vec![
             ("retail_demographics", vec![], "household_id"),
             ("retail_transactions", vec![("household_id","retail_demographics","household_id")], "household_id"),
@@ -452,9 +507,9 @@ mod tests {
             .iter()
             .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
             .collect();
-        let synthetic_data = SyntheticData::new(Hierarchy::from([
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["census"], Identifier::from("census")),
-        ]));
+        ])));
         let privacy_unit = PrivacyUnit::from(vec![
             ("census", vec![], "_PRIVACY_UNIT_ROW_"),
         ]);
