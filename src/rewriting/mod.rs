@@ -118,8 +118,6 @@ impl Relation {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use itertools::Itertools;
 
     use super::*;
