@@ -6,13 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.7.1] - 2023-12-22
+### Fixed
+- postrgres translation for some queries [#240](https://github.com/Qrlew/qrlew/pull/240)
 
 ## [0.7.0] - 2023-12-22
 ### Changed
 - Make synthetic data optional [#237](https://github.com/Qrlew/qrlew/issues/237)
 ### Fixed
 - DP rewriting for join of PUP and DP relations [#228](https://github.com/Qrlew/qrlew/issues/228)
-
+### Added
+- Translators for postgres and mssql [#173](https://github.com/Qrlew/qrlew/pull/173)
 
 ## [0.6.0] - 2023-12-18
 ### Added
