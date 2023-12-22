@@ -5,9 +5,10 @@
 //! Inspired by this https://github.com/lquerel/gcp-bigquery-client/blob/main/examples/local.rs
 //! 
 
+use chrono::ParseError;
 use serde::Serialize;
 use tempfile::NamedTempFile;
-use std::ops::Deref;
+use std::{ops::Deref, str::ParseBoolError};
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate, Times,
@@ -59,6 +60,24 @@ const DATASET_ID: &str = "dataset1";
 
 impl From<gcp_bigquery_client::error::BQError> for Error {
     fn from(err: gcp_bigquery_client::error::BQError) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl From<std::num::ParseFloatError> for Error {
+    fn from(err: std::num::ParseFloatError) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl From<ParseBoolError> for Error {
+    fn from(err: ParseBoolError) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
+impl From<ParseError> for Error {
+    fn from(err: ParseError) -> Self {
         Error::Other(err.to_string())
     }
 }
@@ -455,41 +474,40 @@ async fn async_query(query_str: &str, client: &Client) -> Result<Vec<value::List
         .await
         .unwrap();
     let query_response = rs.query_response();
-    
     let schema = &query_response.schema;
-    todo!()
-    // if let Some(table_schema) = schema {
-    //     let fields = table_schema.fields().unwrap();
-    //     Ok(query_response.rows
-    //         .iter()
-    //         .map(|row| {
-    //             let values: Vec<SqlValue> = (0..row.len())
-    //                 .map(|i| {
-    //                     let table_row 
-    //                     let val: SqlValue = 
-    //                 })
-    //                 .collect();
-    //             value::List::from_iter(values.into_iter().map(|v| v.try_into().expect("Convert")))
-    //         })
-    //         .collect()
-    //     )
-    // } else {
-    //     Ok(vec![])
-    // }
-
-    // let rows = sqlx::query(query_str).fetch_all(pool).await?;
-    // Ok(rows
-    //     .iter()
-    //     .map(|row: &MssqlRow| {
-    //         let values: Vec<SqlValue> = (0..row.len())
-    //             .map(|i| {
-    //                 let val: SqlValue = row.get(i);
-    //                 val
-    //             })
-    //             .collect();
-    //         value::List::from_iter(values.into_iter().map(|v| v.try_into().expect("Convert")))
-    //     })
-    //     .collect())
+    if let Some(table_schema) = schema {
+        let fields = table_schema.fields().as_ref().unwrap();
+        Ok(query_response.rows.as_ref()
+            .unwrap()
+            .iter()
+            .map(|row| {
+                // iterate over columns. There will be as many columns as
+                // there are fields in the schema
+                let cells = row.columns.as_ref().unwrap();
+                println!("row: {:?}", row);
+                println!("cells: {:?}", cells.len());
+                println!("fields: {:?}", fields.len());
+                let values: Vec<SqlValue> = (0..fields.len())
+                    .map(|i| {
+                        let cell_value = cells
+                            .get(i)
+                            .unwrap()
+                            .clone()
+                            .value;
+                        let field_type = fields.get(i)
+                            .unwrap()
+                            .r#type.clone();
+                        let val = SqlValue::try_from((cell_value, field_type)).unwrap();
+                        val
+                    })
+                    .collect();
+                value::List::from_iter(values.into_iter().map(|v| v.try_into().expect("Convert")))
+            })
+            .collect()
+        )
+    } else {
+        Ok(vec![])
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -503,6 +521,7 @@ enum SqlValue {
     Time(value::Time),
     DateTime(value::DateTime),
     Id(value::Id),
+    Null(value::Unit),
 }
 
 impl TryFrom<Value> for SqlValue {
@@ -523,6 +542,7 @@ impl TryFrom<Value> for SqlValue {
             Value::Time(t) => Ok(SqlValue::Time(t)),
             Value::DateTime(d) => Ok(SqlValue::DateTime(d)),
             Value::Id(i) => Ok(SqlValue::Id(i)),
+            Value::Unit(u) => Ok(SqlValue::Null(u)),
             _ => Err(Error::other(value)),
         }
     }
@@ -545,52 +565,69 @@ impl TryFrom<SqlValue> for Value {
             SqlValue::Time(t) => Ok(Value::Time(t)),
             SqlValue::DateTime(d) => Ok(Value::DateTime(d)),
             SqlValue::Id(i) => Ok(Value::Id(i)),
+            SqlValue::Null(u) => Ok(Value::Unit(u)),
         }
     }
 }
 
-impl TryFrom<(serde_json::Value, field_type::FieldType)> for SqlValue {
+impl TryFrom<(Option<serde_json::Value>, field_type::FieldType)> for SqlValue {
+    // Type convertion from what is provided from the database to SqlValue
+    // (a wrapper to qrlew value)
+    // Data type in the query output is probided by the query_response table schema
+    // field_type::FieldType. However we don't know from the type if the result
+    // will contain Null or not. 
+    // Data Values comes as a serde_json::Value which I only see String values
+    // This is optional. Here, If the Value is None we map it to value::Value::unit()
+    // As an alternative if We can map all columns to an Optional Value.
     type Error = Error;
 
-    fn try_from(value: (serde_json::Value, field_type::FieldType)) -> Result<Self> {
-        let (val, dtype) = value;
-        // the json::Value seems to be always a string
-        let val_as_str = match val {
-            serde_json::Value::String(s) => Ok(s),
-            _ => Err(Error::other(format!("We don't know how to convert vaulue {:?} of type {:?}", val, dtype)))
-        }?;
-        match dtype {
-            field_type::FieldType::String => value::Value::text(val_as_str).try_into(),
-            field_type::FieldType::Bytes => todo!(),
-            field_type::FieldType::Integer => value::Value::integer(val_as_str.parse()?).try_into(),
-            field_type::FieldType::Int64 => value::Value::integer(val_as_str.parse()?).try_into(),
-            field_type::FieldType::Float => todo!(), //value::Value::float(val_as_str.parse()?).try_into(),
-            field_type::FieldType::Float64 => todo!(), //value::Value::float(val_as_str.parse()?).try_into(),
-            field_type::FieldType::Numeric => todo!(),
-            field_type::FieldType::Bignumeric => todo!(),
-            field_type::FieldType::Boolean => todo!(),
-            field_type::FieldType::Bool => todo!(),
-            field_type::FieldType::Timestamp => todo!(),
-            field_type::FieldType::Date => todo!(),
-            field_type::FieldType::Time => todo!(),
-            field_type::FieldType::Datetime => todo!(),
-            field_type::FieldType::Record => todo!(),
-            field_type::FieldType::Struct => todo!(),
-            field_type::FieldType::Geography => todo!(),
-            field_type::FieldType::Json => todo!(),
+    fn try_from(value: (Option<serde_json::Value>, field_type::FieldType)) -> Result<Self> {
+        let (val, dtype) = value;        
+        if let Some(v) = val {
+            let val_as_str = extract_value(v)?;
+            match dtype {
+                field_type::FieldType::String => value::Value::text(val_as_str).try_into(),
+                field_type::FieldType::Bytes => todo!(),
+                field_type::FieldType::Integer => value::Value::integer(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Int64 => value::Value::integer(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Float => value::Value::float(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Float64 => value::Value::float(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Numeric => value::Value::float(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Bignumeric => value::Value::float(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Boolean => value::Value::boolean(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Bool => value::Value::boolean(val_as_str.parse()?).try_into(),
+                field_type::FieldType::Timestamp => {
+                    let timestamp: f64 = val_as_str.parse()?;
+                    let seconds = timestamp as i64; // Whole seconds part
+                    let nanoseconds = ((timestamp - seconds as f64) * 1_000_000_000.0) as u32; // Fractional part in nanoseconds
+                    let datetime = chrono::NaiveDateTime::from_timestamp_opt(seconds, nanoseconds).unwrap();
+                    value::Value::date_time(datetime).try_into()
+                },
+                field_type::FieldType::Date => value::Value::date(chrono::NaiveDate::parse_from_str(&val_as_str[..], "%Y-%m-%d")?).try_into(),
+                field_type::FieldType::Time => value::Value::time(chrono::NaiveTime::parse_from_str(&val_as_str[..], "%H:%M:%S%.f")?).try_into(),
+                field_type::FieldType::Datetime => value::Value::date_time(chrono::NaiveDateTime::parse_from_str(&val_as_str[..], "%Y-%m-%dT%H:%M:%S%.f")?).try_into(),
+                field_type::FieldType::Record => todo!(),
+                field_type::FieldType::Struct => todo!(),
+                field_type::FieldType::Geography => todo!(),
+                field_type::FieldType::Json => todo!(),
+            }
+        } else {
+            value::Value::unit().try_into()
         }
-        // the json::Value seems to be always a string
-        // match value {
-        //     serde_json::Value::Null => todo!(),
-        //     serde_json::Value::Bool(b) => value::Value::boolean(b).try_into(),
-        //     serde_json::Value::Number(n) => todo!(),
-        //     serde_json::Value::String(s) => todo!(),
-        //     serde_json::Value::Array(_) => todo!(),
-        //     serde_json::Value::Object(_) => todo!(),
-        // }
     }
 }
 
+fn extract_value(val: serde_json::Value) -> Result<String>{
+    match val {
+        serde_json::Value::Null => todo!(),
+        serde_json::Value::Bool(_) => todo!(),
+        serde_json::Value::Number(_) => todo!(),
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Array(_) => todo!(),
+        serde_json::Value::Object(_) => todo!(),
+    }
+
+}
 
 #[cfg(test)]
 mod tests {
@@ -702,7 +739,19 @@ mod tests {
             .collect();
         println!("{:?}", tables_as_str);
 
-        let query = "SELECT *, CURRENT_TIMESTAMP() AS now, 1.00 AS int_v, 'AHAhA' AS mysrt, True AS mybool, Null AS mynull FROM dataset1.mytable2;";
+        let query = "
+        SELECT 
+            *,
+            CURRENT_TIMESTAMP() AS now,
+            CURRENT_DATETIME() as now_datetime,
+            CURRENT_DATE() AS date_utc, 
+            CURRENT_TIME() AS time_utc, 
+            1.00 AS int_v, 
+            'AHAhA' AS mysrt, 
+            True AS mybool, 
+            Null AS mynull 
+        FROM dataset1.mytable2;";
+
         let res: ResultSet = rt.block_on(async_row_query(query, &client));
         //println!("{:?}", res);
         let query_response = res.query_response();
@@ -715,6 +764,7 @@ mod tests {
             }
             
             for row in query_response.rows.as_ref().unwrap().iter() {
+                println!("ROW ITERATOR");
                 let cells = row.columns.as_ref().unwrap();
                 for cell in cells {
                     if let Some(value) = cell.value.as_ref() {
@@ -733,6 +783,68 @@ mod tests {
             }
         }
         
+    }
+
+    #[test]
+    fn test_timestamp() {
+        let timestamp = 1703273535.453880;
+        let seconds = timestamp as i64; // Whole seconds part
+        let nanoseconds = ((timestamp - seconds as f64) * 1_000_000_000.0) as u32; // Fractional part in nanoseconds
+        let datetime = chrono::NaiveDateTime::from_timestamp_opt(seconds, nanoseconds);
+        println!("Datetime: {:?}", datetime);
+    }
+
+    #[test]
+    fn test_datetime() {
+        let datetime = "2023-12-22T19:50:11.637687";
+        let datetime = chrono::NaiveDateTime::parse_from_str(datetime, "%Y-%m-%dT%H:%M:%S%.f").unwrap();
+        println!("Datetime: {:?}", datetime);
+    }
+
+    #[test]
+    fn test_date() {
+        let date = "2023-12-22";
+        let date = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap();
+        println!("Datetime: {:?}", date);
+    }
+
+    #[test]
+    fn test_time() {
+        let time = "19:50:11.637698";
+        let time =  chrono::NaiveTime::parse_from_str(time, "%H:%M:%S%.f").unwrap();
+        println!("Datetime: {:?}", time);
+    }
+
+    #[test]
+    fn test_mapping_bis() {
+        let mut rt = tokio::runtime::Runtime::new().unwrap();
+
+        let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
+        let client = rt.block_on(build_client(auth_server.uri(), &tmp_file_credentials)).unwrap();
+        let list_tabs = rt.block_on(client.table().list(PROJECT_ID, DATASET_ID, ListOptions::default())).unwrap();
+        let tables_as_str: Vec<String> = list_tabs
+            .tables
+            .unwrap_or_default()
+            .into_iter()
+            .map(|t| t.table_reference.table_id)
+            .collect();
+        println!("{:?}", tables_as_str);
+
+        let query = "
+        SELECT 
+            *,
+            CURRENT_TIMESTAMP() AS now,
+            CURRENT_DATETIME() as now_datetime,
+            CURRENT_DATE() AS date_utc, 
+            CURRENT_TIME() AS time_utc, 
+            1.00 AS int_v, 
+            'AHAhA' AS mysrt, 
+            True AS mybool, 
+            Null AS mynull 
+        FROM dataset1.mytable2;";
+
+        let res = rt.block_on(async_query(query, &client)).unwrap();
+        println!("{:?}", res);
     }
 // Can I not create the dataset?
 // 
