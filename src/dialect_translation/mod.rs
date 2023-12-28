@@ -707,7 +707,8 @@ pub trait QueryToRelationTranslator {
         let function_name: &str = &func.name.0.iter().next().unwrap().value.to_lowercase()[..];
 
         match function_name {
-            "log" => self.try_ln(func, context),
+            "log" => self.try_log(func, context),
+            "ln" => self.try_ln(func, context),
             "md5" => self.try_md5(func, context),
             // "random" => self.try_random(),
             _ => {
@@ -716,10 +717,14 @@ pub trait QueryToRelationTranslator {
             }
         }
     }
-
     fn try_ln(&self, func: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
         let converted = self.try_function_args(func.args.clone(), context)?;
         Ok(expr::Expr::ln(converted[0].clone()))
+    }
+
+    fn try_log(&self, func: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
+        let converted = self.try_function_args(func.args.clone(), context)?;
+        Ok(expr::Expr::log(converted[0].clone()))
     }
 
     fn try_md5(&self, func: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
