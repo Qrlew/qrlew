@@ -176,26 +176,25 @@ mod tests {
         display::Dot,
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
-        privacy_unit_tracking::PrivacyUnit,
-        privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
+        privacy_unit_tracking::{PrivacyUnit,PrivacyUnitTracking, Strategy, PUPRelation},
         relation::{Field, Map, Relation, Schema, Variant, Constraint},
     };
-    use std::collections::HashSet;
+    use std::{collections::HashSet, sync::Arc};
 
     #[test]
     fn test_dp_rewrite_reduce_without_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
+        let (epsilon, delta) = (1., 1e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+
+        // privacy track the inputs
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
-
-        // privacy track the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
@@ -209,7 +208,7 @@ mod tests {
             Strategy::Hard,
         ));
         let pup_table = privacy_unit_tracking
-            .table(&table.try_into().unwrap())
+            .table(&table.clone().try_into().unwrap())
             .unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -243,7 +242,66 @@ mod tests {
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
-        println!("{query}");
+        _ = database.query(query).unwrap();
+
+        // input a map
+        let table = relations
+            .get(&["table_1".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
+            &relations,
+            vec![
+                (
+                    "table_1",
+                    vec![],
+                    PrivacyUnit::privacy_unit_row(),
+                ),
+            ],
+            Strategy::Hard,
+        ));
+        let pup_table = privacy_unit_tracking
+            .table(&table.clone().try_into().unwrap())
+            .unwrap();
+        let map = Map::new(
+            "my_map".to_string(),
+            vec![("my_d".to_string(), expr!(d/100))],
+            None,
+            vec![],
+            None,
+            None,
+            Arc::new(table.into()),
+        );
+        let pup_map = privacy_unit_tracking
+            .map(
+                &map.clone().try_into().unwrap(),
+                PUPRelation(Relation::from(pup_table))
+            )
+            .unwrap();
+        let reduce = Reduce::new(
+            "my_reduce".to_string(),
+            vec![("sum_d".to_string(), AggregateColumn::sum("my_d"))],
+            vec![],
+            pup_map.deref().clone().into(),
+        );
+        let relation = Relation::from(reduce.clone());
+        relation.display_dot().unwrap();
+
+        let (dp_relation, private_query) = reduce
+            .differentially_private(
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding,
+            )
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert!(private_query.is_null()); // private query is null beacause we have computed the sum of zeros
+        assert_eq!(dp_relation.data_type(), DataType::structured([("sum_d", DataType::float_value(0.))]));
+
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
         _ = database.query(query).unwrap();
     }
 

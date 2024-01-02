@@ -431,7 +431,7 @@ mod tests {
         relation::{Schema, Variant as _},
         privacy_unit_tracking::PrivacyUnit
     };
-    use std::ops::Deref;
+    use std::{sync::Arc, ops::Deref};
 
     #[test]
     fn test_table_with_noise() {
@@ -460,14 +460,14 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
+        let (epsilon, delta) = (1., 1e-3);
+
+        // privacy tracking of the inputs
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-
-        // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
@@ -499,6 +499,57 @@ mod tests {
             .unwrap();
         dp_relation.display_dot().unwrap();
         matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
+        assert!(!dp_relation.private_query().is_null());
+
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database.query(query).unwrap();
+
+        // input a map
+        let table = relations
+            .get(&["table_1".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
+            &relations,
+            vec![("table_1", vec![], PrivacyUnit::privacy_unit_row())],
+            Strategy::Hard,
+        ));
+        let pup_table = privacy_unit_tracking
+            .table(&table.clone().try_into().unwrap())
+            .unwrap();
+        let map = Map::new(
+            "my_map".to_string(),
+            vec![("my_d".to_string(), expr!(d/100))],
+            None,
+            vec![],
+            None,
+            None,
+            Arc::new(table),
+        );
+        let pup_map = privacy_unit_tracking
+            .map(
+                &map.clone().try_into().unwrap(),
+                PUPRelation(Relation::from(pup_table))
+            )
+            .unwrap();
+        let reduce = Reduce::new(
+            "my_reduce".to_string(),
+            vec![("sum_d".to_string(), AggregateColumn::sum("my_d"))],
+            vec![],
+            pup_map.deref().clone().into(),
+        );
+        let relation = Relation::from(reduce.clone());
+        relation.display_dot().unwrap();
+
+        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+            .unwrap()
+            .differentially_private_sums(vec![("sum_d", "my_d")], vec![], epsilon, delta)
+            .unwrap();
+        dp_relation.display_dot().unwrap();
+        matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
+        assert!(dp_relation.private_query().is_null()); // private query is null beacause we have computed the sum of zeros
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");

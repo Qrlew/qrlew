@@ -80,9 +80,9 @@ impl Relation {
                 Property::Public | Property::PrivacyUnitPreserving => {
                     Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
                 }
-                property => None,
+                _ => None,
             })
-            .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
+            .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
             .map(|(relation, _)| relation)
             .ok_or_else(|| Error::unreachable_property("privacy_unit_preserving"))
     }
@@ -108,9 +108,9 @@ impl Relation {
                 Property::Public | Property::Published | Property::DifferentiallyPrivate | Property::SyntheticData => {
                     Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
                 }
-                property => None,
+                _ => None,
             })
-            .max_by_key(|&(_, value)| value.partial_cmp(&value).unwrap())
+            .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
             .map(|(relation, _)| relation)
             .ok_or_else(|| Error::unreachable_property("differential_privacy"))
     }
@@ -349,9 +349,9 @@ mod tests {
         let relations = database.relations();
         let query = parse("SELECT * FROM order_table").unwrap();
         let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
-            (vec!["item_table"], Identifier::from("item_table")),
-            (vec!["order_table"], Identifier::from("order_table")),
-            (vec!["user_table"], Identifier::from("user_table")),
+            (vec!["item_table"], Identifier::from("SYNTHETIC_item_table")),
+            (vec!["order_table"], Identifier::from("SYNTHETIC_order_table")),
+            (vec!["user_table"], Identifier::from("SYNTHETIC_user_table")),
         ])));
         let privacy_unit = PrivacyUnit::from(vec![
             (
@@ -506,7 +506,7 @@ mod tests {
             .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
             .collect();
         let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
-            (vec!["census"], Identifier::from("census")),
+            (vec!["census"], Identifier::from("SYNTHETIC_census")),
         ])));
         let privacy_unit = PrivacyUnit::from(vec![
             ("census", vec![], "_PRIVACY_UNIT_ROW_"),
@@ -515,8 +515,9 @@ mod tests {
 
         let queries = [
             "SELECT SUM(CAST(capital_loss AS float) / 100000.) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
-            "SELECT SUM(capital_loss / 100000) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
-            "SELECT SUM(CASE WHEN age > 90 THEN 1 ELSE 0 END) AS s1 FROM census WHERE age > 20 AND age < 90;"
+            "SELECT SUM(capital_loss) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(capital_loss / 100) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
+            "SELECT SUM(CASE WHEN age > 70 THEN 1 ELSE 0 END) AS s1 FROM census WHERE age > 20 AND age < 90;"
         ];
         for query_str in queries {
             println!("\n{query_str}");
@@ -530,6 +531,8 @@ mod tests {
                 budget.clone()
             ).unwrap();
             dp_relation.relation().display_dot().unwrap();
+            println!("private_query = {}", dp_relation.private_query());
+            assert!(!dp_relation.private_query().is_null());
         }
 
     }

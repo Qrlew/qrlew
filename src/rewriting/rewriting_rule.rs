@@ -685,16 +685,16 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 RewritingRule::new(
                     vec![Property::SyntheticData],
                     Property::SyntheticData,
-                    Parameters::None,
-                )
-            );
-            rewriting_rules.push(
-                RewritingRule::new(
-                    vec![Property::SyntheticData],
-                    Property::Published,
                     Parameters::SyntheticData(synthetic_data.clone()),
                 )
             );
+            // rewriting_rules.push(
+            //     RewritingRule::new(
+            //         vec![Property::SyntheticData],
+            //         Property::Published,
+            //         Parameters::None,
+            //     )
+            // );
         }
         // We can compile into DP only if the aggregations are supported
         if reduce.aggregate().iter().all(|f| {
@@ -1609,7 +1609,7 @@ mod tests {
         for rwrr in relation_with_rules.select_rewriting_rules(RewritingRulesSelector) {
             rwrr.display_dot().unwrap();
             let num_dp = rwrr.accept(BudgetDispatcher);
-            println!("DEBUG SPLIT BUDGET IN {}", num_dp);
+            println!("\nDEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
             println!(
