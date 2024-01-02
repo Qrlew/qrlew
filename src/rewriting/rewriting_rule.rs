@@ -1055,20 +1055,20 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, usize> for BudgetDispatcher 
 /// Compute the score
 pub struct Score;
 
-impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, i64> for Score {
+impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for Score {
     fn visit(
         &self,
         acceptor: &'a RelationWithRewritingRule<'a>,
-        dependencies: Visited<'a, RelationWithRewritingRule<'a>, i64>,
-    ) -> i64 {
+        dependencies: Visited<'a, RelationWithRewritingRule<'a>, f64>,
+    ) -> f64 {
         acceptor.inputs().iter().fold(
             match acceptor.attributes().output() {
-                Property::SyntheticData => 1,
-                Property::PrivacyUnitPreserving => 2,
-                Property::DifferentiallyPrivate => 5,
-                Property::Published => 1,
-                Property::Public => 10,
-                _ => 0,
+                Property::SyntheticData => 1.,
+                Property::PrivacyUnitPreserving => 2.,
+                Property::DifferentiallyPrivate => 5.,
+                Property::Published => 1.,
+                Property::Public => 10.,
+                _ => 0.,
             },
             |sum, rwrr| sum + dependencies.get(rwrr.deref()),
         )

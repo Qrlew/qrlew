@@ -82,7 +82,7 @@ impl Relation {
                 }
                 _ => None,
             })
-            .max_by_key(|&(_, value)| value)
+            .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
             .map(|(relation, _)| relation)
             .ok_or_else(|| Error::unreachable_property("privacy_unit_preserving"))
     }
@@ -110,7 +110,7 @@ impl Relation {
                 }
                 _ => None,
             })
-            .max_by_key(|&(_, value)| value)
+            .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
             .map(|(relation, _)| relation)
             .ok_or_else(|| Error::unreachable_property("differential_privacy"))
     }
