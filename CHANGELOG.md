@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.2] - 2023-12-22
 ### Fixed
-- bug when selecting max score when rewriting into DP [#241](https://github.com/Qrlew/qrlew/pull/241)
+- bug when selecting max score [#241](https://github.com/Qrlew/qrlew/pull/241)
 
 ## [0.7.1] - 2023-12-22
 ### Fixed
