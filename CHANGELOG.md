@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2024-01-05
+### Changed
+- Private Queries are now DP Events as in [Google dp_accounting](https://github.com/google/differential-privacy/tree/main/python/dp_accounting)
+
 ## [0.7.2] - 2023-12-22
 ### Fixed
 - bug when selecting max score [#241](https://github.com/Qrlew/qrlew/pull/241)
