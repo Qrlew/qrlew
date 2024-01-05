@@ -162,7 +162,7 @@ impl RelationToQueryTranslator for MSSQLTranslator {
         let top = limit.map(|e| ast::Top {
             with_ties: false,
             percent: false,
-            quantity: Some(e),
+            quantity: Some(ast::TopQuantity::Expr(e)),
         });
         ast::Query {
             with: (!with.is_empty()).then_some(ast::With {

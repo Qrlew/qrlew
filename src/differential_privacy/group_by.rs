@@ -1,7 +1,7 @@
 use super::Error;
 use crate::{
     builder::{Ready, With, WithIterator},
-    differential_privacy::{private_query, DPRelation, PrivateQuery, Result},
+    differential_privacy::{dp_event, DPRelation, DpEvent, Result},
     expr::{aggregate, Expr},
     namer::{self, name_from_content},
     privacy_unit_tracking::{PUPRelation, PrivacyUnit},
@@ -13,7 +13,7 @@ pub const COUNT_DISTINCT_PE_ID: &str = "_COUNT_DISTINCT_PE_ID_";
 impl Reduce {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs all the DP values of the `self` grouping keys
-    ///     - `private_query` stores the invoked DP mechanisms
+    ///     - `dp_event` stores the invoked DP mechanisms
     pub fn differentially_private_group_by(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         if self.group_by().is_empty() {
             Err(Error::GroupingKeysError(format!("No grouping keys")))
@@ -44,7 +44,7 @@ impl PUPRelation {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs the (epsilon, delta)-DP values
     /// (found by tau-thresholding) of the fields of the current `Relation`
-    ///     - `private_query` stores the invoked DP mechanisms
+    ///     - `dp_event` stores the invoked DP mechanisms
     fn tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
         if epsilon == 0. || delta == 0. {
             return Err(Error::BudgetError(format!(
@@ -73,12 +73,12 @@ impl PUPRelation {
         // Apply noise
         let name_sigmas = vec![(
             COUNT_DISTINCT_PE_ID,
-            private_query::gaussian_noise(epsilon, delta, 1.),
+            dp_event::gaussian_noise(epsilon, delta, 1.),
         )];
         let rel = rel.add_gaussian_noise(&name_sigmas);
 
         // Returns a `Relation::Map` with the right field names and with `COUNT(DISTINCT PE_ID) > tau`
-        let tau = private_query::gaussian_tau(epsilon, delta, 1.0);
+        let tau = dp_event::gaussian_tau(epsilon, delta, 1.0);
         let filter_column = [(COUNT_DISTINCT_PE_ID, (Some(tau.into()), None, vec![]))]
             .into_iter()
             .collect();
@@ -87,7 +87,7 @@ impl PUPRelation {
             .filter_fields(|f| columns.contains(&f));
         Ok(DPRelation::new(
             relation,
-            PrivateQuery::EpsilonDelta(epsilon, delta),
+            DpEvent::epsilon_delta(epsilon, delta),
         ))
     }
 
@@ -119,10 +119,10 @@ impl PUPRelation {
         } else if all_columns_are_public {
             Ok(DPRelation::new(
                 self.with_public_values(&public_columns)?,
-                PrivateQuery::null(),
+                DpEvent::no_op(),
             ))
         } else {
-            let (relation, private_query) = self
+            let (relation, dp_event) = self
                 .clone()
                 .with_name(namer::name_from_content("FILTER_", &self.name()))?
                 .filter_fields(|f| !public_columns.contains(&f.to_string()))?
@@ -131,7 +131,7 @@ impl PUPRelation {
             let relation = self
                 .with_public_values(&public_columns)?
                 .cross_join(relation)?;
-            Ok(DPRelation::new(relation, private_query))
+            Ok(DPRelation::new(relation, dp_event))
         }
     }
 }
@@ -248,7 +248,7 @@ mod tests {
                 ("c", DataType::integer_range(5..=20))
             ])
         );
-        assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003))
+        assert_eq!(pq, DpEvent::epsilon_delta(1., 0.003))
     }
 
     #[test]
@@ -283,7 +283,7 @@ mod tests {
         );
         assert!(matches!(rel.inputs()[0], &Relation::Values(_)));
         assert!(matches!(rel.inputs()[1], &Relation::Values(_)));
-        assert_eq!(pq, PrivateQuery::null());
+        assert_eq!(pq, DpEvent::no_op());
 
         // Only tau-thresholding values
         let table: Relation = Relation::table()
@@ -313,7 +313,7 @@ mod tests {
                 ("b", DataType::float_range(5.4..=20.))
             ])
         );
-        assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
+        assert_eq!(pq, DpEvent::epsilon_delta(1., 0.003));
 
         // Both possible and tau-thresholding values
         let table: Relation = Relation::table()
@@ -347,7 +347,7 @@ mod tests {
                 ("c", DataType::integer_range(5..=20))
             ])
         );
-        assert_eq!(pq, PrivateQuery::EpsilonDelta(1., 0.003));
+        assert_eq!(pq, DpEvent::epsilon_delta(1., 0.003));
     }
 
     #[test]
@@ -388,12 +388,12 @@ mod tests {
             .group_by(expr!(b))
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(private_query, PrivateQuery::null());
+        assert_eq!(dp_event, DpEvent::no_op());
         assert_eq!(
             dp_relation.data_type(),
             DataType::structured([("b", DataType::integer_values([1, 2, 5, 6, 7, 8]))])
@@ -406,11 +406,11 @@ mod tests {
             .group_by_iter(vec![expr!(a), expr!(c)])
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
-        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(dp_event, DpEvent::epsilon_delta(epsilon, delta));
         assert_eq!(
             dp_relation.data_type(),
             DataType::structured([
@@ -427,11 +427,11 @@ mod tests {
             .group_by(expr!(b))
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
-        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(dp_event, DpEvent::epsilon_delta(epsilon, delta));
         assert_eq!(
             dp_relation.data_type(),
             DataType::structured([
@@ -486,7 +486,7 @@ mod tests {
             .input(input)
             .build();
 
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
@@ -494,7 +494,7 @@ mod tests {
         assert!(matches!(dp_relation, Relation::Join(_)));
         assert!(matches!(dp_relation.inputs()[0], &Relation::Values(_)));
         assert!(matches!(dp_relation.inputs()[1], &Relation::Map(_)));
-        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(dp_event, DpEvent::epsilon_delta(epsilon, delta));
         assert_eq!(
             dp_relation.data_type(),
             DataType::structured([
@@ -527,12 +527,12 @@ mod tests {
             .group_by(expr!(twice_b))
             .input(input)
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(private_query, PrivateQuery::null());
+        assert_eq!(dp_event, DpEvent::no_op());
         assert!(matches!(dp_relation.inputs()[0], &Relation::Values(_)));
         assert!(matches!(dp_relation.inputs()[1], &Relation::Values(_)));
         assert_eq!(
@@ -611,12 +611,12 @@ mod tests {
             .input(map)
             .build();
 
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(dp_event, DpEvent::epsilon_delta(epsilon, delta));
         matches!(dp_relation, Relation::Map(_));
         assert!(dp_relation.data_type().is_subset_of(&DataType::structured([
             ("date", DataType::date()),
@@ -738,12 +738,12 @@ mod tests {
             .group_by(expr!(a))
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(dp_event, DpEvent::epsilon_delta(epsilon, delta));
         assert_eq!(
             dp_relation.data_type(),
             DataType::structured([("a", DataType::integer_range(1..=10))])
@@ -755,12 +755,12 @@ mod tests {
             .with_group_by_column("a")
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private_group_by(epsilon, delta)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(private_query, PrivateQuery::EpsilonDelta(epsilon, delta));
+        assert_eq!(dp_event, DpEvent::epsilon_delta(epsilon, delta));
         assert_eq!(
             dp_relation.data_type(),
             DataType::structured([("a", DataType::integer_range(1..=10))])

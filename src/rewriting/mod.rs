@@ -4,7 +4,7 @@ pub mod rewriting_rule;
 
 pub use relation_with_attributes::RelationWithAttributes;
 pub use rewriting_rule::{
-    Property, RelationWithPrivateQuery, RelationWithRewritingRule, RelationWithRewritingRules,
+    Property, RelationWithDpEvent, RelationWithRewritingRule, RelationWithRewritingRules,
     RewritingRule,
 };
 
@@ -65,7 +65,7 @@ impl Relation {
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
         budget: Budget,
-    ) -> Result<RelationWithPrivateQuery> {
+    ) -> Result<RelationWithDpEvent> {
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
             relations,
             synthetic_data,
@@ -93,7 +93,7 @@ impl Relation {
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
         budget: Budget,
-    ) -> Result<RelationWithPrivateQuery> {
+    ) -> Result<RelationWithDpEvent> {
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
             relations,
             synthetic_data,
@@ -198,14 +198,14 @@ mod tests {
             let query = parse(q).unwrap();
             let relation = Relation::try_from(query.with(&relations)).unwrap();
             relation.display_dot().unwrap();
-            let relation_with_private_query = relation
+            let relation_with_dp_event = relation
                 .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), budget.clone())
                 .unwrap();
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
-            let dp_query = ast::Query::from(&relation_with_private_query.relation().clone()).to_string();
+            let dp_query = ast::Query::from(&relation_with_dp_event.relation().clone()).to_string();
             println!("\n{dp_query}");
             _ = database
                 .query(dp_query.as_str())
@@ -251,14 +251,14 @@ mod tests {
             let query = parse(q).unwrap();
             let relation = Relation::try_from(query.with(&relations)).unwrap();
             relation.display_dot().unwrap();
-            let relation_with_private_query = relation
+            let relation_with_dp_event = relation
                 .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), budget.clone())
                 .unwrap();
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
-            let dp_query = ast::Query::from(&relation_with_private_query.relation().clone()).to_string();
+            let dp_query = ast::Query::from(&relation_with_dp_event.relation().clone()).to_string();
             println!("\n{dp_query}");
             _ = database
                 .query(dp_query.as_str())
@@ -293,16 +293,16 @@ mod tests {
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation
+        let relation_with_dp_event = relation
             .rewrite_with_differential_privacy(&relations, synthetic_data, privacy_unit, budget)
             .unwrap();
-        relation_with_private_query
+        relation_with_dp_event
             .relation()
             .display_dot()
             .unwrap();
         println!(
             "PrivateQuery = {}",
-            relation_with_private_query.private_query()
+            relation_with_dp_event.dp_event()
         );
     }
 
@@ -330,16 +330,16 @@ mod tests {
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation
+        let relation_with_dp_event = relation
             .rewrite_as_privacy_unit_preserving(&relations, synthetic_data, privacy_unit, budget)
             .unwrap();
-        relation_with_private_query
+        relation_with_dp_event
             .relation()
             .display_dot()
             .unwrap();
         println!(
             "PrivateQuery = {}",
-            relation_with_private_query.private_query()
+            relation_with_dp_event.dp_event()
         );
     }
 
@@ -367,16 +367,16 @@ mod tests {
         ]);
         let budget = Budget::new(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
-        let relation_with_private_query = relation
+        let relation_with_dp_event = relation
             .rewrite_as_privacy_unit_preserving(&relations, synthetic_data, privacy_unit, budget)
             .unwrap();
-        relation_with_private_query
+        relation_with_dp_event
             .relation()
             .display_dot()
             .unwrap();
         println!(
             "PrivateQuery = {}",
-            relation_with_private_query.private_query()
+            relation_with_dp_event.dp_event()
         );
     }
 
@@ -531,8 +531,8 @@ mod tests {
                 budget.clone()
             ).unwrap();
             dp_relation.relation().display_dot().unwrap();
-            println!("private_query = {}", dp_relation.private_query());
-            assert!(!dp_relation.private_query().is_null());
+            println!("dp_event = {}", dp_relation.dp_event());
+            assert!(!dp_relation.dp_event().is_no_op());
         }
 
     }

@@ -7,7 +7,7 @@ use crate::{
     builder::{Ready, With},
     differential_privacy::{
         budget::Budget,
-        private_query::PrivateQuery,
+        dp_event::DpEvent,
     },
     hierarchy::Hierarchy,
     privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
@@ -452,36 +452,36 @@ impl<'a> From<&'a RelationWithRewritingRule<'a>> for RelationWithRewritingRules<
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct RelationWithPrivateQuery {
+pub struct RelationWithDpEvent {
     relation: Arc<Relation>,
-    private_query: PrivateQuery,
+    dp_event: DpEvent,
 }
 
-impl RelationWithPrivateQuery {
+impl RelationWithDpEvent {
     pub fn relation(&self) -> &Relation {
         self.relation.deref()
     }
 
-    pub fn private_query(&self) -> &PrivateQuery {
-        &self.private_query
+    pub fn dp_event(&self) -> &DpEvent {
+        &self.dp_event
     }
 }
 
-impl From<RelationWithPrivateQuery> for (Relation, PrivateQuery) {
-    fn from(value: RelationWithPrivateQuery) -> Self {
-        let RelationWithPrivateQuery {
+impl From<RelationWithDpEvent> for (Relation, DpEvent) {
+    fn from(value: RelationWithDpEvent) -> Self {
+        let RelationWithDpEvent {
             relation,
-            private_query,
+            dp_event,
         } = value;
-        (relation.deref().clone(), private_query)
+        (relation.deref().clone(), dp_event)
     }
 }
 
-impl From<(Arc<Relation>, PrivateQuery)> for RelationWithPrivateQuery {
-    fn from(value: (Arc<Relation>, PrivateQuery)) -> Self {
-        RelationWithPrivateQuery {
+impl From<(Arc<Relation>, DpEvent)> for RelationWithDpEvent {
+    fn from(value: (Arc<Relation>, DpEvent)) -> Self {
+        RelationWithDpEvent {
             relation: value.0,
-            private_query: value.1,
+            dp_event: value.1,
         }
     }
 }
@@ -492,48 +492,48 @@ pub trait RewriteVisitor<'a> {
         &self,
         table: &'a Table,
         rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithPrivateQuery;
+    ) -> RelationWithDpEvent;
     fn map(
         &self,
         map: &'a Map,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery;
+        rewritten_input: RelationWithDpEvent,
+    ) -> RelationWithDpEvent;
     fn reduce(
         &self,
         reduce: &'a Reduce,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery;
+        rewritten_input: RelationWithDpEvent,
+    ) -> RelationWithDpEvent;
     fn join(
         &self,
         join: &'a Join,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: RelationWithPrivateQuery,
-        rewritten_right: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery;
+        rewritten_left: RelationWithDpEvent,
+        rewritten_right: RelationWithDpEvent,
+    ) -> RelationWithDpEvent;
     fn set(
         &self,
         set: &'a Set,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: RelationWithPrivateQuery,
-        rewritten_right: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery;
+        rewritten_left: RelationWithDpEvent,
+        rewritten_right: RelationWithDpEvent,
+    ) -> RelationWithDpEvent;
     fn values(
         &self,
         values: &'a Values,
         rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithPrivateQuery;
+    ) -> RelationWithDpEvent;
 }
 /// Implement the visitor trait
-impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, RelationWithPrivateQuery>
+impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, RelationWithDpEvent>
     for V
 {
     fn visit(
         &self,
         acceptor: &'a RelationWithRewritingRule<'a>,
-        dependencies: Visited<'a, RelationWithRewritingRule<'a>, RelationWithPrivateQuery>,
-    ) -> RelationWithPrivateQuery {
+        dependencies: Visited<'a, RelationWithRewritingRule<'a>, RelationWithDpEvent>,
+    ) -> RelationWithDpEvent {
         match acceptor.relation() {
             Relation::Table(table) => self.table(table, acceptor.attributes()),
             Relation::Map(map) => self.map(
@@ -568,7 +568,7 @@ impl<'a> RelationWithRewritingRule<'a> {
     pub fn rewrite<V: RewriteVisitor<'a>>(
         &'a self,
         rewrite_visitor: V,
-    ) -> RelationWithPrivateQuery {
+    ) -> RelationWithDpEvent {
         self.accept(rewrite_visitor)
     }
 }
@@ -1088,7 +1088,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         &self,
         table: &'a Table,
         rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithPrivateQuery {
+    ) -> RelationWithDpEvent {
         let relation = Arc::new(
             match (rewriting_rule.output(), rewriting_rule.parameters()) {
                 (Property::Private, _) => table.clone().into(),
@@ -1109,16 +1109,16 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 _ => table.clone().into(),
             },
         );
-        (relation, PrivateQuery::null()).into()
+        (relation, DpEvent::no_op()).into()
     }
 
     fn map(
         &self,
         map: &'a Map,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery {
-        let (relation_input, private_query_input) = rewritten_input.into();
+        rewritten_input: RelationWithDpEvent,
+    ) -> RelationWithDpEvent {
+        let (relation_input, dp_event_input) = rewritten_input.into();
         let relation: Arc<Relation> = Arc::new(
             match (
                 rewriting_rule.inputs(),
@@ -1146,16 +1146,16 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     .build(),
             },
         );
-        (relation, private_query_input).into()
+        (relation, dp_event_input).into()
     }
 
     fn reduce(
         &self,
         reduce: &'a Reduce,
         rewriting_rule: &'a RewritingRule,
-        rewritten_input: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery {
-        let (relation_input, mut private_query_input) = rewritten_input.into();
+        rewritten_input: RelationWithDpEvent,
+    ) -> RelationWithDpEvent {
+        let (relation_input, mut dp_event_input) = rewritten_input.into();
         let relation = Arc::new(
             match (
                 rewriting_rule.inputs(),
@@ -1167,11 +1167,11 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::DifferentiallyPrivate,
                     Parameters::Budget(budget),
                 ) => {
-                    let (dp_relation, private_query) = budget
+                    let (dp_relation, dp_event) = budget
                         .reduce(reduce, relation_input.try_into().unwrap())
                         .unwrap()
                         .into();
-                    private_query_input = private_query_input.compose(private_query);
+                    dp_event_input = dp_event_input.compose(dp_event);
                     dp_relation
                 }
                 (
@@ -1195,18 +1195,18 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     .build(),
             },
         );
-        (relation, private_query_input).into()
+        (relation, dp_event_input).into()
     }
 
     fn join(
         &self,
         join: &'a Join,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: RelationWithPrivateQuery,
-        rewritten_right: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery {
-        let (relation_left, private_query_left) = rewritten_left.into();
-        let (relation_right, private_query_right) = rewritten_right.into();
+        rewritten_left: RelationWithDpEvent,
+        rewritten_right: RelationWithDpEvent,
+    ) -> RelationWithDpEvent {
+        let (relation_left, dp_event_left) = rewritten_left.into();
+        let (relation_right, dp_event_right) = rewritten_right.into();
         let relation: Arc<Relation> = Arc::new(
             match (
                 rewriting_rule.inputs(),
@@ -1286,18 +1286,18 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     .build(),
             },
         );
-        (relation, private_query_left.compose(private_query_right)).into()
+        (relation, dp_event_left.compose(dp_event_right)).into()
     }
 
     fn set(
         &self,
         set: &'a Set,
         rewriting_rule: &'a RewritingRule,
-        rewritten_left: RelationWithPrivateQuery,
-        rewritten_right: RelationWithPrivateQuery,
-    ) -> RelationWithPrivateQuery {
-        let (relation_left, private_query_left) = rewritten_left.into();
-        let (relation_right, private_query_right) = rewritten_right.into();
+        rewritten_left: RelationWithDpEvent,
+        rewritten_right: RelationWithDpEvent,
+    ) -> RelationWithDpEvent {
+        let (relation_left, dp_event_left) = rewritten_left.into();
+        let (relation_right, dp_event_right) = rewritten_right.into();
         let relation: Arc<Relation> = Arc::new(
             Relation::set()
                 .with(set.clone())
@@ -1305,15 +1305,15 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 .right(relation_right)
                 .build(),
         );
-        (relation, private_query_left.compose(private_query_right)).into()
+        (relation, dp_event_left.compose(dp_event_right)).into()
     }
 
     fn values(
         &self,
         values: &'a Values,
         rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithPrivateQuery {
-        (Arc::new(values.clone().into()), PrivateQuery::null()).into()
+    ) -> RelationWithDpEvent {
+        (Arc::new(values.clone().into()), DpEvent::no_op()).into()
     }
 }
 
@@ -1376,12 +1376,12 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
-                relation_with_private_query.private_query()
+                relation_with_dp_event.dp_event()
             );
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
@@ -1438,12 +1438,12 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
-                relation_with_private_query.private_query()
+                relation_with_dp_event.dp_event()
             );
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
@@ -1497,12 +1497,12 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
-                relation_with_private_query.private_query()
+                relation_with_dp_event.dp_event()
             );
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
@@ -1556,12 +1556,12 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
-                relation_with_private_query.private_query()
+                relation_with_dp_event.dp_event()
             );
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
@@ -1611,12 +1611,12 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("\nDEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
-                relation_with_private_query.private_query()
+                relation_with_dp_event.dp_event()
             );
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
@@ -1662,12 +1662,12 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
-                relation_with_private_query.private_query()
+                relation_with_dp_event.dp_event()
             );
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
@@ -1717,12 +1717,12 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_private_query = rwrr.rewrite(Rewriter(&relations));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
             println!(
                 "PrivateQuery: {:?}",
-                relation_with_private_query.private_query()
+                relation_with_dp_event.dp_event()
             );
-            relation_with_private_query
+            relation_with_dp_event
                 .relation()
                 .display_dot()
                 .unwrap();
