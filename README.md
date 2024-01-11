@@ -1,6 +1,7 @@
 [![Qrlew](https://github.com/Qrlew/qrlew/actions/workflows/ci.yml/badge.svg)](https://github.com/Qrlew/qrlew/actions)
 ![Crates.io Version](https://img.shields.io/crates/v/qrlew?logo=Rust)
-![Twitter Follow](https://img.shields.io/twitter/follow/Sarus_tech?style=social)
+![Discord](https://img.shields.io/discord/1194338163989172364?logo=Discord)
+![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/sarus_tech)
 
 # [Qrlew](https://qrlew.github.io/) Rust library (by [Sarus](https://www.sarus.tech/))
 
