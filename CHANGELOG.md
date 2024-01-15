@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2024-01-15
+### Changed
+- Does not prevent fields from not being in the GROUP BY [#249](https://github.com/Qrlew/qrlew/issues/249)
+- Count excludes NA [#244](https://github.com/Qrlew/qrlew/issues/244)
+
 ## [0.8.0] - 2024-01-05
 ### Changed
 - Private Queries are now DP Events as in [Google dp_accounting](https://github.com/google/differential-privacy/tree/main/python/dp_accounting)
