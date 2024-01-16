@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2024-01-15
+### Changed
+- aligning Translators names to the sqlparser convention. Allowing only for compact filenames e.g. (filename: postgresql, tranlator: PostgreSqlTranslator, dialect (sqlparser): PostgreSqlDialect, etc.) [#250](https://github.com/Qrlew/qrlew/pull/250)
+
 ## [0.8.1] - 2024-01-15
 ### Changed
 - Does not prevent fields from not being in the GROUP BY [#249](https://github.com/Qrlew/qrlew/issues/249)

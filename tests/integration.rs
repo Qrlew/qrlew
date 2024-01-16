@@ -11,7 +11,7 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     dialect_translation::{
-        postgres::PostgresTranslator, RelationToQueryTranslator, RelationWithTranslator,
+        postgresql::PostgresSqlTranslator, RelationToQueryTranslator, RelationWithTranslator,
     },
     expr,
     io::{postgresql, Database},
@@ -287,7 +287,7 @@ const QUERIES_FOR_MSSQL: &[&str] = &[
 fn test_on_mssql() {
     // In this test we construct relations from QUERIES and we execute
     // the translated queries
-    use qrlew::dialect_translation::mssql::MSSQLTranslator;
+    use qrlew::dialect_translation::mssql::MsSqlTranslator;
 
     let mut database = mssql::test_database();
     println!("database {} = {}", database.name(), database.relations());
@@ -296,7 +296,7 @@ fn test_on_mssql() {
     }
     for &query in QUERIES_FOR_MSSQL.iter() {
         println!("TESTING QUERY: {}", query);
-        test_execute(&mut database, query, MSSQLTranslator);
+        test_execute(&mut database, query, MsSqlTranslator);
     }
 }
 

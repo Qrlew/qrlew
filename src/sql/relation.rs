@@ -22,7 +22,7 @@ use crate::{
     },
     tokenizer::Tokenizer,
     visitor::{Acceptor, Dependencies, Visited},
-    dialect_translation::{QueryToRelationTranslator, postgres::PostgresTranslator},
+    dialect_translation::{QueryToRelationTranslator, postgresql::PostgresSqlTranslator},
     types::And, display::Dot
 };
 use itertools::Itertools;
@@ -691,7 +691,7 @@ impl<'a> TryFrom<QueryWithRelations<'a>> for Relation {
         let query_names = query.accept(IntoQueryNamesVisitor);
         // Visit for conversion
         query
-            .accept(TryIntoRelationVisitor::new(relations, query_names, PostgresTranslator))
+            .accept(TryIntoRelationVisitor::new(relations, query_names, PostgresSqlTranslator))
             .map(|r| r.as_ref().clone())
     }
 }

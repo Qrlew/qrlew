@@ -14,9 +14,9 @@ use sqlparser::{ast, dialect::PostgreSqlDialect};
 
 use crate::sql::{Error, Result};
 #[derive(Clone, Copy)]
-pub struct PostgresTranslator;
+pub struct PostgresSqlTranslator;
 
-impl RelationToQueryTranslator for PostgresTranslator {
+impl RelationToQueryTranslator for PostgresSqlTranslator {
     fn first(&self, expr: &expr::Expr) -> ast::Expr {
         ast::Expr::from(expr)
     }
@@ -132,7 +132,7 @@ impl RelationToQueryTranslator for PostgresTranslator {
     }
 }
 
-impl QueryToRelationTranslator for PostgresTranslator {
+impl QueryToRelationTranslator for PostgresSqlTranslator {
     type D = PostgreSqlDialect;
 
     fn dialect(&self) -> Self::D {
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_query() -> Result<()> {
-        let translator = PostgresTranslator;
+        let translator = PostgresSqlTranslator;
         let query_str = "SELECT POSITION('o' IN z) AS col FROM table_2";
         let query = parse_with_dialect(query_str, translator.dialect())?;
         println!("{:?}", query);
@@ -181,7 +181,7 @@ mod tests {
         let relations = Hierarchy::from([(["schema", "table"], Arc::new(table))]);
 
         let query_str = "SELECT log(table.d + 1) FROM schema.table";
-        let translator = PostgresTranslator;
+        let translator = PostgresSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);
         let relation = Relation::try_from((query_with_relation, translator))?;
