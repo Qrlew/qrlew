@@ -32,7 +32,7 @@ pub mod hive;
 #[cfg(feature = "mssql")]
 pub mod mssql;
 pub mod mysql;
-pub mod postgres;
+pub mod postgresql;
 pub mod sqlite;
 
 // TODO: Add translatio errors
