@@ -11,7 +11,7 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     dialect_translation::{
-        postgresql::PostgresSqlTranslator, RelationToQueryTranslator, RelationWithTranslator,
+        postgresql::PostgreSqlTranslator, RelationToQueryTranslator, RelationWithTranslator,
     },
     expr,
     io::{postgresql, Database},

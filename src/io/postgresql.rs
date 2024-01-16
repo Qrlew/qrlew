@@ -8,7 +8,7 @@ use crate::{
         value::{self, Value},
         DataTyped,
     },
-    dialect_translation::postgresql::PostgresSqlTranslator,
+    dialect_translation::postgresql::PostgreSqlTranslator,
     namer,
     relation::{Table, Variant as _},
 };
@@ -204,14 +204,14 @@ impl DatabaseTrait for Database {
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
         let mut connection = self.pool.get()?;
-        Ok(connection.execute(&table.create(PostgresSqlTranslator).to_string(), &[])? as usize)
+        Ok(connection.execute(&table.create(PostgreSqlTranslator).to_string(), &[])? as usize)
     }
 
     fn insert_data(&mut self, table: &Table) -> Result<()> {
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
         let mut connection = self.pool.get()?;
-        let statement = connection.prepare(&table.insert("$", PostgresSqlTranslator).to_string())?;
+        let statement = connection.prepare(&table.insert("$", PostgreSqlTranslator).to_string())?;
         for _ in 0..size {
             let structured: value::Struct =
                 table.schema().data_type().generate(&mut rng).try_into()?;
