@@ -42,17 +42,17 @@ impl fmt::Display for FieldDataTypes {
                         shorten_string(&if let Some(c) = field.constraint() {
                             format!(
                                 "{} = {} ∈ {} {}",
-                                field.name(),
+                                dot::escape_html(&field.name().to_string()),
                                 dot::escape_html(&expr.to_string()),
-                                field.data_type(),
+                                dot::escape_html(&field.data_type().to_string()),
                                 c
                             )
                         } else {
                             format!(
                                 "{} = {} ∈ {}",
-                                field.name(),
+                                dot::escape_html(&field.name().to_string()),
                                 dot::escape_html(&expr.to_string()),
-                                field.data_type()
+                                dot::escape_html(&field.data_type().to_string()),
                             )
                         })
                     );
@@ -404,7 +404,9 @@ mod tests {
     #[test]
     fn test_escape_html() {
         namer::reset();
-        let schema: Schema = vec![("a", DataType::float())].into_iter().collect();
+        let schema: Schema = vec![
+            ("a", DataType::float()),
+            ("b", DataType::text_values(&["A&B".into(), "C>D".into()]))].into_iter().collect();
         let table: Relation = Relation::table()
             .name("table")
             .schema(schema.clone())
