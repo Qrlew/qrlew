@@ -33,7 +33,7 @@ r2d2 = "0.8"
 r2d2_postgres = "0.18"
 rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
 statrs = "0.16.0"
-sqlx = { version = "0.6.3", features = ["mssql", "runtime-tokio-rustls", "offline", "any"], optional = true }
+sqlx = { version = "0.6.3", features = ["mssql", "offline", "any"], optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 
 [features]
