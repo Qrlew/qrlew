@@ -29,7 +29,6 @@ use paste::paste;
 
 pub mod bigquery;
 pub mod hive;
-#[cfg(feature = "mssql")]
 pub mod mssql;
 pub mod mysql;
 pub mod postgresql;
