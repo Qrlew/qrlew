@@ -644,25 +644,6 @@ impl Ready<Reduce> for ReduceBuilder<WithInput> {
                 ),
                 None => self.input.0,
             };
-            // Check that the First aggregate columns are in the GROUP BY
-            reduce
-                .named_aggregates
-                .iter()
-                .filter_map(|(_, agg)| {
-                    matches!(agg.aggregate(), expr::aggregate::Aggregate::First)
-                        .then_some(agg.column())
-                })
-                .map(|col: &Identifier| {
-                    if !reduce.group_by.contains(col) {
-                        Err(Error::InvalidRelation(format!(
-                            "First aggregate columns must be in the GROUP BY. Got: {}",
-                            col
-                        )))
-                    } else {
-                        Ok(col)
-                    }
-                })
-                .collect::<Result<Vec<_>>>()?;
             // Build the Relation
             Ok(Reduce::new(
                 name,

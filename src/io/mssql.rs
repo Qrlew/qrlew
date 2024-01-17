@@ -28,7 +28,7 @@ use std::{
     env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
 };
 
-use crate::dialect_translation::mssql::MSSQLTranslator;
+use crate::dialect_translation::mssql::MsSqlTranslator;
 
 const DB: &str = "qrlew-mssql-test";
 const PORT: u16 = 1433;
@@ -322,7 +322,7 @@ impl DatabaseTrait for Database {
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let translator = MSSQLTranslator;
+        let translator = MsSqlTranslator;
         let create_table_query = &table.create(translator).to_string();
         let query = sqlx::query(&create_table_query[..]);
         let res = rt.block_on(async_execute(query, &self.pool))?;
@@ -333,7 +333,7 @@ impl DatabaseTrait for Database {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
-        let ins_stat = &table.insert("@p", MSSQLTranslator).to_string();
+        let ins_stat = &table.insert("@p", MsSqlTranslator).to_string();
 
         for _ in 1..size {
             let structured: value::Struct =
@@ -620,8 +620,8 @@ mod tests {
             .build();
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
 
-        let ins_stat = &table.insert("@p", MSSQLTranslator).to_string();
-        let create_stat = &table.create(MSSQLTranslator).to_string();
+        let ins_stat = &table.insert("@p", MsSqlTranslator).to_string();
+        let create_stat = &table.create(MsSqlTranslator).to_string();
 
         //let new_ins = "INSERT INTO table_2 (x) VALUES (@p1)".to_string();
         println!("{}\n", create_stat);

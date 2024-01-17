@@ -6,9 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.9.0] - 2024-01-15
+### Changed
+- aligning Translators names to the sqlparser convention. Allowing only for compact filenames e.g. (filename: postgresql, tranlator: PostgreSqlTranslator, dialect (sqlparser): PostgreSqlDialect, etc.) [#250](https://github.com/Qrlew/qrlew/pull/250)
+
+## [0.8.1] - 2024-01-15
+### Changed
+- Does not prevent fields from not being in the GROUP BY [#249](https://github.com/Qrlew/qrlew/issues/249)
+- Count excludes NA [#244](https://github.com/Qrlew/qrlew/issues/244)
+
+## [0.8.0] - 2024-01-05
+### Changed
+- Private Queries are now DP Events as in [Google dp_accounting](https://github.com/google/differential-privacy/tree/main/python/dp_accounting)
+
+## [0.7.2] - 2023-12-22
+### Fixed
+- bug when selecting max score [#241](https://github.com/Qrlew/qrlew/pull/241)
+
+## [0.7.1] - 2023-12-22
+### Fixed
+- postrgres translation for some queries [#240](https://github.com/Qrlew/qrlew/pull/240)
+
+## [0.7.0] - 2023-12-22
+### Changed
+- Make synthetic data optional [#237](https://github.com/Qrlew/qrlew/issues/237)
 ### Fixed
 - DP rewriting for join of PUP and DP relations [#228](https://github.com/Qrlew/qrlew/issues/228)
-
+### Added
+- Translators for postgres and mssql [#173](https://github.com/Qrlew/qrlew/pull/173)
 
 ## [0.6.0] - 2023-12-18
 ### Added

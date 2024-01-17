@@ -6,11 +6,11 @@
 pub mod aggregates;
 pub mod budget;
 pub mod group_by;
-pub mod private_query;
+pub mod dp_event;
 
 use crate::{
     builder::With,
-    differential_privacy::private_query::PrivateQuery,
+    differential_privacy::dp_event::DpEvent,
     expr, privacy_unit_tracking,
     relation::{rewriting, Reduce, Relation},
     Ready,
@@ -68,7 +68,7 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Clone, Debug)]
 pub struct DPRelation {
     relation: Relation,
-    private_query: PrivateQuery,
+    dp_event: DpEvent,
 }
 
 impl From<DPRelation> for Relation {
@@ -78,10 +78,10 @@ impl From<DPRelation> for Relation {
 }
 
 impl DPRelation {
-    pub fn new(relation: Relation, private_query: PrivateQuery) -> Self {
+    pub fn new(relation: Relation, dp_event: DpEvent) -> Self {
         DPRelation {
             relation,
-            private_query,
+            dp_event,
         }
     }
 
@@ -89,8 +89,8 @@ impl DPRelation {
         &self.relation
     }
 
-    pub fn private_query(&self) -> &PrivateQuery {
-        &self.private_query
+    pub fn dp_event(&self) -> &DpEvent {
+        &self.dp_event
     }
 }
 
@@ -102,14 +102,14 @@ impl Deref for DPRelation {
     }
 }
 
-impl From<DPRelation> for (Relation, PrivateQuery) {
+impl From<DPRelation> for (Relation, DpEvent) {
     fn from(value: DPRelation) -> Self {
-        (value.relation, value.private_query)
+        (value.relation, value.dp_event)
     }
 }
 
-impl From<(Relation, PrivateQuery)> for DPRelation {
-    fn from(value: (Relation, PrivateQuery)) -> Self {
+impl From<(Relation, DpEvent)> for DPRelation {
+    fn from(value: (Relation, DpEvent)) -> Self {
         DPRelation::new(value.0, value.1)
     }
 }
@@ -125,13 +125,13 @@ impl Reduce {
         epsilon_tau_thresholding: f64,
         delta_tau_thresholding: f64,
     ) -> Result<DPRelation> {
-        let mut private_query = PrivateQuery::null();
+        let mut dp_event = DpEvent::no_op();
 
         // DP rewrite group by
         let reduce_with_dp_group_by = if self.group_by().is_empty() {
             self
         } else {
-            let (dp_grouping_values, private_query_group_by) = self
+            let (dp_grouping_values, dp_event_group_by) = self
                 .differentially_private_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?
                 .into();
             let input_relation_with_privacy_tracked_group_by = self
@@ -142,13 +142,13 @@ impl Reduce {
                 .with(self)
                 .input(input_relation_with_privacy_tracked_group_by)
                 .build();
-            private_query = private_query.compose(private_query_group_by);
+            dp_event = dp_event.compose(dp_event_group_by);
             reduce
         };
 
         // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
         // not been spent, allocate it to the aggregations.
-        let (epsilon, delta) = if private_query.is_null() {
+        let (epsilon, delta) = if dp_event.is_no_op() {
             (
                 epsilon + epsilon_tau_thresholding,
                 delta + delta_tau_thresholding,
@@ -158,11 +158,11 @@ impl Reduce {
         };
 
         // DP rewrite aggregates
-        let (dp_relation, private_query_agg) = reduce_with_dp_group_by
+        let (dp_relation, dp_event_agg) = reduce_with_dp_group_by
             .differentially_private_aggregates(epsilon, delta)?
             .into();
-        private_query = private_query.compose(private_query_agg);
-        Ok((dp_relation, private_query).into())
+        dp_event = dp_event.compose(dp_event_agg);
+        Ok((dp_relation, dp_event).into())
     }
 }
 
@@ -176,26 +176,25 @@ mod tests {
         display::Dot,
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
-        privacy_unit_tracking::PrivacyUnit,
-        privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
+        privacy_unit_tracking::{PrivacyUnit,PrivacyUnitTracking, Strategy, PUPRelation},
         relation::{Field, Map, Relation, Schema, Variant, Constraint},
     };
-    use std::collections::HashSet;
+    use std::{collections::HashSet, sync::Arc};
 
     #[test]
     fn test_dp_rewrite_reduce_without_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
+        let (epsilon, delta) = (1., 1e-3);
+        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+
+        // privacy track the inputs
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
-
-        // privacy track the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
@@ -209,7 +208,7 @@ mod tests {
             Strategy::Hard,
         ));
         let pup_table = privacy_unit_tracking
-            .table(&table.try_into().unwrap())
+            .table(&table.clone().try_into().unwrap())
             .unwrap();
         let reduce = Reduce::new(
             "my_reduce".to_string(),
@@ -220,7 +219,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private(
                 epsilon,
                 delta,
@@ -231,8 +230,8 @@ mod tests {
             .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
-            private_query,
-            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_event,
+            DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon + epsilon_tau_thresholding,
                 delta + delta_tau_thresholding,
                 50.
@@ -243,7 +242,66 @@ mod tests {
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
-        println!("{query}");
+        _ = database.query(query).unwrap();
+
+        // input a map
+        let table = relations
+            .get(&["table_1".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
+            &relations,
+            vec![
+                (
+                    "table_1",
+                    vec![],
+                    PrivacyUnit::privacy_unit_row(),
+                ),
+            ],
+            Strategy::Hard,
+        ));
+        let pup_table = privacy_unit_tracking
+            .table(&table.clone().try_into().unwrap())
+            .unwrap();
+        let map = Map::new(
+            "my_map".to_string(),
+            vec![("my_d".to_string(), expr!(d/100))],
+            None,
+            vec![],
+            None,
+            None,
+            Arc::new(table.into()),
+        );
+        let pup_map = privacy_unit_tracking
+            .map(
+                &map.clone().try_into().unwrap(),
+                PUPRelation(Relation::from(pup_table))
+            )
+            .unwrap();
+        let reduce = Reduce::new(
+            "my_reduce".to_string(),
+            vec![("sum_d".to_string(), AggregateColumn::sum("my_d"))],
+            vec![],
+            pup_map.deref().clone().into(),
+        );
+        let relation = Relation::from(reduce.clone());
+        relation.display_dot().unwrap();
+
+        let (dp_relation, dp_event) = reduce
+            .differentially_private(
+                epsilon,
+                delta,
+                epsilon_tau_thresholding,
+                delta_tau_thresholding,
+            )
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert!(dp_event.is_no_op()); // private query is null beacause we have computed the sum of zeros
+        assert_eq!(dp_relation.data_type(), DataType::structured([("sum_d", DataType::float_value(0.))]));
+
+        let query: &str = &ast::Query::from(&dp_relation).to_string();
         _ = database.query(query).unwrap();
     }
 
@@ -298,7 +356,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private(
                 epsilon,
                 delta,
@@ -309,8 +367,8 @@ mod tests {
             .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
-            private_query,
-            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_event,
+            DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon + epsilon_tau_thresholding,
                 delta + delta_tau_thresholding,
                 50.
@@ -372,7 +430,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private(
                 epsilon,
                 delta,
@@ -383,10 +441,10 @@ mod tests {
             .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
-            private_query,
+            dp_event,
             vec![
-                PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
-                PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
+                DpEvent::epsilon_delta(epsilon_tau_thresholding, delta_tau_thresholding),
+                DpEvent::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
             ]
             .into()
         );
@@ -455,7 +513,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private(
                 epsilon,
                 delta,
@@ -466,10 +524,10 @@ mod tests {
             .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
-            private_query,
+            dp_event,
             vec![
-                PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding),
-                PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
+                DpEvent::epsilon_delta(epsilon_tau_thresholding, delta_tau_thresholding),
+                DpEvent::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
             ]
             .into()
         );
@@ -535,11 +593,11 @@ mod tests {
             .group_by(expr!(city))
             .input(input)
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private(10., 1e-5, 1., 1e-2)
             .unwrap()
             .into();
-        println!("{}", private_query);
+        println!("{}", dp_event);
         dp_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&dp_relation).to_string();
         let results = database.query(query).unwrap();
@@ -603,11 +661,11 @@ mod tests {
             .group_by(expr!(age))
             .input(input)
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private(10., 1e-5, 1., 1e-2)
             .unwrap()
             .into();
-        println!("{}", private_query);
+        println!("{}", dp_event);
         dp_relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&dp_relation).to_string();
         let results = database.query(query).unwrap();
@@ -657,7 +715,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
             .differentially_private(
                 epsilon,
                 delta,
@@ -668,9 +726,9 @@ mod tests {
             .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
-            private_query,
-            PrivateQuery::EpsilonDelta(epsilon_tau_thresholding, delta_tau_thresholding)
-                .compose(PrivateQuery::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 10.))
+            dp_event,
+            DpEvent::epsilon_delta(epsilon_tau_thresholding, delta_tau_thresholding)
+                .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 10.))
         );
         let correct_schema: Schema = vec![
             ("sum_a", DataType::float_interval(0., 100.), None),

@@ -8,7 +8,7 @@ use super::{
 use crate::{
     ast,
     data_type::{DataType, DataTyped},
-    dialect_translation::{postgres::PostgresTranslator, RelationToQueryTranslator},
+    dialect_translation::{postgresql::PostgreSqlTranslator, RelationToQueryTranslator},
     expr::{identifier::Identifier, Expr},
     visitor::Acceptor,
 };
@@ -428,7 +428,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
 /// Based on the FromRelationVisitor implement the From trait
 impl From<&Relation> for ast::Query {
     fn from(value: &Relation) -> Self {
-        let dialect_translator = PostgresTranslator;
+        let dialect_translator = PostgreSqlTranslator;
         value.accept(FromRelationVisitor::new(dialect_translator))
     }
 }

@@ -1,8 +1,8 @@
 use crate::{
     builder::{With, WithIterator},
     data_type::DataTyped,
-    differential_privacy::private_query::PrivateQuery,
-    differential_privacy::{private_query, DPRelation, Error, Result},
+    differential_privacy::dp_event::DpEvent,
+    differential_privacy::{dp_event, DPRelation, Error, Result},
     expr::{aggregate::{self, Aggregate}, AggregateColumn, Expr, Column, Identifier},
     privacy_unit_tracking::PUPRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant},
@@ -37,13 +37,13 @@ impl Relation {
         }
 
         let number_of_agg = bounds.len() as f64;
-        let (dp_relation, private_query) = if number_of_agg > 0. {
+        let (dp_relation, dp_event) = if number_of_agg > 0. {
             let noise_multipliers = bounds
                 .into_iter()
                 .map(|(name, bound)| {
                     (
                         name,
-                        private_query::gaussian_noise(
+                        dp_event::gaussian_noise(
                             epsilon / number_of_agg,
                             delta / number_of_agg,
                             bound,
@@ -51,21 +51,21 @@ impl Relation {
                     )
                 })
                 .collect::<Vec<_>>();
-            let private_query = noise_multipliers
+            let dp_event = noise_multipliers
                 .iter()
-                .map(|(_, n)| PrivateQuery::Gaussian(*n))
+                .map(|(_, n)| DpEvent::gaussian(*n))
                 .collect::<Vec<_>>()
                 .into();
             (
                 self.add_clipped_gaussian_noise(&noise_multipliers),
-                private_query
+                dp_event
             )
         } else {
-            (self, PrivateQuery::null())
+            (self, DpEvent::no_op())
         };
         DPRelation::new(
             dp_relation,
-            private_query,
+            dp_event,
         )
     }
 }
@@ -111,10 +111,10 @@ impl PUPRelation {
             .iter()
             .map(|(s, _, f)| (*s, *f))
             .collect::<Vec<_>>();
-        let (dp_clipped_relation, private_query) = clipped_relation
+        let (dp_clipped_relation, dp_event) = clipped_relation
             .gaussian_mechanisms(epsilon, delta, input_values_bound)
             .into();
-        Ok(DPRelation::new(dp_clipped_relation, private_query))
+        Ok(DPRelation::new(dp_clipped_relation, dp_event))
     }
 
     /// Rewrite aggregations as sums and add noise to that sums.
@@ -159,7 +159,7 @@ impl PUPRelation {
                 let sum_col = format!("_SUM_{}", col_name);
                 let count_col = format!("_COUNT_{}", col_name);
                 let square_col = format!("_SQUARE_{}", col_name);
-                let sum_square_col = format!("_SUM_{}", square_col);
+                let sum_square_col = format!("_SUM{}", square_col);
                 match aggregate.aggregate() {
                     Aggregate::Min |
                     Aggregate::Max |
@@ -174,7 +174,7 @@ impl PUPRelation {
                     aggregate::Aggregate::Mean => {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
-                            .with((one_col.as_str(), Expr::val(1.)));
+                            .with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
                         output_b = output_b.with((
@@ -186,7 +186,7 @@ impl PUPRelation {
                         ))
                     }
                     aggregate::Aggregate::Count => {
-                        input_b = input_b.with((one_col.as_str(), Expr::val(1.)));
+                        input_b = input_b.with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
                         sums.push((count_col.clone(), one_col));
                         output_b = output_b.with((name, Expr::cast_as_integer(Expr::col(count_col))));
                     }
@@ -199,7 +199,7 @@ impl PUPRelation {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
                             .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
-                            .with((one_col.as_str(), Expr::val(1.)));
+                            .with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
                         sums.push((sum_square_col.clone(), square_col));
@@ -224,7 +224,7 @@ impl PUPRelation {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
                             .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
-                            .with((one_col.as_str(), Expr::val(1.)));
+                            .with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
                         sums.push((sum_square_col.clone(), square_col));
@@ -253,7 +253,7 @@ impl PUPRelation {
 
         let input: Relation = input_builder.input(self.deref().clone()).build();
         let pup_input = PUPRelation::try_from(input)?;
-        let (dp_relation, private_query) = pup_input
+        let (dp_relation, dp_event) = pup_input
             .differentially_private_sums(
                 named_sums
                     .iter() // Convert &str to String
@@ -267,7 +267,7 @@ impl PUPRelation {
         let dp_relation = output_builder
             .input(dp_relation)
             .build();
-        Ok(DPRelation::new(dp_relation, private_query))
+        Ok(DPRelation::new(dp_relation, dp_event))
     }
 }
 
@@ -286,7 +286,7 @@ impl Reduce {
         let delta = delta / (cmp::max(reduces.len(), 1) as f64);
 
         // Rewrite into differential privacy each `Reduce` then join them.
-        let (relation, private_query) = reduces.iter()
+        let (relation, dp_event) = reduces.iter()
             .map(|r| pup_input.clone().differentially_private_aggregates(
                 r.named_aggregates()
                     .into_iter()
@@ -301,7 +301,7 @@ impl Reduce {
                 let dp_rel = dp_rel?;
                 Ok(DPRelation::new(
                     acc.relation().clone().natural_inner_join(dp_rel.relation().clone()),
-            acc.private_query().clone().compose(dp_rel.private_query().clone())
+            acc.dp_event().clone().compose(dp_rel.dp_event().clone())
                 ))
             })
             .unwrap()?
@@ -311,7 +311,7 @@ impl Reduce {
             .input(relation)
             .with_iter(self.fields().into_iter().map(|f| (f.name(), Expr::col(f.name()))))
             .build();
-        Ok((relation, private_query).into())
+        Ok((relation, dp_event).into())
     }
 
 
@@ -431,7 +431,7 @@ mod tests {
         relation::{Schema, Variant as _},
         privacy_unit_tracking::PrivacyUnit
     };
-    use std::ops::Deref;
+    use std::{sync::Arc, ops::Deref};
 
     #[test]
     fn test_table_with_noise() {
@@ -460,14 +460,14 @@ mod tests {
         let mut database = postgresql::test_database();
         let relations = database.relations();
 
+        let (epsilon, delta) = (1., 1e-3);
+
+        // privacy tracking of the inputs
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-
-        // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
@@ -499,6 +499,57 @@ mod tests {
             .unwrap();
         dp_relation.display_dot().unwrap();
         matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
+        assert!(!dp_relation.dp_event().is_no_op());
+
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database.query(query).unwrap();
+
+        // input a map
+        let table = relations
+            .get(&["table_1".to_string()])
+            .unwrap()
+            .deref()
+            .clone();
+        let privacy_unit_tracking = PrivacyUnitTracking::from((
+            &relations,
+            vec![("table_1", vec![], PrivacyUnit::privacy_unit_row())],
+            Strategy::Hard,
+        ));
+        let pup_table = privacy_unit_tracking
+            .table(&table.clone().try_into().unwrap())
+            .unwrap();
+        let map = Map::new(
+            "my_map".to_string(),
+            vec![("my_d".to_string(), expr!(d/100))],
+            None,
+            vec![],
+            None,
+            None,
+            Arc::new(table),
+        );
+        let pup_map = privacy_unit_tracking
+            .map(
+                &map.clone().try_into().unwrap(),
+                PUPRelation(Relation::from(pup_table))
+            )
+            .unwrap();
+        let reduce = Reduce::new(
+            "my_reduce".to_string(),
+            vec![("sum_d".to_string(), AggregateColumn::sum("my_d"))],
+            vec![],
+            pup_map.deref().clone().into(),
+        );
+        let relation = Relation::from(reduce.clone());
+        relation.display_dot().unwrap();
+
+        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+            .unwrap()
+            .differentially_private_sums(vec![("sum_d", "my_d")], vec![], epsilon, delta)
+            .unwrap();
+        dp_relation.display_dot().unwrap();
+        matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
+        assert!(dp_relation.dp_event().is_no_op()); // private query is null beacause we have computed the sum of zeros
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -1034,8 +1085,8 @@ mod tests {
         .build();
         let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
         assert_eq!(
-            dp_relation.private_query(),
-            &PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_relation.dp_event(),
+            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon.clone(),
                 delta.clone(),
                 2.
@@ -1056,8 +1107,8 @@ mod tests {
         .build();
         let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
         assert_eq!(
-            dp_relation.private_query(),
-            &PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_relation.dp_event(),
+            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon.clone(),
                 delta.clone(),
                 2.
@@ -1078,8 +1129,8 @@ mod tests {
         let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
-            dp_relation.private_query(),
-            &PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_relation.dp_event(),
+            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon.clone(),
                 delta.clone(),
                 2.
@@ -1101,8 +1152,8 @@ mod tests {
         let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
-            dp_relation.private_query(),
-            &PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_relation.dp_event(),
+            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon.clone(),
                 delta.clone(),
                 2.
@@ -1202,14 +1253,14 @@ mod tests {
             .with_group_by_column("a")
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
         .differentially_private_aggregates(epsilon.clone(), delta.clone())
         .unwrap()
         .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
-            private_query,
-            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_event,
+            DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon.clone(),
                 delta.clone(),
                 10.
@@ -1230,14 +1281,14 @@ mod tests {
             .group_by(expr!(a))
             .input(table.clone())
             .build();
-        let (dp_relation, private_query) = reduce
+        let (dp_relation, dp_event) = reduce
         .differentially_private_aggregates(epsilon.clone(), delta.clone())
         .unwrap()
         .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
-            private_query,
-            PrivateQuery::gaussian_from_epsilon_delta_sensitivity(
+            dp_event,
+            DpEvent::gaussian_from_epsilon_delta_sensitivity(
                 epsilon.clone(),
                 delta.clone(),
                 10.

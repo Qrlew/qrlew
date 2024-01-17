@@ -13,9 +13,9 @@ use sqlparser::{
     dialect::MsSqlDialect,
 };
 #[derive(Clone, Copy)]
-pub struct MSSQLTranslator;
+pub struct MsSqlTranslator;
 
-impl RelationToQueryTranslator for MSSQLTranslator {
+impl RelationToQueryTranslator for MsSqlTranslator {
     /// Identifiers are back quoted
     fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
         let quoting_char: char = '"';
@@ -162,7 +162,7 @@ impl RelationToQueryTranslator for MSSQLTranslator {
         let top = limit.map(|e| ast::Top {
             with_ties: false,
             percent: false,
-            quantity: Some(e),
+            quantity: Some(ast::TopQuantity::Expr(e)),
         });
         ast::Query {
             with: (!with.is_empty()).then_some(ast::With {
@@ -246,7 +246,7 @@ impl RelationToQueryTranslator for MSSQLTranslator {
     }
 }
 
-impl QueryToRelationTranslator for MSSQLTranslator {
+impl QueryToRelationTranslator for MsSqlTranslator {
     type D = MsSqlDialect;
 
     fn dialect(&self) -> Self::D {
@@ -391,7 +391,7 @@ mod tests {
 
         let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
 
-        let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
         let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
         println!("{}", translated_query);
 
@@ -407,7 +407,7 @@ mod tests {
 
         let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
 
-        let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
         let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
         println!("{}", translated_query);
 
@@ -429,7 +429,7 @@ mod tests {
 
         let relation = Relation::try_from(With::with(&query, &relations)).unwrap();
 
-        let rel_with_traslator = RelationWithTranslator(&relation, MSSQLTranslator);
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
         let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
         println!("{}", translated_query);
 
@@ -467,7 +467,7 @@ mod tests {
                 .input(table.clone())
                 .build(),
         );
-        let rel_with_traslator = RelationWithTranslator(map.as_ref(), MSSQLTranslator);
+        let rel_with_traslator = RelationWithTranslator(map.as_ref(), MsSqlTranslator);
         let query = ast::Query::from(rel_with_traslator);
         let translated = r#"
             WITH map_1 (field_li80) AS (SELECT LOG("a") AS field_li80 FROM "table") SELECT * FROM "map_1"
@@ -496,7 +496,7 @@ mod tests {
         let query = ast::Query::from(map.as_ref());
         print!("NOT TRANSLATED: \n{}\n", query);
 
-        let translator = MSSQLTranslator;
+        let translator = MsSqlTranslator;
         let rel = map.as_ref();
         let rel_with_traslator = RelationWithTranslator(rel, translator);
         let query = ast::Query::from(rel_with_traslator);

@@ -4,17 +4,20 @@
 
 use colored::Colorize;
 use itertools::Itertools;
-#[cfg(feature = "sqlite")]
-use qrlew::io::sqlite;
 #[cfg(feature = "mssql")]
 use qrlew::io::mssql;
+#[cfg(feature = "sqlite")]
+use qrlew::io::sqlite;
 use qrlew::{
     ast,
+    dialect_translation::{
+        postgresql::PostgreSqlTranslator, RelationToQueryTranslator, RelationWithTranslator,
+    },
     expr,
     io::{postgresql, Database},
     relation::Variant as _,
     sql::parse,
-    Relation, With, dialect_translation::{RelationToQueryTranslator, RelationWithTranslator, postgres::PostgresTranslator},
+    Relation, With,
 };
 
 pub fn test_eq<D: Database>(database: &mut D, query1: &str, query2: &str) -> bool {
@@ -49,7 +52,11 @@ pub fn test_rewritten_eq<D: Database>(database: &mut D, query: &str) -> bool {
     test_eq(database, query, rewriten_query)
 }
 
-pub fn test_execute<D: Database, T: RelationToQueryTranslator>(database: &mut D, query: &str, translator: T) {
+pub fn test_execute<D: Database, T: RelationToQueryTranslator>(
+    database: &mut D,
+    query: &str,
+    translator: T,
+) {
     let relations = database.relations();
     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
     let relaiton_with_tranlator = RelationWithTranslator(&relation, translator);
@@ -152,7 +159,6 @@ const SQLITE_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_
 #[cfg(feature = "sqlite")]
 #[test]
 fn test_on_sqlite() {
-
     let mut database = sqlite::test_database();
     println!("database {} = {}", database.name(), database.relations());
     for tab in database.tables() {
@@ -169,9 +175,25 @@ const POSTGRESQL_QUERIES: &[&str] = &[
     // Test MD5
     "SELECT MD5(z) FROM table_2 LIMIT 10",
     "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
-    // Some joins
     "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
     "SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
+    "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
+    "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
+    "SELECT COUNT(*) AS c1 FROM table_2 WHERE y ILIKE '%ab%';",
+    "SELECT z, CASE WHEN z IS Null THEN 'Null' ELSE 'NotNull' END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+    // This fails consistency tests due to numeric errors. It could be fixed with Round
+    // but in psql round(arg, precision) fails if arg is a double precision type
+    // "SELECT
+    //     SUM(log_capital_loss) AS res1,
+    //     SUM(sqrt_capital_loss) AS res2,
+    //     SUM(inv_capital_loss) AS res3 
+    // FROM (
+    //     SELECT 
+    //         LOG(x + 1) AS log_capital_loss,
+    //         SQRT(x) AS sqrt_capital_loss, 
+    //         1/(x+1) AS inv_capital_loss 
+    //     FROM table_2
+    // ) AS subquery;"
 ];
 
 #[test]
@@ -260,13 +282,12 @@ const QUERIES_FOR_MSSQL: &[&str] = &[
     // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
 ];
 
-
 #[cfg(feature = "mssql")]
 #[test]
 fn test_on_mssql() {
     // In this test we construct relations from QUERIES and we execute
     // the translated queries
-    use qrlew::dialect_translation::mssql::MSSQLTranslator;
+    use qrlew::dialect_translation::mssql::MsSqlTranslator;
 
     let mut database = mssql::test_database();
     println!("database {} = {}", database.name(), database.relations());
@@ -275,7 +296,7 @@ fn test_on_mssql() {
     }
     for &query in QUERIES_FOR_MSSQL.iter() {
         println!("TESTING QUERY: {}", query);
-        test_execute(&mut database, query, MSSQLTranslator);
+        test_execute(&mut database, query, MsSqlTranslator);
     }
 }
 
