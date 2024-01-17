@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2024-01-17
+### Changed
+- We changed the perimeter of the mssql feature so that the dialect translation is available without it
+
 ## [0.9.0] - 2024-01-15
 ### Changed
 - aligning Translators names to the sqlparser convention. Allowing only for compact filenames e.g. (filename: postgresql, tranlator: PostgreSqlTranslator, dialect (sqlparser): PostgreSqlDialect, etc.) [#250](https://github.com/Qrlew/qrlew/pull/250)
