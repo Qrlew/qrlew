@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 
+## [0.9.5] - 2024-01-18
+### Fixed
+- bug mssql translator [#254](https://github.com/Qrlew/qrlew/pull/254)
+
 ## [0.9.5] - 2024-01-17
 - Fixed [#251](https://github.com/Qrlew/qrlew/issues/251) and [#252](https://github.com/Qrlew/qrlew/issues/252)
 
