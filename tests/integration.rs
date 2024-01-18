@@ -210,6 +210,7 @@ fn test_on_postgresql() {
 
 #[cfg(feature = "mssql")]
 const QUERIES_FOR_MSSQL: &[&str] = &[
+    "SELECT RANDOM(), * FROM table_2",
     "SELECT AVG(x) as a FROM table_2",
     "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
     "SELECT 1+SUM(a), count(b) FROM table_1",

@@ -47,7 +47,9 @@ impl RelationToQueryTranslator for MsSqlTranslator {
 
     /// Converting RANDOM to RAND
     fn random(&self) -> ast::Expr {
-        function_builder("RAND", vec![], false)
+        let new_id = function_builder("NEWID", vec![], false);
+        let check_sum = function_builder("CHECKSUM", vec![new_id], false);
+        function_builder("RAND", vec![check_sum], false)
     }
 
     /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
