@@ -83,53 +83,6 @@ impl RelationToQueryTranslator for PostgreSqlTranslator {
             null_treatment: None,
         })
     }
-
-    fn position(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-        assert!(exprs.len() == 2);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        ast::Expr::Position {
-            expr: Box::new(ast_exprs[0].clone()),
-            r#in: Box::new(ast_exprs[1].clone()),
-        }
-    }
-
-    fn substr_with_size(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-        assert!(exprs.len() == 3);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        ast::Expr::Substring {
-            expr: Box::new(ast_exprs[0].clone()),
-            substring_from: Some(Box::new(ast_exprs[1].clone())),
-            substring_for: Some(Box::new(ast_exprs[2].clone())),
-            special: false,
-        }
-    }
-
-    fn is_null(&self, expr: &expr::Expr) -> ast::Expr {
-        let ast_expr: ast::Expr = self.expr(expr);
-        ast::Expr::IsNull(Box::new(ast_expr))
-    }
-
-    fn ilike(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-        assert!(exprs.len() == 2);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        ast::Expr::ILike {
-            negated: false,
-            expr: Box::new(ast_exprs[0].clone()),
-            pattern: Box::new(ast_exprs[1].clone()),
-            escape_char: None,
-        }
-    }
-
-    fn like(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-        assert!(exprs.len() == 2);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        ast::Expr::Like {
-            negated: false,
-            expr: Box::new(ast_exprs[0].clone()),
-            pattern: Box::new(ast_exprs[1].clone()),
-            escape_char: None,
-        }
-    }
 }
 
 impl QueryToRelationTranslator for PostgreSqlTranslator {

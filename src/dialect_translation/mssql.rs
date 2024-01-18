@@ -124,6 +124,34 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         ast::Expr::from(&casted_to_integer)
     }
 
+    fn cast_as_text(&self,expr: &expr::Expr) -> ast::Expr {
+        let ast_expr = self.expr(expr);
+        ast::Expr::Cast {
+            expr: Box::new(ast_expr),
+            data_type: ast::DataType::Nvarchar(Some(255)),
+            format: None
+        }
+    }
+    fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+        assert!(exprs.len() == 3);
+        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
+        ast::Expr::Substring {
+            expr: Box::new(ast_exprs[0].clone()),
+            substring_from: Some(Box::new(ast_exprs[1].clone())),
+            substring_for: Some(Box::new(ast_exprs[2].clone())),
+            special: true,
+        }
+    }
+    fn substr_with_size(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+        assert!(exprs.len() == 3);
+        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
+        ast::Expr::Substring {
+            expr: Box::new(ast_exprs[0].clone()),
+            substring_from: Some(Box::new(ast_exprs[1].clone())),
+            substring_for: Some(Box::new(ast_exprs[2].clone())),
+            special: true,
+        }
+    }
     fn ceil(&self, expr: &expr::Expr) -> ast::Expr {
         let arg = self.expr(expr);
         function_builder("CEILING", vec![arg], false)

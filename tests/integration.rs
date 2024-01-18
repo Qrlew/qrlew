@@ -255,6 +255,10 @@ const QUERIES_FOR_MSSQL: &[&str] = &[
     SELECT * FROM t1 UNION SELECT * FROM t2",
     // Some joins
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
+    "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
+    "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
+    "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+    "SELECT z, CASE WHEN z IS Null THEN CAST('A' AS VARCHAR(10)) ELSE CAST('B' AS VARCHAR(10)) END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
     // Some string functions
     //"SELECT UPPER(z) FROM table_2 LIMIT 5",
     //"SELECT LOWER(z) FROM table_2 LIMIT 5",
