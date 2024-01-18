@@ -45,7 +45,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         function_builder("LOG", vec![arg], false)
     }
 
-    /// Converting RANDOM to RAND
+    /// Converting RANDOM to RAND(CHECKSUM(NEWID()))
     fn random(&self) -> ast::Expr {
         let new_id = function_builder("NEWID", vec![], false);
         let check_sum = function_builder("CHECKSUM", vec![new_id], false);
