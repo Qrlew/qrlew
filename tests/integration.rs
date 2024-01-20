@@ -88,6 +88,8 @@ const QUERIES: &[&str] = &[
     "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
     "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
     "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
+    // Test COUNT NA
+    "SELECT count(x), count(table_2.y) FROM table_2",
     // Some WHERE and GROUP BY
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
     "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
