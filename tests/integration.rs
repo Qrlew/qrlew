@@ -88,6 +88,8 @@ const QUERIES: &[&str] = &[
     "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
     "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
     "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
+    // Test COUNT NA
+    "SELECT count(x), count(table_2.y) FROM table_2",
     // Some WHERE and GROUP BY
     "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
     "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
@@ -210,6 +212,7 @@ fn test_on_postgresql() {
 
 #[cfg(feature = "mssql")]
 const QUERIES_FOR_MSSQL: &[&str] = &[
+    "SELECT RANDOM(), * FROM table_2",
     "SELECT AVG(x) as a FROM table_2",
     "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
     "SELECT 1+SUM(a), count(b) FROM table_1",
@@ -255,6 +258,10 @@ const QUERIES_FOR_MSSQL: &[&str] = &[
     SELECT * FROM t1 UNION SELECT * FROM t2",
     // Some joins
     "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
+    "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
+    "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
+    "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+    "SELECT z, CASE WHEN z IS Null THEN CAST('A' AS VARCHAR(10)) ELSE CAST('B' AS VARCHAR(10)) END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
     // Some string functions
     //"SELECT UPPER(z) FROM table_2 LIMIT 5",
     //"SELECT LOWER(z) FROM table_2 LIMIT 5",
