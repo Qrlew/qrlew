@@ -276,6 +276,9 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                 input_ctes.push(cte)
             }
         });
+
+        println!("JOIN_SCHEMA: {:?}", join.schema());
+
         // Add input query to CTEs
         input_ctes.push(
             self.translator.cte(
@@ -286,7 +289,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                     .collect(),
                 self.translator.query(
                     vec![],
-                    all(),
+                    self.translator.join_projection(join), //self.translator.join_projection(),
                     table_with_joins(
                         self.translator
                             .table_factor(join.left.as_ref().into(), Some(Join::left_name())),

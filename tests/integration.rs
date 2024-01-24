@@ -321,16 +321,84 @@ fn test_on_bigquery() {
     }
     let queries_for_bq = [
         "SELECT AVG(b) as n, count(b) as d FROM table_1",
-        // Test MD5
-        // "SELECT MD5(z) FROM table_2 LIMIT 10",
-        // "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
-        // "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
-        // "SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
-        // "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
-        // "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
-        // "SELECT COUNT(*) AS c1 FROM table_2 WHERE y ILIKE '%ab%';",
-        // "SELECT z, CASE WHEN z IS Null THEN 'Null' ELSE 'NotNull' END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
-
+        "SELECT MD5(z) FROM table_2 LIMIT 10",
+        "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
+        "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
+        //"SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
+        "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
+        "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
+        "SELECT COUNT(*) AS c1 FROM table_2 WHERE y LIKE '%Ba%';",
+        "SELECT z, CASE WHEN z IS Null THEN 'Null' ELSE 'NotNull' END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+        "SELECT RANDOM(), * FROM table_2",
+        "SELECT AVG(x) as a FROM table_2",
+        "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
+        "SELECT 1+SUM(a), count(b) FROM table_1",
+        // Some WHERE
+        "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
+        "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
+        // Some GROUP BY
+        "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
+        "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
+        "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
+        // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
+        // Some WHERE and GROUP BY
+        "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
+        "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
+        "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
+        "WITH t1 AS (SELECT a,d FROM table_1),
+        t2 AS (SELECT * FROM table_2)
+        SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
+        "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
+        t2 AS (SELECT * FROM table_2)
+        SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
+        "WITH t1 AS (SELECT a,d FROM table_1),
+           t2 AS (SELECT * FROM table_2)
+        SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
+        // Test LIMIT
+        "WITH t1 AS (SELECT a,d FROM table_1),
+        t2 AS (SELECT * FROM table_2)
+        SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
+        "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
+        "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
+        "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
+        // Test UNION
+        // "SELECT 1*a FROM table_1 UNION SELECT 1*x FROM table_2",
+        // Test no UNION with CTEs
+        "WITH t1 AS (SELECT a,d FROM table_1),
+        t2 AS (SELECT x,y FROM table_2)
+        SELECT * FROM t1",
+        // Test UNION with CTEs
+        // "WITH t1 AS (SELECT 1*a, 1*d FROM table_1),
+        // t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
+        // SELECT * FROM t1 UNION SELECT * FROM t2",
+        // Some joins
+        "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
+        "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
+        "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
+        "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+        "SELECT z, CASE WHEN z IS Null THEN CAST('A' AS VARCHAR(10)) ELSE CAST('B' AS VARCHAR(10)) END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+        "SELECT UPPER(z) FROM table_2 LIMIT 5",
+        "SELECT LOWER(z) FROM table_2 LIMIT 5",
+        // ORDER BY
+        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d",
+        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d DESC",
+        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
+        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
+        // DISTINCT
+        "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d", 
+        "SELECT DISTINCT c, d FROM table_1",
+        "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
+        "SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;",
+        // using joins
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 INNER JOIN t2 USING(a)",
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 LEFT JOIN t2 USING(a)",
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 RIGHT JOIN t2 USING(a)",
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
+        // natural joins
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL INNER JOIN t2",
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
+        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
     ];
     for &query in queries_for_bq.iter() {
         println!("TESTING QUERY: {}", query);

@@ -20,7 +20,7 @@ use crate::{
     data_type::DataTyped,
     expr::Identifier,
     hierarchy::Hierarchy,
-    relation::{JoinOperator, Table, Variant},
+    relation::{JoinOperator, Table, Join, Variant},
     sql::{self, parse, parse_with_dialect, Error, Result},
     DataType, Relation,
 };
@@ -259,6 +259,11 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     query: Box::new(query),
                     from: None,
                 }
+            }
+            fn join_projection(&self, join: &Join) -> Vec<ast::SelectItem> {
+                vec![ast::SelectItem::Wildcard(
+                    ast::WildcardAdditionalOptions::default(),
+                )]
             }
 
             fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
@@ -643,12 +648,12 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 }
             }
             fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-                assert!(exprs.len() == 3);
+                assert!(exprs.len() == 2);
                 let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Substring {
                     expr: Box::new(ast_exprs[0].clone()),
                     substring_from: Some(Box::new(ast_exprs[1].clone())),
-                    substring_for: Some(Box::new(ast_exprs[2].clone())),
+                    substring_for: None,
                     special: false,
                 }
             }

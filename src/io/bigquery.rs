@@ -695,7 +695,7 @@ impl TryFrom<(Option<serde_json::Value>, field_type::FieldType)> for SqlValue {
             let val_as_str = extract_value(v)?;
             match dtype {
                 field_type::FieldType::String => value::Value::text(val_as_str).try_into(),
-                field_type::FieldType::Bytes => todo!(),
+                field_type::FieldType::Bytes => value::Value::bytes(val_as_str).try_into(),
                 field_type::FieldType::Integer => {
                     value::Value::integer(val_as_str.parse()?).try_into()
                 }
