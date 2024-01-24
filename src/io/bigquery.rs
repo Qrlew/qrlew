@@ -17,13 +17,13 @@ use wiremock::{
 
 use gcp_bigquery_client::{
     model::{
-        dataset_reference::DatasetReference, field_type,
-        query_parameter::QueryParameter, query_request::QueryRequest, query_response::ResultSet,
-        table::Table as BQTable, table_data_insert_all_request::TableDataInsertAllRequest,
+        dataset_reference::DatasetReference, field_type, query_parameter::QueryParameter,
+        query_request::QueryRequest, query_response::ResultSet, table::Table as BQTable,
+        table_data_insert_all_request::TableDataInsertAllRequest,
         table_data_insert_all_request_rows::TableDataInsertAllRequestRows,
         table_field_schema::TableFieldSchema, table_schema::TableSchema,
     },
-    table::{ListOptions},
+    table::ListOptions,
     Client,
 };
 
@@ -50,7 +50,6 @@ const PROJECT_ID: &str = "test";
 const DATASET_ID: &str = "dataset1";
 const AUTH_TOKEN_ENDPOINT: &str = "/:o/oauth2/token";
 
-
 impl From<gcp_bigquery_client::error::BQError> for Error {
     fn from(err: gcp_bigquery_client::error::BQError) -> Self {
         Error::Other(err.to_string())
@@ -74,8 +73,6 @@ impl From<ParseError> for Error {
         Error::Other(err.to_string())
     }
 }
-
-
 
 pub struct GoogleAuthMock {
     server: MockServer,
@@ -144,7 +141,7 @@ pub fn dummy_configuration(oauth_server: &str) -> serde_json::Value {
 pub struct Database {
     name: String,
     tables: Vec<Table>,
-    client: Client
+    client: Client,
 }
 
 pub static BQ_CLIENT: Mutex<Option<Client>> = Mutex::new(None);
@@ -166,9 +163,7 @@ impl Database {
         env::var("BIGQUERY_PROJECT_ID").unwrap_or(PROJECT_ID.into())
     }
 
-    fn check_client(
-        client: &Client
-    ) -> Result<()> {
+    fn check_client(client: &Client) -> Result<()> {
         println!("check_client");
         let rt = tokio::runtime::Runtime::new()?;
         let res = rt.block_on(async_query("SELECT 1", &client, None))?;
@@ -176,10 +171,7 @@ impl Database {
     }
 
     /// Get a Database from a container
-    fn build_pool_from_container(
-        name: String,
-        client: &Client
-    ) -> Result<()> {
+    fn build_pool_from_container(name: String, client: &Client) -> Result<()> {
         println!("build_pool_from_container");
         let mut bq_container = BIGQUERY_CONTAINER.lock().unwrap();
 
@@ -196,7 +188,8 @@ impl Database {
                 .arg("start")
                 .arg(&name)
                 .status()?
-                .success() {
+                .success()
+            {
                 log::debug!("Starting the DB");
                 println!("Starting the DB");
                 // If the container does not exist, start a new container
@@ -223,7 +216,7 @@ impl Database {
                     .output()?;
                 log::info!("{:?}", output);
                 log::info!("Waiting for the DB to start");
-                
+
                 let max_seconds = 10;
                 let max_duration = time::Duration::from_secs(max_seconds); // Set maximum duration for the loop
                 let start_time = time::Instant::now();
@@ -233,10 +226,13 @@ impl Database {
                         Ok(_) => {
                             println!("BQ emulator ready!");
                             break;
-                            },
+                        }
                         Err(_) => {
                             if start_time.elapsed() > max_duration {
-                                return Err(Error::other(format!("BQ emulator couldn't be ready in {} seconds!", max_seconds)));
+                                return Err(Error::other(format!(
+                                    "BQ emulator couldn't be ready in {} seconds!",
+                                    max_seconds
+                                )));
                             }
                             // Optional: sleep for a bit before retrying
                             thread::sleep(time::Duration::from_millis(500));
@@ -412,9 +408,8 @@ impl DatabaseTrait for Database {
         // make sure you check there is a bigquery instance up and running
         // or try to start an existing one
         // or create a new one.
-        Database::check_client(&client).or_else(|_| {
-            Database::build_pool_from_container(name.clone(), &client)
-        })?;
+        Database::check_client(&client)
+            .or_else(|_| Database::build_pool_from_container(name.clone(), &client))?;
         println!("done");
         let list_tabs = rt
             .block_on(

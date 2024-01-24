@@ -14,20 +14,16 @@ use sqlparser::{ast, dialect::BigQueryDialect};
 
 use crate::sql::Error;
 
-
-
 #[derive(Clone, Copy)]
 pub struct BigQueryTranslator;
 
 impl RelationToQueryTranslator for BigQueryTranslator {
-    fn cte(
-        &self,
-        name: ast::Ident,
-        _columns: Vec<ast::Ident>,
-        query: ast::Query,
-    ) -> ast::Cte {
+    fn cte(&self, name: ast::Ident, _columns: Vec<ast::Ident>, query: ast::Query) -> ast::Cte {
         ast::Cte {
-            alias: ast::TableAlias { name, columns: vec![]},
+            alias: ast::TableAlias {
+                name,
+                columns: vec![],
+            },
             query: Box::new(query),
             from: None,
         }
@@ -55,12 +51,12 @@ impl RelationToQueryTranslator for BigQueryTranslator {
         let arg = self.expr(expr);
         function_builder("LOG", vec![arg], false)
     }
-    fn cast_as_text(&self,expr: &expr::Expr) -> ast::Expr {
+    fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
         let ast_expr = self.expr(expr);
         ast::Expr::Cast {
             expr: Box::new(ast_expr),
             data_type: ast::DataType::String(None),
-            format: None
+            format: None,
         }
     }
     fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
@@ -86,21 +82,20 @@ impl RelationToQueryTranslator for BigQueryTranslator {
         join.left()
             .schema()
             .iter()
-            .map(|f|self.expr(&expr::Expr::qcol(Join::left_name(), f.name())))
+            .map(|f| self.expr(&expr::Expr::qcol(Join::left_name(), f.name())))
             .chain(
                 join.right()
                     .schema()
                     .iter()
-                    .map(|f|self.expr(&expr::Expr::qcol(Join::right_name(), f.name())))
+                    .map(|f| self.expr(&expr::Expr::qcol(Join::right_name(), f.name()))),
             )
             .zip(join.schema().iter())
-            .map(|(expr, field)|
-                ast::SelectItem::ExprWithAlias { expr, alias: field.name().into()} 
-            )
+            .map(|(expr, field)| ast::SelectItem::ExprWithAlias {
+                expr,
+                alias: field.name().into(),
+            })
             .collect()
     }
-
-
 }
 
 impl QueryToRelationTranslator for BigQueryTranslator {
@@ -170,9 +165,5 @@ mod tests {
     }
 
     #[test]
-    fn test_joins() {
-
-
-    }
-
+    fn test_joins() {}
 }
