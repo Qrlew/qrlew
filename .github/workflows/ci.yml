@@ -47,10 +47,18 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
+            bigquery:
+                image: ghcr.io/goccy/bigquery-emulator:latest
+                ports:
+                    - 9050:9050
+                options:
+                    --health-interval 10s
+                    --project test
+                    --dataset dataset1
 
         steps:
             - uses: actions/checkout@v3
             - name: Build
-              run: cargo build --features mssql --verbose
+              run: cargo build --features mssql,bigquery --verbose
             - name: Run tests
-              run: cargo test --features mssql --verbose
+              run: cargo test --features mssql,bigquery --verbose

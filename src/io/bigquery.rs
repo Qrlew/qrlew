@@ -7,7 +7,7 @@
 
 use chrono::ParseError;
 use serde::{ser, Serialize};
-use serde_json; // Just for demonstration purposes
+use serde_json;
 use std::{collections::HashMap, ops::Deref, str::ParseBoolError};
 use tempfile::NamedTempFile;
 use wiremock::{
@@ -40,7 +40,6 @@ use crate::{
     relation::{Constraint, Schema, Table, TableBuilder, Variant as _},
     DataType, Ready as _,
 };
-use colored::Colorize;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{env, fmt, process::Command, result, str::FromStr, sync::Arc, sync::Mutex, thread, time};
 

@@ -1,9 +1,10 @@
 //! # Utilities to run tests on real data
 //!
 //! For now supports:
-//! - Pstgresql
+//! - PstgresSql
 //! - SQLite using the ["sqlite"] feature.
-//! - MSSQL using the ["mssql"] feature.
+//! - MsSql using the ["mssql"] feature.
+//! - BigQuery using the ["bigquery"] feature.
 //!
 
 pub mod postgresql;

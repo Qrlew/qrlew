@@ -1,18 +1,12 @@
-use std::sync::Arc;
-
 use crate::{
-    data_type::{DataType, DataTyped as _},
-    expr::{self, Function as _},
-    hierarchy::Hierarchy,
-    relation::{sql::FromRelationVisitor, Join, Relation, Table, Variant as _},
-    sql::{parse_with_dialect, query_names::IntoQueryNamesVisitor},
-    visitor::Acceptor,
+    expr::{self},
+    relation::{Join, Variant as _},
 };
 
-use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator, Result};
+use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::BigQueryDialect};
 
-use crate::sql::Error;
+
 
 #[derive(Clone, Copy)]
 pub struct BigQueryTranslator;
@@ -107,21 +101,16 @@ impl QueryToRelationTranslator for BigQueryTranslator {
 }
 
 #[cfg(test)]
-#[cfg(feature = "bigquery")]
 mod tests {
-    use sqlparser::dialect::GenericDialect;
 
     use super::*;
     use crate::{
         builder::{Ready, With},
         data_type::{DataType, Value as _},
         dialect_translation::RelationWithTranslator,
-        display::Dot,
         expr::Expr,
-        io::{mssql, Database as _},
         namer,
         relation::{schema::Schema, Relation, Variant as _},
-        sql::{parse, parse_expr, parse_with_dialect, relation::QueryWithRelations},
     };
     use std::sync::Arc;
 
@@ -163,7 +152,4 @@ mod tests {
         "#;
         assert_same_query_str(&query.to_string(), translated);
     }
-
-    #[test]
-    fn test_joins() {}
 }
