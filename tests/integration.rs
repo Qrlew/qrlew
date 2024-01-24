@@ -307,6 +307,37 @@ fn test_on_mssql() {
     }
 }
 
+#[cfg(feature = "bigquery")]
+#[test]
+fn test_on_bigquery() {
+    // In this test we construct relations from QUERIES and we execute
+    // the translated queries
+    use qrlew::{dialect_translation::bigquery::BigQueryTranslator, io::bigquery};
+
+    let mut database = bigquery::test_database();
+    println!("database {} = {}", database.name(), database.relations());
+    for tab in database.tables() {
+        println!("schema {} = {}", tab, tab.schema());
+    }
+    let queries_for_bq = [
+        "SELECT AVG(b) as n, count(b) as d FROM table_1",
+        // Test MD5
+        // "SELECT MD5(z) FROM table_2 LIMIT 10",
+        // "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
+        // "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
+        // "SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
+        // "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
+        // "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
+        // "SELECT COUNT(*) AS c1 FROM table_2 WHERE y ILIKE '%ab%';",
+        // "SELECT z, CASE WHEN z IS Null THEN 'Null' ELSE 'NotNull' END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+
+    ];
+    for &query in queries_for_bq.iter() {
+        println!("TESTING QUERY: {}", query);
+        test_execute(&mut database, query, BigQueryTranslator);
+    }
+}
+
 #[test]
 fn test_distinct_aggregates() {
     let mut database = postgresql::test_database();

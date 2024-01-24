@@ -1,12 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    expr,
-    hierarchy::Hierarchy,
-    relation::sql::FromRelationVisitor,
-    sql::{parse_with_dialect, query_names::IntoQueryNamesVisitor},
-    visitor::Acceptor,
-    Relation,
+    data_type::DataTyped as _, expr, hierarchy::Hierarchy, relation::{sql::FromRelationVisitor, Table, Variant as _}, sql::{parse_with_dialect, query_names::IntoQueryNamesVisitor}, visitor::Acceptor, DataType, Relation
 };
 
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
@@ -16,7 +11,9 @@ use crate::sql::{Error, Result};
 #[derive(Clone, Copy)]
 pub struct BigQueryTranslator;
 
-impl RelationToQueryTranslator for BigQueryTranslator {}
+impl RelationToQueryTranslator for BigQueryTranslator {
+    
+}
 
 impl QueryToRelationTranslator for BigQueryTranslator {
     type D = BigQueryDialect;
@@ -25,3 +22,5 @@ impl QueryToRelationTranslator for BigQueryTranslator {
         BigQueryDialect {}
     }
 }
+
+
