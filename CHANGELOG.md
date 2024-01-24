@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+## [0.9.6] - 2024-01-24
+### Added
+- support for bigquery, connector and translator [#239](https://github.com/Qrlew/qrlew/pull/239)
+
 
 ## [0.9.5] - 2024-01-18
 ### Fixed
