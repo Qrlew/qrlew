@@ -48,6 +48,8 @@ const DB: &str = "qrlew-bigquery-test";
 const PORT: u16 = 9050;
 const PROJECT_ID: &str = "test";
 const DATASET_ID: &str = "dataset1";
+const AUTH_TOKEN_ENDPOINT: &str = "/:o/oauth2/token";
+
 
 impl From<gcp_bigquery_client::error::BQError> for Error {
     fn from(err: gcp_bigquery_client::error::BQError) -> Self {
@@ -73,9 +75,7 @@ impl From<ParseError> for Error {
     }
 }
 
-const NAME_COLUMN: &str = "name";
-const TABLE_ID: &str = "table";
-pub const AUTH_TOKEN_ENDPOINT: &str = "/:o/oauth2/token";
+
 
 pub struct GoogleAuthMock {
     server: MockServer,
@@ -144,8 +144,7 @@ pub fn dummy_configuration(oauth_server: &str) -> serde_json::Value {
 pub struct Database {
     name: String,
     tables: Vec<Table>,
-    client: Client,
-    google_authenticator: GoogleAuthMock, // Do we really need to keep this alive?
+    client: Client
 }
 
 pub static BQ_CLIENT: Mutex<Option<Client>> = Mutex::new(None);
@@ -167,22 +166,20 @@ impl Database {
         env::var("BIGQUERY_PROJECT_ID").unwrap_or(PROJECT_ID.into())
     }
 
-    fn build_pool_from_existing(
-        auth: &GoogleAuthMock,
-        credentials_file: &NamedTempFile,
-    ) -> Result<Client> {
-        println!("build_pool_from_existing");
+    fn check_client(
+        client: &Client
+    ) -> Result<()> {
+        println!("check_client");
         let rt = tokio::runtime::Runtime::new()?;
-        let client = rt.block_on(build_client(auth.uri(), credentials_file))?;
-        Ok(client)
+        let res = rt.block_on(async_query("SELECT 1", &client, None))?;
+        Ok(())
     }
 
     /// Get a Database from a container
     fn build_pool_from_container(
         name: String,
-        auth: &GoogleAuthMock,
-        credentials_file: &NamedTempFile,
-    ) -> Result<Client> {
+        client: &Client
+    ) -> Result<()> {
         println!("build_pool_from_container");
         let mut bq_container = BIGQUERY_CONTAINER.lock().unwrap();
 
@@ -199,9 +196,9 @@ impl Database {
                 .arg("start")
                 .arg(&name)
                 .status()?
-                .success()
-            {
+                .success() {
                 log::debug!("Starting the DB");
+                println!("Starting the DB");
                 // If the container does not exist, start a new container
                 // docker run --name bigquery_name -p 9050:9050 ghcr.io/goccy/bigquery-emulator:latest --project=PROJECT_ID --dataset=DATASET_ID
                 // use a health check that sleeps 10 seconds to make sure the service gets ready
@@ -226,10 +223,31 @@ impl Database {
                     .output()?;
                 log::info!("{:?}", output);
                 log::info!("Waiting for the DB to start");
-                log::info!("{}", "DB ready");
+                
+                let max_seconds = 10;
+                let max_duration = time::Duration::from_secs(max_seconds); // Set maximum duration for the loop
+                let start_time = time::Instant::now();
+
+                loop {
+                    match Database::check_client(&client) {
+                        Ok(_) => {
+                            println!("BQ emulator ready!");
+                            break;
+                            },
+                        Err(_) => {
+                            if start_time.elapsed() > max_duration {
+                                return Err(Error::other(format!("BQ emulator couldn't be ready in {} seconds!", max_seconds)));
+                            }
+                            // Optional: sleep for a bit before retrying
+                            thread::sleep(time::Duration::from_millis(500));
+                        }
+                    }
+                }
             }
+            Ok(())
+        } else {
+            Err(Error::other("Could find the container!"))
         }
-        Database::build_pool_from_existing(auth, credentials_file)
     }
 
     // Overriding test_tables because we there is a maximum allowed table size
@@ -388,22 +406,16 @@ impl DatabaseTrait for Database {
         let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
 
         let mut bq_client = BQ_CLIENT.lock().unwrap();
-        if let None = *bq_client {
-            *bq_client = Some(
-                Database::build_pool_from_existing(&auth_server, &tmp_file_credentials).or_else(
-                    |_| {
-                        Database::build_pool_from_container(
-                            name.clone(),
-                            &auth_server,
-                            &tmp_file_credentials,
-                        )
-                    },
-                )?,
-            );
-        }
-        println!("done");
+        *bq_client = Some(rt.block_on(build_client(auth_server.uri(), &tmp_file_credentials))?);
         let client = bq_client.as_ref().unwrap().clone();
 
+        // make sure you check there is a bigquery instance up and running
+        // or try to start an existing one
+        // or create a new one.
+        Database::check_client(&client).or_else(|_| {
+            Database::build_pool_from_container(name.clone(), &client)
+        })?;
+        println!("done");
         let list_tabs = rt
             .block_on(
                 client
@@ -438,7 +450,6 @@ impl DatabaseTrait for Database {
                 name,
                 tables: vec![],
                 client,
-                google_authenticator: auth_server,
             }
             .with_tables(tables_to_be_created)
         } else {
@@ -446,7 +457,6 @@ impl DatabaseTrait for Database {
                 name,
                 tables,
                 client,
-                google_authenticator: auth_server,
             })
         }
     }
@@ -554,7 +564,7 @@ async fn async_query(
         use_query_cache: None,
         format_options: None,
     };
-    let mut rs = client.job().query(PROJECT_ID, query_request).await.unwrap();
+    let mut rs = client.job().query(PROJECT_ID, query_request).await?;
     let query_response = rs.query_response();
     let schema = &query_response.schema;
     if let Some(table_schema) = schema {
