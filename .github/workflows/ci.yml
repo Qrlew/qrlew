@@ -47,12 +47,13 @@ jobs:
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
+        services:
             bigquery-emulator:
                 image: ghcr.io/goccy/bigquery-emulator:latest
                 ports:
                 - "0.0.0.0:9050:9050"
-                command: |
-                    --project=test --dataset=dataset1
+                options: >-
+                    --init /bin/bigquery-emulator --project=test --dataset=dataset1
 
         steps:
             - uses: actions/checkout@v3
