@@ -51,9 +51,7 @@ jobs:
                 image: ghcr.io/goccy/bigquery-emulator:latest
                 ports:
                 - 9050:9050
-                options: >-
-                --entrypoint /bin/sh
-                command: ["-c", "bigquery-emulator --project=test --dataset=dataset1"]
+            args: ["--project=test", "--dataset=dataset1"]
 
         steps:
             - uses: actions/checkout@v3
