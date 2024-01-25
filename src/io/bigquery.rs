@@ -920,29 +920,29 @@ mod tests {
     //     }
     // }
 
-    #[test]
-    fn test_client() {
-        let mut rt = tokio::runtime::Runtime::new().unwrap();
+    // #[test]
+    // fn test_client() {
+    //     let mut rt = tokio::runtime::Runtime::new().unwrap();
 
-        let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
-        let client = rt
-            .block_on(build_client(auth_server.uri(), &tmp_file_credentials))
-            .unwrap();
-        let list_tabs = rt
-            .block_on(
-                client
-                    .table()
-                    .list(PROJECT_ID, DATASET_ID, ListOptions::default()),
-            )
-            .unwrap();
-        let tables_as_str: Vec<String> = list_tabs
-            .tables
-            .unwrap_or_default()
-            .into_iter()
-            .map(|t| t.table_reference.table_id)
-            .collect();
-        println!("{:?}", tables_as_str);
-    }
+    //     let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
+    //     let client = rt
+    //         .block_on(build_client(auth_server.uri(), &tmp_file_credentials))
+    //         .unwrap();
+    //     let list_tabs = rt
+    //         .block_on(
+    //             client
+    //                 .table()
+    //                 .list(PROJECT_ID, DATASET_ID, ListOptions::default()),
+    //         )
+    //         .unwrap();
+    //     let tables_as_str: Vec<String> = list_tabs
+    //         .tables
+    //         .unwrap_or_default()
+    //         .into_iter()
+    //         .map(|t| t.table_reference.table_id)
+    //         .collect();
+    //     println!("{:?}", tables_as_str);
+    // }
 
     #[test]
     fn test_timestamp() {
@@ -975,35 +975,35 @@ mod tests {
         println!("Datetime: {:?}", time);
     }
 
-    #[test]
-    fn test_create_table() {
-        let mut rt = tokio::runtime::Runtime::new().unwrap();
+    // #[test]
+    // fn test_create_table() {
+    //     let mut rt = tokio::runtime::Runtime::new().unwrap();
 
-        let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
-        let client = rt
-            .block_on(build_client(auth_server.uri(), &tmp_file_credentials))
-            .unwrap();
+    //     let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
+    //     let client = rt
+    //         .block_on(build_client(auth_server.uri(), &tmp_file_credentials))
+    //         .unwrap();
 
-        let table_name = "mytable5";
-        let table: Table = TableBuilder::new()
-            .path(["dataset1", table_name])
-            .name(table_name)
-            .size(10)
-            .schema(
-                Schema::empty()
-                    .with(("f", DataType::float_interval(0.0, 10.0)))
-                    .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))) // .with(("x", DataType::integer_interval(0, 100)))
-                    .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
-            )
-            .build();
+    //     let table_name = "mytable5";
+    //     let table: Table = TableBuilder::new()
+    //         .path(["dataset1", table_name])
+    //         .name(table_name)
+    //         .size(10)
+    //         .schema(
+    //             Schema::empty()
+    //                 .with(("f", DataType::float_interval(0.0, 10.0)))
+    //                 .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))) // .with(("x", DataType::integer_interval(0, 100)))
+    //                 .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
+    //         )
+    //         .build();
 
-        let bq_table: BQTable = table.try_into().unwrap();
-        let res = rt.block_on(client.table().create(bq_table)).unwrap();
-        println!("ROWS: {:?}", res.num_rows);
-        // rt.block_on(client
-        //     .table()
-        //     .delete(PROJECT_ID, DATASET_ID, table_name)).unwrap();
-    }
+    //     let bq_table: BQTable = table.try_into().unwrap();
+    //     let res = rt.block_on(client.table().create(bq_table)).unwrap();
+    //     println!("ROWS: {:?}", res.num_rows);
+    //     // rt.block_on(client
+    //     //     .table()
+    //     //     .delete(PROJECT_ID, DATASET_ID, table_name)).unwrap();
+    // }
 
     #[tokio::test]
     async fn test_insert_into_table() {

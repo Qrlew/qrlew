@@ -51,10 +51,7 @@ jobs:
                 image: ghcr.io/goccy/bigquery-emulator:latest
                 ports:
                     - 9050:9050
-                options:
-                    --health-interval 10s
-                    --project test
-                    --dataset dataset1
+                options: --project=test --dataset=dataset1
 
         steps:
             - uses: actions/checkout@v3
