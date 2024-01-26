@@ -79,7 +79,7 @@ impl Field {
         Field::new(self.name, self.data_type, Some(constraint))
     }
 
-    // Returns true if the `DataType` of the current `Field` contains
+    /// Returns true if the `DataType` of the current `Field` contains
     /// only values
     pub fn all_values(&self) -> bool {
         TryInto::<Vec<Value>>::try_into(self.data_type()).is_ok()

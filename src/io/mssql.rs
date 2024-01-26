@@ -86,7 +86,7 @@ impl Database {
         Ok(pool)
     }
 
-    // /// Get a Database from a container
+    /// Get a Database from a container
     fn build_pool_from_container(name: String) -> Result<Pool<Mssql>> {
         let mut mssql_container = MSSQL_CONTAINER.lock().unwrap();
 
