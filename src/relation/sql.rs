@@ -147,10 +147,10 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
         // Add input query to CTEs
         input_ctes.push(
             self.translator.cte(
-                map.name().into(),
+                self.translator.identifier( &(map.name().into()) )[0].clone(),
                 map.schema()
                     .iter()
-                    .map(|field| ast::Ident::from(field.name()))
+                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
                     .collect(),
                 self.translator.query(
                     vec![],
@@ -160,7 +160,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                         .zip(map.schema.clone())
                         .map(|(expr, field)| ast::SelectItem::ExprWithAlias {
                             expr: self.translator.expr(&expr),
-                            alias: field.name().into(),
+                            alias: self.translator.identifier( &(field.name().into()) )[0].clone(),
                         })
                         .collect(),
                     table_with_joins(
@@ -210,11 +210,11 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
         // Add input query to CTEs
         input_ctes.push(
             self.translator.cte(
-                reduce.name().into(),
+                self.translator.identifier( &(reduce.name().into()) )[0].clone(),
                 reduce
                     .schema()
                     .iter()
-                    .map(|field| ast::Ident::from(field.name()))
+                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
                     .collect(),
                 self.translator.query(
                     vec![],
@@ -225,7 +225,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                         .zip(reduce.schema.clone())
                         .map(|(aggregate, field)| ast::SelectItem::ExprWithAlias {
                             expr: self.translator.expr(aggregate.deref()),
-                            alias: field.name().into(),
+                            alias: self.translator.identifier( &(field.name().into()) )[0].clone(),
                         })
                         .collect(),
                     table_with_joins(
@@ -282,7 +282,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                 join.name().into(),
                 join.schema()
                     .iter()
-                    .map(|field| ast::Ident::from(field.name()))
+                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
                     .collect(),
                 self.translator.query(
                     vec![],
