@@ -167,12 +167,12 @@ mod tests {
             )
             .build();
         let relations = Hierarchy::from([(["schema", "MY SPECIAL TABLE"], Arc::new(table))]);
-        let query_str = r#"SELECT "Id", normal_col, "Na.Me" FROM schema."MY SPECIAL TABLE""#;
+        let query_str = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#;
         let translator = PostgreSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);
         let relation = Relation::try_from((query_with_relation, translator))?;
-
+        println!("\n {} \n", relation);
         let rel_with_traslator = RelationWithTranslator(&relation, translator);
         let retranslated = ast::Query::from(rel_with_traslator);
         print!("{}", retranslated);
