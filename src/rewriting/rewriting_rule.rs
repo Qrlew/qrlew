@@ -6,7 +6,7 @@ use itertools::Itertools;
 use crate::{
     builder::{Ready, With},
     differential_privacy::{
-        budget::Budget,
+        budget::DifferentialPrivacy,
         dp_event::DpEvent,
     },
     hierarchy::Hierarchy,
@@ -47,7 +47,7 @@ impl fmt::Display for Property {
 pub enum Parameters {
     None,
     SyntheticData(SyntheticData),
-    Budget(Budget),
+    DifferentialPrivacy(DifferentialPrivacy),
     PrivacyUnit(PrivacyUnit),
 }
 
@@ -580,7 +580,7 @@ pub struct RewritingRulesSetter<'a> {
     relations: &'a Hierarchy<Arc<Relation>>,
     synthetic_data: Option<SyntheticData>,
     privacy_unit: PrivacyUnit,
-    budget: Budget,
+    budget: DifferentialPrivacy,
 }
 
 impl<'a> RewritingRulesSetter<'a> {
@@ -588,7 +588,7 @@ impl<'a> RewritingRulesSetter<'a> {
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
-        budget: Budget,
+        budget: DifferentialPrivacy,
     ) -> RewritingRulesSetter {
         RewritingRulesSetter {
             relations,
@@ -723,7 +723,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 RewritingRule::new(
             vec![Property::PrivacyUnitPreserving],
             Property::DifferentiallyPrivate,
-                    Parameters::Budget(self.budget.clone()),
+                    Parameters::DifferentialPrivacy(self.budget.clone()),
                 )
             )
         }
@@ -1165,7 +1165,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 (
                     [Property::PrivacyUnitPreserving],
                     Property::DifferentiallyPrivate,
-                    Parameters::Budget(budget),
+                    Parameters::DifferentialPrivacy(budget),
                 ) => {
                     let (dp_relation, dp_event) = budget
                         .reduce(reduce, relation_input.try_into().unwrap())
@@ -1358,7 +1358,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1420,7 +1420,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1479,7 +1479,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1538,7 +1538,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1593,7 +1593,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1644,7 +1644,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1699,7 +1699,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules

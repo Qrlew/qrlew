@@ -11,7 +11,7 @@ pub use rewriting_rule::{
 use std::{error, fmt, result, sync::Arc};
 
 use crate::{
-    differential_privacy::budget::Budget,
+    differential_privacy::budget::DifferentialPrivacy,
     hierarchy::Hierarchy,
     privacy_unit_tracking::privacy_unit::PrivacyUnit,
     relation::Relation,
@@ -64,7 +64,7 @@ impl Relation {
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
-        budget: Budget,
+        budget: DifferentialPrivacy,
     ) -> Result<RelationWithDpEvent> {
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
             relations,
@@ -92,7 +92,7 @@ impl Relation {
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
-        budget: Budget,
+        budget: DifferentialPrivacy,
     ) -> Result<RelationWithDpEvent> {
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
             relations,
@@ -181,7 +181,7 @@ mod tests {
             ("user_table", vec![], "name"),
             ("table_1", vec![], PrivacyUnit::privacy_unit_row())
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
 
         let queries = [
             "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
@@ -235,7 +235,7 @@ mod tests {
             ("user_table", vec![], "name"),
             ("table_1", vec![], PrivacyUnit::privacy_unit_row())
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
 
         let queries = [
             "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
@@ -291,7 +291,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::privacy_unit_row()),
             ("user_table", vec![], PrivacyUnit::privacy_unit_row()),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_dp_event = relation
             .rewrite_with_differential_privacy(&relations, synthetic_data, privacy_unit, budget)
@@ -328,7 +328,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_dp_event = relation
             .rewrite_as_privacy_unit_preserving(&relations, synthetic_data, privacy_unit, budget)
@@ -365,7 +365,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], PrivacyUnit::privacy_unit_row()),
             ("user_table", vec![], PrivacyUnit::privacy_unit_row()),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_dp_event = relation
             .rewrite_as_privacy_unit_preserving(&relations, synthetic_data, privacy_unit, budget)
@@ -451,7 +451,7 @@ mod tests {
             ("retail_demographics", vec![], "household_id"),
             ("retail_transactions", vec![("household_id","retail_demographics","household_id")], "household_id"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
 
         let queries = [
             "SELECT COUNT(DISTINCT household_id) AS unique_customers FROM retail_transactions",
@@ -511,7 +511,7 @@ mod tests {
         let privacy_unit = PrivacyUnit::from(vec![
             ("census", vec![], "_PRIVACY_UNIT_ROW_"),
         ]);
-        let budget = Budget::new(1., 1e-3);
+        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
 
         let queries = [
             "SELECT SUM(CAST(capital_loss AS float) / 100000.) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
