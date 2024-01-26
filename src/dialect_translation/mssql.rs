@@ -272,6 +272,9 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             strict: false,
             comment: None,
             auto_increment_offset: None,
+            partition_by: None,
+            cluster_by: None,
+            options: None,
         }
     }
 }

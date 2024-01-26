@@ -206,9 +206,12 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     on_commit: None,
                     on_cluster: None,
                     order_by: None,
-                    strict: false,
                     comment: None,
                     auto_increment_offset: None,
+                    partition_by: None,
+                    cluster_by: None,
+                    options: None,
+                    strict: false,
                 }
             }
 
@@ -217,6 +220,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     or: None,
                     into: true,
                     table_name: table.path().clone().into(),
+                    table_alias: None,
                     columns: table.schema().iter().map(|f| f.name().into()).collect(),
                     overwrite: false,
                     source: Some(Box::new(ast::Query {
@@ -245,6 +249,8 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     on: None,
                     returning: None,
                     ignore: false,
+                    replace_into: false,
+                    priority: None,
                 }
             }
 
