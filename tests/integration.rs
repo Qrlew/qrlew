@@ -465,5 +465,4 @@ fn test_quoting() {
     println!(
         "{}", database .query(true_query).unwrap().iter().map(ToString::to_string).join("\n")
     );
-
-}   
+}

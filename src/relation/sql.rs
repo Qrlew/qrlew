@@ -277,12 +277,10 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             }
         });
 
-        println!("JOIN_SCHEMA: {:?}", join.schema());
-
         // Add input query to CTEs
         input_ctes.push(
             self.translator.cte(
-                join.name().into(),
+                self.translator.identifier( &(join.name().into()) )[0].clone(),
                 join.schema()
                     .iter()
                     .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
@@ -343,7 +341,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                 set.name().into(),
                 set.schema()
                     .iter()
-                    .map(|field| ast::Ident::from(field.name()))
+                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
                     .collect(),
                 set_operation(
                     vec![],
@@ -376,24 +374,15 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             .cloned()
             .map(|v| vec![ast::Expr::from(&Expr::Value(v))])
             .collect();
+
+        let value_name = self.translator.identifier(&(values.name.as_str().into()))[0].clone();
         let from = ast::TableWithJoins {
             relation: ast::TableFactor::Derived {
                 lateral: false,
                 subquery: Box::new(values_query(rows)),
                 alias: Some(ast::TableAlias {
-                    name: ast::Ident {
-                        value: values.name.to_string(),
-                        quote_style: None,
-                    },
-                    columns: vec![ast::Ident {
-                        value: values
-                            .schema()
-                            .field_from_index(0)
-                            .unwrap()
-                            .name()
-                            .to_string(),
-                        quote_style: None,
-                    }],
+                    name: value_name.clone(),
+                    columns: vec![value_name],
                 }),
             },
             joins: vec![],
@@ -408,10 +397,11 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             None,
             None,
         );
+        let value_name = self.translator.identifier( &(values.name().into()) )[0].clone();
         let input_ctes =
             vec![self
                 .translator
-                .cte(values.name().into(), vec![values.name().into()], cte_query)];
+                .cte(value_name.clone(), vec![value_name], cte_query)];
         self.translator.query(
             input_ctes,
             all(),
@@ -585,7 +575,7 @@ mod tests {
         let query = ast::Query::from(&values);
         assert_eq!(
             query.to_string(),
-            "WITH my_values (my_values) AS (SELECT * FROM (VALUES (3), (4)) AS my_values (my_values)) SELECT * FROM my_values".to_string()
+            r#"WITH "my_values" ("my_values") AS (SELECT * FROM (VALUES (3), (4)) AS "my_values" ("my_values")) SELECT * FROM "my_values""#.to_string()
         );
 
         let schema: Schema = vec![("b", DataType::float_interval(-2., 2.))]
@@ -601,7 +591,7 @@ mod tests {
         let query = ast::Query::from(&join);
         assert_eq!(
             query.to_string(),
-            "WITH my_values (my_values) AS (SELECT * FROM (VALUES (3), (4)) AS my_values (my_values)), join_zs1x (field_gu2a, field_b8x4) AS (SELECT * FROM my_values AS _LEFT_ CROSS JOIN table AS _RIGHT_) SELECT * FROM join_zs1x".to_string()
+            r#"WITH "my_values" ("my_values") AS (SELECT * FROM (VALUES (3), (4)) AS "my_values" ("my_values")), "join_zs1x" ("field_gu2a", "field_b8x4") AS (SELECT * FROM "my_values" AS "_LEFT_" CROSS JOIN "table" AS "_RIGHT_") SELECT * FROM "join_zs1x""#.to_string()
         );
     }
 }

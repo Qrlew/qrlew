@@ -219,9 +219,9 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 ast::Statement::Insert {
                     or: None,
                     into: true,
-                    table_name: table.path().clone().into(),
+                    table_name: ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
                     table_alias: None,
-                    columns: table.schema().iter().map(|f| f.name().into()).collect(),
+                    columns: table.schema().iter().map(|f| self.identifier( &(f.name().into()) )[0].clone()).collect(),
                     overwrite: false,
                     source: Some(Box::new(ast::Query {
                         with: None,

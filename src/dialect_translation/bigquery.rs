@@ -12,6 +12,10 @@ use sqlparser::{ast, dialect::BigQueryDialect};
 pub struct BigQueryTranslator;
 
 impl RelationToQueryTranslator for BigQueryTranslator {
+    fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
+        value.iter().map(|r| ast::Ident::with_quote('`', r)).collect()
+    }
+
     fn cte(&self, name: ast::Ident, _columns: Vec<ast::Ident>, query: ast::Query) -> ast::Cte {
         ast::Cte {
             alias: ast::TableAlias {
@@ -148,7 +152,7 @@ mod tests {
         let rel_with_traslator = RelationWithTranslator(map.as_ref(), BigQueryTranslator);
         let query = ast::Query::from(rel_with_traslator);
         let translated = r#"
-            WITH map_1 AS (SELECT a AS field_s7n2 FROM table) SELECT * FROM map_1
+            WITH `map_1` AS (SELECT `a` AS `field_s7n2` FROM `table`) SELECT * FROM `map_1`
         "#;
         assert_same_query_str(&query.to_string(), translated);
     }
