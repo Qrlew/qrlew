@@ -126,12 +126,12 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         ast::Expr::from(&casted_to_integer)
     }
 
-    fn cast_as_text(&self,expr: &expr::Expr) -> ast::Expr {
+    fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
         let ast_expr = self.expr(expr);
         ast::Expr::Cast {
             expr: Box::new(ast_expr),
             data_type: ast::DataType::Nvarchar(Some(255)),
-            format: None
+            format: None,
         }
     }
     fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
@@ -272,6 +272,9 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             strict: false,
             comment: None,
             auto_increment_offset: None,
+            partition_by: None,
+            cluster_by: None,
+            options: None,
         }
     }
 }

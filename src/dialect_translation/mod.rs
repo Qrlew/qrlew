@@ -20,7 +20,7 @@ use crate::{
     data_type::DataTyped,
     expr::Identifier,
     hierarchy::Hierarchy,
-    relation::{JoinOperator, Table, Variant},
+    relation::{Join, JoinOperator, Table, Variant},
     sql::{self, parse, parse_with_dialect, Error, Result},
     DataType, Relation,
 };
@@ -206,9 +206,12 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     on_commit: None,
                     on_cluster: None,
                     order_by: None,
-                    strict: false,
                     comment: None,
                     auto_increment_offset: None,
+                    partition_by: None,
+                    cluster_by: None,
+                    options: None,
+                    strict: false,
                 }
             }
 
@@ -217,6 +220,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     or: None,
                     into: true,
                     table_name: table.path().clone().into(),
+                    table_alias: None,
                     columns: table.schema().iter().map(|f| f.name().into()).collect(),
                     overwrite: false,
                     source: Some(Box::new(ast::Query {
@@ -245,6 +249,8 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     on: None,
                     returning: None,
                     ignore: false,
+                    replace_into: false,
+                    priority: None,
                 }
             }
 
@@ -259,6 +265,11 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     query: Box::new(query),
                     from: None,
                 }
+            }
+            fn join_projection(&self, join: &Join) -> Vec<ast::SelectItem> {
+                vec![ast::SelectItem::Wildcard(
+                    ast::WildcardAdditionalOptions::default(),
+                )]
             }
 
             fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
@@ -636,25 +647,28 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
             fn position(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 2);
-                let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
+                let ast_exprs: Vec<ast::Expr> =
+                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Position {
                     expr: Box::new(ast_exprs[0].clone()),
                     r#in: Box::new(ast_exprs[1].clone()),
                 }
             }
             fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-                assert!(exprs.len() == 3);
-                let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
+                assert!(exprs.len() == 2);
+                let ast_exprs: Vec<ast::Expr> =
+                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Substring {
                     expr: Box::new(ast_exprs[0].clone()),
                     substring_from: Some(Box::new(ast_exprs[1].clone())),
-                    substring_for: Some(Box::new(ast_exprs[2].clone())),
+                    substring_for: None,
                     special: false,
                 }
             }
             fn substr_with_size(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 3);
-                let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
+                let ast_exprs: Vec<ast::Expr> =
+                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Substring {
                     expr: Box::new(ast_exprs[0].clone()),
                     substring_from: Some(Box::new(ast_exprs[1].clone())),
@@ -668,7 +682,8 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
             fn ilike(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 2);
-                let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
+                let ast_exprs: Vec<ast::Expr> =
+                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::ILike {
                     negated: false,
                     expr: Box::new(ast_exprs[0].clone()),
@@ -678,7 +693,8 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
             fn like(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 2);
-                let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
+                let ast_exprs: Vec<ast::Expr> =
+                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Like {
                     negated: false,
                     expr: Box::new(ast_exprs[0].clone()),

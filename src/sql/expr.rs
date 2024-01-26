@@ -243,6 +243,8 @@ impl<'a> Acceptor<'a> for ast::Expr {
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
             ast::Expr::Convert { expr, data_type, charset, target_before_value } => todo!(),
+            ast::Expr::Wildcard => todo!(),
+            ast::Expr::QualifiedWildcard(_) => todo!(),
         }
     }
 }
@@ -585,6 +587,8 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
             ast::Expr::Convert { expr, data_type, charset, target_before_value } => todo!(),
+            ast::Expr::Wildcard => todo!(),
+            ast::Expr::QualifiedWildcard(_) => todo!(),
         }
     }
 }
@@ -842,6 +846,11 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             ast::BinaryOperator::MyIntegerDivide => todo!(),
             ast::BinaryOperator::Custom(_) => todo!(),
             ast::BinaryOperator::PGOverlap => todo!(),
+            ast::BinaryOperator::PGLikeMatch => todo!(),
+            ast::BinaryOperator::PGILikeMatch => todo!(),
+            ast::BinaryOperator::PGNotLikeMatch => todo!(),
+            ast::BinaryOperator::PGNotILikeMatch => todo!(),
+            ast::BinaryOperator::PGStartsWith => todo!(),
         })
     }
 
@@ -1220,6 +1229,8 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 ast::DataType::Enum(_) => todo!(),
                 ast::DataType::Set(_) => todo!(),
                 ast::DataType::Struct(_) => todo!(),
+                ast::DataType::JSONB => todo!(),
+                ast::DataType::Unspecified => todo!(),
             }
         )
     }
