@@ -460,7 +460,7 @@ impl Relation {
     /// - The original fields from the current relation.
     /// - Rescaled columns, where each rescaled column is a product of the original column (specified by the second element of the corresponding tuple in `values`)
     ///   and its scaling factor output by `scale_factors` Relation
-    pub fn scale(self, entities: &str, values: &[(&str, &str)], scale_factors: Relation) -> Self {
+    pub fn scale(self, entities: &str, named_values: &[(&str, &str)], scale_factors: Relation) -> Self {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
             .inner(Expr::val(true))
@@ -485,7 +485,7 @@ impl Relation {
             .schema()
             .iter()
             .map(|field| (field.name(), Expr::col(field.name())))
-            .chain(values.iter().copied().map(|(name, col)| {
+            .chain(named_values.iter().copied().map(|(name, col)| {
                 let field_name = join.schema().field(col).unwrap().name();
                 (
                     name,
@@ -508,15 +508,15 @@ impl Relation {
         self,
         entities: &str,
         groups: &[&str],
-        value_clippings: &[(&str, &str, f64)],
+        named_value_clippings: &[(&str, &str, f64)],
     ) -> Self {
-        let named_values = value_clippings
+        let named_values = named_value_clippings
             .iter()
             .copied()
             .map(|(s1, s2, _)| (format!("_CLIPPED_{}", s2), s1.to_string(), s2.to_string()))
             .collect::<Vec<_>>();
         // Arrange the values
-        let value_clippings: HashMap<&str, (f64, &str)> = value_clippings
+        let value_clippings: HashMap<&str, (f64, &str)> = named_value_clippings
             .iter()
             .copied()
             .map(|(s1, s2, f)| (s2, (f, s1)))

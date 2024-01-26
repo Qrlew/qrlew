@@ -72,29 +72,29 @@ impl Relation {
 
 impl PUPRelation {
     /// Builds a DPRelation wrapping a Relation::Reduce
-    /// whose `aggregates` are the noisy sums of each column in `sums`
+    /// whose `aggregates` are the noisy sums of each column in `named_sums`
     /// and the group by columns are defined by `group_by_names`
     /// The budget is equally splitted among the sums.
     fn differentially_private_sums(
         self,
-        sums: Vec<(&str, &str)>,
+        named_sums: Vec<(&str, &str)>,
         group_by_names: Vec<&str>,
         epsilon: f64,
         delta: f64,
     ) -> Result<DPRelation> {
-        if (epsilon == 0. || delta == 0.) && !sums.is_empty() {
+        if (epsilon == 0. || delta == 0.) && !named_sums.is_empty() {
             return Err(Error::BudgetError(format!(
                 "Not enough budget for the aggregations. Got: (espilon, delta) = ({epsilon}, {delta})"
             )));
         }
 
-        let input_values_bound = sums
-            .iter()
-            .map(|(s, c)| {
+        let input_values_bound = named_sums
+            .into_iter()
+            .map(|(name, column)| {
                 (
-                    *s,
-                    *c,
-                    self.schema()[*c]
+                    name,
+                    column,
+                    self.schema()[column]
                         .data_type()
                         .absolute_upper_bound()
                         .unwrap_or(1.0),
