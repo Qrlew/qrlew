@@ -45,7 +45,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         function_builder("LOG", vec![arg], false)
     }
     /// Converting LOG to LOG10
-    fn ln(&self, expr: &expr::Expr) -> ast::Expr {
+    fn log(&self, expr: &expr::Expr) -> ast::Expr {
         let arg = self.expr(expr);
         function_builder("LOG10", vec![arg], false)
     }
@@ -541,8 +541,8 @@ mod tests {
         let query = ast::Query::from(rel_with_traslator);
         print!("TRANSLATED: \n{}\n", query);
         let translated = r#"
-            WITH map_1(field_cg_6) AS (
-                SELECT CONVERT(VARCHAR(MAX), HASHBYTES('MD5',"a"), 2) AS field_cg_6
+            WITH "map_1"("field_cg_6") AS (
+                SELECT CONVERT(VARCHAR(MAX), HASHBYTES('MD5',"a"), 2) AS "field_cg_6"
                 FROM "table"
             )
             SELECT * FROM "map_1"
