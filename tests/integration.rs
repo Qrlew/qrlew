@@ -211,7 +211,7 @@ fn test_on_postgresql() {
 }
 
 #[cfg(feature = "mssql")]
-const QUERIES_FOR_MSSQL: &[&str] = &[
+const MSSQL_QUERIES: &[&str] = &[
     "SELECT RANDOM(), * FROM table_2",
     "SELECT AVG(x) as a FROM table_2",
     "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
@@ -301,7 +301,8 @@ fn test_on_mssql() {
     for tab in database.tables() {
         println!("schema {} = {}", tab, tab.schema());
     }
-    for &query in QUERIES_FOR_MSSQL.iter() {
+    // TODO We should pass the QUERIES list too
+    for &query in MSSQL_QUERIES.iter() {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, MsSqlTranslator);
     }

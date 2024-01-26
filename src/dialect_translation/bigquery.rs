@@ -40,10 +40,10 @@ impl RelationToQueryTranslator for BigQueryTranslator {
         let arg = self.expr(expr);
         function_builder("STDDEV", vec![arg], false)
     }
-    /// Converting LN to LOG
-    fn ln(&self, expr: &expr::Expr) -> ast::Expr {
+    /// Converting LOG to LOG10
+    fn log(&self,expr: &expr::Expr) -> ast::Expr {
         let arg = self.expr(expr);
-        function_builder("LOG", vec![arg], false)
+        function_builder("LOG10", vec![arg], false)
     }
     fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
         let ast_expr = self.expr(expr);

@@ -15,7 +15,7 @@ Cargo.lock
 
 
 # Added by cargo
-
 /target
 
+# Do not commit vscode settings
 .vscode/
