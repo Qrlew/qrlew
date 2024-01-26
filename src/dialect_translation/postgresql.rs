@@ -9,7 +9,7 @@ use crate::{
     Relation,
 };
 
-use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
+use super::{function_builder, RelationWithTranslator, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
 use crate::sql::{Error, Result};
@@ -95,6 +95,8 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 
 #[cfg(test)]
 mod tests {
+    use sqlparser::dialect;
+
     use super::*;
     use crate::{
         builder::{Ready, With},
@@ -102,7 +104,7 @@ mod tests {
         display::Dot,
         expr::Expr,
         namer,
-        relation::{schema::Schema, Relation},
+        relation::{schema::Schema, Relation, TableBuilder},
         sql::{parse, relation::QueryWithRelations},
     };
     use std::sync::Arc;
@@ -141,6 +143,61 @@ mod tests {
 
         // let retranslated: ast::Query::from()
         print!("{}", relation);
+        Ok(())
+    }
+
+    #[test]
+    fn test_map_with_quotes() -> Result<()> {
+        let schema: Schema = vec![
+            ("a", DataType::float()),
+            ("b", DataType::float_interval(-2., 2.)),
+            ("c", DataType::float()),
+            ("d", DataType::float_interval(0., 1.)),
+        ]
+        .into_iter()
+        .collect();
+        let table = Relation::table()
+            .name("tab")
+            .schema(schema.clone())
+            .size(100)
+            .build();
+        let relations = Hierarchy::from([(["schema", "table"], Arc::new(table))]);
+
+        let query_str = r#"SELECT "d" FROM schema.table"#;
+        let translator = PostgreSqlTranslator;
+        let query = parse_with_dialect(query_str, translator.dialect())?;
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+
+        let rel_with_traslator = RelationWithTranslator(&relation, translator);
+        let retranslated = ast::Query::from(rel_with_traslator);
+        print!("{}", retranslated);
+        Ok(())
+    }
+
+    #[test]
+    fn test_table_special() -> Result<()> {
+        let table: Relation = TableBuilder::new()
+                .path(["MY SPECIAL TABLE"])
+                .name("my_table")
+                .size(100)
+                .schema(
+                    Schema::empty()
+                        .with(("Id", DataType::integer_interval(0, 1000)))
+                        .with(("Na.Me", DataType::text()))
+                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0))),
+                )
+                .build();
+        let relations = Hierarchy::from([(["schema", "MY SPECIAL TABLE"], Arc::new(table))]);
+        let query_str = r#"SELECT "Id" FROM schema."MY SPECIAL TABLE""#;
+        let translator = PostgreSqlTranslator;
+        let query = parse_with_dialect(query_str, translator.dialect())?;
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+
+        let rel_with_traslator = RelationWithTranslator(&relation, translator);
+        let retranslated = ast::Query::from(rel_with_traslator);
+        print!("{}", retranslated);
         Ok(())
     }
 }

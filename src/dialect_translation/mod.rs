@@ -171,12 +171,12 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     global: None,
                     if_not_exists: true,
                     transient: false,
-                    name: table.path().clone().into(),
+                    name: ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
                     columns: table
                         .schema()
                         .iter()
                         .map(|f| ast::ColumnDef {
-                            name: f.name().into(),
+                            name: self.identifier( &(f.name().into()) )[0].clone(),
                             data_type: f.data_type().into(),
                             collation: None,
                             options: if let DataType::Optional(_) = f.data_type() {
@@ -255,14 +255,14 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 query: ast::Query,
             ) -> ast::Cte {
                 ast::Cte {
-                    alias: ast::TableAlias { name, columns },
+                    alias: ast::TableAlias {name, columns},
                     query: Box::new(query),
                     from: None,
                 }
             }
 
             fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
-                value.iter().map(ast::Ident::new).collect()
+                value.iter().map(|r| ast::Ident::with_quote('"', r)).collect()
             }
 
             fn table_factor(&self, relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
@@ -707,29 +707,7 @@ macro_rules! try_unary_function_constructor {
     }
 }
 
-// macro_rules! unary_function_matcher {
-//     (
-//         $self:expr,
-//         $args:expr,
-//         $context:expr,
-//         $func_name:expr,
-//         ($($unary_function:ident),*),
-//         $default:expr
-//     ) => {
-//         paste! {
-//             match $func_name {
-//                 $(
-//                     stringify!([<$unary_function:lower>]) => $self.[<try_ $unary_function:snake>]($args[0], $context),
-//                 )*
-//                 _ => $default
-//             }
-//         }
-//     }
-// }
-
-/// Build Sarus Relatioin from dialect speciific AST
-// macro_rules! into_ralation_tranlator_trait_constructor {
-//     () => {
+/// Build Sarus Relation from dialect specific AST
 pub trait QueryToRelationTranslator {
     type D: Dialect;
 

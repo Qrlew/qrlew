@@ -257,6 +257,17 @@ pub trait Database: Sized {
                         .with(("income", DataType::float_interval(100.0, 200000.0))),
                 )
                 .build(),
+            TableBuilder::new()
+                .path(["MY SPECIAL TABLE"])
+                .name("my_table")
+                .size(100)
+                .schema(
+                    Schema::empty()
+                        .with(("Id", DataType::integer_interval(0, 1000)))
+                        .with(("Na.Me", DataType::text()))
+                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0))),
+                )
+                .build(),
         ]
     }
 

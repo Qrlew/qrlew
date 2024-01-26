@@ -204,6 +204,8 @@ impl DatabaseTrait for Database {
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
         let mut connection = self.pool.get()?;
+        let qq = table.create(PostgreSqlTranslator).to_string();
+        println!("{}",qq);
         Ok(connection.execute(&table.create(PostgreSqlTranslator).to_string(), &[])? as usize)
     }
 
