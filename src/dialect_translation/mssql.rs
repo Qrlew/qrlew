@@ -44,6 +44,11 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         let arg = self.expr(expr);
         function_builder("LOG", vec![arg], false)
     }
+    /// Converting LOG to LOG10
+    fn ln(&self, expr: &expr::Expr) -> ast::Expr {
+        let arg = self.expr(expr);
+        function_builder("LOG10", vec![arg], false)
+    }
 
     /// Converting RANDOM to RAND(CHECKSUM(NEWID()))
     fn random(&self) -> ast::Expr {
@@ -295,6 +300,7 @@ impl QueryToRelationTranslator for MsSqlTranslator {
 
         match function_name {
             "log" => self.try_ln(func, context),
+            "log10" => self.try_log(func, context),
             "convert" => self.try_md5(func, context),
             // "rand" => self.try_random(func, context),
             _ => {
@@ -503,7 +509,7 @@ mod tests {
         let rel_with_traslator = RelationWithTranslator(map.as_ref(), MsSqlTranslator);
         let query = ast::Query::from(rel_with_traslator);
         let translated = r#"
-            WITH map_1 (field_li80) AS (SELECT LOG("a") AS field_li80 FROM "table") SELECT * FROM "map_1"
+            WITH "map_1" ("field_li80") AS (SELECT LOG("a") AS "field_li80" FROM "table") SELECT * FROM "map_1"
         "#;
         assert_same_query_str(&query.to_string(), translated);
     }
