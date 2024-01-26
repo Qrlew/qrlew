@@ -109,6 +109,12 @@ mod tests {
     };
     use std::sync::Arc;
 
+    fn assert_same_query_str(query_1: &str, query_2: &str) {
+        let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
+        let b_no_whitespace: String = query_2.chars().filter(|c| !c.is_whitespace()).collect();
+        assert_eq!(a_no_whitespace, b_no_whitespace);
+    }
+
     #[test]
     fn test_query() -> Result<()> {
         let translator = PostgreSqlTranslator;
@@ -147,49 +153,21 @@ mod tests {
     }
 
     #[test]
-    fn test_map_with_quotes() -> Result<()> {
-        let schema: Schema = vec![
-            ("a", DataType::float()),
-            ("b", DataType::float_interval(-2., 2.)),
-            ("c", DataType::float()),
-            ("d", DataType::float_interval(0., 1.)),
-        ]
-        .into_iter()
-        .collect();
-        let table = Relation::table()
-            .name("tab")
-            .schema(schema.clone())
-            .size(100)
-            .build();
-        let relations = Hierarchy::from([(["schema", "table"], Arc::new(table))]);
-
-        let query_str = r#"SELECT "d" FROM schema.table"#;
-        let translator = PostgreSqlTranslator;
-        let query = parse_with_dialect(query_str, translator.dialect())?;
-        let query_with_relation = QueryWithRelations::new(&query, &relations);
-        let relation = Relation::try_from((query_with_relation, translator))?;
-
-        let rel_with_traslator = RelationWithTranslator(&relation, translator);
-        let retranslated = ast::Query::from(rel_with_traslator);
-        print!("{}", retranslated);
-        Ok(())
-    }
-
-    #[test]
     fn test_table_special() -> Result<()> {
         let table: Relation = TableBuilder::new()
-                .path(["MY SPECIAL TABLE"])
-                .name("my_table")
-                .size(100)
-                .schema(
-                    Schema::empty()
-                        .with(("Id", DataType::integer_interval(0, 1000)))
-                        .with(("Na.Me", DataType::text()))
-                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0))),
-                )
-                .build();
+            .path(["MY SPECIAL TABLE"])
+            .name("my_table")
+            .size(100)
+            .schema(
+                Schema::empty()
+                    .with(("Id", DataType::integer_interval(0, 1000)))
+                    .with(("Na.Me", DataType::text()))
+                    .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+                    .with(("normal_col",  DataType::text())),
+            )
+            .build();
         let relations = Hierarchy::from([(["schema", "MY SPECIAL TABLE"], Arc::new(table))]);
-        let query_str = r#"SELECT "Id" FROM schema."MY SPECIAL TABLE""#;
+        let query_str = r#"SELECT "Id", normal_col, "Na.Me" FROM schema."MY SPECIAL TABLE""#;
         let translator = PostgreSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);
@@ -198,6 +176,12 @@ mod tests {
         let rel_with_traslator = RelationWithTranslator(&relation, translator);
         let retranslated = ast::Query::from(rel_with_traslator);
         print!("{}", retranslated);
+        let translated = r#"
+        WITH "map_mou5" ("Id", "normal_col", "Na.Me") AS (
+            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "MY SPECIAL TABLE"
+        ) SELECT * FROM "map_mou5"
+        "#;
+        assert_same_query_str(&retranslated.to_string(), translated);
         Ok(())
     }
 }
