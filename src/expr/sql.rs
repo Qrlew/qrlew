@@ -1356,7 +1356,7 @@ mod tests {
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
-        let true_expr = parse_expr("((Price) >= (10)) AND ((Price) <= (20))").unwrap();
+        let true_expr = parse_expr("((price) >= (10)) AND ((price) <= (20))").unwrap();
         assert_eq!(gen_expr, true_expr);
 
         // IS

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.7] - 2024-01-24
 ### Added
 - support for bigquery, connector and translator [#239](https://github.com/Qrlew/qrlew/pull/239)
+- support quoted queries [#257](https://github.com/Qrlew/qrlew/pull/257)
 
 ## [0.9.5] - 2024-01-18
 ### Fixed

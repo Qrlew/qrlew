@@ -786,7 +786,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             .0
             .get(&ident.cloned())
             .cloned()
-            .unwrap_or_else(|| ident.value.clone().into());
+            .unwrap_or_else(|| {
+                if let Some(_) = ident.quote_style {
+                    ident.value.clone().into()
+                } else {
+                    ident.value.to_lowercase().clone().into()
+                }
+            });
         Ok(Expr::Column(column))
     }
 

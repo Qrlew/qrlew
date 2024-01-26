@@ -11,12 +11,12 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     dialect_translation::{
-        postgresql::PostgreSqlTranslator, RelationToQueryTranslator, RelationWithTranslator,
+        postgresql::PostgreSqlTranslator, QueryToRelationTranslator, RelationToQueryTranslator, RelationWithTranslator
     },
     expr,
     io::{postgresql, Database},
     relation::Variant as _,
-    sql::parse,
+    sql::{parse, parse_with_dialect, relation::QueryWithRelations},
     Relation, With,
 };
 
@@ -440,4 +440,29 @@ fn test_distinct_aggregates() {
     let distinct_rel = table.distinct_aggregates(column, group_by, aggregates);
     let rewriten_query: &str = &ast::Query::from(&distinct_rel).to_string();
     assert!(test_eq(&mut database, true_query, rewriten_query));
+}
+
+#[test]
+fn test_quoting() {
+    let mut database = postgresql::test_database();
+    let relations = database.relations();
+    let table = database
+        .relations()
+        .get(&["MY SPECIAL TABLE".to_string()])
+        .unwrap()
+        .as_ref()
+        .clone();
+
+    let true_query = r#"SELECT * FROM "MY SPECIAL TABLE""#;
+    let translator = PostgreSqlTranslator;
+    let query = parse_with_dialect(true_query, translator.dialect()).unwrap();
+    let query_with_relation = QueryWithRelations::new(&query, &relations);
+    let relation = Relation::try_from((query_with_relation, translator)).unwrap();
+
+    let rel_with_traslator = RelationWithTranslator(&relation, translator);
+    let retranslated = ast::Query::from(rel_with_traslator);
+    print!("{}", retranslated);
+    println!(
+        "{}", database .query(true_query).unwrap().iter().map(ToString::to_string).join("\n")
+    );
 }

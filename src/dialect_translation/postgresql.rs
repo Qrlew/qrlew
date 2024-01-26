@@ -9,7 +9,7 @@ use crate::{
     Relation,
 };
 
-use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
+use super::{function_builder, RelationWithTranslator, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
 use crate::sql::{Error, Result};
@@ -95,6 +95,8 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 
 #[cfg(test)]
 mod tests {
+    use sqlparser::dialect;
+
     use super::*;
     use crate::{
         builder::{Ready, With},
@@ -102,10 +104,16 @@ mod tests {
         display::Dot,
         expr::Expr,
         namer,
-        relation::{schema::Schema, Relation},
+        relation::{schema::Schema, Relation, TableBuilder},
         sql::{parse, relation::QueryWithRelations},
     };
     use std::sync::Arc;
+
+    fn assert_same_query_str(query_1: &str, query_2: &str) {
+        let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
+        let b_no_whitespace: String = query_2.chars().filter(|c| !c.is_whitespace()).collect();
+        assert_eq!(a_no_whitespace, b_no_whitespace);
+    }
 
     #[test]
     fn test_query() -> Result<()> {
@@ -141,6 +149,39 @@ mod tests {
 
         // let retranslated: ast::Query::from()
         print!("{}", relation);
+        Ok(())
+    }
+
+    #[test]
+    fn test_table_special() -> Result<()> {
+        let table: Relation = TableBuilder::new()
+            .path(["MY SPECIAL TABLE"])
+            .name("my_table")
+            .size(100)
+            .schema(
+                Schema::empty()
+                    .with(("Id", DataType::integer_interval(0, 1000)))
+                    .with(("Na.Me", DataType::text()))
+                    .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+                    .with(("normal_col",  DataType::text())),
+            )
+            .build();
+        let relations = Hierarchy::from([(["schema", "MY SPECIAL TABLE"], Arc::new(table))]);
+        let query_str = r#"SELECT "Id", normal_col, "Na.Me" FROM schema."MY SPECIAL TABLE""#;
+        let translator = PostgreSqlTranslator;
+        let query = parse_with_dialect(query_str, translator.dialect())?;
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+
+        let rel_with_traslator = RelationWithTranslator(&relation, translator);
+        let retranslated = ast::Query::from(rel_with_traslator);
+        print!("{}", retranslated);
+        let translated = r#"
+        WITH "map_mou5" ("Id", "normal_col", "Na.Me") AS (
+            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "MY SPECIAL TABLE"
+        ) SELECT * FROM "map_mou5"
+        "#;
+        assert_same_query_str(&retranslated.to_string(), translated);
         Ok(())
     }
 }
