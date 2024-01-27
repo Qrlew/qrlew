@@ -115,12 +115,13 @@ impl PupRelation {
         self,
         named_sums: Vec<(&str, &str)>,
         group_by_names: Vec<&str>,
-        epsilon: f64,
-        delta: f64,
+        parameters: DpAggregatesParameters,
     ) -> Result<DpRelation> {
-        if (epsilon == 0. || delta == 0.) && !named_sums.is_empty() {
+        if (parameters.epsilon == 0. || parameters.delta == 0.) && !named_sums.is_empty() {
             return Err(Error::BudgetError(format!(
-                "Not enough budget for the aggregations. Got: (espilon, delta) = ({epsilon}, {delta})"
+                "Not enough budget for the aggregations. Got: (espilon, delta) = ({}, {})",
+                parameters.epsilon,
+                parameters.delta,
             )));
         }
 
@@ -148,7 +149,7 @@ impl PupRelation {
             .map(|(s, _, f)| (*s, *f))
             .collect::<Vec<_>>();
         let (dp_clipped_relation, dp_event) = clipped_relation
-            .gaussian_mechanisms(epsilon, delta, input_values_bound)
+            .gaussian_mechanisms(parameters.epsilon, parameters.delta, input_values_bound)
             .into();
         Ok(DpRelation::new(dp_clipped_relation, dp_event))
     }
@@ -161,7 +162,6 @@ impl PupRelation {
         group_by: &[Column],
         parameters: DpAggregatesParameters,
     ) -> Result<DpRelation> {
-        let DpAggregatesParameters { epsilon, delta, clipping_concentration, clipping_quantile } = parameters;
         let mut output_builder = Map::builder();
         let mut named_sums = vec![];
         let mut input_builder = Map::builder()
@@ -296,8 +296,7 @@ impl PupRelation {
                     .map(|(s1, s2)| (s1.as_str(), s2.as_str()))
                     .collect::<Vec<_>>(),
                 group_by_names,
-                epsilon,
-                delta,
+                parameters,
             )?
             .into();
         let dp_relation = output_builder
@@ -490,9 +489,7 @@ mod tests {
     fn test_differentially_private_sums_no_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
-        let (epsilon, delta) = (1., 1e-3);
-
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
         // privacy tracking of the inputs
         let table = relations
             .get(&["item_table".to_string()])
@@ -526,7 +523,7 @@ mod tests {
 
         let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differentially_private_sums(vec![("sum_price", "price")], vec![], epsilon, delta)
+            .differentially_private_sums(vec![("sum_price", "price")], vec![], parameters.clone())
             .unwrap();
         dp_relation.display_dot().unwrap();
         matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
@@ -576,7 +573,7 @@ mod tests {
 
         let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differentially_private_sums(vec![("sum_d", "my_d")], vec![], epsilon, delta)
+            .differentially_private_sums(vec![("sum_d", "my_d")], vec![], parameters)
             .unwrap();
         dp_relation.display_dot().unwrap();
         matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
@@ -591,14 +588,12 @@ mod tests {
     fn test_differentially_private_sums_with_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
         // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
@@ -627,7 +622,7 @@ mod tests {
 
         let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differentially_private_sums(vec![("sum_price", "price")], vec!["item"], epsilon, delta)
+            .differentially_private_sums(vec![("sum_price", "price")], vec!["item"], parameters)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 2);
@@ -662,7 +657,7 @@ mod tests {
             )
             .size(100)
             .build();
-        let (epsilon, delta) = (1., 1e-3);
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
 
         // GROUP BY and the aggregate input the same column
         let reduce: Reduce = Relation::reduce()
@@ -673,7 +668,7 @@ mod tests {
             .build();
         let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], epsilon, delta)
+            .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], parameters.clone())
             .unwrap();
         dp_relation.display_dot().unwrap();
 
@@ -685,7 +680,7 @@ mod tests {
             .build();
         let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
-            .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], epsilon, delta)
+            .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], parameters)
             .unwrap();
         dp_relation.display_dot().unwrap();
     }
