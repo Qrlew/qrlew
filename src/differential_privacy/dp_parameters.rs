@@ -1,5 +1,5 @@
 use super::{DpRelation, Ready, Reduce, Relation, Result, With};
-use crate::{privacy_unit_tracking::PupRelation, relation::Variant, rewriting::rewriting_rule::Parameters};
+use crate::privacy_unit_tracking::PupRelation;
 use std::{cmp::Eq, hash::Hash};
 
 /// Represent a simple privacy budget

@@ -20,6 +20,8 @@ use std::{error, fmt, ops::Deref, result};
 pub use dp_parameters::DpParameters;
 pub use dp_event::DpEvent;
 
+use self::aggregates::DpAggregatesParameters;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     InvalidRelation(String),
@@ -150,12 +152,11 @@ impl Reduce {
         // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
         // not been spent, allocate it to the aggregations.
         let aggregation_share = if dp_event.is_no_op() {1.} else {1.-parameters.tau_thresholding_share};
-        let epsilon = parameters.epsilon*aggregation_share;
-        let delta = parameters.delta*aggregation_share;
+        let aggregation_parameters = DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share);
 
         // DP rewrite aggregates
         let (dp_relation, dp_event_agg) = reduce_with_dp_group_by
-            .differentially_private_aggregates(epsilon, delta)?
+            .differentially_private_aggregates(aggregation_parameters)?
             .into();
         dp_event = dp_event.compose(dp_event_agg);
         Ok((dp_relation, dp_event).into())

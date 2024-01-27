@@ -36,6 +36,15 @@ impl DpAggregatesParameters {
     pub fn from_dp_parameters(dp_parameters: DpParameters, share: f64) -> DpAggregatesParameters {
         DpAggregatesParameters::new(dp_parameters.epsilon*share, dp_parameters.delta*share, dp_parameters.clipping_concentration, dp_parameters.clipping_quantile)
     }
+
+    pub fn split(self, n: usize) -> DpAggregatesParameters {
+        DpAggregatesParameters::new(
+            self.epsilon / (cmp::max(n, 1) as f64),
+            self.delta / (cmp::max(n, 1) as f64),
+            self.clipping_concentration,
+            self.clipping_quantile,
+        )
+    }
 }
 
 impl Field {
@@ -150,9 +159,9 @@ impl PupRelation {
         self,
         named_aggregates: Vec<(&str, AggregateColumn)>,
         group_by: &[Column],
-        epsilon: f64,
-        delta: f64,
+        parameters: DpAggregatesParameters,
     ) -> Result<DpRelation> {
+        let DpAggregatesParameters { epsilon, delta, clipping_concentration, clipping_quantile } = parameters;
         let mut output_builder = Map::builder();
         let mut named_sums = vec![];
         let mut input_builder = Map::builder()
@@ -302,16 +311,12 @@ impl Reduce {
     /// Rewrite into DP the aggregations.
     pub fn differentially_private_aggregates(
         &self,
-        epsilon: f64,
-        delta: f64,
+        parameters: DpAggregatesParameters,
     ) -> Result<DpRelation> {
         let pup_input = PupRelation::try_from(self.input().clone())?;
-
         // Split the aggregations with different DISTINCT clauses
         let reduces = self.split_distinct_aggregates();
-        let epsilon = epsilon / (cmp::max(reduces.len(), 1) as f64);
-        let delta = delta / (cmp::max(reduces.len(), 1) as f64);
-
+        let split_parameters = parameters.clone().split(reduces.len());
         // Rewrite into differential privacy each `Reduce` then join them.
         let (relation, dp_event) = reduces.iter()
             .map(|r| pup_input.clone().differentially_private_aggregates(
@@ -320,8 +325,7 @@ impl Reduce {
                     .map(|(n, agg)| (n, agg.clone()))
                     .collect(),
                 self.group_by(),
-                epsilon,
-                delta,
+                split_parameters.clone(),
             ))
             .reduce(|acc, dp_rel| {
                 let acc = acc?;
@@ -696,7 +700,7 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
 
         // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -730,7 +734,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differentially_private_aggregates(epsilon, delta)
+            .differentially_private_aggregates(parameters)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 5);
@@ -758,7 +762,7 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
 
         // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -792,7 +796,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differentially_private_aggregates(epsilon, delta)
+            .differentially_private_aggregates(parameters.clone())
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 5);
@@ -830,7 +834,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let dp_relation = reduce
-            .differentially_private_aggregates(epsilon, delta)
+            .differentially_private_aggregates(parameters)
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 4);
@@ -858,8 +862,7 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
@@ -890,9 +893,8 @@ mod tests {
             pup_table.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
-
         let dp_relation = reduce
-            .differentially_private_aggregates(epsilon, delta)
+            .differentially_private_aggregates(parameters.clone())
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 5);
@@ -929,7 +931,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
 
         let dp_relation = reduce
-            .differentially_private_aggregates(epsilon, delta)
+            .differentially_private_aggregates(parameters.clone())
             .unwrap();
         dp_relation.display_dot().unwrap();
         assert_eq!(dp_relation.schema().len(), 4);
@@ -1102,20 +1104,19 @@ mod tests {
             .schema(schema.clone())
             .size(1000)
             .build();
-
-        let (epsilon, delta) = (1.0, 1e-5);
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-5), 1.);
 
         // No distinct + no group by
         let reduce: Reduce = Relation::reduce()
         .input(table.clone())
         .with(("sum_a", AggregateColumn::sum("a")))
         .build();
-        let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
+        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
         assert_eq!(
             dp_relation.dp_event(),
             &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon.clone(),
-                delta.clone(),
+                parameters.epsilon,
+                parameters.delta,
                 2.
             )
         );
@@ -1132,12 +1133,12 @@ mod tests {
         .with(("sum_a", AggregateColumn::sum("a")))
         .group_by(expr!(b))
         .build();
-        let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
+        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
         assert_eq!(
             dp_relation.dp_event(),
             &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon.clone(),
-                delta.clone(),
+                parameters.epsilon,
+                parameters.delta,
                 2.
             )
         );
@@ -1153,13 +1154,13 @@ mod tests {
         .input(table.clone())
         .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
         .build();
-        let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
+        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.dp_event(),
             &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon.clone(),
-                delta.clone(),
+                parameters.epsilon,
+                parameters.delta,
                 2.
             )
         );
@@ -1176,13 +1177,13 @@ mod tests {
         .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
         .with_group_by_column("b")
         .build();
-        let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
+        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.dp_event(),
             &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon.clone(),
-                delta.clone(),
+                parameters.epsilon,
+                parameters.delta,
                 2.
             )
         );
@@ -1205,7 +1206,7 @@ mod tests {
         .with(("var_distinct_b", AggregateColumn::var_distinct("b")))
         .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
         .build();
-        let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
+        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
         dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1233,7 +1234,7 @@ mod tests {
         .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
         .group_by(expr!(c))
         .build();
-        let dp_relation = reduce.differentially_private_aggregates(epsilon.clone(), delta.clone()).unwrap();
+        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
         dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1271,8 +1272,7 @@ mod tests {
             )
             .size(100)
             .build();
-        let (epsilon, delta) = (1., 1e-3);
-
+        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
         // GROUP BY and the aggregate input the same column
         let reduce: Reduce = Relation::reduce()
             .name("reduce_relation")
@@ -1281,15 +1281,15 @@ mod tests {
             .input(table.clone())
             .build();
         let (dp_relation, dp_event) = reduce
-        .differentially_private_aggregates(epsilon.clone(), delta.clone())
+        .differentially_private_aggregates(parameters.clone())
         .unwrap()
         .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
             DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon.clone(),
-                delta.clone(),
+                parameters.epsilon,
+                parameters.delta,
                 10.
             )
         );
@@ -1309,15 +1309,15 @@ mod tests {
             .input(table.clone())
             .build();
         let (dp_relation, dp_event) = reduce
-        .differentially_private_aggregates(epsilon.clone(), delta.clone())
+        .differentially_private_aggregates(parameters.clone())
         .unwrap()
         .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
             DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon.clone(),
-                delta.clone(),
+                parameters.epsilon,
+                parameters.delta,
                 10.
             )
         );
