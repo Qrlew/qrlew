@@ -11,7 +11,7 @@ use crate::{
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 
-use super::{dp_parameters, DpParameters};
+use super::DpParameters;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DpAggregatesParameters {
