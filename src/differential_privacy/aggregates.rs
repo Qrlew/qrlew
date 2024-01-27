@@ -11,6 +11,33 @@ use crate::{
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 
+use super::{dp_parameters, DpParameters};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DpAggregatesParameters {
+    pub epsilon: f64,
+    pub delta: f64,
+    /// The concentration parameter used to compute clipping
+    pub clipping_concentration: f64,
+    /// The quantile parameter used to compute clipping
+    pub clipping_quantile: f64,
+}
+
+impl DpAggregatesParameters {
+    pub fn new(epsilon: f64, delta: f64, clipping_concentration: f64, clipping_quantile: f64) -> DpAggregatesParameters {
+        DpAggregatesParameters {
+            epsilon,
+            delta,
+            clipping_concentration,
+            clipping_quantile,
+        }
+    }
+
+    pub fn from_dp_parameters(dp_parameters: DpParameters, share: f64) -> DpAggregatesParameters {
+        DpAggregatesParameters::new(dp_parameters.epsilon*share, dp_parameters.delta*share, dp_parameters.clipping_concentration, dp_parameters.clipping_quantile)
+    }
+}
+
 impl Field {
     pub fn clipping_value(self, multiplicity: i64) -> f64 {
         match self.data_type() {

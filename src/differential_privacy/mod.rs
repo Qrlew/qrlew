@@ -133,7 +133,7 @@ impl Reduce {
             self
         } else {
             let (dp_grouping_values, dp_event_group_by) = self
-                .differentially_private_group_by(parameters.epsilon_tau_thresholding(), parameters.delta_tau_thresholding())?
+                .differentially_private_group_by(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share)?
                 .into();
             let input_relation_with_privacy_tracked_group_by = self
                 .input()
@@ -149,9 +149,9 @@ impl Reduce {
 
         // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
         // not been spent, allocate it to the aggregations.
-        let tau_thresholding = !dp_event.is_no_op();
-        let epsilon = parameters.epsilon_aggregation(tau_thresholding);
-        let delta = parameters.delta_aggregation(tau_thresholding);
+        let aggregation_share = if dp_event.is_no_op() {1.} else {1.-parameters.tau_thresholding_share};
+        let epsilon = parameters.epsilon*aggregation_share;
+        let delta = parameters.delta*aggregation_share;
 
         // DP rewrite aggregates
         let (dp_relation, dp_event_agg) = reduce_with_dp_group_by
@@ -221,8 +221,8 @@ mod tests {
         assert_eq!(
             dp_event,
             DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon_aggregation(false),
-                parameters.delta_aggregation(false),
+                parameters.epsilon,
+                parameters.delta,
                 50.
             )
         );
@@ -346,8 +346,8 @@ mod tests {
         assert_eq!(
             dp_event,
             DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon_aggregation(false),
-                parameters.delta_aggregation(false),
+                parameters.epsilon,
+                parameters.delta,
                 50.
             )
         );
@@ -413,8 +413,8 @@ mod tests {
         assert_eq!(
             dp_event,
             vec![
-                DpEvent::epsilon_delta(parameters.epsilon_tau_thresholding(), parameters.delta_tau_thresholding()),
-                DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon_aggregation(true), parameters.delta_aggregation(true), 50.)
+                DpEvent::epsilon_delta(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share),
+                DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon*(1.-parameters.tau_thresholding_share), parameters.delta*(1.-parameters.tau_thresholding_share), 50.)
             ]
             .into()
         );
@@ -489,8 +489,8 @@ mod tests {
         assert_eq!(
             dp_event,
             vec![
-                DpEvent::epsilon_delta(parameters.epsilon_tau_thresholding(), parameters.delta_tau_thresholding()),
-                DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon_aggregation(true), parameters.delta_aggregation(true), 50.)
+                DpEvent::epsilon_delta(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share),
+                DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon*(1.-parameters.tau_thresholding_share), parameters.delta*(1.-parameters.tau_thresholding_share), 50.)
             ]
             .into()
         );
@@ -683,8 +683,8 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
-            DpEvent::epsilon_delta(parameters.epsilon_tau_thresholding(), parameters.delta_tau_thresholding())
-                .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon_aggregation(true), parameters.delta_aggregation(true), 10.))
+            DpEvent::epsilon_delta(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share)
+                .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon*(1.-parameters.tau_thresholding_share), parameters.delta*(1.-parameters.tau_thresholding_share), 10.))
         );
         let correct_schema: Schema = vec![
             ("sum_a", DataType::float_interval(0., 100.), None),

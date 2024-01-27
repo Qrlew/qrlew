@@ -5,14 +5,14 @@ use std::{cmp::Eq, hash::Hash};
 /// Represent a simple privacy budget
 #[derive(Clone, Debug, PartialEq)]
 pub struct DpParameters {
-    epsilon: f64,
-    delta: f64,
+    pub epsilon: f64,
+    pub delta: f64,
     /// Tau-thresholding share
-    tau_thresholding_share: f64,
+    pub tau_thresholding_share: f64,
     /// The concentration parameter used to compute clipping
-    clipping_concentration: f64,
+    pub clipping_concentration: f64,
     /// The quantile parameter used to compute clipping
-    clipping_quantile: f64,
+    pub clipping_quantile: f64,
 }
 
 impl DpParameters {
@@ -22,38 +22,6 @@ impl DpParameters {
 
     pub fn from_epsilon_delta(epsilon: f64, delta: f64) -> DpParameters {
         DpParameters::new(epsilon, delta, 0.5, 0.01, 0.9)
-    }
-
-    pub fn epsilon(&self) -> f64 {
-        self.epsilon
-    }
-
-    pub fn delta(&self) -> f64 {
-        self.delta
-    }
-
-    pub fn epsilon_aggregation(&self, tau_thresholding: bool) -> f64 {
-        if tau_thresholding {
-            self.epsilon*(1.-self.tau_thresholding_share)
-        } else {
-            self.epsilon
-        }
-    }
-
-    pub fn delta_aggregation(&self, tau_thresholding: bool) -> f64 {
-        if tau_thresholding {
-            self.delta*(1.-self.tau_thresholding_share)
-        } else {
-            self.delta
-        }
-    }
-
-    pub fn epsilon_tau_thresholding(&self) -> f64 {
-        self.epsilon*self.tau_thresholding_share
-    }
-
-    pub fn delta_tau_thresholding(&self) -> f64 {
-        self.delta*self.tau_thresholding_share
     }
 }
 
