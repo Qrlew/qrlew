@@ -66,9 +66,9 @@ pub enum Strategy {
 }
 
 #[derive(Clone, Debug)]
-pub struct PUPRelation(pub Relation);
+pub struct PupRelation(pub Relation);
 
-impl PUPRelation {
+impl PupRelation {
 
     pub fn privacy_unit(&self) -> &str {
         PrivacyUnit::privacy_unit()
@@ -83,21 +83,21 @@ impl PUPRelation {
     }
 
     pub fn with_name(self, name: String) -> Result<Self> {
-        PUPRelation::try_from(Relation::from(self).with_name(name))
+        PupRelation::try_from(Relation::from(self).with_name(name))
     }
 
     pub fn filter_fields<P: Fn(&str) -> bool>(self, predicate: P) -> Result<Self> {
-        PUPRelation::try_from(Relation::from(self).filter_fields(|f| predicate(f)))
+        PupRelation::try_from(Relation::from(self).filter_fields(|f| predicate(f)))
     }
 }
 
-impl From<PUPRelation> for Relation {
-    fn from(value: PUPRelation) -> Self {
+impl From<PupRelation> for Relation {
+    fn from(value: PupRelation) -> Self {
         value.0
     }
 }
 
-impl TryFrom<Relation> for PUPRelation {
+impl TryFrom<Relation> for PupRelation {
     type Error = Error;
 
     fn try_from(value: Relation) -> Result<Self> {
@@ -107,7 +107,7 @@ impl TryFrom<Relation> for PUPRelation {
                 .field(PrivacyUnit::privacy_unit_weight())
                 .is_ok()
         {
-            Ok(PUPRelation(value))
+            Ok(PupRelation(value))
         } else {
             Err(Error::NotPrivacyUnitPreserving(
                 format!(
@@ -119,7 +119,7 @@ impl TryFrom<Relation> for PUPRelation {
     }
 }
 
-impl Deref for PUPRelation {
+impl Deref for PupRelation {
     type Target = Relation;
 
     fn deref(&self) -> &Self::Target {
@@ -254,13 +254,13 @@ impl<'a> PrivacyUnitTracking<'a> {
     }
 
     /// Table privacy tracking
-    pub fn table(&self, table: &'a Table) -> Result<PUPRelation> {
+    pub fn table(&self, table: &'a Table) -> Result<PupRelation> {
         let (_, field_path) = self
             .privacy_unit
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::no_private_table(table.path()))?;
-        PUPRelation::try_from(
+        PupRelation::try_from(
             Relation::from(table.clone())
                 .with_field_path(self.relations, field_path.clone())
                 .map_fields(|name, expr| {
@@ -275,7 +275,7 @@ impl<'a> PrivacyUnitTracking<'a> {
     }
 
     /// Map privacy tracking from another PUP relation
-    pub fn map(&self, map: &'a Map, input: PUPRelation) -> Result<PUPRelation> {
+    pub fn map(&self, map: &'a Map, input: PupRelation) -> Result<PupRelation> {
         let relation: Relation = Relation::map()
             .with((
                 PrivacyUnit::privacy_unit(),
@@ -288,11 +288,11 @@ impl<'a> PrivacyUnitTracking<'a> {
             .with(map.clone())
             .input(Relation::from(input))
             .build();
-        PUPRelation::try_from(relation)
+        PupRelation::try_from(relation)
     }
 
     /// Reduce privacy tracking from another PUP relation
-    pub fn reduce(&self, reduce: &'a Reduce, input: PUPRelation) -> Result<PUPRelation> {
+    pub fn reduce(&self, reduce: &'a Reduce, input: PupRelation) -> Result<PupRelation> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(reduce.name())),
             Strategy::Hard => {
@@ -305,7 +305,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                     .with(reduce.clone())
                     .input(Relation::from(input))
                     .build();
-                PUPRelation::try_from(relation)
+                PupRelation::try_from(relation)
             }
         }
     }
@@ -314,9 +314,9 @@ impl<'a> PrivacyUnitTracking<'a> {
     pub fn join(
         &self,
         join: &'a crate::relation::Join,
-        left: PUPRelation,
-        right: PUPRelation,
-    ) -> Result<PUPRelation> {
+        left: PupRelation,
+        right: PupRelation,
+    ) -> Result<PupRelation> {
         // Create the privacy tracked join
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(join)),
@@ -377,7 +377,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                     }
                 });
                 let relation: Relation = builder.input(Arc::new(join.into())).build();
-                PUPRelation::try_from(relation)
+                PupRelation::try_from(relation)
             }
         }
     }
@@ -388,8 +388,8 @@ impl<'a> PrivacyUnitTracking<'a> {
         &self,
         join: &'a crate::relation::Join,
         left: Relation,
-        right: PUPRelation,
-    ) -> Result<PUPRelation> {
+        right: PupRelation,
+    ) -> Result<PupRelation> {
         let name = join.name();
         let operator = join.operator().clone();
         let names = join.names();
@@ -432,7 +432,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             }
         });
         let relation: Relation = builder.input(Arc::new(join.into())).build();
-        PUPRelation::try_from(relation)
+        PupRelation::try_from(relation)
     }
 
     /// Join privacy tracking from a PUP and a published relations
@@ -440,9 +440,9 @@ impl<'a> PrivacyUnitTracking<'a> {
         //TODO this need to be cleaned (really)
         &self,
         join: &'a crate::relation::Join,
-        left: PUPRelation,
+        left: PupRelation,
         right: Relation,
-    ) -> Result<PUPRelation> {
+    ) -> Result<PupRelation> {
         let name = join.name();
         let operator = join.operator().clone();
         let names = join.names();
@@ -485,16 +485,16 @@ impl<'a> PrivacyUnitTracking<'a> {
             }
         });
         let relation: Relation = builder.input(Arc::new(join.into())).build();
-        PUPRelation::try_from(relation)
+        PupRelation::try_from(relation)
     }
 
     /// Set privacy tracking from 2 PUP relations
     pub fn set(
         &self,
         set: &'a crate::relation::Set,
-        left: Result<PUPRelation>,
-        right: Result<PUPRelation>,
-    ) -> Result<PUPRelation> {
+        left: Result<PupRelation>,
+        right: Result<PupRelation>,
+    ) -> Result<PupRelation> {
         let relation: Relation = Relation::set()
             .name(set.name())
             .operator(set.operator().clone())
@@ -502,12 +502,12 @@ impl<'a> PrivacyUnitTracking<'a> {
             .left(Relation::from(left?))
             .right(Relation::from(right?))
             .build();
-        PUPRelation::try_from(relation)
+        PupRelation::try_from(relation)
     }
 
     /// Values privacy tracking
-    pub fn values(&self, values: &'a Values) -> Result<PUPRelation> {
-        PUPRelation::try_from(Relation::Values(values.clone()))
+    pub fn values(&self, values: &'a Values) -> Result<PupRelation> {
+        PupRelation::try_from(Relation::Values(values.clone()))
     }
 }
 

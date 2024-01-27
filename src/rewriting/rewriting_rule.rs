@@ -5,10 +5,7 @@ use itertools::Itertools;
 
 use crate::{
     builder::{Ready, With},
-    differential_privacy::{
-        budget::DifferentialPrivacy,
-        dp_event::DpEvent,
-    },
+    differential_privacy::{DpParameters, DpEvent},
     hierarchy::Hierarchy,
     privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
     expr::aggregate::Aggregate,
@@ -47,7 +44,7 @@ impl fmt::Display for Property {
 pub enum Parameters {
     None,
     SyntheticData(SyntheticData),
-    DifferentialPrivacy(DifferentialPrivacy),
+    DifferentialPrivacy(DpParameters),
     PrivacyUnit(PrivacyUnit),
 }
 
@@ -580,7 +577,7 @@ pub struct RewritingRulesSetter<'a> {
     relations: &'a Hierarchy<Arc<Relation>>,
     synthetic_data: Option<SyntheticData>,
     privacy_unit: PrivacyUnit,
-    budget: DifferentialPrivacy,
+    dp_parameters: DpParameters,
 }
 
 impl<'a> RewritingRulesSetter<'a> {
@@ -588,13 +585,13 @@ impl<'a> RewritingRulesSetter<'a> {
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
-        budget: DifferentialPrivacy,
+        dp_parameters: DpParameters,
     ) -> RewritingRulesSetter {
         RewritingRulesSetter {
             relations,
             synthetic_data,
             privacy_unit,
-            budget,
+            dp_parameters,
         }
     }
 }
@@ -723,7 +720,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 RewritingRule::new(
             vec![Property::PrivacyUnitPreserving],
             Property::DifferentiallyPrivate,
-                    Parameters::DifferentialPrivacy(self.budget.clone()),
+                    Parameters::DifferentialPrivacy(self.dp_parameters.clone()),
                 )
             )
         }
@@ -1165,9 +1162,9 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 (
                     [Property::PrivacyUnitPreserving],
                     Property::DifferentiallyPrivate,
-                    Parameters::DifferentialPrivacy(budget),
+                    Parameters::DifferentialPrivacy(dp_parameters),
                 ) => {
-                    let (dp_relation, dp_event) = budget
+                    let (dp_relation, dp_event) = dp_parameters
                         .reduce(reduce, relation_input.try_into().unwrap())
                         .unwrap()
                         .into();
@@ -1358,7 +1355,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1366,7 +1363,7 @@ mod tests {
             &relations,
             Some(synthetic_data),
             privacy_unit,
-            budget,
+            dp_parameters,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1420,7 +1417,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1428,7 +1425,7 @@ mod tests {
             &relations,
             Some(synthetic_data),
             privacy_unit,
-            budget,
+            dp_parameters,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1479,7 +1476,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1487,7 +1484,7 @@ mod tests {
             &relations,
             Some(synthetic_data),
             privacy_unit,
-            budget,
+            dp_parameters,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1538,7 +1535,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1546,7 +1543,7 @@ mod tests {
             &relations,
             Some(synthetic_data),
             privacy_unit,
-            budget,
+            dp_parameters,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1593,7 +1590,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1601,7 +1598,7 @@ mod tests {
             &relations,
             synthetic_data,
             privacy_unit,
-            budget,
+            dp_parameters,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1644,7 +1641,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1652,7 +1649,7 @@ mod tests {
             &relations,
             synthetic_data,
             privacy_unit,
-            budget,
+            dp_parameters,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1699,7 +1696,7 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
-        let budget = DifferentialPrivacy::from_epsilon_delta(1., 1e-3);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         relation.display_dot().unwrap();
         // Add rewritting rules
@@ -1707,7 +1704,7 @@ mod tests {
             &relations,
             Some(synthetic_data),
             privacy_unit,
-            budget,
+            dp_parameters,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);

@@ -4,19 +4,22 @@
 //!
 
 pub mod aggregates;
-pub mod budget;
+pub mod dp_parameters;
 pub mod group_by;
 pub mod dp_event;
 
 use crate::{
     builder::With,
-    differential_privacy::dp_event::DpEvent,
     expr, privacy_unit_tracking,
     relation::{rewriting, Reduce, Relation},
     Ready,
     display::Dot
 };
 use std::{error, fmt, ops::Deref, result};
+
+/// Some exports
+pub use dp_parameters::DpParameters;
+pub use dp_event::DpEvent;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
@@ -66,20 +69,20 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// A DP Relation
 #[derive(Clone, Debug)]
-pub struct DPRelation {
+pub struct DpRelation {
     relation: Relation,
     dp_event: DpEvent,
 }
 
-impl From<DPRelation> for Relation {
-    fn from(value: DPRelation) -> Self {
+impl From<DpRelation> for Relation {
+    fn from(value: DpRelation) -> Self {
         value.relation
     }
 }
 
-impl DPRelation {
+impl DpRelation {
     pub fn new(relation: Relation, dp_event: DpEvent) -> Self {
-        DPRelation {
+        DpRelation {
             relation,
             dp_event,
         }
@@ -94,7 +97,7 @@ impl DPRelation {
     }
 }
 
-impl Deref for DPRelation {
+impl Deref for DpRelation {
     type Target = Relation;
 
     fn deref(&self) -> &Self::Target {
@@ -102,15 +105,15 @@ impl Deref for DPRelation {
     }
 }
 
-impl From<DPRelation> for (Relation, DpEvent) {
-    fn from(value: DPRelation) -> Self {
+impl From<DpRelation> for (Relation, DpEvent) {
+    fn from(value: DpRelation) -> Self {
         (value.relation, value.dp_event)
     }
 }
 
-impl From<(Relation, DpEvent)> for DPRelation {
+impl From<(Relation, DpEvent)> for DpRelation {
     fn from(value: (Relation, DpEvent)) -> Self {
-        DPRelation::new(value.0, value.1)
+        DpRelation::new(value.0, value.1)
     }
 }
 
@@ -126,7 +129,7 @@ impl Reduce {
         delta: f64,
         epsilon_tau_thresholding: f64,
         delta_tau_thresholding: f64,
-    ) -> Result<DPRelation> {
+    ) -> Result<DpRelation> {
         let mut dp_event = DpEvent::no_op();
 
         // DP rewrite group by
@@ -178,7 +181,7 @@ mod tests {
         display::Dot,
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
-        privacy_unit_tracking::{PrivacyUnit,PrivacyUnitTracking, Strategy, PUPRelation},
+        privacy_unit_tracking::{PrivacyUnit,PrivacyUnitTracking, Strategy, PupRelation},
         relation::{Field, Map, Relation, Schema, Variant, Constraint},
     };
     use std::{collections::HashSet, sync::Arc};
@@ -278,7 +281,7 @@ mod tests {
         let pup_map = privacy_unit_tracking
             .map(
                 &map.clone().try_into().unwrap(),
-                PUPRelation(Relation::from(pup_table))
+                PupRelation(Relation::from(pup_table))
             )
             .unwrap();
         let reduce = Reduce::new(

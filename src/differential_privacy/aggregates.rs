@@ -2,9 +2,9 @@ use crate::{
     builder::{With, WithIterator},
     data_type::DataTyped,
     differential_privacy::dp_event::DpEvent,
-    differential_privacy::{dp_event, DPRelation, Error, Result},
+    differential_privacy::{dp_event, DpRelation, Error, Result},
     expr::{aggregate::{self, Aggregate}, AggregateColumn, Expr, Column, Identifier},
-    privacy_unit_tracking::PUPRelation,
+    privacy_unit_tracking::PupRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant},
     DataType, Ready,
 
@@ -30,7 +30,7 @@ impl Field {
 }
 
 impl Relation {
-    fn gaussian_mechanisms(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DPRelation {
+    fn gaussian_mechanisms(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DpRelation {
         if epsilon>1. {
             // Cf. Theorem A.1. in (Dwork, Roth et al. 2014)
             log::warn!("Warning, epsilon>1 the gaussian mechanism applied will not be exactly epsilon,delta-DP!")
@@ -63,14 +63,14 @@ impl Relation {
         } else {
             (self, DpEvent::no_op())
         };
-        DPRelation::new(
+        DpRelation::new(
             dp_relation,
             dp_event,
         )
     }
 }
 
-impl PUPRelation {
+impl PupRelation {
     /// Builds a DPRelation wrapping a Relation::Reduce
     /// whose `aggregates` are the noisy sums of each column in `named_sums`
     /// and the group by columns are defined by `group_by_names`
@@ -81,7 +81,7 @@ impl PUPRelation {
         group_by_names: Vec<&str>,
         epsilon: f64,
         delta: f64,
-    ) -> Result<DPRelation> {
+    ) -> Result<DpRelation> {
         if (epsilon == 0. || delta == 0.) && !named_sums.is_empty() {
             return Err(Error::BudgetError(format!(
                 "Not enough budget for the aggregations. Got: (espilon, delta) = ({epsilon}, {delta})"
@@ -114,7 +114,7 @@ impl PUPRelation {
         let (dp_clipped_relation, dp_event) = clipped_relation
             .gaussian_mechanisms(epsilon, delta, input_values_bound)
             .into();
-        Ok(DPRelation::new(dp_clipped_relation, dp_event))
+        Ok(DpRelation::new(dp_clipped_relation, dp_event))
     }
 
     /// Rewrite aggregations as sums and add noise to that sums.
@@ -125,7 +125,7 @@ impl PUPRelation {
         group_by: &[Column],
         epsilon: f64,
         delta: f64,
-    ) -> Result<DPRelation> {
+    ) -> Result<DpRelation> {
         let mut output_builder = Map::builder();
         let mut named_sums = vec![];
         let mut input_builder = Map::builder()
@@ -252,7 +252,7 @@ impl PUPRelation {
         );
 
         let input: Relation = input_builder.input(self.deref().clone()).build();
-        let pup_input = PUPRelation::try_from(input)?;
+        let pup_input = PupRelation::try_from(input)?;
         let (dp_relation, dp_event) = pup_input
             .differentially_private_sums(
                 named_sums
@@ -267,7 +267,7 @@ impl PUPRelation {
         let dp_relation = output_builder
             .input(dp_relation)
             .build();
-        Ok(DPRelation::new(dp_relation, dp_event))
+        Ok(DpRelation::new(dp_relation, dp_event))
     }
 }
 
@@ -277,8 +277,8 @@ impl Reduce {
         &self,
         epsilon: f64,
         delta: f64,
-    ) -> Result<DPRelation> {
-        let pup_input = PUPRelation::try_from(self.input().clone())?;
+    ) -> Result<DpRelation> {
+        let pup_input = PupRelation::try_from(self.input().clone())?;
 
         // Split the aggregations with different DISTINCT clauses
         let reduces = self.split_distinct_aggregates();
@@ -299,7 +299,7 @@ impl Reduce {
             .reduce(|acc, dp_rel| {
                 let acc = acc?;
                 let dp_rel = dp_rel?;
-                Ok(DPRelation::new(
+                Ok(DpRelation::new(
                     acc.relation().clone().natural_inner_join(dp_rel.relation().clone()),
             acc.dp_event().clone().compose(dp_rel.dp_event().clone())
                 ))
@@ -493,7 +493,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+        let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
             .differentially_private_sums(vec![("sum_price", "price")], vec![], epsilon, delta)
             .unwrap();
@@ -531,7 +531,7 @@ mod tests {
         let pup_map = privacy_unit_tracking
             .map(
                 &map.clone().try_into().unwrap(),
-                PUPRelation(Relation::from(pup_table))
+                PupRelation(Relation::from(pup_table))
             )
             .unwrap();
         let reduce = Reduce::new(
@@ -543,7 +543,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+        let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
             .differentially_private_sums(vec![("sum_d", "my_d")], vec![], epsilon, delta)
             .unwrap();
@@ -594,7 +594,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         //relation.display_dot().unwrap();
 
-        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+        let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
             .differentially_private_sums(vec![("sum_price", "price")], vec!["item"], epsilon, delta)
             .unwrap();
@@ -640,7 +640,7 @@ mod tests {
             .group_by(expr!(a))
             .input(table.clone())
             .build();
-        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+        let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
             .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], epsilon, delta)
             .unwrap();
@@ -652,7 +652,7 @@ mod tests {
             .with_group_by_column("a")
             .input(table.clone())
             .build();
-        let dp_relation = PUPRelation::try_from(reduce.input().clone())
+        let dp_relation = PupRelation::try_from(reduce.input().clone())
             .unwrap()
             .differentially_private_sums(vec![("sum_a", "a")], vec!["a"], epsilon, delta)
             .unwrap();
