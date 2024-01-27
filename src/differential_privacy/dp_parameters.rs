@@ -1,5 +1,5 @@
 use super::{DpRelation, Ready, Reduce, Relation, Result, With};
-use crate::{privacy_unit_tracking::PupRelation, relation::Variant};
+use crate::{privacy_unit_tracking::PupRelation, relation::Variant, rewriting::rewriting_rule::Parameters};
 use std::{cmp::Eq, hash::Hash};
 
 /// Represent a simple privacy budget
@@ -63,20 +63,7 @@ impl DpParameters {
             .with(reduce.clone())
             .input(Relation::from(input))
             .build();
-        let (epsilon, delta, epsilon_tau_thresholding, delta_tau_thresholding) =
-            if reduce.group_by().is_empty() {
-                let tau_thresholding = false;
-                (self.epsilon_aggregation(tau_thresholding), self.delta_aggregation(tau_thresholding), 0., 0.)
-            } else {
-                let tau_thresholding = true;
-                (self.epsilon_aggregation(tau_thresholding), self.delta_aggregation(tau_thresholding), self.epsilon_tau_thresholding(), self.delta_tau_thresholding())
-            };
-        reduce.differentially_private(
-            epsilon,
-            delta,
-            epsilon_tau_thresholding,
-            delta_tau_thresholding,
-        )
+        reduce.differentially_private(&self)
     }
 }
 
