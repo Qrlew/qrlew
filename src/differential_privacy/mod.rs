@@ -153,7 +153,7 @@ impl Reduce {
         // not been spent, allocate it to the aggregations.
         let aggregation_share = if dp_event.is_no_op() {1.} else {1.-parameters.tau_thresholding_share};
         let aggregation_parameters = DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share);
-
+        
         // DP rewrite aggregates
         let (dp_relation, dp_event_agg) = reduce_with_dp_group_by
             .differentially_private_aggregates(aggregation_parameters)?

@@ -17,6 +17,10 @@ use super::DpParameters;
 pub struct DpAggregatesParameters {
     pub epsilon: f64,
     pub delta: f64,
+    /// Size of the dataset
+    pub size: usize,
+    /// Unique constraint
+    pub unique_pid: bool,
     /// The concentration parameter used to compute clipping
     pub clipping_concentration: f64,
     /// The quantile parameter used to compute clipping
@@ -24,26 +28,38 @@ pub struct DpAggregatesParameters {
 }
 
 impl DpAggregatesParameters {
-    pub fn new(epsilon: f64, delta: f64, clipping_concentration: f64, clipping_quantile: f64) -> DpAggregatesParameters {
+    pub fn new(epsilon: f64, delta: f64, size: usize, unique_pid: bool, clipping_concentration: f64, clipping_quantile: f64) -> DpAggregatesParameters {
         DpAggregatesParameters {
             epsilon,
             delta,
+            size,
+            unique_pid,
             clipping_concentration,
             clipping_quantile,
         }
     }
 
     pub fn from_dp_parameters(dp_parameters: DpParameters, share: f64) -> DpAggregatesParameters {
-        DpAggregatesParameters::new(dp_parameters.epsilon*share, dp_parameters.delta*share, dp_parameters.clipping_concentration, dp_parameters.clipping_quantile)
+        DpAggregatesParameters::new(dp_parameters.epsilon*share, dp_parameters.delta*share, 1, false, dp_parameters.clipping_concentration, dp_parameters.clipping_quantile)
     }
 
     pub fn split(self, n: usize) -> DpAggregatesParameters {
         DpAggregatesParameters::new(
             self.epsilon / (cmp::max(n, 1) as f64),
             self.delta / (cmp::max(n, 1) as f64),
+            self.size,
+            self.unique_pid,
             self.clipping_concentration,
             self.clipping_quantile,
         )
+    }
+
+    pub fn with_size(self, size: usize) -> DpAggregatesParameters {
+        DpAggregatesParameters { size, ..self }
+    }
+
+    pub fn with_unique_pid(self, unique_pid: bool) -> DpAggregatesParameters {
+        DpAggregatesParameters { unique_pid, ..self }
     }
 }
 
