@@ -21,7 +21,8 @@ impl DpParameters {
     }
 
     pub fn from_epsilon_delta(epsilon: f64, delta: f64) -> DpParameters {
-        DpParameters::new(epsilon, delta, 0.5, 0.01, 0.9)
+        // These default values are underestimating the bounds
+        DpParameters::new(epsilon, delta, 0.5, 0.001, 0.5)
     }
 }
 

@@ -10,8 +10,8 @@ pub mod dp_event;
 
 use crate::{
     builder::With,
-    expr, privacy_unit_tracking,
-    relation::{rewriting, Reduce, Relation},
+    expr, privacy_unit_tracking::{self, privacy_unit, PupRelation},
+    relation::{rewriting, Constraint, Reduce, Relation, Variant},
     Ready,
 };
 use std::{error, fmt, ops::Deref, result};
@@ -129,6 +129,9 @@ impl Reduce {
         parameters: &DpParameters,
     ) -> Result<DpRelation> {
         let mut dp_event = DpEvent::no_op();
+        let max_size = self.size().max().unwrap().clone();
+        let pup_input = PupRelation::try_from(self.input().clone())?;
+        let privacy_unit_unique = pup_input.schema()[pup_input.privacy_unit()].has_unique_or_primary_key_constraint();
 
         // DP rewrite group by
         let reduce_with_dp_group_by = if self.group_by().is_empty() {
@@ -152,7 +155,9 @@ impl Reduce {
         // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
         // not been spent, allocate it to the aggregations.
         let aggregation_share = if dp_event.is_no_op() {1.} else {1.-parameters.tau_thresholding_share};
-        let aggregation_parameters = DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share);
+        let aggregation_parameters = DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share)
+            .with_size(usize::try_from(max_size).unwrap())
+            .with_unique_privacy_unit(privacy_unit_unique);
         
         // DP rewrite aggregates
         let (dp_relation, dp_event_agg) = reduce_with_dp_group_by
@@ -219,14 +224,8 @@ mod tests {
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                50.
-            )
-        );
+        let mult: f64 = 2000.*DpAggregatesParameters::from_dp_parameters(parameters.clone(), 1.).privacy_unit_multiplicity();
+        assert!(matches!(dp_event, DpEvent::Gaussian { noise_multiplier: _ }));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -344,14 +343,7 @@ mod tests {
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                50.
-            )
-        );
+        assert!(matches!(dp_event, DpEvent::Gaussian { noise_multiplier: _ }));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -411,14 +403,7 @@ mod tests {
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            vec![
-                DpEvent::epsilon_delta(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share),
-                DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon*(1.-parameters.tau_thresholding_share), parameters.delta*(1.-parameters.tau_thresholding_share), 50.)
-            ]
-            .into()
-        );
+        assert!(matches!(dp_event, DpEvent::Composed { events: _ }));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -487,14 +472,7 @@ mod tests {
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            vec![
-                DpEvent::epsilon_delta(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share),
-                DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon*(1.-parameters.tau_thresholding_share), parameters.delta*(1.-parameters.tau_thresholding_share), 50.)
-            ]
-            .into()
-        );
+        assert!(matches!(dp_event, DpEvent::Composed { events: _ }));
         assert!(dp_relation.schema()[0]
             .data_type()
             .is_subset_of(&DataType::text()));

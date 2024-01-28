@@ -58,7 +58,7 @@ impl DpAggregatesParameters {
         DpAggregatesParameters { size, ..self }
     }
 
-    pub fn with_unique_pid(self, unique_privacy_unit: bool) -> DpAggregatesParameters {
+    pub fn with_unique_privacy_unit(self, unique_privacy_unit: bool) -> DpAggregatesParameters {
         DpAggregatesParameters { privacy_unit_unique: unique_privacy_unit, ..self }
     }
 
@@ -67,9 +67,8 @@ impl DpAggregatesParameters {
         if self.privacy_unit_unique {
             1.
         } else {
-            ((self.size as f64)*(1. - (1.-self.privacy_unit_multiplicity_quantile).powf(self.privacy_unit_concentration))).floor()
-        };
-        1.//DEBUG
+            ((self.size as f64)*(1. - (1.-self.privacy_unit_multiplicity_quantile).powf(self.privacy_unit_concentration))).ceil()
+        }
     }
 }
 
@@ -468,7 +467,7 @@ mod tests {
         privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
         sql::parse,
         Relation,
-        relation::{Schema, Variant as _},
+        relation::{Constraint, Schema, Variant as _},
         privacy_unit_tracking::PrivacyUnit
     };
     use std::{sync::Arc, ops::Deref};
