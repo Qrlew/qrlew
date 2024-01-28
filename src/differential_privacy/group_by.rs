@@ -1,10 +1,10 @@
 use super::Error;
 use crate::{
     builder::{Ready, With, WithIterator},
-    differential_privacy::{dp_event, DPRelation, DpEvent, Result},
+    differential_privacy::{dp_event, DpRelation, DpEvent, Result},
     expr::{aggregate, Expr},
     namer::{self, name_from_content},
-    privacy_unit_tracking::{PUPRelation, PrivacyUnit},
+    privacy_unit_tracking::{PupRelation, PrivacyUnit},
     relation::{Join, Reduce, Relation, Variant as _},
 };
 
@@ -14,7 +14,7 @@ impl Reduce {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs all the DP values of the `self` grouping keys
     ///     - `dp_event` stores the invoked DP mechanisms
-    pub fn differentially_private_group_by(&self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    pub fn differentially_private_group_by(&self, epsilon: f64, delta: f64) -> Result<DpRelation> {
         if self.group_by().is_empty() {
             Err(Error::GroupingKeysError(format!("No grouping keys")))
         } else {
@@ -35,17 +35,17 @@ impl Reduce {
                 ))
                 .input(self.input().clone())
                 .build();
-            PUPRelation::try_from(relation)?.dp_values(epsilon, delta)
+            PupRelation::try_from(relation)?.dp_values(epsilon, delta)
         }
     }
 }
 
-impl PUPRelation {
+impl PupRelation {
     /// Returns a `DPRelation` whose:
     ///     - `relation` outputs the (epsilon, delta)-DP values
     /// (found by tau-thresholding) of the fields of the current `Relation`
     ///     - `dp_event` stores the invoked DP mechanisms
-    fn tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    fn tau_thresholding_values(self, epsilon: f64, delta: f64) -> Result<DpRelation> {
         if epsilon == 0. || delta == 0. {
             return Err(Error::BudgetError(format!(
                 "Not enough budget for tau-thresholding. Got: (espilon, delta) = ({epsilon}, {delta})"
@@ -85,7 +85,7 @@ impl PUPRelation {
         let relation = rel
             .filter_columns(filter_column)
             .filter_fields(|f| columns.contains(&f));
-        Ok(DPRelation::new(
+        Ok(DpRelation::new(
             relation,
             DpEvent::epsilon_delta(epsilon, delta),
         ))
@@ -99,7 +99,7 @@ impl PUPRelation {
     ///     - Using the propagated public values of the grouping columns when they exist
     ///     - Applying tau-thresholding mechanism with the (epsilon, delta) privacy parameters for t
     /// he columns that do not have public values
-    pub fn dp_values(self, epsilon: f64, delta: f64) -> Result<DPRelation> {
+    pub fn dp_values(self, epsilon: f64, delta: f64) -> Result<DpRelation> {
         let public_columns: Vec<String> = self
             .schema()
             .iter()
@@ -117,7 +117,7 @@ impl PUPRelation {
             self.with_name(name)?
                 .tau_thresholding_values(epsilon, delta)
         } else if all_columns_are_public {
-            Ok(DPRelation::new(
+            Ok(DpRelation::new(
                 self.with_public_values(&public_columns)?,
                 DpEvent::no_op(),
             ))
@@ -131,7 +131,7 @@ impl PUPRelation {
             let relation = self
                 .with_public_values(&public_columns)?
                 .cross_join(relation)?;
-            Ok(DPRelation::new(relation, dp_event))
+            Ok(DpRelation::new(relation, dp_event))
         }
     }
 }
@@ -232,7 +232,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let pup_table = PUPRelation(table);
+        let pup_table = PupRelation(table);
 
         let (rel, pq) = pup_table
             .clone()
@@ -271,7 +271,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let pup_table = PUPRelation(table);
+        let pup_table = PupRelation(table);
         let (rel, pq) = pup_table.dp_values(1., 0.003).unwrap().into();
         matches!(rel, Relation::Join(_));
         assert_eq!(
@@ -303,7 +303,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let pup_table = PUPRelation(table);
+        let pup_table = PupRelation(table);
         let (rel, pq) = pup_table.dp_values(1., 0.003).unwrap().into();
         assert!(matches!(rel, Relation::Map(_)));
         assert_eq!(
@@ -334,7 +334,7 @@ mod tests {
                     .build(),
             )
             .build();
-        let pup_table = PUPRelation(table);
+        let pup_table = PupRelation(table);
         let (rel, pq) = pup_table.dp_values(1., 0.003).unwrap().into();
         assert!(matches!(rel, Relation::Join(_)));
         assert!(matches!(rel.inputs()[0], &Relation::Values(_)));

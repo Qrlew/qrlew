@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 
+## [0.9.8] - 2024-01-28
+### Added
+- Added mutiplicity parameters to DP
+
 ## [0.9.7] - 2024-01-24
 ### Added
 - support for bigquery, connector and translator [#239](https://github.com/Qrlew/qrlew/pull/239)

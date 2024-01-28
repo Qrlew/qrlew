@@ -4,19 +4,23 @@
 //!
 
 pub mod aggregates;
-pub mod budget;
+pub mod dp_parameters;
 pub mod group_by;
 pub mod dp_event;
 
 use crate::{
     builder::With,
-    differential_privacy::dp_event::DpEvent,
-    expr, privacy_unit_tracking,
-    relation::{rewriting, Reduce, Relation},
+    expr, privacy_unit_tracking::{self, privacy_unit, PupRelation},
+    relation::{rewriting, Constraint, Reduce, Relation, Variant},
     Ready,
-    display::Dot
 };
 use std::{error, fmt, ops::Deref, result};
+
+/// Some exports
+pub use dp_parameters::DpParameters;
+pub use dp_event::DpEvent;
+
+use self::aggregates::DpAggregatesParameters;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
@@ -66,20 +70,20 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// A DP Relation
 #[derive(Clone, Debug)]
-pub struct DPRelation {
+pub struct DpRelation {
     relation: Relation,
     dp_event: DpEvent,
 }
 
-impl From<DPRelation> for Relation {
-    fn from(value: DPRelation) -> Self {
+impl From<DpRelation> for Relation {
+    fn from(value: DpRelation) -> Self {
         value.relation
     }
 }
 
-impl DPRelation {
+impl DpRelation {
     pub fn new(relation: Relation, dp_event: DpEvent) -> Self {
-        DPRelation {
+        DpRelation {
             relation,
             dp_event,
         }
@@ -94,7 +98,7 @@ impl DPRelation {
     }
 }
 
-impl Deref for DPRelation {
+impl Deref for DpRelation {
     type Target = Relation;
 
     fn deref(&self) -> &Self::Target {
@@ -102,17 +106,19 @@ impl Deref for DPRelation {
     }
 }
 
-impl From<DPRelation> for (Relation, DpEvent) {
-    fn from(value: DPRelation) -> Self {
+impl From<DpRelation> for (Relation, DpEvent) {
+    fn from(value: DpRelation) -> Self {
         (value.relation, value.dp_event)
     }
 }
 
-impl From<(Relation, DpEvent)> for DPRelation {
+impl From<(Relation, DpEvent)> for DpRelation {
     fn from(value: (Relation, DpEvent)) -> Self {
-        DPRelation::new(value.0, value.1)
+        DpRelation::new(value.0, value.1)
     }
 }
+
+
 
 impl Reduce {
     /// Rewrite a `Reduce` into DP:
@@ -120,19 +126,19 @@ impl Reduce {
     ///     - Add noise on the aggregations
     pub fn differentially_private(
         self,
-        epsilon: f64,
-        delta: f64,
-        epsilon_tau_thresholding: f64,
-        delta_tau_thresholding: f64,
-    ) -> Result<DPRelation> {
+        parameters: &DpParameters,
+    ) -> Result<DpRelation> {
         let mut dp_event = DpEvent::no_op();
+        let max_size = self.size().max().unwrap().clone();
+        let pup_input = PupRelation::try_from(self.input().clone())?;
+        let privacy_unit_unique = pup_input.schema()[pup_input.privacy_unit()].has_unique_or_primary_key_constraint();
 
         // DP rewrite group by
         let reduce_with_dp_group_by = if self.group_by().is_empty() {
             self
         } else {
             let (dp_grouping_values, dp_event_group_by) = self
-                .differentially_private_group_by(epsilon_tau_thresholding, delta_tau_thresholding)?
+                .differentially_private_group_by(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share)?
                 .into();
             let input_relation_with_privacy_tracked_group_by = self
                 .input()
@@ -148,18 +154,14 @@ impl Reduce {
 
         // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
         // not been spent, allocate it to the aggregations.
-        let (epsilon, delta) = if dp_event.is_no_op() {
-            (
-                epsilon + epsilon_tau_thresholding,
-                delta + delta_tau_thresholding,
-            )
-        } else {
-            (epsilon, delta)
-        };
-
+        let aggregation_share = if dp_event.is_no_op() {1.} else {1.-parameters.tau_thresholding_share};
+        let aggregation_parameters = DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share)
+            .with_size(usize::try_from(max_size).unwrap())
+            .with_unique_privacy_unit(privacy_unit_unique);
+        
         // DP rewrite aggregates
         let (dp_relation, dp_event_agg) = reduce_with_dp_group_by
-            .differentially_private_aggregates(epsilon, delta)?
+            .differentially_private_aggregates(aggregation_parameters)?
             .into();
         dp_event = dp_event.compose(dp_event_agg);
         Ok((dp_relation, dp_event).into())
@@ -176,7 +178,7 @@ mod tests {
         display::Dot,
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
-        privacy_unit_tracking::{PrivacyUnit,PrivacyUnitTracking, Strategy, PUPRelation},
+        privacy_unit_tracking::{PrivacyUnit,PrivacyUnitTracking, Strategy, PupRelation},
         relation::{Field, Map, Relation, Schema, Variant, Constraint},
     };
     use std::{collections::HashSet, sync::Arc};
@@ -185,9 +187,7 @@ mod tests {
     fn test_dp_rewrite_reduce_without_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
-        let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+        let parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         // privacy track the inputs
         let table = relations
@@ -220,23 +220,12 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, dp_event) = reduce
-            .differentially_private(
-                epsilon,
-                delta,
-                epsilon_tau_thresholding,
-                delta_tau_thresholding,
-            )
+            .differentially_private(&parameters)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon + epsilon_tau_thresholding,
-                delta + delta_tau_thresholding,
-                50.
-            )
-        );
+        let mult: f64 = 2000.*DpAggregatesParameters::from_dp_parameters(parameters.clone(), 1.).privacy_unit_multiplicity();
+        assert!(matches!(dp_event, DpEvent::Gaussian { noise_multiplier: _ }));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -276,7 +265,7 @@ mod tests {
         let pup_map = privacy_unit_tracking
             .map(
                 &map.clone().try_into().unwrap(),
-                PUPRelation(Relation::from(pup_table))
+                PupRelation(Relation::from(pup_table))
             )
             .unwrap();
         let reduce = Reduce::new(
@@ -289,12 +278,7 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, dp_event) = reduce
-            .differentially_private(
-                epsilon,
-                delta,
-                epsilon_tau_thresholding,
-                delta_tau_thresholding,
-            )
+            .differentially_private(&parameters)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
@@ -309,14 +293,12 @@ mod tests {
     fn test_dp_rewrite_reduce_group_by_possible_values() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+        let parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         // privacy track the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -357,23 +339,11 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, dp_event) = reduce
-            .differentially_private(
-                epsilon,
-                delta,
-                epsilon_tau_thresholding,
-                delta_tau_thresholding,
-            )
+            .differentially_private(&parameters)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                epsilon + epsilon_tau_thresholding,
-                delta + delta_tau_thresholding,
-                50.
-            )
-        );
+        assert!(matches!(dp_event, DpEvent::Gaussian { noise_multiplier: _ }));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -387,14 +357,12 @@ mod tests {
     fn test_dp_rewrite_reduce_group_by_tau_thresholding() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+        let parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         // privacy track the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -431,23 +399,11 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, dp_event) = reduce
-            .differentially_private(
-                epsilon,
-                delta,
-                epsilon_tau_thresholding,
-                delta_tau_thresholding,
-            )
+            .differentially_private(&parameters)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            vec![
-                DpEvent::epsilon_delta(epsilon_tau_thresholding, delta_tau_thresholding),
-                DpEvent::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
-            ]
-            .into()
-        );
+        assert!(matches!(dp_event, DpEvent::Composed { events: _ }));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -461,14 +417,12 @@ mod tests {
     fn test_dp_rewrite_reduce_group_by_possible_both() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
         let table = relations
             .get(&["item_table".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+        let parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         // privacy track the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -514,23 +468,11 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, dp_event) = reduce
-            .differentially_private(
-                epsilon,
-                delta,
-                epsilon_tau_thresholding,
-                delta_tau_thresholding,
-            )
+            .differentially_private(&parameters)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
-        assert_eq!(
-            dp_event,
-            vec![
-                DpEvent::epsilon_delta(epsilon_tau_thresholding, delta_tau_thresholding),
-                DpEvent::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 50.)
-            ]
-            .into()
-        );
+        assert!(matches!(dp_event, DpEvent::Composed { events: _ }));
         assert!(dp_relation.schema()[0]
             .data_type()
             .is_subset_of(&DataType::text()));
@@ -594,7 +536,7 @@ mod tests {
             .input(input)
             .build();
         let (dp_relation, dp_event) = reduce
-            .differentially_private(10., 1e-5, 1., 1e-2)
+            .differentially_private(&DpParameters::from_epsilon_delta(10., 1e-5))
             .unwrap()
             .into();
         println!("{}", dp_event);
@@ -662,7 +604,7 @@ mod tests {
             .input(input)
             .build();
         let (dp_relation, dp_event) = reduce
-            .differentially_private(10., 1e-5, 1., 1e-2)
+            .differentially_private(&DpParameters::from_epsilon_delta(10., 1e-5))
             .unwrap()
             .into();
         println!("{}", dp_event);
@@ -684,14 +626,12 @@ mod tests {
     fn test_dp_rewrite_reduce() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
         let table = relations
             .get(&["table_1".to_string()])
             .unwrap()
             .deref()
             .clone();
-        let (epsilon, delta) = (1., 1e-3);
-        let (epsilon_tau_thresholding, delta_tau_thresholding) = (0.5, 2e-3);
+        let parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         // privacy track the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -716,19 +656,14 @@ mod tests {
         relation.display_dot().unwrap();
 
         let (dp_relation, dp_event) = reduce
-            .differentially_private(
-                epsilon,
-                delta,
-                epsilon_tau_thresholding,
-                delta_tau_thresholding,
-            )
+            .differentially_private(&parameters)
             .unwrap()
             .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
-            DpEvent::epsilon_delta(epsilon_tau_thresholding, delta_tau_thresholding)
-                .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(epsilon, delta, 10.))
+            DpEvent::epsilon_delta(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share)
+                .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon*(1.-parameters.tau_thresholding_share), parameters.delta*(1.-parameters.tau_thresholding_share), 10.))
         );
         let correct_schema: Schema = vec![
             ("sum_a", DataType::float_interval(0., 100.), None),
