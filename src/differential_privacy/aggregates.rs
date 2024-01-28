@@ -61,23 +61,15 @@ impl DpAggregatesParameters {
     pub fn with_unique_pid(self, unique_privacy_unit: bool) -> DpAggregatesParameters {
         DpAggregatesParameters { privacy_unit_unique: unique_privacy_unit, ..self }
     }
-}
 
-impl Field {
-    pub fn clipping_value(self, multiplicity: i64) -> f64 {
-        match self.data_type() {
-            DataType::Float(f) => {
-                let min = f.min().unwrap().abs();
-                let max = f.max().unwrap().abs();
-                (min + max + (min - max).abs()) / 2. * multiplicity as f64
-            }
-            DataType::Integer(i) => {
-                let min = i.min().unwrap().abs();
-                let max = i.max().unwrap().abs();
-                (cmp::max(min, max) * multiplicity) as f64
-            }
-            _ => todo!(),
-        }
+    /// Compute the multiplicity estimate to use for the computations
+    pub fn privacy_unit_multiplicity(&self) -> f64 {
+        if self.privacy_unit_unique {
+            1.
+        } else {
+            ((self.size as f64)*(1. - (1.-self.privacy_unit_multiplicity_quantile).powf(self.privacy_unit_concentration))).floor()
+        };
+        1.//DEBUG
     }
 }
 
@@ -150,7 +142,9 @@ impl PupRelation {
                     self.schema()[column]
                         .data_type()
                         .absolute_upper_bound()
-                        .unwrap_or(1.0),
+                        .unwrap_or(1.0)
+                    // This may add a lot of noise depending on the parameters
+                    * parameters.privacy_unit_multiplicity(),
                 )
             })
             .collect::<Vec<_>>();
