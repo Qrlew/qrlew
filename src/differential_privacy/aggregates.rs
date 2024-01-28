@@ -20,22 +20,22 @@ pub struct DpAggregatesParameters {
     /// Size of the dataset
     pub size: usize,
     /// Unique constraint
-    pub unique_pid: bool,
+    pub privacy_unit_unique: bool,
     /// The concentration parameter used to compute clipping
-    pub clipping_concentration: f64,
+    pub privacy_unit_concentration: f64,
     /// The quantile parameter used to compute clipping
-    pub clipping_quantile: f64,
+    pub privacy_unit_multiplicity_quantile: f64,
 }
 
 impl DpAggregatesParameters {
-    pub fn new(epsilon: f64, delta: f64, size: usize, unique_pid: bool, clipping_concentration: f64, clipping_quantile: f64) -> DpAggregatesParameters {
+    pub fn new(epsilon: f64, delta: f64, size: usize, privacy_unit_unique: bool, privacy_unit_concentration: f64, privacy_unit_multiplicity_quantile: f64) -> DpAggregatesParameters {
         DpAggregatesParameters {
             epsilon,
             delta,
             size,
-            unique_pid,
-            clipping_concentration,
-            clipping_quantile,
+            privacy_unit_unique,
+            privacy_unit_concentration,
+            privacy_unit_multiplicity_quantile,
         }
     }
 
@@ -48,9 +48,9 @@ impl DpAggregatesParameters {
             self.epsilon / (cmp::max(n, 1) as f64),
             self.delta / (cmp::max(n, 1) as f64),
             self.size,
-            self.unique_pid,
-            self.clipping_concentration,
-            self.clipping_quantile,
+            self.privacy_unit_unique,
+            self.privacy_unit_concentration,
+            self.privacy_unit_multiplicity_quantile,
         )
     }
 
@@ -58,8 +58,8 @@ impl DpAggregatesParameters {
         DpAggregatesParameters { size, ..self }
     }
 
-    pub fn with_unique_pid(self, unique_pid: bool) -> DpAggregatesParameters {
-        DpAggregatesParameters { unique_pid, ..self }
+    pub fn with_unique_pid(self, unique_privacy_unit: bool) -> DpAggregatesParameters {
+        DpAggregatesParameters { privacy_unit_unique: unique_privacy_unit, ..self }
     }
 }
 
