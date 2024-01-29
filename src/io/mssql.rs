@@ -252,18 +252,18 @@ impl Database {
                 )
                 .build(),
             // TODO: create table with names that need to be quoted
-            // TableBuilder::new()
-            //     .path(["MY SPECIAL TABLE"])
-            //     .name("my_table")
-            //     .size(100)
-            //     .schema(
-            //         Schema::empty()
-            //             .with(("Id", DataType::integer_interval(0, 1000)))
-            //             .with(("Na.Me", DataType::text()))
-            //             .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
-            //             .with(("normal_col", DataType::text())),
-            //     )
-            //     .build(),
+            TableBuilder::new()
+                .path(["MY_SPECIAL_TABLE"])
+                .name("my_table")
+                .size(100)
+                .schema(
+                    Schema::empty()
+                        .with(("Id", DataType::integer_interval(0, 1000)))
+                        .with(("Na.Me", DataType::text()))
+                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+                        .with(("normal_col", DataType::text())),
+                )
+                .build(),
         ]
     }
 }
@@ -337,6 +337,7 @@ impl DatabaseTrait for Database {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let translator = MsSqlTranslator;
         let create_table_query = &table.create(translator).to_string();
+
         let query = sqlx::query(&create_table_query[..]);
         let res = rt.block_on(async_execute(query, &self.pool))?;
         Ok(res.rows_affected() as usize)
@@ -360,6 +361,7 @@ impl DatabaseTrait for Database {
             for value in &values {
                 insert_query = insert_query.bind(value);
             }
+            
             rt.block_on(async_execute(insert_query, &self.pool))?;
         }
         Ok(())
@@ -708,12 +710,11 @@ mod tests {
             println!("{}", row);
         }
 
-        // TODO: uncomment ones we manage to push MY SPECIAL TABLE
-        // let query = r#"SELECT TOP (10) * FROM "MY SPECIAL TABLE""#;
-        // println!("\n{query}");
-        // for row in database.query(query)? {
-        //     println!("{}", row);
-        // }
+        let query = "SELECT TOP (10) * FROM MY_SPECIAL_TABLE";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
 
         Ok(())
     }

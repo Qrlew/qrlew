@@ -177,9 +177,11 @@ mod tests {
         let retranslated = ast::Query::from(rel_with_traslator);
         print!("{}", retranslated);
         let translated = r#"
-        WITH "map_mou5" ("Id", "normal_col", "Na.Me") AS (
-            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" ASC
-        ) SELECT * FROM "map_mou5"
+        WITH "map_mou5" ("Id","normal_col","Na.Me") AS (
+            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "MY SPECIAL TABLE"
+        ), "map_0swv"("Id","normal_col","Na.Me") AS (
+            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "map_mou5" ORDER BY "Id" ASC
+        ) SELECT * FROM "map_0swv"
         "#;
         assert_same_query_str(&retranslated.to_string(), translated);
         Ok(())

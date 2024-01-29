@@ -243,7 +243,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
                 .schema()
                 .iter()
                 .map(|f| ast::ColumnDef {
-                    name: f.name().into(),
+                    name: self.identifier( &(f.name().into()) )[0].clone(),
                     // Need to override some convertions
                     data_type: { translate_data_type(f.data_type()) },
                     collation: None,
