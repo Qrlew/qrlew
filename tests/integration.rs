@@ -288,7 +288,6 @@ const MSSQL_QUERIES: &[&str] = &[
     // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
     // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
     // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
-    r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#
 ];
 
 #[cfg(feature = "mssql")]
@@ -402,7 +401,6 @@ fn test_on_bigquery() {
         "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
         "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
         "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
-        r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#
     ];
     for &query in queries_for_bq.iter() {
         println!("TESTING QUERY: {}", query);
@@ -473,7 +471,9 @@ fn test_quoting() {
 #[cfg(feature = "mssql")]
 #[test]
 fn test_quoting_mssql() {
-    let mut database = postgresql::test_database();
+    use qrlew::dialect_translation::mssql::MsSqlTranslator;
+
+    let mut database = mssql::test_database();
     let relations = database.relations();
     let table = database
         .relations()
@@ -482,8 +482,35 @@ fn test_quoting_mssql() {
         .as_ref()
         .clone();
 
-    let true_query = r#"SELECT * FROM "MY SPECIAL TABLE""#;
-    let translator = PostgreSqlTranslator;
+    let true_query = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#;
+    let translator = MsSqlTranslator;
+    let query = parse_with_dialect(true_query, translator.dialect()).unwrap();
+    let query_with_relation = QueryWithRelations::new(&query, &relations);
+    let relation = Relation::try_from((query_with_relation, translator)).unwrap();
+
+    let rel_with_traslator = RelationWithTranslator(&relation, translator);
+    let retranslated = ast::Query::from(rel_with_traslator);
+    print!("{}", retranslated);
+    println!(
+        "{}", database .query(true_query).unwrap().iter().map(ToString::to_string).join("\n")
+    );
+}
+
+#[test]
+fn test_quoting_bigquery() {
+    use qrlew::{dialect_translation::bigquery::BigQueryTranslator, io::bigquery};
+
+    let mut database = bigquery::test_database();
+    let relations = database.relations();
+    let table = database
+        .relations()
+        .get(&["MY SPECIAL TABLE".to_string()])
+        .unwrap()
+        .as_ref()
+        .clone();
+
+    let true_query = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#;
+    let translator = BigQueryTranslator;
     let query = parse_with_dialect(true_query, translator.dialect()).unwrap();
     let query_with_relation = QueryWithRelations::new(&query, &relations);
     let relation = Relation::try_from((query_with_relation, translator)).unwrap();

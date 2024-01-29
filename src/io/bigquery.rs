@@ -345,6 +345,19 @@ impl Database {
                         .with(("income", DataType::float_interval(100.0, 200000.0))),
                 )
                 .build(),
+            // TODO: create table with names that need to be quoted
+            // TableBuilder::new()
+            //     .path(["MY SPECIAL TABLE"])
+            //     .name("my_table")
+            //     .size(100)
+            //     .schema(
+            //         Schema::empty()
+            //             .with(("Id", DataType::integer_interval(0, 1000)))
+            //             .with(("Na.Me", DataType::text()))
+            //             .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+            //             .with(("normal_col", DataType::text())),
+            //     )
+            //     .build(),
         ]
     }
 }
@@ -454,6 +467,7 @@ impl DatabaseTrait for Database {
     fn create_table(&mut self, table: &Table) -> Result<usize> {
         let mut rt = tokio::runtime::Runtime::new()?;
         let bq_table: BQTable = table.clone().try_into()?;
+        println!("{:?}", bq_table);
         rt.block_on(self.client.table().create(bq_table))?;
         Ok(1)
     }
@@ -472,7 +486,7 @@ impl DatabaseTrait for Database {
                 .schema()
                 .fields()
                 .iter()
-                .map(|f| f.name().into())
+                .map(|f| f.name().into())//format!(r"\`{}\`", f.name()))
                 .collect();
             let values: Result<Vec<SqlValue>> = structured
                 .into_iter()
@@ -486,12 +500,13 @@ impl DatabaseTrait for Database {
                 json: map_as_json,
             });
         }
+        
         insert_query.add_rows(rows_for_bq.clone())?;
 
         rt.block_on(self.client.tabledata().insert_all(
             PROJECT_ID,
             DATASET_ID,
-            table.path().head().unwrap().to_string().as_str(),
+            table.path().head().unwrap().to_string().as_str(), //format!(r"\`{}\`", table.path().head().unwrap().to_string()).as_str(),
             insert_query.clone(),
         ))?;
         Ok(())
@@ -806,7 +821,7 @@ impl TryFrom<Table> for BQTable {
         Ok(BQTable::new(
             PROJECT_ID,
             DATASET_ID,
-            table.path().head().unwrap().to_string().as_str(),
+            table.path().head().unwrap().to_string().as_str(), //format!(r"\`{}\`", table.path().head().unwrap().to_string()).as_str(),
             table_schema,
         ))
     }
@@ -873,52 +888,52 @@ mod tests {
         
     }
 
-    // #[tokio::test]
-    // async fn test_delete_all_tables() {
-    //     println!("Connecting to a mocked server");
+    #[tokio::test]
+    async fn test_delete_all_tables() {
+        println!("Connecting to a mocked server");
 
-    //     let google_auth = GoogleAuthMock::start().await;
-    //     google_auth.mock_token(1).await;
+        let google_auth = GoogleAuthMock::start().await;
+        google_auth.mock_token(1).await;
 
-    //     let google_config = dummy_configuration(&google_auth.uri());
-    //     println!("Write google configuration to file.");
-    //     let temp_file = tempfile::NamedTempFile::new().unwrap();
-    //     std::fs::write(
-    //         temp_file.path(),
-    //         serde_json::to_string_pretty(&google_config).unwrap(),
-    //     )
-    //     .unwrap();
+        let google_config = dummy_configuration(&google_auth.uri());
+        println!("Write google configuration to file.");
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            temp_file.path(),
+            serde_json::to_string_pretty(&google_config).unwrap(),
+        )
+        .unwrap();
 
-    //     let client = gcp_bigquery_client::client_builder::ClientBuilder::new()
-    //         .with_auth_base_url(google_auth.uri())
-    //         // Url of the BigQuery emulator docker image.
-    //         .with_v2_base_url("http://localhost:9050".to_string())
-    //         .build_from_service_account_key_file(temp_file.path().to_str().unwrap())
-    //         .await
-    //         .unwrap();
+        let client = gcp_bigquery_client::client_builder::ClientBuilder::new()
+            .with_auth_base_url(google_auth.uri())
+            // Url of the BigQuery emulator docker image.
+            .with_v2_base_url("http://localhost:9050".to_string())
+            .build_from_service_account_key_file(temp_file.path().to_str().unwrap())
+            .await
+            .unwrap();
 
-    //     let table_api = client.table();
-    //     let list_tabs = table_api
-    //         .list(PROJECT_ID, DATASET_ID, ListOptions::default())
-    //         .await
-    //         .unwrap();
-    //     let tables_as_str: Vec<String> = list_tabs
-    //         .tables
-    //         .unwrap_or_default()
-    //         .into_iter()
-    //         .map(|t| t.table_reference.table_id)
-    //         .collect();
+        let table_api = client.table();
+        let list_tabs = table_api
+            .list(PROJECT_ID, DATASET_ID, ListOptions::default())
+            .await
+            .unwrap();
+        let tables_as_str: Vec<String> = list_tabs
+            .tables
+            .unwrap_or_default()
+            .into_iter()
+            .map(|t| t.table_reference.table_id)
+            .collect();
 
-    //     println!("Table to be deleted {:?}", tables_as_str);
+        println!("Table to be deleted {:?}", tables_as_str);
 
-    //     for table_name in tables_as_str {
-    //         client
-    //             .table()
-    //             .delete(PROJECT_ID, DATASET_ID, table_name.as_str())
-    //             .await
-    //             .unwrap();
-    //     }
-    // }
+        for table_name in tables_as_str {
+            client
+                .table()
+                .delete(PROJECT_ID, DATASET_ID, table_name.as_str())
+                .await
+                .unwrap();
+        }
+    }
 
     // #[test]
     // fn test_client() {
@@ -975,35 +990,32 @@ mod tests {
         println!("Datetime: {:?}", time);
     }
 
-    // #[test]
-    // fn test_create_table() {
-    //     let mut rt = tokio::runtime::Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_create_table() {
+        let (auth_server, tmp_file_credentials) = build_auth().await.unwrap();
+        let client = build_client(auth_server.uri(), &tmp_file_credentials).await.unwrap();
 
-    //     let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
-    //     let client = rt
-    //         .block_on(build_client(auth_server.uri(), &tmp_file_credentials))
-    //         .unwrap();
+        let table_name = "MY TABLE";
+        let table: Table = TableBuilder::new()
+            .path([table_name])
+            .name("aaaa")
+            .size(10)
+            .schema(
+                Schema::empty()
+                    .with(("f", DataType::float_interval(0.0, 10.0)))
+                    .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))) // .with(("x", DataType::integer_interval(0, 100)))
+                    .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
+            )
+            .build();
 
-    //     let table_name = "mytable5";
-    //     let table: Table = TableBuilder::new()
-    //         .path(["dataset1", table_name])
-    //         .name(table_name)
-    //         .size(10)
-    //         .schema(
-    //             Schema::empty()
-    //                 .with(("f", DataType::float_interval(0.0, 10.0)))
-    //                 .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))) // .with(("x", DataType::integer_interval(0, 100)))
-    //                 .with(("y", DataType::optional(DataType::text()))), // .with(("z", DataType::text_values(["Foo".into(), "Bar".into()])))
-    //         )
-    //         .build();
-
-    //     let bq_table: BQTable = table.try_into().unwrap();
-    //     let res = rt.block_on(client.table().create(bq_table)).unwrap();
-    //     println!("ROWS: {:?}", res.num_rows);
-    //     // rt.block_on(client
-    //     //     .table()
-    //     //     .delete(PROJECT_ID, DATASET_ID, table_name)).unwrap();
-    // }
+        let bq_table: BQTable = table.try_into().unwrap();
+        println!("{:?}",bq_table);
+        let res = (client.table().create(bq_table)).await.unwrap();
+        println!("ROWS: {:?}", res.num_rows);
+        // rt.block_on(client
+        //     .table()
+        //     .delete(PROJECT_ID, DATASET_ID, table_name)).unwrap();
+    }
 
     #[tokio::test]
     async fn test_insert_into_table() {
@@ -1204,6 +1216,14 @@ mod tests {
         for row in database.query(query)? {
             println!("{}", row);
         }
+
+        // TODO: uncomment ones we manage to push MY SPECIAL TABLE
+        // let query = r"SELECT * FROM `MY SPECIAL TABLE` LIMIT 10";
+        // println!("\n{query}");
+        // for row in database.query(query)? {
+        //     println!("{}", row);
+        // }
+
         Ok(())
     }
 }

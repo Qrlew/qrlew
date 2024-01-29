@@ -167,7 +167,7 @@ mod tests {
             )
             .build();
         let relations = Hierarchy::from([(["schema", "MY SPECIAL TABLE"], Arc::new(table))]);
-        let query_str = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#;
+        let query_str = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" "#;
         let translator = PostgreSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);
@@ -178,7 +178,7 @@ mod tests {
         print!("{}", retranslated);
         let translated = r#"
         WITH "map_mou5" ("Id", "normal_col", "Na.Me") AS (
-            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "MY SPECIAL TABLE"
+            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" ASC
         ) SELECT * FROM "map_mou5"
         "#;
         assert_same_query_str(&retranslated.to_string(), translated);

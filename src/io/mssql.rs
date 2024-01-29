@@ -251,6 +251,19 @@ impl Database {
                         .with(("income", DataType::float_interval(100.0, 200000.0))),
                 )
                 .build(),
+            // TODO: create table with names that need to be quoted
+            // TableBuilder::new()
+            //     .path(["MY SPECIAL TABLE"])
+            //     .name("my_table")
+            //     .size(100)
+            //     .schema(
+            //         Schema::empty()
+            //             .with(("Id", DataType::integer_interval(0, 1000)))
+            //             .with(("Na.Me", DataType::text()))
+            //             .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+            //             .with(("normal_col", DataType::text())),
+            //     )
+            //     .build(),
         ]
     }
 }
@@ -694,6 +707,13 @@ mod tests {
         for row in database.query(query)? {
             println!("{}", row);
         }
+
+        // TODO: uncomment ones we manage to push MY SPECIAL TABLE
+        // let query = r#"SELECT TOP (10) * FROM "MY SPECIAL TABLE""#;
+        // println!("\n{query}");
+        // for row in database.query(query)? {
+        //     println!("{}", row);
+        // }
 
         Ok(())
     }

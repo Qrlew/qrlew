@@ -238,7 +238,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             global: None,
             if_not_exists: false,
             transient: false,
-            name: table.path().clone().into(),
+            name:  ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
             columns: table
                 .schema()
                 .iter()
