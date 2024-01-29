@@ -238,12 +238,12 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             global: None,
             if_not_exists: false,
             transient: false,
-            name: table.path().clone().into(),
+            name:  ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
             columns: table
                 .schema()
                 .iter()
                 .map(|f| ast::ColumnDef {
-                    name: f.name().into(),
+                    name: self.identifier( &(f.name().into()) )[0].clone(),
                     // Need to override some convertions
                     data_type: { translate_data_type(f.data_type()) },
                     collation: None,

@@ -354,9 +354,20 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
                     match expr {
                         // Pull the original name for implicit aliasing
-                        ast::Expr::Identifier(ident) => ident.value.clone(),
+                        ast::Expr::Identifier(ident) => {
+                            if let Some(_) = ident.quote_style {
+                                ident.value.clone()
+                            } else {
+                                ident.value.to_lowercase()
+                            }
+                        },
                         ast::Expr::CompoundIdentifier(idents) => {
-                            idents.last().unwrap().value.clone()
+                            let iden = idents.last().unwrap();
+                            if let Some(_) = iden.quote_style {
+                                iden.value.clone()
+                            } else {
+                                iden.value.to_lowercase()
+                            }
                         }
                         expr => namer::name_from_content(FIELD, &expr),
                     },

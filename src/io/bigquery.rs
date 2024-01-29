@@ -345,6 +345,19 @@ impl Database {
                         .with(("income", DataType::float_interval(100.0, 200000.0))),
                 )
                 .build(),
+            // TODO: create table with names that need to be quoted
+            TableBuilder::new()
+                .path(["MY_SPECIAL_TABLE"])
+                .name("my_table")
+                .size(100)
+                .schema(
+                    Schema::empty()
+                        .with(("Id", DataType::integer_interval(0, 1000)))
+                        .with(("Na.Me", DataType::text()))
+                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+                        .with(("normal_col", DataType::text())),
+                )
+                .build(),
         ]
     }
 }
@@ -454,6 +467,7 @@ impl DatabaseTrait for Database {
     fn create_table(&mut self, table: &Table) -> Result<usize> {
         let mut rt = tokio::runtime::Runtime::new()?;
         let bq_table: BQTable = table.clone().try_into()?;
+
         rt.block_on(self.client.table().create(bq_table))?;
         Ok(1)
     }
@@ -486,6 +500,7 @@ impl DatabaseTrait for Database {
                 json: map_as_json,
             });
         }
+        
         insert_query.add_rows(rows_for_bq.clone())?;
 
         rt.block_on(self.client.tabledata().insert_all(
@@ -975,19 +990,15 @@ mod tests {
         println!("Datetime: {:?}", time);
     }
 
-    // #[test]
-    // fn test_create_table() {
-    //     let mut rt = tokio::runtime::Runtime::new().unwrap();
+    // #[tokio::test]
+    // async fn test_create_table() {
+    //     let (auth_server, tmp_file_credentials) = build_auth().await.unwrap();
+    //     let client = build_client(auth_server.uri(), &tmp_file_credentials).await.unwrap();
 
-    //     let (auth_server, tmp_file_credentials) = rt.block_on(build_auth()).unwrap();
-    //     let client = rt
-    //         .block_on(build_client(auth_server.uri(), &tmp_file_credentials))
-    //         .unwrap();
-
-    //     let table_name = "mytable5";
+    //     let table_name = "MY TABLE";
     //     let table: Table = TableBuilder::new()
-    //         .path(["dataset1", table_name])
-    //         .name(table_name)
+    //         .path([table_name])
+    //         .name("aaaa")
     //         .size(10)
     //         .schema(
     //             Schema::empty()
@@ -998,7 +1009,8 @@ mod tests {
     //         .build();
 
     //     let bq_table: BQTable = table.try_into().unwrap();
-    //     let res = rt.block_on(client.table().create(bq_table)).unwrap();
+    //     println!("{:?}",bq_table);
+    //     let res = (client.table().create(bq_table)).await.unwrap();
     //     println!("ROWS: {:?}", res.num_rows);
     //     // rt.block_on(client
     //     //     .table()
@@ -1204,6 +1216,13 @@ mod tests {
         for row in database.query(query)? {
             println!("{}", row);
         }
+
+        let query = r"SELECT * FROM my_special_table LIMIT 10";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
+
         Ok(())
     }
 }

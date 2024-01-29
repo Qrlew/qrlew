@@ -268,7 +268,8 @@ pub trait Database: Sized {
                     Schema::empty()
                         .with(("Id", DataType::integer_interval(0, 1000)))
                         .with(("Na.Me", DataType::text()))
-                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0))),
+                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+                        .with(("normal_col", DataType::text())),
                 )
                 .build(),
         ]

@@ -167,19 +167,21 @@ mod tests {
             )
             .build();
         let relations = Hierarchy::from([(["schema", "MY SPECIAL TABLE"], Arc::new(table))]);
-        let query_str = r#"SELECT "Id", normal_col, "Na.Me" FROM schema."MY SPECIAL TABLE""#;
+        let query_str = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" "#;
         let translator = PostgreSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);
         let relation = Relation::try_from((query_with_relation, translator))?;
-
+        println!("\n {} \n", relation);
         let rel_with_traslator = RelationWithTranslator(&relation, translator);
         let retranslated = ast::Query::from(rel_with_traslator);
         print!("{}", retranslated);
         let translated = r#"
-        WITH "map_mou5" ("Id", "normal_col", "Na.Me") AS (
+        WITH "map_mou5" ("Id","normal_col","Na.Me") AS (
             SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "MY SPECIAL TABLE"
-        ) SELECT * FROM "map_mou5"
+        ), "map_0swv"("Id","normal_col","Na.Me") AS (
+            SELECT "Id" AS "Id", "normal_col" AS "normal_col", "Na.Me" AS "Na.Me" FROM "map_mou5" ORDER BY "Id" ASC
+        ) SELECT * FROM "map_0swv"
         "#;
         assert_same_query_str(&retranslated.to_string(), translated);
         Ok(())

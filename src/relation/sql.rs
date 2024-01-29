@@ -173,7 +173,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                     map.order_by
                         .iter()
                         .map(|OrderBy { expr, asc }| ast::OrderByExpr {
-                            expr: expr.into(),
+                            expr: self.translator.expr(expr),
                             asc: Some(*asc),
                             nulls_first: None,
                         })
