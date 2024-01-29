@@ -710,7 +710,7 @@ mod tests {
             println!("{}", row);
         }
 
-        let query = "SELECT TOP (10) * FROM MY SPECIAL TABLE";
+        let query = r#"SELECT TOP (10) * FROM "MY SPECIAL TABLE""#;
         println!("\n{query}");
         for row in database.query(query)? {
             println!("{}", row);
