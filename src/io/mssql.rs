@@ -253,7 +253,7 @@ impl Database {
                 .build(),
             // TODO: create table with names that need to be quoted
             TableBuilder::new()
-                .path(["MY_SPECIAL_TABLE"])
+                .path(["MY SPECIAL TABLE"])
                 .name("my_table")
                 .size(100)
                 .schema(
@@ -710,7 +710,7 @@ mod tests {
             println!("{}", row);
         }
 
-        let query = "SELECT TOP (10) * FROM MY_SPECIAL_TABLE";
+        let query = "SELECT TOP (10) * FROM MY SPECIAL TABLE";
         println!("\n{query}");
         for row in database.query(query)? {
             println!("{}", row);
