@@ -346,18 +346,18 @@ impl Database {
                 )
                 .build(),
             // TODO: create table with names that need to be quoted
-            // TableBuilder::new()
-            //     .path(["MY SPECIAL TABLE"])
-            //     .name("my_table")
-            //     .size(100)
-            //     .schema(
-            //         Schema::empty()
-            //             .with(("Id", DataType::integer_interval(0, 1000)))
-            //             .with(("Na.Me", DataType::text()))
-            //             .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
-            //             .with(("normal_col", DataType::text())),
-            //     )
-            //     .build(),
+            TableBuilder::new()
+                .path(["MY_SPECIAL_TABLE"])
+                .name("my_table")
+                .size(100)
+                .schema(
+                    Schema::empty()
+                        .with(("Id", DataType::integer_interval(0, 1000)))
+                        .with(("Na.Me", DataType::text()))
+                        .with(("inc&ome", DataType::float_interval(100.0, 200000.0)))
+                        .with(("normal_col", DataType::text())),
+                )
+                .build(),
         ]
     }
 }
@@ -1217,12 +1217,11 @@ mod tests {
             println!("{}", row);
         }
 
-        // TODO: uncomment ones we manage to push MY SPECIAL TABLE
-        // let query = r"SELECT * FROM `MY SPECIAL TABLE` LIMIT 10";
-        // println!("\n{query}");
-        // for row in database.query(query)? {
-        //     println!("{}", row);
-        // }
+        let query = r"SELECT * FROM my_special_table LIMIT 10";
+        println!("\n{query}");
+        for row in database.query(query)? {
+            println!("{}", row);
+        }
 
         Ok(())
     }
