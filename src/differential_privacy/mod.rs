@@ -157,7 +157,7 @@ impl Reduce {
         let aggregation_share = if dp_event.is_no_op() {1.} else {1.-parameters.tau_thresholding_share};
         let aggregation_parameters = DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share)
             .with_size(usize::try_from(max_size).unwrap())
-            .with_unique_privacy_unit(privacy_unit_unique);
+            .with_privacy_unit_unique(privacy_unit_unique);
         
         // DP rewrite aggregates
         let (dp_relation, dp_event_agg) = reduce_with_dp_group_by

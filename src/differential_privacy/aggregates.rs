@@ -21,26 +21,26 @@ pub struct DpAggregatesParameters {
     pub size: usize,
     /// Unique constraint
     pub privacy_unit_unique: bool,
-    /// The concentration parameter used to compute clipping
-    pub privacy_unit_concentration: f64,
-    /// The quantile parameter used to compute clipping
-    pub privacy_unit_multiplicity_quantile: f64,
+    /// The max_multiplicity in absolute terms
+    pub privacy_unit_max_multiplicity: f64,
+    /// The max_multiplicity in terms of the dataset size
+    pub privacy_unit_max_multiplicity_share: f64,
 }
 
 impl DpAggregatesParameters {
-    pub fn new(epsilon: f64, delta: f64, size: usize, privacy_unit_unique: bool, privacy_unit_concentration: f64, privacy_unit_multiplicity_quantile: f64) -> DpAggregatesParameters {
+    pub fn new(epsilon: f64, delta: f64, size: usize, privacy_unit_unique: bool, privacy_unit_max_multiplicity: f64, privacy_unit_max_multiplicity_share: f64) -> DpAggregatesParameters {
         DpAggregatesParameters {
             epsilon,
             delta,
             size,
             privacy_unit_unique,
-            privacy_unit_concentration,
-            privacy_unit_multiplicity_quantile,
+            privacy_unit_max_multiplicity,
+            privacy_unit_max_multiplicity_share,
         }
     }
 
     pub fn from_dp_parameters(dp_parameters: DpParameters, share: f64) -> DpAggregatesParameters {
-        DpAggregatesParameters::new(dp_parameters.epsilon*share, dp_parameters.delta*share, 1, false, dp_parameters.clipping_concentration, dp_parameters.clipping_quantile)
+        DpAggregatesParameters::new(dp_parameters.epsilon*share, dp_parameters.delta*share, 1, false, dp_parameters.privacy_unit_max_multiplicity, dp_parameters.privacy_unit_max_multiplicity_share)
     }
 
     pub fn split(self, n: usize) -> DpAggregatesParameters {
@@ -49,8 +49,8 @@ impl DpAggregatesParameters {
             self.delta / (cmp::max(n, 1) as f64),
             self.size,
             self.privacy_unit_unique,
-            self.privacy_unit_concentration,
-            self.privacy_unit_multiplicity_quantile,
+            self.privacy_unit_max_multiplicity,
+            self.privacy_unit_max_multiplicity_share,
         )
     }
 
@@ -58,7 +58,7 @@ impl DpAggregatesParameters {
         DpAggregatesParameters { size, ..self }
     }
 
-    pub fn with_unique_privacy_unit(self, unique_privacy_unit: bool) -> DpAggregatesParameters {
+    pub fn with_privacy_unit_unique(self, unique_privacy_unit: bool) -> DpAggregatesParameters {
         DpAggregatesParameters { privacy_unit_unique: unique_privacy_unit, ..self }
     }
 
@@ -67,7 +67,7 @@ impl DpAggregatesParameters {
         if self.privacy_unit_unique {
             1.
         } else {
-            ((self.size as f64)*(1. - (1.-self.privacy_unit_multiplicity_quantile).powf(self.privacy_unit_concentration))).ceil()
+            self.privacy_unit_max_multiplicity.min((self.size as f64)*self.privacy_unit_max_multiplicity_share).ceil()
         }
     }
 }
