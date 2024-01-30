@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 
+## [0.9.10] - 2024-01-30
+### Changed
+- Enable manual clipping parameters setting
+- Add a few error messages
+
 ## [0.9.9] - 2024-01-28
 ### Fixed
 - Fix queries with uppercase un-quoted identifiers.
