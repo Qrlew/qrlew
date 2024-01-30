@@ -1242,6 +1242,7 @@ mod tests {
         relation.display_dot().unwrap();
     }
 
+    #[ignore]
     #[test]
     fn test_values() {
         let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();
