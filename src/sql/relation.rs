@@ -1243,7 +1243,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_values() {
         let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();
         let schema_1: Schema = vec![

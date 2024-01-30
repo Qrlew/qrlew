@@ -264,7 +264,6 @@ mod tests {
         e.with(rel.data_type()).display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_distributivity_dsl() {
         let val = Value::structured([
@@ -278,7 +277,6 @@ mod tests {
         &expr! { (a*b+d) }.with(val).display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_plus_minus_dsl() {
         let val = Value::structured([
@@ -290,7 +288,6 @@ mod tests {
         expr! { a+b-c+d }.with(val).display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_simple_value_dsl() {
         let val = Value::structured([
@@ -308,7 +305,6 @@ mod tests {
             .unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_value_dsl() {
         let val = Value::structured([
@@ -328,7 +324,6 @@ mod tests {
             .unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_aggregate_dsl() {
         let data_types = DataType::structured([
@@ -351,7 +346,6 @@ mod tests {
         x.with(data_types).display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_aggregate_any_dsl() {
         let data_types = DataType::structured([
@@ -387,7 +381,6 @@ mod tests {
         assert_eq!(my_expr.to_string(), "(a % 2)".to_string());
     }
 
-    #[ignore]
     #[test]
     fn test_max() {
         let data_types = DataType::structured([("a", DataType::float_interval(0., 4.))]);
@@ -399,7 +392,6 @@ mod tests {
         my_expr.with(data_types).display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_struct_dsl() {
         let rel: Arc<Relation> = Arc::new(
@@ -433,7 +425,6 @@ mod tests {
         .unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_dot_case() {
         let data_types = DataType::structured([(

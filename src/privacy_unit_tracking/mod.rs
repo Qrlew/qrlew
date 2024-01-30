@@ -352,7 +352,7 @@ impl<'a> PrivacyUnitTracking<'a> {
                     .left(Relation::from(left))
                     .right(Relation::from(right))
                     .build();
-                let mut builder = Relation::map().name(name);
+                let mut builder = Relation::map();
                 builder = builder.with((
                     PrivacyUnit::privacy_unit(),
                     Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit())),
@@ -410,7 +410,6 @@ impl<'a> PrivacyUnitTracking<'a> {
             .right(Relation::from(right))
             .build();
         let mut builder = Relation::map()
-            .name(name)
             .with((
                 PrivacyUnit::privacy_unit(),
                 Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit())),
@@ -463,7 +462,6 @@ impl<'a> PrivacyUnitTracking<'a> {
             .right(Relation::from(right))
             .build();
         let mut builder = Relation::map()
-            .name(name)
             .with((
                 PrivacyUnit::privacy_unit(),
                 Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit())),

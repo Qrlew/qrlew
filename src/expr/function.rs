@@ -321,6 +321,39 @@ impl Function {
         arity
     }
 
+    /// Return true if it is bijective
+    pub fn is_bijection(self) -> bool {
+        match self {
+            // Unary Operators
+            Function::Opposite
+            | Function::Not
+            | Function::Exp
+            | Function::Ln
+            | Function::Log
+            | Function::Sqrt
+            | Function::Md5
+            | Function::CastAsText
+            | Function::CastAsFloat
+            | Function::CastAsInteger
+            | Function::CastAsBoolean
+            | Function::CastAsDateTime
+            | Function::CastAsDate
+            | Function::CastAsTime
+            | Function::Unhex => true,
+            _ => false,
+        }
+    }
+
+    /// Return true if it implicitly depends on the row index and is unique
+    pub fn is_unique(self) -> bool {
+        match self {
+            // Unary Operators
+            Function::Random(_)
+            | Function::Newid => true,
+            _ => false,
+        }
+    }
+
     /// Return the function object implementing the function
     pub fn super_image(self, sets: &[DataType]) -> Result<DataType> {
         let set = match self.arity() {

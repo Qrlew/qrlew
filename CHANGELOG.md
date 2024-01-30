@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 
+## [0.9.11] - 2024-01-30
+### Changed
+- Fix Relations sharing the same name
+
 ## [0.9.10] - 2024-01-30
 ### Changed
 - Enable manual clipping parameters setting

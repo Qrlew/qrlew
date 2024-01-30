@@ -59,8 +59,8 @@ pub fn test_execute<D: Database, T: RelationToQueryTranslator>(
 ) {
     let relations = database.relations();
     let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
-    let relaiton_with_tranlator = RelationWithTranslator(&relation, translator);
-    let rewriten_query: &str = &ast::Query::from(relaiton_with_tranlator).to_string();
+    let relation_with_translator = RelationWithTranslator(&relation, translator);
+    let rewriten_query: &str = &ast::Query::from(relation_with_translator).to_string();
     println!("Original query: \n{}\n", query);
     println!("Translated query: \n{}\n", rewriten_query);
     println!(

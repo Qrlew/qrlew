@@ -1518,7 +1518,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_poisson_sampling() {
         let mut database = postgresql::test_database();
@@ -1627,7 +1626,6 @@ mod tests {
         assert_eq!(expected_sampled_join, sampled_join);
     }
 
-    #[ignore]
     #[test]
     fn test_sampling_query() {
         let mut database = postgresql::test_database();
@@ -1645,18 +1643,17 @@ mod tests {
         namer::reset();
         let sampled_relation = relation.poisson_sampling(proba);
 
-        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+        let query_sampled_relation = ast::Query::try_from(&sampled_relation).unwrap().to_string();
 
-        let expected_query = r#"WITH
-        map_qcqr (field_z650, field_08wv) AS (SELECT price AS field_z650, order_id AS field_08wv FROM item_table),
-        reduce_8knj (field_glfp) AS (SELECT sum(field_z650) AS field_glfp FROM map_qcqr GROUP BY field_08wv),
-        map_xyv8 (z, a, b) AS (SELECT 0 AS z, field_glfp AS a, field_glfp AS b FROM reduce_8knj),
-        map_bfzk (z, a, b) AS (SELECT z AS z, a AS a, b AS b FROM map_xyv8 WHERE (random()) < (0.5))
-        SELECT * FROM map_bfzk"#;
-
+        let expected_query = r#"WITH "map_647m" ("field_z650", "field_08wv") AS (SELECT "price" AS "field_z650", "order_id" AS "field_08wv" FROM "item_table"),
+        "reduce_0m62" ("field_yub7") AS (SELECT SUM("field_z650") AS "field_yub7" FROM "map_647m" GROUP BY "field_08wv"),
+        "map_h16i" ("z", "a", "b") AS (SELECT 0 AS "z", "field_yub7" AS "a", "field_yub7" AS "b" FROM "reduce_0m62"),
+        "map_tsjq" ("z", "a", "b") AS (SELECT "z" AS "z", "a" AS "a", "b" AS "b" FROM "map_h16i" WHERE (RANDOM()) < (0.5))
+        SELECT * FROM "map_tsjq"
+        "#;
         assert_eq!(
             expected_query.replace('\n', " ").replace(' ', ""),
-            (&query_sampled_relation[..]).replace(' ', "")
+            query_sampled_relation.replace(' ', "")
         );
         print!("{}\n", query_sampled_relation);
 
@@ -1672,15 +1669,15 @@ mod tests {
         namer::reset();
         let sampled_relation = relation.poisson_sampling(proba);
 
-        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
+        let query_sampled_relation = ast::Query::try_from(&sampled_relation).unwrap().to_string();
 
-        let expected_query = r#"WITH map_gj2u (field_uy24) AS (SELECT log(price) AS field_uy24 FROM item_table),
-        map_upop (field_uy24) AS (SELECT field_uy24 AS field_uy24 FROM map_gj2u WHERE (random()) < (0.5))
-        SELECT * FROM map_upop"#;
-
+        let expected_query = r#"WITH "map_4tf4" ("field_005r") AS (SELECT LOG("price") AS "field_005r" FROM "item_table"),
+        "map_pv6w" ("field_005r") AS (SELECT "field_005r" AS "field_005r" FROM "map_4tf4" WHERE (RANDOM()) < (0.5))
+        SELECT * FROM "map_pv6w"
+        "#;
         assert_eq!(
             expected_query.replace('\n', " ").replace(' ', ""),
-            (&query_sampled_relation[..]).replace(' ', "")
+            query_sampled_relation.replace(' ', "")
         );
         print!("{}\n", query_sampled_relation);
 
@@ -1696,20 +1693,14 @@ mod tests {
         namer::reset();
         let sampled_relation = relation.poisson_sampling(proba);
 
-        let query_sampled_relation = &ast::Query::try_from(&sampled_relation).unwrap().to_string();
-
-        let expected_query = r#"WITH
-        join__e_y (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
-            SELECT * FROM order_table JOIN item_table ON (order_table.id) = (item_table.order_id)
-        ), map_8r2s (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
-            SELECT field_eygr AS field_eygr, field_0wjz AS field_0wjz, field_cg0j AS field_cg0j,
-                field_idxm AS field_idxm, field_0eqn AS field_0eqn, field_3ned AS field_3ned, field_gwco AS field_gwco
-            FROM join__e_y
-        ), map_yko1 (field_eygr, field_0wjz, field_cg0j, field_idxm, field_0eqn, field_3ned, field_gwco) AS (
-            SELECT field_eygr AS field_eygr, field_0wjz AS field_0wjz, field_cg0j AS field_cg0j,
-                field_idxm AS field_idxm, field_0eqn AS field_0eqn, field_3ned AS field_3ned, field_gwco AS field_gwco
-            FROM map_8r2s WHERE (random()) < (0.5)
-        ) SELECT * FROM map_yko1"#;
+        let query_sampled_relation = ast::Query::try_from(&sampled_relation).unwrap().to_string();
+        println!("DEBUG {query_sampled_relation}");
+        let expected_query = r#"
+        WITH "join_bes1" ("field_uwvc", "field_llat", "field_r8n6", "field_xyhh", "field_5zs7", "field_9oif", "field_pdz9") AS (SELECT * FROM "order_table" AS "_LEFT_" JOIN "item_table" AS "_RIGHT_" ON ("_LEFT_"."id") = ("_RIGHT_"."order_id")),
+        "map_afr0" ("field_uwvc", "field_llat", "field_r8n6", "field_xyhh", "field_5zs7", "field_9oif", "field_pdz9") AS (SELECT "field_uwvc" AS "field_uwvc", "field_llat" AS "field_llat", "field_r8n6" AS "field_r8n6", "field_xyhh" AS "field_xyhh", "field_5zs7" AS "field_5zs7", "field_9oif" AS "field_9oif", "field_pdz9" AS "field_pdz9" FROM "join_bes1"),
+        "map_h_vu" ("field_uwvc", "field_llat", "field_r8n6", "field_xyhh", "field_5zs7", "field_9oif", "field_pdz9") AS (SELECT "field_uwvc" AS "field_uwvc", "field_llat" AS "field_llat", "field_r8n6" AS "field_r8n6", "field_xyhh" AS "field_xyhh", "field_5zs7" AS "field_5zs7", "field_9oif" AS "field_9oif", "field_pdz9" AS "field_pdz9" FROM "map_afr0" WHERE (RANDOM()) < (0.5))
+        SELECT * FROM "map_h_vu"
+        "#;
 
         assert_eq!(
             expected_query.replace('\n', " ").replace(' ', ""),
