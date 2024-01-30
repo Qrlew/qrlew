@@ -428,7 +428,6 @@ mod tests {
         map.display_dot();
     }
 
-    #[ignore]
     #[test]
     fn test_display_join() {
         namer::reset();

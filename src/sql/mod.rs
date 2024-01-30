@@ -117,7 +117,7 @@ mod tests {
     use colored::Colorize;
     use itertools::Itertools;
     use sqlparser::dialect::BigQueryDialect;
-    #[ignore]
+
     #[test]
     fn test_display() {
         let database = postgresql::test_database();

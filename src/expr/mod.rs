@@ -14,6 +14,7 @@ pub mod implementation;
 pub mod rewriting;
 pub mod split;
 pub mod sql;
+pub mod bijection;
 
 use itertools::Itertools;
 use paste::paste;

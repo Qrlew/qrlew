@@ -191,7 +191,6 @@ mod tests {
         relation::{schema::Schema, Relation},
     };
 
-    #[ignore]
     #[test]
     fn test_relation() {
         namer::reset();
@@ -241,7 +240,6 @@ mod tests {
         join_2.display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_expr() {
         let rel: Arc<Relation> = Arc::new(

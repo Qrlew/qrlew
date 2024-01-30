@@ -28,8 +28,7 @@ use crate::{
         Variant as _,
     },
     expr::{
-        self, aggregate::Aggregate, function, AggregateColumn, Column, Expr,
-        Function as ExprFunction, Identifier, Split,
+        self, aggregate::Aggregate, function, AggregateColumn, Column, Expr, Identifier, Split,
     },
     hierarchy::Hierarchy,
     namer,
@@ -304,8 +303,10 @@ impl Map {
                     Field::new(
                         name,
                         expr.super_image(&input_data_type).unwrap(),
-                        if let Expr::Column(c) = expr.clone() {
-                            input.schema()[c.last().unwrap()].constraint()
+                        if let Some(column) = expr.into_column_modulo_bijection() {
+                            input.schema()[column.last().unwrap()].constraint()
+                        } else if expr.is_unique() {
+                            Some(Constraint::Unique)
                         } else {
                             None
                         },
