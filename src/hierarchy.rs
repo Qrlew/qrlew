@@ -10,9 +10,41 @@ use std::{
     collections::BTreeMap,
     iter::Extend,
     ops::{Deref, DerefMut, Index},
+    error,
+    result,
 };
 
 use crate::builder::With;
+
+// Error management
+
+#[derive(Debug)]
+pub enum Error {
+    InvalidPath(String),
+    Other(String),
+}
+
+impl Error {
+    pub fn invalid_path(path: impl fmt::Display) -> Error {
+        Error::InvalidPath(format!("{} is invalid", path))
+    }
+    pub fn other(value: impl fmt::Display) -> Error {
+        Error::Other(format!("Error with {}", value))
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::InvalidPath(desc) => writeln!(f, "InvalidPath: {}", desc),
+            Error::Other(err) => writeln!(f, "{}", err),
+        }
+    }
+}
+
+impl error::Error for Error {}
+
+pub type Result<T> = result::Result<T, Error>;
 
 /// How many times is the element
 enum Found<T> {
@@ -251,7 +283,8 @@ where
     type Output = T;
 
     fn index(&self, index: P) -> &Self::Output {
-        self.get(&index.path()).unwrap()
+        let path = index.path();
+        self.get(&path).ok_or_else(|| Error::invalid_path(path.join("."))).unwrap()
     }
 }
 
