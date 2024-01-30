@@ -99,7 +99,7 @@ impl PupRelation {
     ///     - Using the propagated public values of the grouping columns when they exist
     ///     - Applying tau-thresholding mechanism with the (epsilon, delta) privacy parameters for t
     /// he columns that do not have public values
-    pub fn dp_values(self, epsilon: f64, delta: f64) -> Result<DpRelation> {
+    pub fn dp_values(self, epsilon: f64, delta: f64) -> Result<DpRelation> {// TODO this code is super-ugly rewrite it
         let public_columns: Vec<String> = self
             .schema()
             .iter()

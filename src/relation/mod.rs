@@ -12,10 +12,7 @@ pub mod schema;
 pub mod sql;
 
 use std::{
-    cmp, error, fmt, hash,
-    ops::{Deref, Index},
-    result,
-    sync::Arc,
+    cmp, collections::HashSet, error, fmt, hash, ops::{Deref, Index}, result, sync::Arc
 };
 
 use colored::Colorize;
@@ -1280,7 +1277,8 @@ impl Values {
             .data_type()
             .try_into()
             .unwrap();
-        Schema::from_field((name.to_string(), list.data_type().clone()))
+        let unique = values.iter().collect::<HashSet<_>>().len()==values.iter().collect::<Vec<_>>().len();
+        Schema::from_field(Field::new(name.to_string(), list.data_type().clone(), if unique {Some(Constraint::Unique)} else {None}))
     }
 
     pub fn builder() -> ValuesBuilder {
