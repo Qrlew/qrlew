@@ -702,58 +702,72 @@ impl JoinOperator {
         (left_schema, right_schema)
     }
 
+    // A utility function
+    fn expr_has_unique_constraint(expr: &Expr, left_schema: &Schema, right_schema: &Schema) -> (bool, bool) {
+        match expr {
+            Expr::Function(f) => match f.function() {
+                function::Function::Eq => {
+                    let fields_with_unique_or_primary_key_constraint = Hierarchy::from_iter(
+                        left_schema
+                            .iter()
+                            .map(|f| {
+                                (
+                                    vec![Join::left_name(), f.name()],
+                                    f.has_unique_or_primary_key_constraint(),
+                                )
+                            })
+                            .chain(right_schema.iter().map(|f| {
+                                (
+                                    vec![Join::right_name(), f.name()],
+                                    f.has_unique_or_primary_key_constraint(),
+                                )
+                            })),
+                    );
+                    let mut left = false;
+                    let mut right = false;
+                    if let Expr::Column(c) = &f.arguments()[0] {
+                        if fields_with_unique_or_primary_key_constraint
+                            .get_key_value(c)
+                            .unwrap()
+                            .0[0]
+                            == Join::left_name()
+                        {
+                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        } else {
+                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        }
+                    }
+                    if let Expr::Column(c) = &f.arguments()[1] {
+                        if fields_with_unique_or_primary_key_constraint
+                            .get_key_value(c)
+                            .unwrap()
+                            .0[0]
+                            == Join::left_name()
+                        {
+                            left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        } else {
+                            right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
+                        }
+                    }
+                    (left, right)
+                }
+                function::Function::And => {
+                    let arg_0 = JoinOperator::expr_has_unique_constraint(&f.arguments()[0], left_schema, right_schema);
+                    let arg_1 = JoinOperator::expr_has_unique_constraint(&f.arguments()[1], left_schema, right_schema);
+                    (arg_0.0 || arg_1.0, arg_0.1 || arg_1.1)
+                }
+                _ => (false, false),
+            }
+            _ => (false, false),
+        }
+    }
+
     fn has_unique_constraint(&self, left_schema: &Schema, right_schema: &Schema) -> (bool, bool) {
         match self {
-            JoinOperator::Inner(Expr::Function(f))
-            | JoinOperator::LeftOuter(Expr::Function(f))
-            | JoinOperator::RightOuter(Expr::Function(f))
-            | JoinOperator::FullOuter(Expr::Function(f))
-                if f.function() == function::Function::Eq =>
-            {
-                let fields_with_unique_or_primary_key_constraint = Hierarchy::from_iter(
-                    left_schema
-                        .iter()
-                        .map(|f| {
-                            (
-                                vec![Join::left_name(), f.name()],
-                                f.has_unique_or_primary_key_constraint(),
-                            )
-                        })
-                        .chain(right_schema.iter().map(|f| {
-                            (
-                                vec![Join::right_name(), f.name()],
-                                f.has_unique_or_primary_key_constraint(),
-                            )
-                        })),
-                );
-                let mut left = false;
-                let mut right = false;
-                if let Expr::Column(c) = &f.arguments()[0] {
-                    if fields_with_unique_or_primary_key_constraint
-                        .get_key_value(c)
-                        .unwrap()
-                        .0[0]
-                        == Join::left_name()
-                    {
-                        left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                    } else {
-                        right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                    }
-                }
-                if let Expr::Column(c) = &f.arguments()[1] {
-                    if fields_with_unique_or_primary_key_constraint
-                        .get_key_value(c)
-                        .unwrap()
-                        .0[0]
-                        == Join::left_name()
-                    {
-                        left = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                    } else {
-                        right = fields_with_unique_or_primary_key_constraint[c.as_slice()]
-                    }
-                }
-                (left, right)
-            }
+            JoinOperator::Inner(e)
+            | JoinOperator::LeftOuter(e)
+            | JoinOperator::RightOuter(e)
+            | JoinOperator::FullOuter(e) => JoinOperator::expr_has_unique_constraint(e, left_schema, right_schema),
             _ => (false, false),
         }
     }
