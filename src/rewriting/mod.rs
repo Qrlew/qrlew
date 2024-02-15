@@ -1,6 +1,7 @@
 pub mod dot;
 pub mod relation_with_attributes;
 pub mod rewriting_rule;
+pub mod composition;
 
 pub use relation_with_attributes::RelationWithAttributes;
 pub use rewriting_rule::{
