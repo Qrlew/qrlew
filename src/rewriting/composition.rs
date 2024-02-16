@@ -113,11 +113,25 @@ impl Relation {
     }
 }
 
-/// Function used to compose relations. It substitutes Tables in the
-/// outer_relations with relations in inner_relations with the same path.
-/// The output relations will have the same paths as the outer_relations
-/// Tables in the outer_relations should have a compatible schema with
-/// inner_relations otherwise an error is raised.
+impl Hierarchy<Arc<Relation>> {
+    /// It composes itself with another Hierarchy of relations. 
+    /// It substitute its Tables with the corresponding relation in relations 
+    /// with the same path.
+    /// The output Hierarchy of relations will have the same paths as self.
+    /// Schemas in the relations to be composed should be compatible with 
+    /// the schema of the corresponding table otherwise an error is raised.
+    pub fn compose<'a>(
+        &'a self,
+        relations: &'a Hierarchy<Arc<Relation>>,
+    ) -> Result<Hierarchy<Arc<Relation>>>{
+        Ok(self
+            .iter()
+            .map(|(outer_rel_path, rel)| 
+                (outer_rel_path.clone(), Arc::new(rel.compose(relations))))
+            .collect())
+    }
+}
+
 pub fn compose_relations<'a>(
     outer_relations:  &'a Hierarchy<Arc<Relation>>,
     inner_relations: &'a Hierarchy<Arc<Relation>>
@@ -301,6 +315,45 @@ mod tests {
         composed.display_dot().unwrap();
     }
 
+    #[test]
+    fn test_compose_with_different_schema() {
+        let binding = build_complex_relation_1();
+        let rel = binding.deref(); 
+        rel.display_dot().unwrap();
+
+        let schema: Schema = vec![
+            ("a", DataType::float()),
+            ("b", DataType::float_interval(-2., 2.)),
+            ("c", DataType::float()),
+            ("d", DataType::float_interval(0., 1.)),
+            ("e", DataType::text()),
+        ].into_iter()
+        .collect();
+
+        let table_1: Relation = Relation::table()
+        .name("real_table")
+        .schema(schema)
+        .size(10000)
+        .build();
+        let map: Relation = Relation::map()
+            .with(("a", Expr::col("a")))
+            .with(("b", Expr::col("b")))
+            .with(("c", Expr::col("c")))
+            .with(("d", Expr::col("d")))
+            .with(("e", Expr::col("e")))
+            .filter(Expr::gt(Expr::col("a"), Expr::val(0.5)))
+            .input(table_1.clone())
+            .build();
+
+        map.display_dot().unwrap();
+        let relations = Hierarchy::from([
+            (vec!["table"], Arc::new(map)),
+        ]);
+
+        let composed = rel.compose(&relations);
+        composed.display_dot().unwrap();
+    }
+
     
     #[test]
     fn test_compose_relations() {
@@ -375,5 +428,10 @@ mod tests {
         let second = composed_relations.get(&["my", "second", "relation"].path()).unwrap().deref();
         first.display_dot();
         second.display_dot();
+
+
+        let composed_bis = composed_relations.compose(&inner_relations).unwrap();
+        let new_first = composed_bis.get(&["my", "first", "relation"].path()).unwrap().deref();
+        new_first.display_dot();
     }
 }
