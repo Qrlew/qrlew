@@ -1,11 +1,14 @@
-
 use crate::{
-    builder::{Ready, With}, display::Dot as _, expr::identifier::Identifier, hierarchy::Hierarchy, relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor}, visitor::Acceptor
+    builder::{Ready, With},
+    display::Dot as _,
+    expr::identifier::Identifier,
+    hierarchy::Hierarchy,
+    relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
+    visitor::Acceptor,
 };
 use std::{ops::Deref, sync::Arc, vec};
 
 use super::Result;
-
 
 struct ComposerVisitor<F: Fn(&Table) -> Relation> {
     composer: F,
@@ -84,7 +87,11 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for ComposerVisitor<F>
     }
 
     fn set(&self, set: &'a Set, left: Relation, right: Relation) -> Relation {
-        Relation::set().with(set.clone()).left(left).right(right).build()
+        Relation::set()
+            .with(set.clone())
+            .left(left)
+            .right(right)
+            .build()
     }
 
     fn values(&self, values: &'a Values) -> Relation {
@@ -92,57 +99,38 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for ComposerVisitor<F>
     }
 }
 
-
 fn composer_visitor<'a>(
     relations: &'a Hierarchy<Arc<Relation>>,
 ) -> ComposerVisitor<impl Fn(&Table) -> Relation + 'a> {
-    ComposerVisitor::new(move |table: &Table| {
-        match relations.get(table.path()) {
-            Some(r) => r.deref().clone(),
-            None => table.clone().into()
-        }
+    ComposerVisitor::new(move |table: &Table| match relations.get(table.path()) {
+        Some(r) => r.deref().clone(),
+        None => table.clone().into(),
     })
 }
 
 impl Relation {
-    pub fn compose<'a>(
-        &'a self,
-        relations: &'a Hierarchy<Arc<Relation>>,
-    ) -> Relation {
+    pub fn compose<'a>(&'a self, relations: &'a Hierarchy<Arc<Relation>>) -> Relation {
         self.accept(composer_visitor(relations))
     }
 }
 
 impl Hierarchy<Arc<Relation>> {
-    /// It composes itself with another Hierarchy of relations. 
-    /// It substitute its Tables with the corresponding relation in relations 
+    /// It composes itself with another Hierarchy of relations.
+    /// It substitute its Tables with the corresponding relation in relations
     /// with the same path.
     /// The output Hierarchy of relations will have the same paths as self.
-    /// Schemas in the relations to be composed should be compatible with 
+    /// Schemas in the relations to be composed should be compatible with
     /// the schema of the corresponding table otherwise an error is raised.
     pub fn compose<'a>(
         &'a self,
         relations: &'a Hierarchy<Arc<Relation>>,
-    ) -> Result<Hierarchy<Arc<Relation>>>{
+    ) -> Result<Hierarchy<Arc<Relation>>> {
         Ok(self
             .iter()
-            .map(|(outer_rel_path, rel)| 
-                (outer_rel_path.clone(), Arc::new(rel.compose(relations))))
+            .map(|(outer_rel_path, rel)| (outer_rel_path.clone(), Arc::new(rel.compose(relations))))
             .collect())
     }
 }
-
-pub fn compose_relations<'a>(
-    outer_relations:  &'a Hierarchy<Arc<Relation>>,
-    inner_relations: &'a Hierarchy<Arc<Relation>>
-) -> Result<Hierarchy<Arc<Relation>>> {
-    Ok(outer_relations
-    .iter()
-    .map(|(outer_rel_path, rel)| 
-        (outer_rel_path.clone(), Arc::new(rel.compose(inner_relations))))
-    .collect())
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -175,11 +163,21 @@ mod tests {
                 .with(Expr::col("b") + Expr::col("d"))
                 .build(),
         );
+
+        let other_map: Arc<Relation> = Arc::new(
+            Relation::map()
+                .with(Expr::col("a"))
+                .with(Expr::col("b"))
+                .with(Expr::col("c"))
+                .with(Expr::col("d"))
+                .input(table.clone())
+                .build(),
+        );
         let join: Arc<Relation> = Arc::new(
             Relation::join()
                 .name("join")
                 .cross()
-                .left(table.clone())
+                .left(other_map.clone())
                 .right(map.clone())
                 .build(),
         );
@@ -207,14 +205,16 @@ mod tests {
             Relation::table()
                 .name("table1")
                 .path(["private", "table1"].path())
-                .schema(vec![
-                    ("a", DataType::float()),
-                    ("b", DataType::float_interval(-2., 2.)),
-                    ("c", DataType::float()),
-                    ("d", DataType::float_interval(0., 1.)),
-                ]
-                .into_iter()
-                .collect::<Schema>())
+                .schema(
+                    vec![
+                        ("a", DataType::float()),
+                        ("b", DataType::float_interval(-2., 2.)),
+                        ("c", DataType::float()),
+                        ("d", DataType::float_interval(0., 1.)),
+                    ]
+                    .into_iter()
+                    .collect::<Schema>(),
+                )
                 .size(1000)
                 .build(),
         );
@@ -223,12 +223,14 @@ mod tests {
             Relation::table()
                 .name("table2")
                 .path(["private", "table2"].path())
-                .schema(vec![
-                    ("e", DataType::integer_interval(-10, 10)),
-                    ("f", DataType::text()),
-                ]
-                .into_iter()
-                .collect::<Schema>())
+                .schema(
+                    vec![
+                        ("e", DataType::integer_interval(-10, 10)),
+                        ("f", DataType::text()),
+                    ]
+                    .into_iter()
+                    .collect::<Schema>(),
+                )
                 .size(300)
                 .build(),
         );
@@ -253,7 +255,7 @@ mod tests {
     #[test]
     fn test_simple_renamer() {
         let binding = build_complex_relation_1();
-        let rel = binding.deref(); 
+        let rel = binding.deref();
         rel.display_dot().unwrap();
 
         let schema: Schema = vec![
@@ -261,18 +263,17 @@ mod tests {
             ("b", DataType::float_interval(-2., 2.)),
             ("c", DataType::float()),
             ("d", DataType::float_interval(0., 1.)),
-        ].into_iter()
+        ]
+        .into_iter()
         .collect();
 
         let table_1: Relation = Relation::table()
-        .name("real_table")
-        .schema(schema)
-        .size(10000)
-        .build();
+            .name("real_table")
+            .schema(schema)
+            .size(10000)
+            .build();
 
-        let relations = Hierarchy::from([
-            (vec!["table"], Arc::new(table_1)),
-        ]);
+        let relations = Hierarchy::from([(vec!["table"], Arc::new(table_1))]);
 
         let composed = rel.compose(&relations);
         composed.display_dot().unwrap();
@@ -281,7 +282,7 @@ mod tests {
     #[test]
     fn test_simple_composition() {
         let binding = build_complex_relation_1();
-        let rel = binding.deref(); 
+        let rel = binding.deref();
         rel.display_dot().unwrap();
 
         let schema: Schema = vec![
@@ -289,14 +290,15 @@ mod tests {
             ("b", DataType::float_interval(-2., 2.)),
             ("c", DataType::float()),
             ("d", DataType::float_interval(0., 1.)),
-        ].into_iter()
+        ]
+        .into_iter()
         .collect();
 
         let table_1: Relation = Relation::table()
-        .name("real_table")
-        .schema(schema)
-        .size(10000)
-        .build();
+            .name("real_table")
+            .schema(schema)
+            .size(10000)
+            .build();
         let map: Relation = Relation::map()
             .with(("a", Expr::col("a")))
             .with(("b", Expr::col("b")))
@@ -307,9 +309,7 @@ mod tests {
             .build();
 
         map.display_dot().unwrap();
-        let relations = Hierarchy::from([
-            (vec!["table"], Arc::new(map)),
-        ]);
+        let relations = Hierarchy::from([(vec!["table"], Arc::new(map))]);
 
         let composed = rel.compose(&relations);
         composed.display_dot().unwrap();
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_compose_with_different_schema() {
         let binding = build_complex_relation_1();
-        let rel = binding.deref(); 
+        let rel = binding.deref();
         rel.display_dot().unwrap();
 
         let schema: Schema = vec![
@@ -327,14 +327,15 @@ mod tests {
             ("c", DataType::float()),
             ("d", DataType::float_interval(0., 1.)),
             ("e", DataType::text()),
-        ].into_iter()
+        ]
+        .into_iter()
         .collect();
 
         let table_1: Relation = Relation::table()
-        .name("real_table")
-        .schema(schema)
-        .size(10000)
-        .build();
+            .name("real_table")
+            .schema(schema)
+            .size(10000)
+            .build();
         let map: Relation = Relation::map()
             .with(("a", Expr::col("a")))
             .with(("b", Expr::col("b")))
@@ -346,18 +347,14 @@ mod tests {
             .build();
 
         map.display_dot().unwrap();
-        let relations = Hierarchy::from([
-            (vec!["table"], Arc::new(map)),
-        ]);
+        let relations = Hierarchy::from([(vec!["table"], Arc::new(map))]);
 
         let composed = rel.compose(&relations);
         composed.display_dot().unwrap();
     }
 
-    
     #[test]
     fn test_compose_relations() {
-
         let r = build_complex_relation_1();
         r.deref().display_dot().unwrap();
 
@@ -372,14 +369,17 @@ mod tests {
 
         // building inner relations
         let table_x: Relation = Relation::table()
-        .name("real_table")
-        .schema(vec![
-            ("x", DataType::integer_interval(-2, 2)),
-            ("y", DataType::integer_interval(0, 10)),
-        ].into_iter()
-        .collect::<Schema>())
-        .size(1000)
-        .build();
+            .name("real_table")
+            .schema(
+                vec![
+                    ("x", DataType::integer_interval(-2, 2)),
+                    ("y", DataType::integer_interval(0, 10)),
+                ]
+                .into_iter()
+                .collect::<Schema>(),
+            )
+            .size(1000)
+            .build();
 
         // map substitutes the table in build_complex_relation_1
         // they have the same schema.
@@ -395,24 +395,27 @@ mod tests {
         // table_1 substitutes the table_1 in build_complex_relation_2
         let table_1: Relation = Relation::table()
             .name("real_table1")
-            .schema(vec![
-                ("a", DataType::float()),
-                ("b", DataType::float_interval(-2., 2.)),
-                ("c", DataType::float()),
-                ("d", DataType::float_interval(0., 1.)),
-            ].into_iter()
-            .collect::<Schema>())
+            .schema(
+                vec![
+                    ("a", DataType::float()),
+                    ("b", DataType::float_interval(-2., 2.)),
+                    ("c", DataType::float()),
+                    ("d", DataType::float_interval(0., 1.)),
+                ]
+                .into_iter()
+                .collect::<Schema>(),
+            )
             .size(1000)
             .build();
 
         // table_2 substitutes the table_1 in build_complex_relation_2
         let table_2: Relation = Relation::table()
             .name("real_table2")
-            .schema(vec![
-                ("e", DataType::text()),
-                ("x", DataType::text()),
-            ].into_iter()
-            .collect::<Schema>())
+            .schema(
+                vec![("e", DataType::text()), ("x", DataType::text())]
+                    .into_iter()
+                    .collect::<Schema>(),
+            )
             .size(1000)
             .build();
 
@@ -420,18 +423,20 @@ mod tests {
             (vec!["table"], Arc::new(map)),
             (vec!["private", "table1"], Arc::new(table_1)),
             (vec!["private", "table2"], Arc::new(table_2)),
-
         ]);
 
-        let composed_relations = compose_relations(&outer_relations, &inner_relations).unwrap();
-        let first = composed_relations.get(&["my", "first", "relation"].path()).unwrap().deref();
-        let second = composed_relations.get(&["my", "second", "relation"].path()).unwrap().deref();
-        first.display_dot();
-        second.display_dot();
-
-
-        let composed_bis = composed_relations.compose(&inner_relations).unwrap();
-        let new_first = composed_bis.get(&["my", "first", "relation"].path()).unwrap().deref();
-        new_first.display_dot();
+        let composed = outer_relations.compose(&inner_relations).unwrap();
+        assert!(composed.contains_key(&["my", "first", "relation"].path()));
+        assert!(composed.contains_key(&["my", "second", "relation"].path()));
+        let first = composed
+            .get(&["my", "first", "relation"].path())
+            .unwrap()
+            .deref();
+        let second = composed
+            .get(&["my", "second", "relation"].path())
+            .unwrap()
+            .deref();
+        first.display_dot().unwrap();
+        second.display_dot().unwrap();
     }
 }
