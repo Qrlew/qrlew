@@ -1,6 +1,5 @@
 use crate::{
     builder::{Ready, With},
-    display::Dot as _,
     expr::identifier::Identifier,
     hierarchy::Hierarchy,
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _, Visitor},
@@ -134,12 +133,11 @@ impl Hierarchy<Arc<Relation>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{display::Dot as _, hierarchy::Path, namer, relation::Schema, DataType, Expr};
+    use crate::{display::Dot as _, hierarchy::Path, relation::Schema, DataType, Expr};
 
     use super::*;
 
     fn build_complex_relation_1() -> Arc<Relation> {
-        namer::reset();
         let schema: Schema = vec![
             ("a", DataType::float()),
             ("b", DataType::float_interval(-2., 2.)),
@@ -321,19 +319,20 @@ mod tests {
         let rel = binding.deref();
         rel.display_dot().unwrap();
 
-        let schema: Schema = vec![
-            ("a", DataType::float()),
-            ("b", DataType::float_interval(-2., 2.)),
-            ("c", DataType::float()),
-            ("d", DataType::float_interval(0., 1.)),
-            ("e", DataType::text()),
-        ]
-        .into_iter()
-        .collect();
-
+        // Composing with a relation that has one more field
         let table_1: Relation = Relation::table()
             .name("real_table")
-            .schema(schema)
+            .schema(
+                vec![
+                    ("a", DataType::float()),
+                    ("b", DataType::float_interval(-2., 2.)),
+                    ("c", DataType::float()),
+                    ("d", DataType::float_interval(0., 1.)),
+                    ("e", DataType::text()),
+                ]
+                .into_iter()
+                .collect::<Schema>(),
+            )
             .size(10000)
             .build();
         let map: Relation = Relation::map()
@@ -367,7 +366,7 @@ mod tests {
             (vec!["my", "second", "relation"], build_complex_relation_2()),
         ]);
 
-        // building inner relations
+        // building inner relations to be composed with the outer
         let table_x: Relation = Relation::table()
             .name("real_table")
             .schema(
@@ -382,7 +381,6 @@ mod tests {
             .build();
 
         // map substitutes the table in build_complex_relation_1
-        // they have the same schema.
         let map: Relation = Relation::map()
             .with(("a", Expr::col("x")))
             .with(("b", Expr::col("x") + Expr::col("y")))

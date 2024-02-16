@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Changed
 
+## [0.9.14] - 2024-01-30
+### Added
+- Adding composition between 2 Hierarchy relations [#266](https://github.com/Qrlew/qrlew/pull/266)
+
+
 ## [0.9.13] - 2024-01-30
 ### Changed
 - Values may be unique
