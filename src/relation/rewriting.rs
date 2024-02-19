@@ -208,14 +208,21 @@ impl Join {
         self,
         vec: Vec<String>,
         columns: &Hierarchy<Identifier>,
+        preserve_input_names: bool,
     ) -> Relation {
-        let fields = self
+
+        let fields_in_vec = self
             .field_inputs()
             .filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
                 if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
+                    let final_col_name = if preserve_input_names {
+                        col.to_string()
+                    } else {
+                        name
+                    };
                     Some((
-                        name,
+                        final_col_name,
                         Expr::coalesce(
                             Expr::col(columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap()),
                             Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap()),
@@ -224,12 +231,26 @@ impl Join {
                 } else {
                     None
                 }
-            })
-            .chain(self.field_inputs().filter_map(|(name, id)| {
+            }).collect::<Vec<_>>();
+
+        let fields_not_in_vec = self
+            .field_inputs()
+            .filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
-                (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
-            }))
+                let final_col_name = if preserve_input_names && columns.get(&[col.clone()]).is_some() {
+                    col.to_string()
+                } else {
+                    name.clone()
+                };
+                (!vec.contains(col)).then_some((final_col_name, Expr::col(name)))
+            })
             .collect::<Vec<_>>();
+
+        let fields = fields_in_vec
+            .into_iter()
+            .chain(fields_not_in_vec.into_iter())
+            .collect::<Vec<_>>();
+        
         Relation::map()
             .input(Relation::from(self))
             .with_iter(fields)
