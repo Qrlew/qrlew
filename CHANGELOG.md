@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ## [0.9.15] - 2024-02-20
 ### Changed
-- SELECT * with JOINs preserve the column names when there is no [#268](https://github.com/Qrlew/qrlew/pull/268)
+- SELECT * with JOINs preserve the column names when there is no ambiguity [#268](https://github.com/Qrlew/qrlew/pull/268)
 
 
 ## [0.9.14] - 2024-01-30
