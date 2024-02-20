@@ -292,6 +292,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     .collect();
                 let composed_columns = all_columns.and_then(join_columns.clone());
 
+                //let preserve_input_names = false;
                 // If the join constraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
                 let relation = match &ast_join.join_operator {
                     ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
@@ -329,13 +330,17 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         .map(|(key, value)| {
                             let original_col_name = key.last().unwrap().as_str();
                             let join_col_name = value.head().unwrap();
-                        (Identifier::from(join_col_name), original_col_name.into())
+                            match join_columns.get(&[original_col_name.to_string()]) {
+                                Some(_) => (Identifier::from(join_col_name), original_col_name.into()),
+                                None => (Identifier::from(join_col_name), join_col_name.into()),
+                            }
                     })
                     .collect();
                     composed_columns.and_then(join_to_original_columns)
                 } else {
                     composed_columns
                 };
+                println!("COMPOSED NAMES:\n{composed_columns}");
 
                 Ok(RelationWithColumns::new(Arc::new(relation), composed_columns))
             },
