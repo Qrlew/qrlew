@@ -203,7 +203,9 @@ impl Join {
     }
 
     /// Replace the duplicates fields specified in `columns` by their coalesce expression
-    /// Its mimicks teh behaviour of USING in SQL
+    /// It mimics the behavior of USING in SQL
+    /// If preserve_input_names is True, the fields of the resulting relation
+    /// will be named as in the JOINs inputs if they are not ambiguous.
     pub fn remove_duplicates_and_coalesce(
         self,
         vec: Vec<String>,
