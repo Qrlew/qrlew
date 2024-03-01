@@ -247,50 +247,82 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         }
     }
 
+    /// Build a RelationWithColumns with a JOIN from RelationWithColumns and an
+    /// ast Join. Preserve input names for non ambigous columns 
+    fn try_from_join(
+        &self,
+        left: RelationWithColumns,
+        ast_join: &'a ast::Join
+    ) -> Result<RelationWithColumns> {
+        let RelationWithColumns(left_relation, left_columns) = left;
+        let RelationWithColumns(right_relation, right_columns) =
+            self.try_from_table_factor(&ast_join.relation)?;
+        
+        let left_columns: Hierarchy<Identifier> = left_columns.map(|i| {
+            let mut v = vec![Join::left_name().to_string()];
+            v.extend(i.to_vec());
+            v.into()
+        });
+        let right_columns = right_columns.map(|i| {
+            let mut v = vec![Join::right_name().to_string()];
+            v.extend(i.to_vec());
+            v.into()
+        });
+        let all_columns = left_columns.with(right_columns);
+        
+        // We collect column mapping inputs should map to new names (hence the inversion)
+        let desired_join_col_names: Hierarchy<Identifier> = all_columns
+            .iter()
+            .map(|(f, i)| (i.clone(), f.clone().into()))
+            .collect();
+        
+        // We want to preserve the names during the JOIN build except for those
+        // columns that are ambiguous
+        let ambiguous_cols = ambiguous_columns(&desired_join_col_names);
+        
+        let non_ambiguous_col_names: Hierarchy<String> = desired_join_col_names
+            .iter()
+            .filter_map(|(k, v)| {
+                if !ambiguous_cols.contains(&Identifier::from(k.clone())) {
+                    Some((k.clone(), v.clone().last().unwrap().to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let operator = self.try_from_join_operator_with_columns(
+            &ast_join.join_operator,
+            &all_columns,
+        )?;
+        // We build a Join. Preserve non ambiguous col names where and rename
+        // the ambiguous ones.
+        let join: Join = Relation::join()
+            .operator(operator)
+            .left(left_relation)
+            .right(right_relation)
+            .names(non_ambiguous_col_names)
+            .build();
+        Ok(RelationWithColumns::new(Arc::new(Relation::from(join)), all_columns))
+    }
+
     /// Convert a TableWithJoins into a RelationWithColumns
     fn try_from_table_with_joins(
         &self,
         table_with_joins: &'a ast::TableWithJoins,
-        preserve_input_names: bool,
     ) -> Result<RelationWithColumns> {
         // Process the relation
         // Then the JOIN if needed
         let result = table_with_joins.joins.iter().fold(
             self.try_from_table_factor(&table_with_joins.relation),
             |left, ast_join| {
-                let RelationWithColumns(left_relation, left_columns) = left?;
-                let RelationWithColumns(right_relation, right_columns) =
-                    self.try_from_table_factor(&ast_join.relation)?;
-                let left_columns = left_columns.map(|i| {
-                    let mut v = vec![Join::left_name().to_string()];
-                    v.extend(i.to_vec());
-                    v.into()
-                });
-                let right_columns = right_columns.map(|i| {
-                    let mut v = vec![Join::right_name().to_string()];
-                    v.extend(i.to_vec());
-                    v.into()
-                });
-                let all_columns = left_columns.with(right_columns);
-                let operator = self.try_from_join_operator_with_columns(
-                    &ast_join.join_operator,
-                    &all_columns,
-                )?;
-
-                // We build a Join
-                let join: Join = Relation::join()
-                    .operator(operator)
-                    .left(left_relation)
-                    .right(right_relation)
-                    .build();
-
-                // We collect column mapping inputs should map to new names (hence the inversion)
-                let join_columns: Hierarchy<Identifier> =join
+                let RelationWithColumns(join_relation, columns) = self.try_from_join(left?, &ast_join)?;
+                let join = Join::try_from(join_relation.deref().clone())?;
+                
+                let join_columns: Hierarchy<Identifier> = join
                     .field_inputs()
                     .map(|(f, i)| (i, f.into()))
                     .collect();
-                let composed_columns = all_columns.and_then(join_columns.clone());
-
+                println!("CHECK!!!!"); 
                 // If the join constraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
                 let relation = match &ast_join.join_operator {
                     ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
@@ -299,8 +331,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(v)) => {
                         join.remove_duplicates_and_coalesce(
                             v.into_iter().map(|id| id.value.to_string()).collect(),
-                            &join_columns,
-                            preserve_input_names
+                            &join_columns
                         )
                     },
                     ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
@@ -311,36 +342,18 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                             .into_iter()
                             .filter_map(|f| join.right().schema().field(f.name()).is_ok().then_some(f.name().to_string()))
                             .collect();
-                        join.remove_duplicates_and_coalesce(v, &join_columns, preserve_input_names)
+                        join.remove_duplicates_and_coalesce(v, &join_columns)
                     },
                     ast::JoinOperator::LeftSemi(_) => todo!(),
                     ast::JoinOperator::RightSemi(_) => todo!(),
                     ast::JoinOperator::LeftAnti(_) => todo!(),
                     ast::JoinOperator::RightAnti(_) => todo!(),
-                    _ => join.remove_duplicates_and_coalesce(vec![], &join_columns, preserve_input_names),
+                    _ => Relation::from(join),
                 };
-
-                
-                let composed_columns = if preserve_input_names {
-                    // relation fields are renamed to those of the join relation inputs
-                    // if no name collision is generated.  
-                    let original_not_ambiguous_columns: Hierarchy<Identifier> = join_columns
-                        .iter()
-                        .map(|(key, value)| {
-                            let original_col_name = key.last().unwrap().as_str();
-                            let join_col_name = value.head().unwrap();
-                            match join_columns.get(&[original_col_name.to_string()]) {
-                                Some(_) => (Identifier::from(join_col_name), original_col_name.into()),
-                                None => (Identifier::from(join_col_name), join_col_name.into()),
-                            }
-                    })
-                    .collect();
-                    composed_columns.and_then(original_not_ambiguous_columns)
-                } else {
-                    composed_columns
-                };
-
-                Ok(RelationWithColumns::new(Arc::new(relation), composed_columns))
+                let columns = columns.and_then(join_columns);
+                println!("columns: \n{}", columns); 
+                //relation.display_dot().unwrap();
+                Ok(RelationWithColumns::new(Arc::new(relation), columns))
             },
         );
         result
@@ -350,14 +363,12 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
     fn try_from_tables_with_joins(
         &self,
         tables_with_joins: &'a Vec<ast::TableWithJoins>,
-        preserve_input_names: bool
     ) -> Result<RelationWithColumns> {
         // TODO consider more tables
         // For now, only consider the first element
         // It should eventually be cross joined as described in: https://www.postgresql.org/docs/current/queries-table-expressions.html
         self.try_from_table_with_joins(
-            &tables_with_joins[0],
-            preserve_input_names
+            &tables_with_joins[0]
         )
     }
 
@@ -376,6 +387,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
+        println!("cols in select items{}", columns);
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -476,6 +488,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             .as_ref()
             .map(|e| e.with(columns).try_into())
             .map_or(Ok(None), |r| r.map(Some))?;
+
+        println!("Check before building the relation!!!");
         // Build a Relation
         let mut relation: Relation = match split {
             Split::Map(map) => {
@@ -491,6 +505,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 builder.input(from).build()
             }
         };
+        println!("Check after building the relation!!!");
         if let Some(h) = having {
             relation = Relation::map()
                 .with_iter(
@@ -556,20 +571,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             return Err(Error::other("QUALIFY is not supported"));
         }
 
-        // If projection contains a Wildcard (SELECT *) the table with joins should
-        // preserver columns names. 
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(
-            from,
-            projection.contains(
-                &ast::SelectItem::Wildcard(
-                    ast::WildcardAdditionalOptions {
-                        opt_exclude: None,
-                        opt_except: None,
-                        opt_rename: None,
-                        opt_replace: None 
-                    }
-                )
-            )
+            from
         )?;
         let relation = self.try_from_select_items_selection_and_group_by(
             &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
@@ -580,6 +583,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             having,
             distinct
         )?;
+        // println!("print dot.");
+        // relation.display_dot().unwrap();
         Ok(RelationWithColumns::new(relation, columns))
     }
 
@@ -618,6 +623,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     // Build a relation with ORDER BY and LIMIT if needed
                     let relation_builder = Relation::map();
                     // We add all the columns
+                    // println!("print dot. check try_from_query");
+                    // relation.display_dot().unwrap();
                     let relation_builder = relation
                         .schema()
                         .iter()
@@ -764,7 +771,21 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelation
     }
 }
 
-
+/// It returns a vector of identifiers of ambiguous columns in a hierarchy of columns
+/// It uses the properties of the Hierarchy: For ambiguous columns it checks
+/// that Hierarchy::get returns None if using only the suffix of the path
+pub fn ambiguous_columns(columns: &Hierarchy<Identifier>) -> Vec<Identifier> {
+    columns
+    .iter()
+    .filter_map(|(key, _)| {
+        if let Some(v) = columns.get(&[key.last().unwrap().as_str().to_string()]) {
+            None
+        } else {
+            Some(key.clone().into())
+        }
+    })
+    .collect()
+}
 
 /// A simple SQL query parser with dialect
 pub fn parse_with_dialect<D: Dialect>(query: &str, dialect: D) -> Result<ast::Query> {
@@ -1474,7 +1495,45 @@ mod tests {
             .map(ToString::to_string);
 
         let query_str = r#"
-            WITH my_tab AS (SELECT * FROM user_table u JOIN order_table o ON (u.id=o.user_id))
+        WITH my_tab AS (SELECT id, age FROM user_table u JOIN order_table o USING (id))
+        SELECT * FROM my_tab WHERE id > 50;
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        // let query_str = r#"
+        // WITH my_tab AS (SELECT u.id AS uid, id, age FROM user_table u JOIN order_table o USING (id))
+        // SELECT * FROM my_tab WHERE id > 50;
+        // "#;
+        // let query = parse(query_str).unwrap();
+        // let relation = Relation::try_from(QueryWithRelations::new(
+        //     &query,
+        //     &relations
+        // ))
+        // .unwrap();
+        // relation.display_dot().unwrap();
+        // let query: &str = &ast::Query::from(&relation).to_string();
+        // println!("{query}");
+        // _ = database
+        //     .query(query)
+        //     .unwrap()
+        //     .iter()
+        //     .map(ToString::to_string);
+
+        let query_str = r#"
+            WITH my_tab AS (SELECT * FROM user_table u JOIN order_table o ON (u.id=o.id))
             SELECT * FROM my_tab WHERE user_id > 50;
             "#;
         let query = parse(query_str).unwrap();
@@ -1485,6 +1544,26 @@ mod tests {
         .unwrap();
         // id becomes an ambiguous column since is present in both tables
         assert!(relation.schema().field("id").is_err());
+        relation.display_dot().unwrap();
+        println!("relation = {relation}");
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+            WITH my_tab AS (SELECT u.id, user_id, age FROM user_table u JOIN order_table o ON (u.id=o.id))
+            SELECT * FROM my_tab WHERE user_id > 50;
+            "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
         relation.display_dot().unwrap();
         println!("relation = {relation}");
         let query: &str = &ast::Query::from(&relation).to_string();

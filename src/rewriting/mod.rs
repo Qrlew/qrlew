@@ -101,6 +101,7 @@ impl Relation {
             privacy_unit,
             dp_parameters,
         ));
+        println!("Check rewrite_with_differential_privacy");
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules
             .select_rewriting_rules(RewritingRulesSelector)
@@ -185,35 +186,35 @@ mod tests {
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         let queries = [
-            "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
-            "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
-            "SELECT order_id, sum(order_id) FROM item_table GROUP BY order_id",
-            "SELECT order_id As my_order, sum(price) FROM item_table GROUP BY my_order",
-            "SELECT order_id, MAX(order_id), sum(price) FROM item_table GROUP BY order_id",
+            // "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
+            // "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
+            // "SELECT order_id, sum(order_id) FROM item_table GROUP BY order_id",
+            // "SELECT order_id As my_order, sum(price) FROM item_table GROUP BY my_order",
+            // "SELECT order_id, MAX(order_id), sum(price) FROM item_table GROUP BY order_id",
             "WITH my_avg AS (SELECT AVG(price) AS avg_price, STDDEV(price) AS std_price FROM item_table WHERE price > 1.) SELECT AVG((price - avg_price) / std_price) FROM item_table CROSS JOIN my_avg WHERE std_price > 1.",
-            "WITH my_avg AS (SELECT MIN(price) AS min_price, MAX(price) AS max_price FROM item_table WHERE price > 1.) SELECT AVG(price - min_price) FROM item_table CROSS JOIN my_avg",
+            //"WITH my_avg AS (SELECT MIN(price) AS min_price, MAX(price) AS max_price FROM item_table WHERE price > 1.) SELECT AVG(price - min_price) FROM item_table CROSS JOIN my_avg",
         ];
 
         for q in queries {
             println!("=================================\n{q}");
             let query = parse(q).unwrap();
             let relation = Relation::try_from(query.with(&relations)).unwrap();
-            relation.display_dot().unwrap();
+            //relation.display_dot().unwrap();
             let relation_with_dp_event = relation
                 .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), dp_parameters.clone())
                 .unwrap();
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
-            let dp_query = ast::Query::from(&relation_with_dp_event.relation().clone()).to_string();
-            println!("\n{dp_query}");
-            _ = database
-                .query(dp_query.as_str())
-                .unwrap()
-                .iter()
-                .map(ToString::to_string)
-                .join("\n");
+            // relation_with_dp_event
+            //     .relation()
+            //     .display_dot()
+            //     .unwrap();
+            // let dp_query = ast::Query::from(&relation_with_dp_event.relation().clone()).to_string();
+            // println!("\n{dp_query}");
+            // _ = database
+            //     .query(dp_query.as_str())
+            //     .unwrap()
+            //     .iter()
+            //     .map(ToString::to_string)
+            //     .join("\n");
         }
     }
 

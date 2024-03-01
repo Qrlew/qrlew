@@ -1,6 +1,5 @@
 //! A few transforms for relations
 //!
-
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
@@ -204,27 +203,19 @@ impl Join {
 
     /// Replace the duplicates fields specified in `columns` by their coalesce expression
     /// It mimics the behavior of USING in SQL
-    /// If preserve_input_names is True, the fields of the resulting relation
-    /// will be named as in the JOINs inputs if they are not ambiguous.
     pub fn remove_duplicates_and_coalesce(
         self,
-        vec: Vec<String>,
+        duplicates: Vec<String>,
         columns: &Hierarchy<Identifier>,
-        preserve_input_names: bool,
     ) -> Relation {
-
-        let fields_in_vec = self
+        
+        let coalesced_fields = self
             .field_inputs()
-            .filter_map(|(name, id)| {
+            .filter_map(|(_, id)| {
                 let col = id.as_ref().last().unwrap();
-                if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
-                    let final_col_name = if preserve_input_names {
-                        col.to_string()
-                    } else {
-                        name
-                    };
+                if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && duplicates.contains(col) {
                     Some((
-                        final_col_name,
+                        col.clone(),
                         Expr::coalesce(
                             Expr::col(columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap()),
                             Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap()),
@@ -234,25 +225,20 @@ impl Join {
                     None
                 }
             }).collect::<Vec<_>>();
-
-        let fields_not_in_vec = self
+        
+        let remaining_fields = self
             .field_inputs()
             .filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
-                let final_col_name = if preserve_input_names && columns.get(&[col.clone()]).is_some() {
-                    col.to_string()
-                } else {
-                    name.clone()
-                };
-                (!vec.contains(col)).then_some((final_col_name, Expr::col(name)))
+                (!duplicates.contains(col)).then_some((name.clone(), Expr::col(name)))
             })
             .collect::<Vec<_>>();
 
-        let fields = fields_in_vec
+        let fields = coalesced_fields
             .into_iter()
-            .chain(fields_not_in_vec.into_iter())
+            .chain(remaining_fields.into_iter())
             .collect::<Vec<_>>();
-        
+
         Relation::map()
             .input(Relation::from(self))
             .with_iter(fields)
