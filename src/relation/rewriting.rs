@@ -234,14 +234,14 @@ impl Join {
             })
             .collect::<Vec<_>>();
 
-        let fields = coalesced_fields
+        let all_fields = coalesced_fields
             .into_iter()
             .chain(remaining_fields.into_iter())
             .collect::<Vec<_>>();
 
         Relation::map()
             .input(Relation::from(self))
-            .with_iter(fields)
+            .with_iter(all_fields)
             .build()
     }
 }

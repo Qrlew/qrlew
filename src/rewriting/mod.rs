@@ -198,6 +198,7 @@ mod tests {
             println!("=================================\n{q}");
             let query = parse(q).unwrap();
             let relation = Relation::try_from(query.with(&relations)).unwrap();
+            relation.display_dot().unwrap();
             let relation_with_dp_event = relation
                 .rewrite_with_differential_privacy(&relations, synthetic_data.clone(), privacy_unit.clone(), dp_parameters.clone())
                 .unwrap();

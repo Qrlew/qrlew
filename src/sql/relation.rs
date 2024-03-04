@@ -270,12 +270,12 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
 
         // fully qualified input names -> fully qualified JOIN names 
         let all_fully_qualified_columns: Hierarchy<Identifier> = left_columns.with(right_columns);
-        let ambiguous_cols= ambiguous_columns(&all_fully_qualified_columns);
+        let ambiguous_cols= all_fully_qualified_columns.ambiguous_subpaths();
         // fully qualified JOIN names  -> non_ambiguous col names
         let non_ambiguous_join_col_names: Hierarchy<String> = all_fully_qualified_columns
             .iter()
             .filter_map(|(k, v)| {
-                if ambiguous_cols.contains(&Identifier::from(k.clone()) ) {
+                if ambiguous_cols.contains(k) {
                     None
                 } else {
                     Some((v.clone(), k.clone().last().unwrap().to_string()))
@@ -752,22 +752,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelation
             .accept(TryIntoRelationVisitor::new(relations, query_names, translator))
             .map(|r| r.as_ref().clone())
     }
-}
-
-/// It returns a vector of identifiers of ambiguous columns in a hierarchy of columns
-/// It uses the properties of the Hierarchy: For ambiguous columns it checks
-/// that Hierarchy::get returns None if using only the suffix of the path
-pub fn ambiguous_columns(columns: &Hierarchy<Identifier>) -> Vec<Identifier> {
-    columns
-    .iter()
-    .filter_map(|(key, _)| {
-        if let Some(v) = columns.get(&[key.last().unwrap().as_str().to_string()]) {
-            None
-        } else {
-            Some(key.clone().into())
-        }
-    })
-    .collect()
 }
 
 /// A simple SQL query parser with dialect

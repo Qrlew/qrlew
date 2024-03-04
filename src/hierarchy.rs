@@ -211,6 +211,25 @@ impl<T: Clone> Hierarchy<T> {
             .filter_map(|(p, o)| Some((p.clone(), f(o)?)))
             .collect()
     }
+
+    /// It checks whether the path without the head is ambiguous or not.
+    /// It returns the full paths if the suffix is ambiguous.
+    pub fn ambiguous_subpaths(&self) -> Vec<Vec<String>> {
+        self.iter()
+        .filter_map(|(qualified_key, _)| {
+            let headless_path = if qualified_key.len() > 1 {
+                &qualified_key[1..]
+            } else {
+                &qualified_key[..]
+            };
+            if let Some(_) = self.get(&headless_path) {
+                None
+            } else {
+                Some(qualified_key.clone())
+            }
+        })
+        .collect()
+    }
 }
 
 impl<P: Path> Hierarchy<P> {
@@ -467,5 +486,40 @@ mod tests {
                 &2
             ))
         );
+    }
+
+    #[test]
+    fn test_ambiguous_paths() {
+        let values = Hierarchy::from([
+            (vec!["a", "b", "c"], 1),
+            (vec!["a", "b", "d"], 2),
+            (vec!["a", "c"], 3),
+            (vec!["a", "e"], 4),
+            (vec!["a", "e", "f"], 5),
+            (vec!["b", "c"], 6),
+        ]);
+        let ambiguous = values.ambiguous_subpaths();
+        assert_eq!(ambiguous, vec![
+            vec!["a", "c"],
+            vec!["b", "c"],
+        ]);
+
+        let values = Hierarchy::from([
+            (vec!["a", "b", "d"], 2),
+            (vec!["a", "b"], 4),
+            (vec!["a", "e", "f"], 5),
+        ]);
+        let ambiguous: Vec<Vec<String>> = values.ambiguous_subpaths();
+        let empty: Vec<Vec<String>> = vec![];
+        assert_eq!(ambiguous, empty);
+        
+        let values = Hierarchy::from([
+            (vec![], 2),
+            (vec!["b"], 4),
+            (vec!["c"], 5),
+        ]);
+        let ambiguous: Vec<Vec<String>> = values.ambiguous_subpaths();
+        let empty: Vec<Vec<String>> = vec![];
+        assert_eq!(ambiguous, empty);
     }
 }
