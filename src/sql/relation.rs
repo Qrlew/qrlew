@@ -270,7 +270,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
 
         // fully qualified input names -> fully qualified JOIN names 
         let all_fully_qualified_columns: Hierarchy<Identifier> = left_columns.with(right_columns);
-        let ambiguous_cols= all_fully_qualified_columns.ambiguous_subpaths();
+        let ambiguous_cols= all_fully_qualified_columns.ambiguous_tail_paths();
         // fully qualified JOIN names  -> non_ambiguous col names
         let non_ambiguous_join_col_names: Hierarchy<String> = all_fully_qualified_columns
             .iter()
