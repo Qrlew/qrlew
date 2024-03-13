@@ -22,19 +22,12 @@ impl fmt::Display for Constraint {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct Properties {
-    pub underlying_type: String
-}
-
 /// A Field as in https://github.com/apache/arrow-datafusion/blob/5b23180cf75ea7155d7c35a40f224ce4d5ad7fb8/datafusion/src/logical_plan/dfschema.rs#L413
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Field {
     name: String,
     data_type: DataType,
     constraint: Option<Constraint>,
-    // contains the type used in python
-    properties: Option<Properties>, 
 }
 
 impl Field {
@@ -44,14 +37,6 @@ impl Field {
             name,
             data_type,
             constraint,
-            properties: None,
-        }
-    }
-
-    pub fn with_properties(self, properties: Properties) -> Field {
-        Field {
-            properties: Some(properties),
-            ..self
         }
     }
 

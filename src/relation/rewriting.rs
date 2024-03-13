@@ -1,5 +1,6 @@
 //! A few transforms for relations
 //!
+
 use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
@@ -202,20 +203,21 @@ impl Join {
     }
 
     /// Replace the duplicates fields specified in `columns` by their coalesce expression
-    /// It mimics the behavior of USING in SQL
+    /// Its mimicks teh behaviour of USING in SQL
     pub fn remove_duplicates_and_coalesce(
         self,
-        duplicates: Vec<String>,
+        vec: Vec<String>,
         columns: &Hierarchy<Identifier>,
-    ) -> Relation {
-        
-        let coalesced_fields = self
+    ) -> (Relation, Vec<(Identifier, Identifier)>) {
+        let mut coalesced_cols: Vec<(Identifier, Identifier)> = vec![];
+        let fields = self
             .field_inputs()
-            .filter_map(|(_, id)| {
+            .filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
-                if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && duplicates.contains(col) {
+                if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
+                    coalesced_cols.push((col[..].into(), name.as_str().into()));
                     Some((
-                        col.clone(),
+                        name,
                         Expr::coalesce(
                             Expr::col(columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap()),
                             Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap()),
@@ -224,25 +226,16 @@ impl Join {
                 } else {
                     None
                 }
-            }).collect::<Vec<_>>();
-        
-        let remaining_fields = self
-            .field_inputs()
-            .filter_map(|(name, id)| {
-                let col = id.as_ref().last().unwrap();
-                (!duplicates.contains(col)).then_some((name.clone(), Expr::col(name)))
             })
+            .chain(self.field_inputs().filter_map(|(name, id)| {
+                let col = id.as_ref().last().unwrap();
+                (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
+            }))
             .collect::<Vec<_>>();
-
-        let all_fields = coalesced_fields
-            .into_iter()
-            .chain(remaining_fields.into_iter())
-            .collect::<Vec<_>>();
-
-        Relation::map()
+        (Relation::map()
             .input(Relation::from(self))
-            .with_iter(all_fields)
-            .build()
+            .with_iter(fields)
+            .build(), coalesced_cols)
     }
 }
 

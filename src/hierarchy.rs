@@ -486,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ambiguous_paths() {
+    fn test_ambiguous_tail_paths() {
         let values = Hierarchy::from([
             (vec!["a", "b", "c"], 1),
             (vec!["a", "b", "d"], 2),

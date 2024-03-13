@@ -8,23 +8,13 @@ use super::{
     Error, Result,
 };
 use crate::{
-    ast,
-    builder::{Ready, With, WithIterator, WithoutContext},
-    dialect::{Dialect, GenericDialect},
-    expr::{Expr, Identifier, Split, Reduce},
-    hierarchy::{Hierarchy, Path},
-    namer::{self, FIELD},
-    parser::Parser,
-    relation::{
+    ast, builder::{Ready, With, WithIterator, WithoutContext}, data_type::injection::Composed, dialect::{Dialect, GenericDialect}, dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator}, display::Dot, expr::{Expr, Identifier, Reduce, Split}, hierarchy::{Hierarchy, Path}, namer::{self, FIELD}, parser::Parser, relation::{
         Join, JoinOperator, MapBuilder, Relation, SetOperator, SetQuantifier,
         Variant as _, WithInput,
         LEFT_INPUT_NAME, RIGHT_INPUT_NAME
-    },
-    tokenizer::Tokenizer,
-    visitor::{Acceptor, Dependencies, Visited},
-    dialect_translation::{QueryToRelationTranslator, postgresql::PostgreSqlTranslator},
-    types::And, display::Dot
+    }, tokenizer::Tokenizer, types::And, visitor::{Acceptor, Dependencies, Visited}
 };
+use dot::Id;
 use itertools::Itertools;
 use std::{
     convert::TryFrom,
@@ -247,8 +237,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         }
     }
 
-    /// Build a RelationWithColumns with a JOIN from RelationWithColumns and an
-    /// ast Join. Preserve input names for non ambigous columns 
+    /// Build a RelationWithColumns with a JOIN
     fn try_from_join(
         &self,
         left: RelationWithColumns,
@@ -267,35 +256,66 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             v.extend(i.to_vec());
             v.into()
         });
-
+        println!("L COLS {}", left_columns);
+        println!("R COLS {}", right_columns);
         // fully qualified input names -> fully qualified JOIN names 
-        let all_fully_qualified_columns: Hierarchy<Identifier> = left_columns.with(right_columns);
-        let ambiguous_cols= all_fully_qualified_columns.ambiguous_tail_paths();
-        // fully qualified JOIN names  -> non_ambiguous col names
-        let non_ambiguous_join_col_names: Hierarchy<String> = all_fully_qualified_columns
-            .iter()
-            .filter_map(|(k, v)| {
-                if ambiguous_cols.contains(k) {
-                    None
-                } else {
-                    Some((v.clone(), k.clone().last().unwrap().to_string()))
-                }
-            })
-            .collect();
-
+        let all_columns: Hierarchy<Identifier> = left_columns.with(right_columns);
         let operator = self.try_from_join_operator_with_columns(
             &ast_join.join_operator,
-            &all_fully_qualified_columns,
+            &all_columns,
         )?;
-        // We build a Join. Preserve non ambiguous col names where non ambiguous and rename
-        // the ambiguous ones.
+
+        println!("COLS {}", all_columns);
+        left_relation.display_dot().unwrap();
         let join: Join = Relation::join()
             .operator(operator)
             .left(left_relation)
             .right(right_relation)
-            .names(non_ambiguous_join_col_names)
             .build();
-        Ok(RelationWithColumns::new(Arc::new(Relation::from(join)), all_fully_qualified_columns))
+
+        let join_columns: Hierarchy<Identifier> = join
+            .field_inputs()
+            .map(|(f, i)| (i, f.into()))
+            .collect();
+
+        // let composed_columns = all_columns.and_then(join_columns);
+
+        // If the join constraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
+        let (relation, coalesced) = match &ast_join.join_operator {
+            ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
+            | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Using(v))
+            | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(v))
+            | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(v)) => {
+                // Do we need to change all_columns?
+                let to_be_coalesced: Vec<String> = v.into_iter().map(|id| id.value.to_string()).collect();
+                // let coalesced:  Vec<(Identifier, Identifier)> = to_be_coalesced.iter().map(
+                //     |s| (s[..].into(), s[..].into())
+                // ).collect();
+                join.remove_duplicates_and_coalesce(to_be_coalesced, &join_columns)
+            },
+            ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
+            | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Natural)
+            | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
+            | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
+                let v: Vec<String> = join.left().fields()
+                    .into_iter()
+                    .filter_map(|f| join.right().schema().field(f.name()).is_ok().then_some(f.name().to_string()))
+                    .collect();
+                // let coalesced:  Vec<(Identifier, Identifier)> = v.iter().map(
+                //     |s| (s[..].into(), s[..].into())
+                // ).collect();
+                join.remove_duplicates_and_coalesce(v, &join_columns)
+            },
+            ast::JoinOperator::LeftSemi(_) => todo!(),
+            ast::JoinOperator::RightSemi(_) => todo!(),
+            ast::JoinOperator::LeftAnti(_) => todo!(),
+            ast::JoinOperator::RightAnti(_) => todo!(),
+            _ => (Relation::from(join), vec![])
+        };
+        let composed = all_columns.and_then(join_columns);
+        // let composed_with_coalesced = composed.with(coalesced);
+        // println!("FINAL {}", composed_with_coalesced);
+        Ok(RelationWithColumns::new(Arc::new(relation), composed))
     }
 
     /// Convert a TableWithJoins into a RelationWithColumns
@@ -305,46 +325,11 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
     ) -> Result<RelationWithColumns> {
         // Process the relation
         // Then the JOIN if needed
-        let result = table_with_joins.joins.iter().fold(
-            self.try_from_table_factor(&table_with_joins.relation),
-            |left, ast_join| {
-                let RelationWithColumns(join_relation, columns) = self.try_from_join(left?, &ast_join)?;
-                let join = Join::try_from(join_relation.deref().clone())?;
-                
-                let join_columns: Hierarchy<Identifier> = join
-                    .field_inputs()
-                    .map(|(f, i)| (i, f.into()))
-                    .collect();
-                // If the join constraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
-                let relation = match &ast_join.join_operator {
-                    ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
-                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Using(v))
-                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(v))
-                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(v)) => {
-                        join.remove_duplicates_and_coalesce(
-                            v.into_iter().map(|id| id.value.to_string()).collect(),
-                            &join_columns
-                        )
-                    },
-                    ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
-                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Natural)
-                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
-                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
-                        let v = join.left().fields()
-                            .into_iter()
-                            .filter_map(|f| join.right().schema().field(f.name()).is_ok().then_some(f.name().to_string()))
-                            .collect();
-                        join.remove_duplicates_and_coalesce(v, &join_columns)
-                    },
-                    ast::JoinOperator::LeftSemi(_) => todo!(),
-                    ast::JoinOperator::RightSemi(_) => todo!(),
-                    ast::JoinOperator::LeftAnti(_) => todo!(),
-                    ast::JoinOperator::RightAnti(_) => todo!(),
-                    _ => Relation::from(join),
-                };
-                let columns = columns.and_then(join_columns);
-                Ok(RelationWithColumns::new(Arc::new(relation), columns))
-            },
+        let result = table_with_joins.joins
+        .iter()
+        .fold(self.try_from_table_factor(&table_with_joins.relation),
+            |left, ast_join|
+                self.try_from_join(left?, &ast_join),
         );
         result
     }
@@ -377,6 +362,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
+        println!("columns: \n{}", columns);
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -404,16 +390,39 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 )),
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
                     named_exprs.push((alias.clone().value, self.translator.try_expr(expr,columns)?))
-                    //named_exprs.push((alias.clone().value, Expr::try_from(expr.with(columns))?))
                 }
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
-                    for field in from.schema().iter() {
-                        named_exprs.push((field.name().to_string(), Expr::col(field.name())))
+                    // push those named_exprs 
+                    // return all columns. use tail paths in the hierarchy as names
+                    // if they are not ambiguous otherwise use the identifiers
+                    let ambiguous_col_paths =  columns.ambiguous_tail_paths();
+                    
+                    let available_cols: Vec<Identifier> = from.schema()
+                    .iter()
+                    .map(|f|f.name().into())
+                    .collect();
+
+                    println!("amb: {:?}", ambiguous_col_paths);
+                    for (col_path, col_id) in columns.iter() {
+                        if available_cols.contains(col_id) {
+                            if ambiguous_col_paths.contains(col_path) {
+                                // Use the col_id
+                                let col_name = (col_id.last().unwrap()).to_string();
+                                named_exprs.push((col_name.clone(), Expr::col(col_name)))
+                            } else {
+                                // Use the hierarchy path tail
+                                let col_name = (col_path.last().unwrap()).to_string();
+                                named_exprs.push((col_name.clone(), Expr::col(col_id.last().unwrap())))
+                            }
+                        }
                     }
                 }
             }
         }
+
+        println!("named_exprs: \n{:?}", named_exprs);
+
         // Prepare the GROUP BY
         let group_by  = match group_by {
             ast::GroupByExpr::All => todo!(),
@@ -475,6 +484,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
+            // todo. Use pass the expression through the translator 
             .map(|e| e.with(columns).try_into())
             .map_or(Ok(None), |r| r.map(Some))?;
 
@@ -493,6 +503,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 builder.input(from).build()
             }
         };
+        println!("relation: \n{}", relation);
         if let Some(h) = having {
             relation = Relation::map()
                 .with_iter(

@@ -119,6 +119,17 @@ mod tests {
     use sqlparser::dialect::BigQueryDialect;
 
     #[test]
+    fn test_display_test() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        let query = r#"
+        WITH tab AS (SELECT x FROM table_2 AS t1 JOIN table_2 AS t2  USING(x) JOIN table_2 AS t3 USING(x))
+        SELECT * from tab"#;
+        let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+    }
+
+    #[test]
     fn test_display() {
         let database = postgresql::test_database();
         println!("database {} = {}", database.name(), database.relations());

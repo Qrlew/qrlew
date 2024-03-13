@@ -1277,7 +1277,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 }
                 _ => Relation::join()
                     .with(join.clone())
-                    .names(join.names())
                     // .left_names(names[0..rewritten_left])
                     .left(relation_left)
                     .right(relation_right)
