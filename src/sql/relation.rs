@@ -177,7 +177,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             ast::JoinConstraint::Using(idents) => { // the "Using (id)" condition is equivalent to "ON _LEFT_.id = _RIGHT_.id"
                 Expr::and_iter(
                     idents.into_iter()
-                    .map(|id| Expr::eq(
+                    .map(|id| 
+                        Expr::eq(
                         Expr::Column(Identifier::from(vec![LEFT_INPUT_NAME.to_string(), id.value.to_string()])),
                         Expr::Column(Identifier::from(vec![RIGHT_INPUT_NAME.to_string(), id.value.to_string()])),
                     ))
@@ -264,9 +265,11 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             &ast_join.join_operator,
             &all_columns,
         )?;
-
         println!("COLS {}", all_columns);
+        println!("OP {:?}", operator);
+
         left_relation.display_dot().unwrap();
+        right_relation.display_dot().unwrap();
         let join: Join = Relation::join()
             .operator(operator)
             .left(left_relation)
@@ -313,8 +316,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             _ => (Relation::from(join), vec![])
         };
         let composed = all_columns.and_then(join_columns);
-        // let composed_with_coalesced = composed.with(coalesced);
-        // println!("FINAL {}", composed_with_coalesced);
         Ok(RelationWithColumns::new(Arc::new(relation), composed))
     }
 
@@ -402,7 +403,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     .iter()
                     .map(|f|f.name().into())
                     .collect();
-
+                    println!("av: {:?}", available_cols);
                     println!("amb: {:?}", ambiguous_col_paths);
                     for (col_path, col_id) in columns.iter() {
                         if available_cols.contains(col_id) {

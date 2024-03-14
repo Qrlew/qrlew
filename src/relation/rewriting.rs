@@ -215,9 +215,9 @@ impl Join {
             .filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
                 if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
-                    coalesced_cols.push((col[..].into(), name.as_str().into()));
+                    coalesced_cols.push((col[..].into(), col[..].into()));
                     Some((
-                        name,
+                        col.clone(),
                         Expr::coalesce(
                             Expr::col(columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap()),
                             Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap()),
