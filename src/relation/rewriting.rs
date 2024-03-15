@@ -465,7 +465,7 @@ impl Relation {
     pub fn scale(self, entities: &str, named_values: &[(&str, &str)], scale_factors: Relation) -> Self {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
-            .inner(Expr::val(true))
+            .left_outer(Expr::val(true))
             .on_eq(entities, entities)
             .left_names(
                 self.fields()

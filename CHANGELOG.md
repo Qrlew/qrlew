@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.15] - 2024-02-20
 ### Changed
 - SELECT * with JOINs preserve the column names when there is no ambiguity [#268](https://github.com/Qrlew/qrlew/pull/268)
-
+- removing the coalesce of the privacy unit with since it looses the UNIQUE property and changing the JOIN to left instead of INNER after the clipping. [#272](https://github.com/Qrlew/qrlew/pull/272)
 
 ## [0.9.14] - 2024-01-30
 ### Added

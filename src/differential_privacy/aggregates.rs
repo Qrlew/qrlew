@@ -177,15 +177,10 @@ impl PupRelation {
             .with((
                 self.privacy_unit(),
                 Expr::col(self.privacy_unit())
-                // Expr::coalesce(
-                //     Expr::cast_as_text(Expr::col(self.privacy_unit())),
-                //     Expr::val(self.privacy_unit_default().to_string()),
-                // ),
             ))
             .with((
                 self.privacy_unit_weight(),
                 Expr::col(self.privacy_unit_weight())
-                //Expr::coalesce(Expr::col(self.privacy_unit_weight()), Expr::val(0.)),
             ));
 
         let mut group_by_names = vec![];
