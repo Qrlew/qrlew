@@ -208,14 +208,17 @@ impl Join {
         self,
         vec: Vec<String>,
         columns: &Hierarchy<Identifier>,
-    ) -> (Relation, Vec<(Identifier, Identifier)>) {
+    ) -> (Relation, Hierarchy<Identifier>) {
         let mut coalesced_cols: Vec<(Identifier, Identifier)> = vec![];
         let fields = self
             .field_inputs()
-            .filter_map(|(name, id)| {
+            .filter_map(|(_, id)| {
                 let col = id.as_ref().last().unwrap();
                 if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
-                    coalesced_cols.push((col[..].into(), col[..].into()));
+                    let left_col = columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap();
+                    let right_col = columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap();
+                    coalesced_cols.push((left_col.as_str().into(), col[..].into()));
+                    coalesced_cols.push((right_col.as_str().into(), col[..].into()));
                     Some((
                         col.clone(),
                         Expr::coalesce(
@@ -235,7 +238,7 @@ impl Join {
         (Relation::map()
             .input(Relation::from(self))
             .with_iter(fields)
-            .build(), coalesced_cols)
+            .build(), coalesced_cols.into_iter().collect())
     }
 }
 

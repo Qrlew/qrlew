@@ -173,7 +173,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         columns: &'a Hierarchy<Identifier>,
     ) -> Result<Expr> {
         Ok(match join_constraint {
-            ast::JoinConstraint::On(expr) => expr.with(columns).try_into()?,
+            ast::JoinConstraint::On(expr) => self.translator.try_expr(expr, columns)?,
             ast::JoinConstraint::Using(idents) => { // the "Using (id)" condition is equivalent to "ON _LEFT_.id = _RIGHT_.id"
                 Expr::and_iter(
                     idents.into_iter()
@@ -257,19 +257,12 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             v.extend(i.to_vec());
             v.into()
         });
-        println!("L COLS {}", left_columns);
-        println!("R COLS {}", right_columns);
         // fully qualified input names -> fully qualified JOIN names 
         let all_columns: Hierarchy<Identifier> = left_columns.with(right_columns);
         let operator = self.try_from_join_operator_with_columns(
             &ast_join.join_operator,
             &all_columns,
         )?;
-        println!("COLS {}", all_columns);
-        println!("OP {:?}", operator);
-
-        left_relation.display_dot().unwrap();
-        right_relation.display_dot().unwrap();
         let join: Join = Relation::join()
             .operator(operator)
             .left(left_relation)
@@ -281,8 +274,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             .map(|(f, i)| (i, f.into()))
             .collect();
 
-        // let composed_columns = all_columns.and_then(join_columns);
-
         // If the join constraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
         let (relation, coalesced) = match &ast_join.join_operator {
             ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
@@ -291,9 +282,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(v)) => {
                 // Do we need to change all_columns?
                 let to_be_coalesced: Vec<String> = v.into_iter().map(|id| id.value.to_string()).collect();
-                // let coalesced:  Vec<(Identifier, Identifier)> = to_be_coalesced.iter().map(
-                //     |s| (s[..].into(), s[..].into())
-                // ).collect();
                 join.remove_duplicates_and_coalesce(to_be_coalesced, &join_columns)
             },
             ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
@@ -304,18 +292,19 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     .into_iter()
                     .filter_map(|f| join.right().schema().field(f.name()).is_ok().then_some(f.name().to_string()))
                     .collect();
-                // let coalesced:  Vec<(Identifier, Identifier)> = v.iter().map(
-                //     |s| (s[..].into(), s[..].into())
-                // ).collect();
                 join.remove_duplicates_and_coalesce(v, &join_columns)
             },
             ast::JoinOperator::LeftSemi(_) => todo!(),
             ast::JoinOperator::RightSemi(_) => todo!(),
             ast::JoinOperator::LeftAnti(_) => todo!(),
             ast::JoinOperator::RightAnti(_) => todo!(),
-            _ => (Relation::from(join), vec![])
+            _ => {
+                let empty: Vec<(Identifier, Identifier)> = vec![];
+                (Relation::from(join), empty.into_iter().collect())
+            }
         };
-        let composed = all_columns.and_then(join_columns);
+        let with_coalesced = join_columns.clone().with(join_columns.and_then(coalesced.clone()));
+        let composed = all_columns.and_then(with_coalesced);        
         Ok(RelationWithColumns::new(Arc::new(relation), composed))
     }
 
@@ -358,12 +347,13 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         from: Arc<Relation>,
         having: &'a Option<ast::Expr>,
         distinct: &'a Option<ast::Distinct>,
-    ) -> Result<Arc<Relation>> {
+    ) -> Result<RelationWithColumns> {
         // Collect all expressions with their aliases
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
-        println!("columns: \n{}", columns);
+        let mut renamed_columns: Vec<(Identifier, Identifier)> = vec![];
+        // println!("columns: \n{}", columns);
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -387,49 +377,45 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         expr => namer::name_from_content(FIELD, &expr),
                     },
                     self.translator.try_expr(expr,columns)?
-                    //Expr::try_from(expr.with(columns))?,
                 )),
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
                     named_exprs.push((alias.clone().value, self.translator.try_expr(expr,columns)?))
                 }
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
-                    // push those named_exprs 
-                    // return all columns. use tail paths in the hierarchy as names
-                    // if they are not ambiguous otherwise use the identifiers
-                    let ambiguous_col_paths =  columns.ambiguous_tail_paths();
-                    
-                    let available_cols: Vec<Identifier> = from.schema()
-                    .iter()
-                    .map(|f|f.name().into())
-                    .collect();
-                    println!("av: {:?}", available_cols);
-                    println!("amb: {:?}", ambiguous_col_paths);
-                    for (col_path, col_id) in columns.iter() {
-                        if available_cols.contains(col_id) {
-                            if ambiguous_col_paths.contains(col_path) {
-                                // Use the col_id
-                                let col_name = (col_id.last().unwrap()).to_string();
-                                named_exprs.push((col_name.clone(), Expr::col(col_name)))
+                    // for each field in the schema of the `from` relation 
+                    // push its name if it's path tail in 
+                    let non_ambigous_col_names: Hierarchy<String> = columns
+                        .iter()
+                        .filter_map(|(path, id)|{
+                            let path_tail = path.last().unwrap().clone();
+                            if let Some(_) = columns.get(&[path_tail.clone()]) {
+                                Some((id.clone(), path_tail))
                             } else {
-                                // Use the hierarchy path tail
-                                let col_name = (col_path.last().unwrap()).to_string();
-                                named_exprs.push((col_name.clone(), Expr::col(col_id.last().unwrap())))
+                                None
                             }
-                        }
+                        })
+                        .collect();
+                    println!("NN AMB COL {}", non_ambigous_col_names);
+                    for field in from.schema().iter() {
+                        let temp = field.name().to_string();
+                        let new_alias = non_ambigous_col_names
+                            .get(&[field.name().to_string()])
+                            .unwrap_or(&temp);
+                        named_exprs.push((new_alias.clone(), Expr::col(field.name())));
+                        renamed_columns.push((field.name().into(), new_alias.as_str().into()))
                     }
                 }
             }
         }
-
-        println!("named_exprs: \n{:?}", named_exprs);
+        let renamed_columns: Hierarchy<Identifier> = renamed_columns.into_iter().collect();
 
         // Prepare the GROUP BY
         let group_by  = match group_by {
             ast::GroupByExpr::All => todo!(),
             ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
                 .iter()
-                .map(|e| e.with(columns).try_into())
+                .map(|e| self.translator.try_expr(e, columns))
                 .collect::<Result<Vec<Expr>>>()?,
         };
         // If the GROUP BY contains aliases, then replace them by the corresponding expression in `named_exprs`.
@@ -450,7 +436,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
-            let mut expr = self.translator.try_expr(expr,columns)?; //Expr::try_from(expr.with(columns))?;
+            let mut expr = self.translator.try_expr(expr,columns)?;
             let columns = named_exprs
                 .iter()
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
@@ -468,6 +454,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         } else {
             None
         };
+        println!("named_exprs: {:?}", named_exprs);
         // Build the Map or Reduce based on the type of split
         // If group_by is non-empty, start with them so that aggregations can take them into account
         let split = if group_by.is_empty() {
@@ -486,7 +473,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let filter: Option<Expr> = selection
             .as_ref()
             // todo. Use pass the expression through the translator 
-            .map(|e| e.with(columns).try_into())
+            .map(|e| self.translator.try_expr(e, columns))
             .map_or(Ok(None), |r| r.map(Some))?;
 
         // Build a Relation
@@ -504,7 +491,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 builder.input(from).build()
             }
         };
-        println!("relation: \n{}", relation);
         if let Some(h) = having {
             relation = Relation::map()
                 .with_iter(
@@ -524,7 +510,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             }
             relation = relation.distinct()
         }
-        Ok(Arc::new(relation))
+        let columns = &columns.clone().with(columns.and_then(renamed_columns));
+        Ok(RelationWithColumns::new(Arc::new(relation), columns.clone()))
     }
 
     /// Convert a Select into a Relation
@@ -573,7 +560,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(
             from
         )?;
-        let relation = self.try_from_select_items_selection_and_group_by(
+        let RelationWithColumns(relation, columns) = self.try_from_select_items_selection_and_group_by(
             &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
             projection,
             selection,
@@ -614,6 +601,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             ast::SetExpr::Select(select) => {
                 let RelationWithColumns(relation, columns) =
                     self.try_from_select(select.as_ref())?;
+                println!("COOLS: {}", columns);
                 if order_by.is_empty() && limit.is_none() && offset.is_none() {
                     Ok(relation)
                 } else {

@@ -123,10 +123,13 @@ mod tests {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = r#"
-        WITH tab AS (SELECT * FROM table_2 AS t1 JOIN table_2 AS t2  USING(x) JOIN table_2 AS t3 USING(x))
-        SELECT * from tab"#;
+        with aa as (SELECT x AS ahah FROM table2 t1 JOIN table2 t1 USING (x))
+        SELECT * FROM aa ORDER BY ahah
+        "#;
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();
+        let relation_query: &str = &ast::Query::from(&relation).to_string();
+        println!("{}",relation_query);
     }
 
     #[test]
@@ -143,12 +146,12 @@ mod tests {
             t2 AS (SELECT * FROM table_2)
             SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2 GROUP BY t2.y, t1.a",
             "
-            WITH t1 AS (SELECT a,d FROM table_1),
+            WITH t1 AS (SELECT a, d FROM table_1),
             t2 AS (SELECT * FROM table_2)
             SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a LIMIT 10",
         ] {
             let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
-            relation.display_dot();
+            relation.display_dot().unwrap();
         }
     }
 
