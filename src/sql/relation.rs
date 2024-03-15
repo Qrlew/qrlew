@@ -337,7 +337,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         )
     }
 
-    /// Build a relation from the
+    /// Build a RelationWithColumns from select_items selection group_by having and distinct
     fn try_from_select_items_selection_and_group_by(
         &self,
         names: &'a Hierarchy<String>,
@@ -352,7 +352,9 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
-        //println!("columns: {}", columns);
+
+        // The select all forces the preservation of names for non ambiguous
+        // columns. In this vector we collect those.
         let mut renamed_columns: Vec<(Identifier, Identifier)> = vec![];
         for select_item in select_items {
             match select_item {
@@ -383,9 +385,10 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 }
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
-                    // for each field in the schema of the `from` relation 
-                    // push its name if it's path tail in 
-                    let non_ambigous_col_names: Hierarchy<String> = columns
+                    // push all names that are present in the from into named_exprs.
+                    // for not non ambiguous col names preserve the input name
+                    // for the ambiguous ones used the name present in the relation.
+                    let non_ambiguous_col_names: Hierarchy<String> = columns
                         .iter()
                         .filter_map(|(path, id)|{
                             let path_tail = path.last().unwrap().clone();
@@ -399,7 +402,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         .collect();
                     for field in from.schema().iter() {
                         let temp = field.name().to_string();
-                        let new_alias = non_ambigous_col_names
+                        let new_alias = non_ambiguous_col_names
                             .get(&[field.name().to_string()])
                             .unwrap_or(&temp);
                         named_exprs.push((new_alias.clone(), Expr::col(field.name())));
@@ -407,7 +410,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 }
             }
         }
-        let renamed_columns: Hierarchy<Identifier> = renamed_columns.into_iter().collect();
 
         // Prepare the GROUP BY
         let group_by  = match group_by {
@@ -418,7 +420,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 .collect::<Result<Vec<Expr>>>()?,
         };
         // If the GROUP BY contains aliases, then replace them by the corresponding expression in `named_exprs`.
-        // Note that we mimic postgres behaviour and support only GROUP BY alias column (no other expressions containing aliases are allowed)
+        // Note that we mimic postgres behavior and support only GROUP BY alias column (no other expressions containing aliases are allowed)
         // The aliases cannot be used in HAVING
         let group_by = group_by.into_iter()
             .map(|x| match &x {
@@ -508,6 +510,10 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             }
             relation = relation.distinct()
         }
+
+        // When SELECT * we preserve input names when possible so we cerate new columns
+        // that reflects the actual mapping between input and relation's fields.
+        let renamed_columns: Hierarchy<Identifier> = renamed_columns.into_iter().collect();
         let columns = &columns.clone().with(columns.and_then(renamed_columns));
         Ok(RelationWithColumns::new(Arc::new(relation), columns.clone()))
     }

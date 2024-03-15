@@ -203,7 +203,9 @@ impl Join {
     }
 
     /// Replace the duplicates fields specified in `columns` by their coalesce expression
-    /// Its mimicks teh behaviour of USING in SQL
+    /// Its mimics teh behavior of USING in SQL
+    /// 
+    /// The coalesced fields names and the corresponding alias is also returned in Hierarchy<Identifier>
     pub fn remove_duplicates_and_coalesce(
         self,
         vec: Vec<String>,
