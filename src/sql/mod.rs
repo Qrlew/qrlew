@@ -123,8 +123,8 @@ mod tests {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = r#"
-        with aa as (SELECT x AS ahah FROM table_2 t1 JOIN table_2 t1 USING (x))
-        SELECT * FROM aa ORDER BY ahah
+        with aa as (SELECT x AS ahaha FROM table_2)
+        SELECT * FROM aa WHERE ahaha > 50 ORDER BY ahaha
         "#;
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();

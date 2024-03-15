@@ -211,22 +211,6 @@ impl<T: Clone> Hierarchy<T> {
             .filter_map(|(p, o)| Some((p.clone(), f(o)?)))
             .collect()
     }
-
-    /// It checks whether the tail in the hierarchy's paths is ambiguous or not.
-    /// It returns the full paths which tail is is ambiguous.
-    /// It assumes that no empty paths are present in the hierarchy.
-    pub fn ambiguous_tail_paths(&self) -> Vec<Vec<String>> {
-        self.iter()
-        .filter_map(|(qualified_key, _)| {
-            let headless_path = [qualified_key.last().unwrap().clone()];
-            if let Some(_) = self.get(&headless_path) {
-                None
-            } else {
-                Some(qualified_key.clone())
-            }
-        })
-        .collect()
-    }
 }
 
 impl<P: Path> Hierarchy<P> {
@@ -483,32 +467,5 @@ mod tests {
                 &2
             ))
         );
-    }
-
-    #[test]
-    fn test_ambiguous_tail_paths() {
-        let values = Hierarchy::from([
-            (vec!["a", "b", "c"], 1),
-            (vec!["a", "b", "d"], 2),
-            (vec!["a", "c"], 3),
-            (vec!["a", "e"], 4),
-            (vec!["a", "e", "f"], 5),
-            (vec!["b", "c"], 6),
-        ]);
-        let ambiguous = values.ambiguous_tail_paths();
-        assert_eq!(ambiguous, vec![
-            vec!["a", "b", "c"],
-            vec!["a", "c"],
-            vec!["b", "c"],
-        ]);
-
-        let values = Hierarchy::from([
-            (vec!["a", "b", "d"], 2),
-            (vec!["a", "b"], 4),
-            (vec!["a", "e", "f"], 5),
-        ]);
-        let ambiguous: Vec<Vec<String>> = values.ambiguous_tail_paths();
-        let empty: Vec<Vec<String>> = vec![];
-        assert_eq!(ambiguous, empty);
     }
 }

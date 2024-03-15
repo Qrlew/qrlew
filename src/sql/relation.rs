@@ -303,8 +303,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 (Relation::from(join), empty.into_iter().collect())
             }
         };
-        let with_coalesced = join_columns.clone().with(join_columns.and_then(coalesced.clone()));
-        let composed = all_columns.and_then(with_coalesced);        
+        let with_coalesced = join_columns.clone().with(join_columns.and_then(coalesced));
+        let composed = all_columns.and_then(with_coalesced);
         Ok(RelationWithColumns::new(Arc::new(relation), composed))
     }
 
@@ -352,8 +352,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         // Columns from names
         let columns = &names.map(|s| s.clone().into());
+        //println!("columns: {}", columns);
         let mut renamed_columns: Vec<(Identifier, Identifier)> = vec![];
-        // println!("columns: \n{}", columns);
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -390,20 +390,19 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         .filter_map(|(path, id)|{
                             let path_tail = path.last().unwrap().clone();
                             if let Some(_) = columns.get(&[path_tail.clone()]) {
+                                renamed_columns.push((id.clone(), path_tail.as_str().into()));
                                 Some((id.clone(), path_tail))
                             } else {
                                 None
                             }
                         })
                         .collect();
-                    println!("NN AMB COL {}", non_ambigous_col_names);
                     for field in from.schema().iter() {
                         let temp = field.name().to_string();
                         let new_alias = non_ambigous_col_names
                             .get(&[field.name().to_string()])
                             .unwrap_or(&temp);
                         named_exprs.push((new_alias.clone(), Expr::col(field.name())));
-                        renamed_columns.push((field.name().into(), new_alias.as_str().into()))
                     }
                 }
             }
@@ -454,7 +453,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         } else {
             None
         };
-        println!("named_exprs: {:?}", named_exprs);
         // Build the Map or Reduce based on the type of split
         // If group_by is non-empty, start with them so that aggregations can take them into account
         let split = if group_by.is_empty() {
@@ -601,7 +599,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             ast::SetExpr::Select(select) => {
                 let RelationWithColumns(relation, columns) =
                     self.try_from_select(select.as_ref())?;
-                println!("COOLS: {}", columns);
                 if order_by.is_empty() && limit.is_none() && offset.is_none() {
                     Ok(relation)
                 } else {
