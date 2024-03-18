@@ -494,16 +494,24 @@ mod tests {
             (vec!["a", "e", "f"], 5),
             (vec!["b", "c"], 6),
         ]);
-
+        let expected = Hierarchy::from([
+            (vec!["d"], 2),
+            (vec!["e"], 4),
+            (vec!["f"], 5),
+        ]);
         let non_ambiguous = values.non_ambiguous_tails();
+        assert_eq!(non_ambiguous, expected);
         println!("{}", non_ambiguous);
 
         let values = Hierarchy::from([
             (vec!["t1", "x"], 1),
-            (vec!["x"], 1),
+            (vec!["x"], 2),
         ]);
-
+        let expected = Hierarchy::from([
+            (vec!["x"], 2),
+        ]);
         let non_ambiguous = values.non_ambiguous_tails();
+        assert_eq!(non_ambiguous, expected);
         println!("{}", non_ambiguous);
     }
 }

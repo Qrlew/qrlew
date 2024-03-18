@@ -1457,6 +1457,27 @@ mod tests {
         let relations = database.relations();
 
         let query_str = r#"
+        SELECT * 
+        FROM table_2 AS t1 INNER JOIN table_2 AS t2 USING(x) INNER JOIN table_2 AS t3 USING(x) 
+        WHERE x > 50
+        ORDER BY x, t2.y, t2.z 
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
         WITH my_tab AS (SELECT * FROM user_table u JOIN order_table o USING (id))
         SELECT * FROM my_tab WHERE id > 50;
         "#;
