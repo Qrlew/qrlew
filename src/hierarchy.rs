@@ -211,6 +211,21 @@ impl<T: Clone> Hierarchy<T> {
             .filter_map(|(p, o)| Some((p.clone(), f(o)?)))
             .collect()
     }
+
+    /// It creates a new hierarchy with elements for which the tail of their
+    /// path is not ambiguous. In the new hierarchy, only the tails of the original
+    /// path are used as a path. 
+    pub fn non_ambiguous_tails(&self) -> Hierarchy<T> {
+        self
+        .iter()
+        .filter_map(|(path, _)|{
+            let path_tail = path.last().unwrap().clone();
+            self
+                .get(&[path_tail.clone()])
+                .and_then( |t| Some(([path_tail], t.clone())) )
+        })
+        .collect()
+        }
 }
 
 impl<P: Path> Hierarchy<P> {
@@ -467,5 +482,28 @@ mod tests {
                 &2
             ))
         );
+    }
+
+    #[test]
+    fn test_non_ambiguous() {
+        let values = Hierarchy::from([
+            (vec!["a", "b", "c"], 1),
+            (vec!["a", "b", "d"], 2),
+            (vec!["a", "c"], 3),
+            (vec!["a", "e"], 4),
+            (vec!["a", "e", "f"], 5),
+            (vec!["b", "c"], 6),
+        ]);
+
+        let non_ambiguous = values.non_ambiguous_tails();
+        println!("{}", non_ambiguous);
+
+        let values = Hierarchy::from([
+            (vec!["t1", "x"], 1),
+            (vec!["x"], 1),
+        ]);
+
+        let non_ambiguous = values.non_ambiguous_tails();
+        println!("{}", non_ambiguous);
     }
 }

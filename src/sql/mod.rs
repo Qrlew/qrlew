@@ -123,8 +123,9 @@ mod tests {
         let database = postgresql::test_database();
         let relations = database.relations();
         let query = r#"
-        with aa as (SELECT * FROM table_2 t1 JOIN table_2 t2 USING (x) JOIN table_2 t3 USING (x))
-        SELECT * FROM aa ORDER BY x
+        WITH t1 AS (SELECT a,d FROM table_1),
+        t2 AS (SELECT * FROM table_2)
+        SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z
         "#;
         let relation = Relation::try_from(parse(query).unwrap().with(&relations)).unwrap();
         relation.display_dot().unwrap();

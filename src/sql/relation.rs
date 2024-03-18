@@ -337,25 +337,21 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         )
     }
 
-    /// Build a RelationWithColumns from select_items selection group_by having and distinct
-    fn try_from_select_items_selection_and_group_by(
+    /// Extracts named expressions from the from relation and the select items
+    fn try_named_expr_columns_from_select_items(
         &self,
-        names: &'a Hierarchy<String>,
+        columns: &'a Hierarchy<Identifier>,
         select_items: &'a [ast::SelectItem],
-        selection: &'a Option<ast::Expr>,
-        group_by: &'a ast::GroupByExpr,
-        from: Arc<Relation>,
-        having: &'a Option<ast::Expr>,
-        distinct: &'a Option<ast::Distinct>,
-    ) -> Result<RelationWithColumns> {
-        // Collect all expressions with their aliases
+        from: &'a Arc<Relation>,
+    ) -> Result<(Vec<(String, Expr)>, Hierarchy<Identifier>)> {
+        
         let mut named_exprs: Vec<(String, Expr)> = vec![];
-        // Columns from names
-        let columns = &names.map(|s| s.clone().into());
-
+        
         // The select all forces the preservation of names for non ambiguous
-        // columns. In this vector we collect those.
+        // columns. In this vector we collect those names. They are needed
+        // to update the column mapping for order by limit and offset.
         let mut renamed_columns: Vec<(Identifier, Identifier)> = vec![];
+        
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -386,30 +382,48 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
                     // push all names that are present in the from into named_exprs.
-                    // for not non ambiguous col names preserve the input name
+                    // for non ambiguous col names preserve the input name
                     // for the ambiguous ones used the name present in the relation.
-                    let non_ambiguous_col_names: Hierarchy<String> = columns
-                        .iter()
-                        .filter_map(|(path, id)|{
-                            let path_tail = path.last().unwrap().clone();
-                            if let Some(_) = columns.get(&[path_tail.clone()]) {
-                                renamed_columns.push((id.clone(), path_tail.as_str().into()));
-                                Some((id.clone(), path_tail))
-                            } else {
-                                None
-                            }
-                        })
+                    let non_ambiguous_cols = columns.non_ambiguous_tails();
+                    // Invert mapping of non_ambiguous_cols
+                    let new_aliases: Hierarchy<String> = non_ambiguous_cols.iter()
+                        .map(|(p, i)|(i.deref(), p.last().unwrap().clone()))
                         .collect();
+    
                     for field in from.schema().iter() {
-                        let temp = field.name().to_string();
-                        let new_alias = non_ambiguous_col_names
-                            .get(&[field.name().to_string()])
-                            .unwrap_or(&temp);
-                        named_exprs.push((new_alias.clone(), Expr::col(field.name())));
+                        let field_name = field.name().to_string();
+                        let new_alias = new_aliases
+                            .get_key_value(&[field.name().to_string()])
+                            .and_then(|(k, v)|{
+                                renamed_columns.push((k.to_vec().into(), v.clone().into()));
+                                Some(v.clone())
+                            } );
+                        named_exprs.push((new_alias.unwrap_or(field_name), Expr::col(field.name())));
                     }
                 }
             }
         }
+        Ok((named_exprs, renamed_columns.into_iter().collect()))
+    }
+
+    /// Build a RelationWithColumns from select_items selection group_by having and distinct
+    fn try_from_select_items_selection_and_group_by(
+        &self,
+        names: &'a Hierarchy<String>,
+        select_items: &'a [ast::SelectItem],
+        selection: &'a Option<ast::Expr>,
+        group_by: &'a ast::GroupByExpr,
+        from: Arc<Relation>,
+        having: &'a Option<ast::Expr>,
+        distinct: &'a Option<ast::Distinct>,
+    ) -> Result<RelationWithColumns> {
+        // Collect all expressions with their aliases
+        let mut named_exprs: Vec<(String, Expr)> = vec![];
+        // Columns from names
+        let columns = &names.map(|s| s.clone().into());
+
+        let (named_expr_from_select, new_columns) = self.try_named_expr_columns_from_select_items(columns, select_items, &from)?;
+        named_exprs.extend(named_expr_from_select.into_iter());
 
         // Prepare the GROUP BY
         let group_by  = match group_by {
@@ -510,11 +524,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             }
             relation = relation.distinct()
         }
-
-        // When SELECT * we preserve input names when possible so we cerate new columns
-        // that reflects the actual mapping between input and relation's fields.
-        let renamed_columns: Hierarchy<Identifier> = renamed_columns.into_iter().collect();
-        let columns = &columns.clone().with(columns.and_then(renamed_columns));
+        // preserve old columns while composing with new ones
+        let columns = &columns.clone().with(columns.and_then(new_columns));
         Ok(RelationWithColumns::new(Arc::new(relation), columns.clone()))
     }
 
