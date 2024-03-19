@@ -202,38 +202,52 @@ impl Join {
         self
     }
 
-    /// Replace the duplicates fields specified in `columns` by their coalesce expression
-    /// Its mimicks teh behaviour of USING in SQL
+    /// To mimic the behavior of USING(col) and NATURAL JOIN in SQL we create
+    /// a map where join columns identified by `vec` are coalesced.
+    ///     vec: vector of string identifying input columns present in both _LEFT_
+    ///         and _RIGHT_ relation of the join. 
+    ///     columns: is the Hierarchy mapping input names in the JOIN to name field
+    /// 
+    /// It returns a:
+    ///     - Map build on top the Join with coalesced column along with
+    ///         the other fields of the join and 
+    ///     - coalesced columns mapping (name in join -> name in map)
     pub fn remove_duplicates_and_coalesce(
         self,
         vec: Vec<String>,
         columns: &Hierarchy<Identifier>,
-    ) -> Relation {
-        let fields = self
+    ) -> (Relation, Hierarchy<Identifier>) {
+        let mut coalesced_cols: Vec<(Identifier, Identifier)> = vec![];
+        let coalesced = self
             .field_inputs()
-            .filter_map(|(name, id)| {
-                let col = id.as_ref().last().unwrap();
-                if id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
+            .filter_map(|(_, input_id)| {
+                let col = input_id.as_ref().last().unwrap();
+                if input_id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
+                    let left_col = columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap();
+                    let right_col = columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap();
+                    coalesced_cols.push((left_col.as_str().into(), col[..].into()));
+                    coalesced_cols.push((right_col.as_str().into(), col[..].into()));
                     Some((
-                        name,
+                        col.clone(),
                         Expr::coalesce(
-                            Expr::col(columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap()),
-                            Expr::col(columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap()),
+                            Expr::col(left_col),
+                            Expr::col(right_col),
                         ),
                     ))
                 } else {
                     None
                 }
-            })
+            });
+        let coalesced_with_others = coalesced
             .chain(self.field_inputs().filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
                 (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
             }))
             .collect::<Vec<_>>();
-        Relation::map()
+        (Relation::map()
             .input(Relation::from(self))
-            .with_iter(fields)
-            .build()
+            .with_iter(coalesced_with_others)
+            .build(), coalesced_cols.into_iter().collect())
     }
 }
 

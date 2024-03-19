@@ -118,6 +118,7 @@ mod tests {
     use itertools::Itertools;
     use sqlparser::dialect::BigQueryDialect;
 
+
     #[test]
     fn test_display() {
         let database = postgresql::test_database();
@@ -132,12 +133,12 @@ mod tests {
             t2 AS (SELECT * FROM table_2)
             SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2 GROUP BY t2.y, t1.a",
             "
-            WITH t1 AS (SELECT a,d FROM table_1),
+            WITH t1 AS (SELECT a, d FROM table_1),
             t2 AS (SELECT * FROM table_2)
             SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a LIMIT 10",
         ] {
             let relation = Relation::try_from(parse(query).unwrap().with(&database.relations())).unwrap();
-            relation.display_dot();
+            relation.display_dot().unwrap();
         }
     }
 

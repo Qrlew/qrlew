@@ -8,31 +8,16 @@ use super::{
     Error, Result,
 };
 use crate::{
-    ast,
-    builder::{Ready, With, WithIterator, WithoutContext},
-    dialect::{Dialect, GenericDialect},
-    expr::{Expr, Identifier, Split, Reduce},
-    hierarchy::{Hierarchy, Path},
-    namer::{self, FIELD},
-    parser::Parser,
-    relation::{
+    ast, builder::{Ready, With, WithIterator, WithoutContext}, dialect::{Dialect, GenericDialect}, dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator}, display::Dot, expr::{Expr, Identifier, Reduce, Split}, hierarchy::{Hierarchy, Path}, namer::{self, FIELD}, parser::Parser, relation::{
         Join, JoinOperator, MapBuilder, Relation, SetOperator, SetQuantifier,
         Variant as _, WithInput,
         LEFT_INPUT_NAME, RIGHT_INPUT_NAME
-    },
-    tokenizer::Tokenizer,
-    visitor::{Acceptor, Dependencies, Visited},
-    dialect_translation::{QueryToRelationTranslator, postgresql::PostgreSqlTranslator},
-    types::And, display::Dot
+    }, tokenizer::Tokenizer, types::And, visitor::{Acceptor, Dependencies, Visited}
 };
+use dot::Id;
 use itertools::Itertools;
 use std::{
-    convert::TryFrom,
-    iter::{once, Iterator},
-    result,
-    str::FromStr,
-    sync::Arc,
-    ops::Deref
+    collections::HashMap, convert::TryFrom, iter::{once, Iterator}, ops::Deref, result, str::FromStr, sync::Arc
 };
 
 /*
@@ -183,11 +168,12 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         columns: &'a Hierarchy<Identifier>,
     ) -> Result<Expr> {
         Ok(match join_constraint {
-            ast::JoinConstraint::On(expr) => expr.with(columns).try_into()?,
+            ast::JoinConstraint::On(expr) => self.translator.try_expr(expr, columns)?,
             ast::JoinConstraint::Using(idents) => { // the "Using (id)" condition is equivalent to "ON _LEFT_.id = _RIGHT_.id"
                 Expr::and_iter(
                     idents.into_iter()
-                    .map(|id| Expr::eq(
+                    .map(|id| 
+                        Expr::eq(
                         Expr::Column(Identifier::from(vec![LEFT_INPUT_NAME.to_string(), id.value.to_string()])),
                         Expr::Column(Identifier::from(vec![RIGHT_INPUT_NAME.to_string(), id.value.to_string()])),
                     ))
@@ -247,6 +233,76 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         }
     }
 
+    /// Build a RelationWithColumns with a JOIN
+    fn try_from_join(
+        &self,
+        left: RelationWithColumns,
+        ast_join: &'a ast::Join
+    ) -> Result<RelationWithColumns> {
+        let RelationWithColumns(left_relation, left_columns) = left;
+        let RelationWithColumns(right_relation, right_columns) =
+            self.try_from_table_factor(&ast_join.relation)?;
+        let left_columns: Hierarchy<Identifier> = left_columns.map(|i| {
+            let mut v = vec![Join::left_name().to_string()];
+            v.extend(i.to_vec());
+            v.into()
+        });
+        let right_columns = right_columns.map(|i| {
+            let mut v = vec![Join::right_name().to_string()];
+            v.extend(i.to_vec());
+            v.into()
+        });
+        // fully qualified input names -> fully qualified JOIN names 
+        let all_columns: Hierarchy<Identifier> = left_columns.with(right_columns);
+        let operator = self.try_from_join_operator_with_columns(
+            &ast_join.join_operator,
+            &all_columns,
+        )?;
+        let join: Join = Relation::join()
+            .operator(operator)
+            .left(left_relation)
+            .right(right_relation)
+            .build();
+
+        let join_columns: Hierarchy<Identifier> = join
+            .field_inputs()
+            .map(|(f, i)| (i, f.into()))
+            .collect();
+
+        // If the join constraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
+        let (relation, coalesced) = match &ast_join.join_operator {
+            ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
+            | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Using(v))
+            | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(v))
+            | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(v)) => {
+                // Do we need to change all_columns?
+                let to_be_coalesced: Vec<String> = v.into_iter().map(|id| id.value.to_string()).collect();
+                join.remove_duplicates_and_coalesce(to_be_coalesced, &join_columns)
+            },
+            ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
+            | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Natural)
+            | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
+            | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
+                let v: Vec<String> = join.left().fields()
+                    .into_iter()
+                    .filter_map(|f| join.right().schema().field(f.name()).is_ok().then_some(f.name().to_string()))
+                    .collect();
+                join.remove_duplicates_and_coalesce(v, &join_columns)
+            },
+            ast::JoinOperator::LeftSemi(_) => todo!(),
+            ast::JoinOperator::RightSemi(_) => todo!(),
+            ast::JoinOperator::LeftAnti(_) => todo!(),
+            ast::JoinOperator::RightAnti(_) => todo!(),
+            _ => {
+                let empty: Vec<(Identifier, Identifier)> = vec![];
+                (Relation::from(join), empty.into_iter().collect())
+            }
+        };
+        let with_coalesced = join_columns.clone().with(join_columns.and_then(coalesced));
+        let composed = all_columns.and_then(with_coalesced);
+        Ok(RelationWithColumns::new(Arc::new(relation), composed))
+    }
+
     /// Convert a TableWithJoins into a RelationWithColumns
     fn try_from_table_with_joins(
         &self,
@@ -254,71 +310,11 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
     ) -> Result<RelationWithColumns> {
         // Process the relation
         // Then the JOIN if needed
-        let result = table_with_joins.joins.iter().fold(
-            self.try_from_table_factor(&table_with_joins.relation),
-            |left, ast_join| {
-                let RelationWithColumns(left_relation, left_columns) = left?;
-                let RelationWithColumns(right_relation, right_columns) =
-                    self.try_from_table_factor(&ast_join.relation)?;
-                let left_columns = left_columns.map(|i| {
-                    let mut v = vec![Join::left_name().to_string()];
-                    v.extend(i.to_vec());
-                    v.into()
-                });
-                let right_columns = right_columns.map(|i| {
-                    let mut v = vec![Join::right_name().to_string()];
-                    v.extend(i.to_vec());
-                    v.into()
-                });
-                let all_columns = left_columns.with(right_columns);
-                let operator = self.try_from_join_operator_with_columns(
-                    &ast_join.join_operator,
-                    // &all_columns.filter_map(|i| Some(i.split_last().ok()?.0)),//TODO remove this
-                    &all_columns,
-                )?;
-                // We build a Join
-                let join: Join = Relation::join()
-                    .operator(operator)
-                    .left(left_relation)
-                    .right(right_relation)
-                    .build();
-
-                // We collect column mapping inputs should map to new names (hence the inversion)
-                let new_columns: Hierarchy<Identifier> =
-                    join.field_inputs().map(|(f, i)| (i, f.into())).collect();
-                let composed_columns = all_columns.and_then(new_columns.clone());
-
-                // If the join contraint is of type "USING" or "NATURAL", add a map to coalesce the duplicate columns
-                let relation = match &ast_join.join_operator {
-                    ast::JoinOperator::Inner(ast::JoinConstraint::Using(v))
-                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Using(v))
-                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(v))
-                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(v)) => {
-                        join.remove_duplicates_and_coalesce(
-                            v.into_iter().map(|id| id.value.to_string()).collect(),
-                            &new_columns
-                        )
-                    },
-                    ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
-                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Natural)
-                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
-                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
-                        let v = join.left().fields()
-                            .into_iter()
-                            .filter_map(|f| join.right().schema().field(f.name()).is_ok().then_some(f.name().to_string()))
-                            .collect();
-                        join.remove_duplicates_and_coalesce(v,&new_columns)
-                    },
-                    ast::JoinOperator::LeftSemi(_) => todo!(),
-                    ast::JoinOperator::RightSemi(_) => todo!(),
-                    ast::JoinOperator::LeftAnti(_) => todo!(),
-                    ast::JoinOperator::RightAnti(_) => todo!(),
-                    _ => Relation::from(join),
-                };
-
-                // We should compose hierarchies
-                Ok(RelationWithColumns::new(Arc::new(relation), composed_columns))
-            },
+        let result = table_with_joins.joins
+        .iter()
+        .fold(self.try_from_table_factor(&table_with_joins.relation),
+            |left, ast_join|
+                self.try_from_join(left?, &ast_join),
         );
         result
     }
@@ -331,24 +327,26 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // TODO consider more tables
         // For now, only consider the first element
         // It should eventually be cross joined as described in: https://www.postgresql.org/docs/current/queries-table-expressions.html
-        self.try_from_table_with_joins(&tables_with_joins[0])
+        self.try_from_table_with_joins(
+            &tables_with_joins[0]
+        )
     }
 
-    /// Build a relation from the
-    fn try_from_select_items_selection_and_group_by(
+    /// Extracts named expressions from the from relation and the select items
+    fn try_named_expr_columns_from_select_items(
         &self,
-        names: &'a Hierarchy<String>,
+        columns: &'a Hierarchy<Identifier>,
         select_items: &'a [ast::SelectItem],
-        selection: &'a Option<ast::Expr>,
-        group_by: &'a ast::GroupByExpr,
-        from: Arc<Relation>,
-        having: &'a Option<ast::Expr>,
-        distinct: &'a Option<ast::Distinct>,
-    ) -> Result<Arc<Relation>> {
-        // Collect all expressions with their aliases
+        from: &'a Arc<Relation>,
+    ) -> Result<(Vec<(String, Expr)>, Hierarchy<Identifier>)> {
+        
         let mut named_exprs: Vec<(String, Expr)> = vec![];
-        // Columns from names
-        let columns = &names.map(|s| s.clone().into());
+        
+        // The select all forces the preservation of names for non ambiguous
+        // columns. In this vector we collect those names. They are needed
+        // to update the column mapping for order by limit and offset.
+        let mut renamed_columns: Vec<(Identifier, Identifier)> = vec![];
+        
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
@@ -372,30 +370,66 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         expr => namer::name_from_content(FIELD, &expr),
                     },
                     self.translator.try_expr(expr,columns)?
-                    //Expr::try_from(expr.with(columns))?,
                 )),
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
                     named_exprs.push((alias.clone().value, self.translator.try_expr(expr,columns)?))
-                    //named_exprs.push((alias.clone().value, Expr::try_from(expr.with(columns))?))
                 }
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
+                    // push all names that are present in the from into named_exprs.
+                    // for non ambiguous col names preserve the input name
+                    // for the ambiguous ones used the name present in the relation.
+                    let non_ambiguous_cols = last(columns);
+                    // Invert mapping of non_ambiguous_cols
+                    let new_aliases: Hierarchy<String> = non_ambiguous_cols.iter()
+                        .map(|(p, i)|(i.deref(), p.last().unwrap().clone()))
+                        .collect();
+    
                     for field in from.schema().iter() {
-                        named_exprs.push((field.name().to_string(), Expr::col(field.name())))
+                        let field_name = field.name().to_string();
+                        let alias = new_aliases
+                            .get_key_value(&[field.name().to_string()])
+                            .and_then(|(k, v)|{
+                                renamed_columns.push((k.to_vec().into(), v.clone().into()));
+                                Some(v.clone())
+                            } );
+                        named_exprs.push((alias.unwrap_or(field_name), Expr::col(field.name())));
                     }
                 }
             }
         }
+        Ok((named_exprs, renamed_columns.into_iter().collect()))
+    }
+
+    /// Build a RelationWithColumns from select_items selection group_by having and distinct
+    fn try_from_select_items_selection_and_group_by(
+        &self,
+        names: &'a Hierarchy<String>,
+        select_items: &'a [ast::SelectItem],
+        selection: &'a Option<ast::Expr>,
+        group_by: &'a ast::GroupByExpr,
+        from: Arc<Relation>,
+        having: &'a Option<ast::Expr>,
+        distinct: &'a Option<ast::Distinct>,
+    ) -> Result<RelationWithColumns> {
+        // Collect all expressions with their aliases
+        let mut named_exprs: Vec<(String, Expr)> = vec![];
+        // Columns from names
+        let columns = &names.map(|s| s.clone().into());
+
+        let (named_expr_from_select, new_columns) = self.try_named_expr_columns_from_select_items(columns, select_items, &from)?;
+        named_exprs.extend(named_expr_from_select.into_iter());
+
         // Prepare the GROUP BY
         let group_by  = match group_by {
             ast::GroupByExpr::All => todo!(),
             ast::GroupByExpr::Expressions(group_by_exprs) => group_by_exprs
                 .iter()
-                .map(|e| e.with(columns).try_into())
+                .map(|e| self.translator.try_expr(e, columns))
                 .collect::<Result<Vec<Expr>>>()?,
         };
         // If the GROUP BY contains aliases, then replace them by the corresponding expression in `named_exprs`.
-        // Note that we mimic postgres behaviour and support only GROUP BY alias column (no other expressions containing aliases are allowed)
+        // Note that we mimic postgres behavior and support only GROUP BY alias column (no other expressions containing aliases are allowed)
         // The aliases cannot be used in HAVING
         let group_by = group_by.into_iter()
             .map(|x| match &x {
@@ -412,7 +446,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
-            let mut expr = self.translator.try_expr(expr,columns)?; //Expr::try_from(expr.with(columns))?;
+            let mut expr = self.translator.try_expr(expr,columns)?;
             let columns = named_exprs
                 .iter()
                 .map(|(s, x)| (Expr::col(s.to_string()), x.clone()))
@@ -447,8 +481,10 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
-            .map(|e| e.with(columns).try_into())
+            // todo. Use pass the expression through the translator 
+            .map(|e| self.translator.try_expr(e, columns))
             .map_or(Ok(None), |r| r.map(Some))?;
+
         // Build a Relation
         let mut relation: Relation = match split {
             Split::Map(map) => {
@@ -483,7 +519,9 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             }
             relation = relation.distinct()
         }
-        Ok(Arc::new(relation))
+        // preserve old columns while composing with new ones
+        let columns = &columns.clone().with(columns.and_then(new_columns));
+        Ok(RelationWithColumns::new(Arc::new(relation), columns.clone()))
     }
 
     /// Convert a Select into a Relation
@@ -528,8 +566,11 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         if qualify.is_some() {
             return Err(Error::other("QUALIFY is not supported"));
         }
-        let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
-        let relation = self.try_from_select_items_selection_and_group_by(
+
+        let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(
+            from
+        )?;
+        let RelationWithColumns(relation, columns) = self.try_from_select_items_selection_and_group_by(
             &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
             projection,
             selection,
@@ -722,6 +763,19 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelation
     }
 }
 
+/// It creates a new hierarchy with Identifier for which the last part of their
+/// path is not ambiguous. The new hierarchy will contain one-element paths 
+fn last(columns: &Hierarchy<Identifier>) -> Hierarchy<Identifier> {
+    columns
+    .iter()
+    .filter_map(|(path, _)|{
+        let path_last = path.last().unwrap().clone();
+        columns
+        .get(&[path_last.clone()])
+        .and_then( |t| Some((path_last, t.clone())) )
+    })
+    .collect()
+}
 
 
 /// A simple SQL query parser with dialect
@@ -1398,6 +1452,113 @@ mod tests {
                 ("my_count", DataType::integer_interval(0, 10)),
             ])
         );
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+    }
+
+    #[test]
+    fn test_select_all_with_joins() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        let query_str = r#"
+        SELECT * 
+        FROM table_2 AS t1 INNER JOIN table_2 AS t2 USING(x) INNER JOIN table_2 AS t3 USING(x) 
+        WHERE x > 50
+        ORDER BY x, t2.y, t2.z 
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        WITH my_tab AS (SELECT * FROM user_table u JOIN order_table o USING (id))
+        SELECT * FROM my_tab WHERE id > 50;
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        WITH my_tab AS (SELECT id, age FROM user_table u JOIN order_table o USING (id))
+        SELECT * FROM my_tab WHERE id > 50;
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+            WITH my_tab AS (SELECT * FROM user_table u JOIN order_table o ON (u.id=o.id))
+            SELECT * FROM my_tab WHERE user_id > 50;
+            "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        // id becomes an ambiguous column since is present in both tables
+        assert!(relation.schema().field("id").is_err());
+        relation.display_dot().unwrap();
+        println!("relation = {relation}");
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+            WITH my_tab AS (SELECT u.id, user_id, age FROM user_table u JOIN order_table o ON (u.id=o.id))
+            SELECT * FROM my_tab WHERE user_id > 50;
+            "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        println!("relation = {relation}");
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
         _ = database
