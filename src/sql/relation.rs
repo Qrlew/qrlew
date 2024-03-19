@@ -8,7 +8,7 @@ use super::{
     Error, Result,
 };
 use crate::{
-    ast, builder::{Ready, With, WithIterator, WithoutContext}, data_type::injection::Composed, dialect::{Dialect, GenericDialect}, dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator}, display::Dot, expr::{Expr, Identifier, Reduce, Split}, hierarchy::{Hierarchy, Path}, namer::{self, FIELD}, parser::Parser, relation::{
+    ast, builder::{Ready, With, WithIterator, WithoutContext}, dialect::{Dialect, GenericDialect}, dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator}, display::Dot, expr::{Expr, Identifier, Reduce, Split}, hierarchy::{Hierarchy, Path}, namer::{self, FIELD}, parser::Parser, relation::{
         Join, JoinOperator, MapBuilder, Relation, SetOperator, SetQuantifier,
         Variant as _, WithInput,
         LEFT_INPUT_NAME, RIGHT_INPUT_NAME
@@ -17,12 +17,7 @@ use crate::{
 use dot::Id;
 use itertools::Itertools;
 use std::{
-    convert::TryFrom,
-    iter::{once, Iterator},
-    result,
-    str::FromStr,
-    sync::Arc,
-    ops::Deref
+    collections::HashMap, convert::TryFrom, iter::{once, Iterator}, ops::Deref, result, str::FromStr, sync::Arc
 };
 
 /*
@@ -384,7 +379,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     // push all names that are present in the from into named_exprs.
                     // for non ambiguous col names preserve the input name
                     // for the ambiguous ones used the name present in the relation.
-                    let non_ambiguous_cols = columns.non_ambiguous_tails();
+                    let non_ambiguous_cols = last(columns);
                     // Invert mapping of non_ambiguous_cols
                     let new_aliases: Hierarchy<String> = non_ambiguous_cols.iter()
                         .map(|(p, i)|(i.deref(), p.last().unwrap().clone()))
@@ -392,13 +387,13 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
     
                     for field in from.schema().iter() {
                         let field_name = field.name().to_string();
-                        let new_alias = new_aliases
+                        let alias = new_aliases
                             .get_key_value(&[field.name().to_string()])
                             .and_then(|(k, v)|{
                                 renamed_columns.push((k.to_vec().into(), v.clone().into()));
                                 Some(v.clone())
                             } );
-                        named_exprs.push((new_alias.unwrap_or(field_name), Expr::col(field.name())));
+                        named_exprs.push((alias.unwrap_or(field_name), Expr::col(field.name())));
                     }
                 }
             }
@@ -767,6 +762,21 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelation
             .map(|r| r.as_ref().clone())
     }
 }
+
+/// It creates a new hierarchy with Identifier for which the last part of their
+/// path is not ambiguous. The new hierarchy will contain one-element paths 
+fn last(columns: &Hierarchy<Identifier>) -> Hierarchy<Identifier> {
+    columns
+    .iter()
+    .filter_map(|(path, _)|{
+        let path_last = path.last().unwrap().clone();
+        columns
+        .get(&[path_last.clone()])
+        .and_then( |t| Some((path_last, t.clone())) )
+    })
+    .collect()
+}
+
 
 /// A simple SQL query parser with dialect
 pub fn parse_with_dialect<D: Dialect>(query: &str, dialect: D) -> Result<ast::Query> {
