@@ -4,11 +4,7 @@
 
 use super::{Error, Result};
 use crate::{
-    builder::{WithContext, WithoutContext},
-    expr::{identifier::Identifier, Expr, Value},
-    hierarchy::{Hierarchy, Path},
-    visitor::{self, Acceptor, Dependencies, Visited},
-    namer,
+    builder::{WithContext, WithoutContext}, data_type::function::Function, expr::{identifier::Identifier, Expr, Value}, hierarchy::{Hierarchy, Path}, namer, visitor::{self, Acceptor, Dependencies, Visited}
 };
 use itertools::Itertools;
 use sqlparser::{

@@ -1324,19 +1324,27 @@ pub fn divide() -> impl Function {
             [
                 (
                     data_type::Integer::from_min(0),
-                    data_type::Integer::from_min(0),
+                    data_type::Integer::from_min(1),
                 ),
                 (
                     data_type::Integer::from_min(0),
-                    data_type::Integer::from_max(0),
+                    data_type::Integer::from_interval(-1, 1),
                 ),
                 (
-                    data_type::Integer::from_max(0),
                     data_type::Integer::from_min(0),
+                    data_type::Integer::from_max(-1),
                 ),
                 (
                     data_type::Integer::from_max(0),
+                    data_type::Integer::from_min(1),
+                ),
+                (
                     data_type::Integer::from_max(0),
+                    data_type::Integer::from_interval(-1, 1),
+                ),
+                (
+                    data_type::Integer::from_max(0),
+                    data_type::Integer::from_max(-1),
                 ),
             ],
             |x, y| x.saturating_div(y),
@@ -1346,19 +1354,27 @@ pub fn divide() -> impl Function {
             [
                 (
                     data_type::Float::from_min(0.0),
-                    data_type::Float::from_min(0.0),
+                    data_type::Float::from_min(1.0/<f64 as Bound>::max()),
                 ),
                 (
                     data_type::Float::from_min(0.0),
-                    data_type::Float::from_max(0.0),
+                    data_type::Float::from_interval(1.0/<f64 as Bound>::min(), 1.0/<f64 as Bound>::max()),
                 ),
                 (
-                    data_type::Float::from_max(0.0),
                     data_type::Float::from_min(0.0),
+                    data_type::Float::from_max(1.0/<f64 as Bound>::min()),
                 ),
                 (
                     data_type::Float::from_max(0.0),
+                    data_type::Float::from_min(1.0/<f64 as Bound>::max()),
+                ),
+                (
                     data_type::Float::from_max(0.0),
+                    data_type::Float::from_interval(1.0/<f64 as Bound>::min(), 1.0/<f64 as Bound>::max()),
+                ),
+                (
+                    data_type::Float::from_max(0.0),
+                    data_type::Float::from_max(1.0/<f64 as Bound>::min()),
                 ),
             ],
             |x, y| (x / y).clamp(<f64 as Bound>::min(), <f64 as Bound>::max()),

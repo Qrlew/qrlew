@@ -43,6 +43,8 @@ TODO
 - Remove
 */
 
+static EPSILON: f64 = 0.1; // f64::MIN_POSITIVE;
+
 // Error management
 
 #[derive(Debug, Clone)]
@@ -367,7 +369,6 @@ impl_binary_function_constructors!(
     Plus,
     Minus,
     Multiply,
-    Divide,
     Modulo,
     StringConcat,
     Gt,
@@ -403,6 +404,31 @@ impl_binary_function_constructors!(
     Choose,
     IsBool
 );
+
+impl Function {
+    pub fn divide<L: Into<Expr>, R: Into<Expr>>(left: L, right: R) -> Function {
+        Function::new(
+            function::Function::Divide,
+            (<[_]>::into_vec(
+                Box::new([(Arc::new(left.into())), (Arc::new(right.into()))]),
+            )),
+        )
+    }
+}
+
+impl Expr {
+    pub fn divide<L: Into<Expr>, R: Into<Expr> + Clone>(left: L, right: R) -> Expr {
+        Expr::from(Function::divide(left, right.clone()))
+        // let division = Expr::from(Function::divide(left, right.clone()));
+        // Expr::case(
+        //     Expr::or(
+        //         Expr::gt_eq(right.clone(), Expr::val(EPSILON)), 
+        //         Expr::lt_eq(right, Expr::val(-EPSILON))
+        //     ), division, 
+        //     Expr::val(0.0)
+        // )
+    }
+}
 
 /// Implement ternary function constructors
 macro_rules! impl_ternary_function_constructors {
@@ -1942,6 +1968,21 @@ mod tests {
                     DataType::float_interval(0., 2.)
                 ),]))
                 .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_case_bis() {
+        let expression = expr!(case(gt(x, 5), x, y));
+        println!("\nexpression = {}", expression);
+        println!("expression data type = {}", expression.data_type());
+        let set = DataType::structured([
+            ("x", DataType::float_interval(1., 10.)),
+            ("y", DataType::float_values([-2., 0.5])),
+        ]);
+        println!(
+            "expression super image = {}",
+            expression.super_image(&set).unwrap()
         );
     }
 

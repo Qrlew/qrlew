@@ -296,6 +296,9 @@ impl Map {
         let (fields, exprs) = named_exprs
             .into_iter()
             .map(|(name, expr)| {
+                println!("NAME: {}", name);
+                println!("EXPR: {}", expr);
+                println!("INP DATATYPE: {}", input_data_type);
                 (
                     Field::new(
                         name,
