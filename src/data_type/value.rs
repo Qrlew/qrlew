@@ -362,7 +362,7 @@ impl fmt::Display for Float {
         let lower_threshold = 1e-4;
         let upper_threshold = 1e4;
 
-        if self.0.abs() >= lower_threshold && self.0.abs() < upper_threshold && self.0 == 0.0 {
+        if self.0.abs() >= lower_threshold && self.0.abs() < upper_threshold || self.0 == 0.0 {
             // Standard decimal notation
             write!(f, "{}", self.0)
         } else {
