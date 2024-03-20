@@ -2847,7 +2847,7 @@ impl fmt::Display for DataType {
             x,
             write!(f, "{}", x),
             [
-                Unit, Boolean, Integer, Float, Enum, Text, Bytes, Struct, Union, Optional, List,
+                Unit, Boolean, Integer, Enum, Float, Text, Bytes, Struct, Union, Optional, List,
                 Set, Array, Date, Time, DateTime, Duration, Id, Function
             ],
             {
