@@ -568,7 +568,7 @@ mod tests {
                     ("CODE", DataType::integer()),
                     ("DESCRIPTION", DataType::text()),
                     ("BASE_ENCOUNTER_COST", DataType::float()),
-                    ("TOTAL_CLAIM_COST", DataType::float_interval(-5.,5.)),
+                    ("TOTAL_CLAIM_COST", DataType::float_min(-1.,)),
                     ("PAYER_COVERAGE", DataType::float()),
                     ("REASON_CODE", DataType::integer()),
                     ("REASONDESCRIPTION", DataType::integer()),

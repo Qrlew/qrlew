@@ -138,12 +138,12 @@ impl PupRelation {
                 (
                     name,
                     column,
-                    self.schema()[column]
+                    (self.schema()[column]
                         .data_type()
                         .absolute_upper_bound()
                         .unwrap_or(1.0)
                     // This may add a lot of noise depending on the parameters
-                    * parameters.privacy_unit_multiplicity(),
+                    * parameters.privacy_unit_multiplicity()).clamp(f64::MIN, f64::MAX),
                 )
             })
             .collect::<Vec<_>>();

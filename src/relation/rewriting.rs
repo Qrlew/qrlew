@@ -524,7 +524,6 @@ impl Relation {
         groups: &[&str],
         named_value_clippings: &[(&str, &str, f64)],
     ) -> Self {
-        self.display_dot().unwrap();
         let named_values = named_value_clippings
             .iter()
             .copied()
@@ -544,7 +543,6 @@ impl Relation {
         );
         // Compute the scaling factors
         let scaling_factors = norms.map_fields(|field_name, expr| {
-            println!("CPLIP VALUE: {:?}", value_clippings);
             if value_clippings.contains_key(&field_name) {
                 let (value_clipping, _) = value_clippings[&field_name];
                 if value_clipping == 0.0 {
@@ -562,8 +560,6 @@ impl Relation {
                 expr
             }
         });
-        println!("scaling_factors ok");
-        scaling_factors.display_dot().unwrap();
         let clipped_relation = self.clone().scale(
             entities,
             named_values
@@ -573,8 +569,6 @@ impl Relation {
                 .as_slice(),
             scaling_factors,
         );
-        println!("clipped_relation ok");
-        clipped_relation.display_dot().unwrap();
         // Aggregate
         clipped_relation.sums_by_group(
             groups,

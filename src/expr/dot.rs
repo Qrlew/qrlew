@@ -100,11 +100,14 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                 dot::escape_html(&col.to_string()),
                 &node.1
             ),
-            Expr::Value(val) => format!(
+            Expr::Value(val) => {
+                println!("{}", &val.to_string());
+                format!(
                 "<b>{}</b><br/>{}",
                 dot::escape_html(&val.to_string()),
                 &node.1
-            ),
+            )
+            },
             Expr::Function(fun) => {
                 format!(
                     "<b>{}</b><br/>{}",
