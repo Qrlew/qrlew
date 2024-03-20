@@ -1,12 +1,5 @@
 use crate::{
-    builder::{With, WithIterator},
-    data_type::DataTyped,
-    differential_privacy::dp_event::DpEvent,
-    differential_privacy::{dp_event, DpRelation, Error, Result},
-    expr::{aggregate::{self, Aggregate}, AggregateColumn, Expr, Column, Identifier},
-    privacy_unit_tracking::PupRelation,
-    relation::{field::Field, Map, Reduce, Relation, Variant},
-    DataType, Ready,
+    builder::{With, WithIterator}, data_type::DataTyped, differential_privacy::{dp_event::{self, DpEvent}, DpRelation, Error, Result}, display::Dot, expr::{aggregate::{self, Aggregate}, AggregateColumn, Column, Expr, Identifier}, privacy_unit_tracking::PupRelation, relation::{field::Field, Map, Reduce, Relation, Variant}, DataType, Ready
 
 };
 use std::{cmp, collections::HashMap, ops::Deref};
@@ -78,7 +71,6 @@ impl Relation {
             // Cf. Theorem A.1. in (Dwork, Roth et al. 2014)
             log::warn!("Warning, epsilon>1 the gaussian mechanism applied will not be exactly epsilon,delta-DP!")
         }
-
         let number_of_agg = bounds.len() as f64;
         let (dp_relation, dp_event) = if number_of_agg > 0. {
             let noise_multipliers = bounds

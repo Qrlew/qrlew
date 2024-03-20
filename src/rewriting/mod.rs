@@ -568,7 +568,7 @@ mod tests {
                     ("CODE", DataType::integer()),
                     ("DESCRIPTION", DataType::text()),
                     ("BASE_ENCOUNTER_COST", DataType::float()),
-                    ("TOTAL_CLAIM_COST", DataType::float_min(-1.,)),
+                    ("TOTAL_CLAIM_COST", DataType::float_min(-1.)),
                     ("PAYER_COVERAGE", DataType::float()),
                     ("REASON_CODE", DataType::integer()),
                     ("REASONDESCRIPTION", DataType::integer()),
@@ -593,18 +593,14 @@ mod tests {
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         let queries = [
-            // r#"
-            // SELECT
-            //     1/"TOTAL_CLAIM_COST"
-            // FROM private.axa_encounters e
-            // "#,
             r#"
             SELECT
                 "ENCOUNTERCLASS",
                 COUNT(p."Id") as patient_count,
-                SUM("TOTAL_CLAIM_COST") as total_cost
-            FROM  private.axa_patients p
-            JOIN private.axa_encounters e
+                SUM("TOTAL_CLAIM_COST") as sum_cost,
+                AVG("TOTAL_CLAIM_COST") as avg_cost
+            FROM  axa_patients p
+            JOIN axa_encounters e
             ON p."Id" = e."PATIENT"
             GROUP BY "ENCOUNTERCLASS"
             "#,
