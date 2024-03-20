@@ -358,7 +358,17 @@ impl Deref for Float {
 
 impl fmt::Display for Float {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        // Define magnitude thresholds
+        let lower_threshold = 1e-4;
+        let upper_threshold = 1e4;
+
+        if self.0.abs() >= lower_threshold && self.0.abs() < upper_threshold || self.0 == 0.0 {
+            // Standard decimal notation
+            write!(f, "{}", self.0)
+        } else {
+            // Scientific notation with up to 4 digits after the decimal
+            write!(f, "{:.4e}", self.0)
+        }
     }
 }
 

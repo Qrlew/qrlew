@@ -535,6 +535,89 @@ mod tests {
             println!("dp_event = {}", dp_relation.dp_event());
             assert!(!dp_relation.dp_event().is_no_op());
         }
+    }
+
+    #[test]
+    fn test_patients() {
+        let axa_patients: Relation = Relation::table()
+            .name("axa_patients")
+            .schema(
+                vec![
+                    ("Id", DataType::text()),
+                    ("BIRTHDATE", DataType::text()),
+                    ("GENDER", DataType::text()),
+                    ("ZIP", DataType::integer()),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(10901)
+            .build();
+        let axa_encounters: Relation = Relation::table()
+            .name("axa_encounters")
+            .schema(
+                vec![
+                    ("Id", DataType::text()),
+                    ("START", DataType::text()),
+                    ("STOP", DataType::text()),
+                    ("PATIENT", DataType::text()),
+                    ("ORGANIZATION", DataType::text()),
+                    ("PROVIDER", DataType::text()),
+                    ("PAYER", DataType::text()),
+                    ("ENCOUNTERCLASS", DataType::text()),
+                    ("CODE", DataType::integer()),
+                    ("DESCRIPTION", DataType::text()),
+                    ("BASE_ENCOUNTER_COST", DataType::float()),
+                    ("TOTAL_CLAIM_COST", DataType::float_min(-1.)),
+                    ("PAYER_COVERAGE", DataType::float()),
+                    ("REASON_CODE", DataType::integer()),
+                    ("REASONDESCRIPTION", DataType::integer()),
+                ]
+                .into_iter()
+                .collect::<Schema>()
+            )
+            .size(77727)
+            .build();
+        let relations: Hierarchy<Arc<Relation>> = vec![axa_patients, axa_encounters]
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
+            .collect();
+        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
+            (vec!["axa_patients"], Identifier::from("synthetic_axa_patients")),
+            (vec!["axa_encounters"], Identifier::from("synthetic_axa_encounters")),
+        ])));
+        let privacy_unit = PrivacyUnit::from(vec![
+            ("axa_patients", vec![], "Id"),
+            ("axa_encounters", vec![("PATIENT", "axa_patients", "Id")], "Id"),
+        ]);
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
+
+        let queries = [
+            r#"
+            SELECT
+                "ENCOUNTERCLASS",
+                COUNT(p."Id") as patient_count,
+                SUM("TOTAL_CLAIM_COST") as sum_cost,
+                AVG("TOTAL_CLAIM_COST") as avg_cost
+            FROM  axa_patients p
+            JOIN axa_encounters e
+            ON p."Id" = e."PATIENT"
+            GROUP BY "ENCOUNTERCLASS"
+            "#,
+        ];
+        for query_str in queries {
+            println!("\n{query_str}");
+            let query = parse(query_str).unwrap();
+            let relation = Relation::try_from(query.with(&relations)).unwrap();
+            relation.display_dot().unwrap();
+            let dp_relation = relation.rewrite_with_differential_privacy(
+                &relations,
+                synthetic_data.clone(),
+                privacy_unit.clone(),
+                dp_parameters.clone()
+            ).unwrap();
+            dp_relation.relation().display_dot().unwrap();
+        }
 
     }
 }

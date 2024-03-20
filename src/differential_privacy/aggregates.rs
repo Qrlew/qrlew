@@ -78,7 +78,6 @@ impl Relation {
             // Cf. Theorem A.1. in (Dwork, Roth et al. 2014)
             log::warn!("Warning, epsilon>1 the gaussian mechanism applied will not be exactly epsilon,delta-DP!")
         }
-
         let number_of_agg = bounds.len() as f64;
         let (dp_relation, dp_event) = if number_of_agg > 0. {
             let noise_multipliers = bounds
@@ -138,12 +137,12 @@ impl PupRelation {
                 (
                     name,
                     column,
-                    self.schema()[column]
+                    (self.schema()[column]
                         .data_type()
                         .absolute_upper_bound()
                         .unwrap_or(1.0)
                     // This may add a lot of noise depending on the parameters
-                    * parameters.privacy_unit_multiplicity(),
+                    * parameters.privacy_unit_multiplicity()).clamp(f64::MIN, f64::MAX),
                 )
             })
             .collect::<Vec<_>>();
