@@ -8,10 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ## [0.9.16] - 2024-03-20
 ### Changed
-- Expr::divide makes sure we have non-zeros in the denominator
-- make the displaying of floats more readable
+- Expr::divide makes sure we have non-zeros in the denominator [273](https://github.com/Qrlew/qrlew/pull/273)
+- make the displaying of floats more readable [273](https://github.com/Qrlew/qrlew/pull/273)
 ### Fixed
-- clamp the clipping between f64::MIN and f64::MAX
+- clamp floats that can be -+inf between f64::MIN and f64::MAX [273](https://github.com/Qrlew/qrlew/pull/273)
 
 ## [0.9.15] - 2024-02-20
 ### Changed
