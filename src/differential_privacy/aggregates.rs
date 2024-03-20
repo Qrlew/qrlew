@@ -1,5 +1,12 @@
 use crate::{
-    builder::{With, WithIterator}, data_type::DataTyped, differential_privacy::{dp_event::{self, DpEvent}, DpRelation, Error, Result}, display::Dot, expr::{aggregate::{self, Aggregate}, AggregateColumn, Column, Expr, Identifier}, privacy_unit_tracking::PupRelation, relation::{field::Field, Map, Reduce, Relation, Variant}, DataType, Ready
+    builder::{With, WithIterator},
+    data_type::DataTyped,
+    differential_privacy::dp_event::DpEvent,
+    differential_privacy::{dp_event, DpRelation, Error, Result},
+    expr::{aggregate::{self, Aggregate}, AggregateColumn, Expr, Column, Identifier},
+    privacy_unit_tracking::PupRelation,
+    relation::{field::Field, Map, Reduce, Relation, Variant},
+    DataType, Ready,
 
 };
 use std::{cmp, collections::HashMap, ops::Deref};

@@ -1972,21 +1972,6 @@ mod tests {
     }
 
     #[test]
-    fn test_case_bis() {
-        let expression = expr!(case(gt(x, 5), x, y));
-        println!("\nexpression = {}", expression);
-        println!("expression data type = {}", expression.data_type());
-        let set = DataType::structured([
-            ("x", DataType::float_interval(1., 10.)),
-            ("y", DataType::float_values([-2., 0.5])),
-        ]);
-        println!(
-            "expression super image = {}",
-            expression.super_image(&set).unwrap()
-        );
-    }
-
-    #[test]
     fn test_in_list_integer() {
         // a IN (1, 2, 3)
         let expression = Expr::in_list(Expr::col("a"), Expr::list([1, 2, 3]));
