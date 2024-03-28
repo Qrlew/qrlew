@@ -342,38 +342,37 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         
         let mut named_exprs: Vec<(String, Expr)> = vec![];
         
-        // The select all forces the preservation of names for non ambiguous
-        // columns. In this vector we collect those names. They are needed
-        // to update the column mapping for order by limit and offset.
+        // It stores the update for the column mapping:
+        // (old name in columns, new name forced by the select)
         let mut renamed_columns: Vec<(Identifier, Identifier)> = vec![];
         
         for select_item in select_items {
             match select_item {
-                ast::SelectItem::UnnamedExpr(expr) => named_exprs.push((
-                    match expr {
-                        // Pull the original name for implicit aliasing
+                ast::SelectItem::UnnamedExpr(expr) => {
+                    // Pull the original name for implicit aliasing
+                    let implicit_alias = match expr {
                         ast::Expr::Identifier(ident) => {
-                            if let Some(_) = ident.quote_style {
-                                ident.value.clone()
-                            } else {
-                                ident.value.to_lowercase()
-                            }
+                            lower_case_unquoted_ident(ident)
                         },
                         ast::Expr::CompoundIdentifier(idents) => {
-                            let iden = idents.last().unwrap();
-                            if let Some(_) = iden.quote_style {
-                                iden.value.clone()
-                            } else {
-                                iden.value.to_lowercase()
-                            }
+                            let ident = idents.last().unwrap();
+                            lower_case_unquoted_ident(ident)
                         }
                         expr => namer::name_from_content(FIELD, &expr),
-                    },
-                    self.translator.try_expr(expr,columns)?
-                )),
+                    };
+                    let implicit_alias_ident = Identifier::from_name(implicit_alias.clone());
+                    if let Some(name) = columns.get(&implicit_alias_ident) {
+                        renamed_columns.push((name.clone(), implicit_alias_ident));
+                    };
+                    named_exprs.push((implicit_alias, self.translator.try_expr(expr,columns)?))
+                },
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
+                    let alias_ident = Identifier::from_name(alias.clone().value);
+                    if let Some(name) = columns.get(&alias_ident) {
+                        renamed_columns.push((name.clone(), alias_ident));
+                    };
                     named_exprs.push((alias.clone().value, self.translator.try_expr(expr,columns)?))
-                }
+                },
                 ast::SelectItem::QualifiedWildcard(_, _) => todo!(),
                 ast::SelectItem::Wildcard(_) => {
                     // push all names that are present in the from into named_exprs.
@@ -775,6 +774,17 @@ fn last(columns: &Hierarchy<Identifier>) -> Hierarchy<Identifier> {
         .and_then( |t| Some((path_last, t.clone())) )
     })
     .collect()
+}
+
+/// Returns the identifier value. If it is quoted it returns its value
+/// as it is whereas if unquoted it returns the lowercase value.
+/// Used to create relations field's name. 
+fn lower_case_unquoted_ident(ident: &ast::Ident) -> String {
+    if let Some(_) = ident.quote_style {
+        ident.value.clone()
+    } else {
+        ident.value.to_lowercase()
+    }
 }
 
 
@@ -1452,6 +1462,120 @@ mod tests {
                 ("my_count", DataType::integer_interval(0, 10)),
             ])
         );
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+    }
+
+
+    #[test]
+    fn test_order_by() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let query_str = r#"
+        SELECT * FROM user_table u ORDER BY u.city, u.id
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        SELECT * FROM order_table o JOIN user_table u ON (o.id=u.id) ORDER BY city
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        SELECT * FROM order_table o JOIN user_table u ON (o.id=u.id) ORDER BY o.id
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        SELECT city, SUM(o.id) FROM order_table o JOIN user_table u ON (o.id=u.id) GROUP BY city ORDER BY city
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+        
+        let query_str = r#"
+        SELECT city AS mycity, SUM(o.id) AS mysum FROM order_table o JOIN user_table u ON (o.id=u.id) GROUP BY mycity ORDER BY mycity, mysum
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        SELECT city AS date FROM order_table o JOIN user_table u ON (o.id=u.id) GROUP BY u.city ORDER BY date
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
         _ = database
