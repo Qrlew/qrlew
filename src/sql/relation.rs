@@ -1472,10 +1472,100 @@ mod tests {
             .map(ToString::to_string);
     }
 
+
     #[test]
-    fn test_select_all_with_joins() {
+    fn test_order_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
+        let query_str = r#"
+        SELECT * FROM user_table u ORDER BY u.city, u.id
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        SELECT * FROM order_table o JOIN user_table u ON (o.id=u.id) ORDER BY city
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        SELECT * FROM order_table o JOIN user_table u ON (o.id=u.id) ORDER BY o.id
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+
+        let query_str = r#"
+        SELECT city, SUM(o.id) FROM order_table o JOIN user_table u ON (o.id=u.id) GROUP BY city ORDER BY city
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+        
+        let query_str = r#"
+        SELECT city AS mycity, SUM(o.id) AS mysum FROM order_table o JOIN user_table u ON (o.id=u.id) GROUP BY mycity ORDER BY mycity, mysum
+        "#;
+        let query = parse(query_str).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations
+        ))
+        .unwrap();
+        relation.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&relation).to_string();
+        println!("{query}");
+        _ = database
+            .query(query)
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
 
         let query_str = r#"
         SELECT city AS date FROM order_table o JOIN user_table u ON (o.id=u.id) GROUP BY u.city ORDER BY date
@@ -1494,6 +1584,12 @@ mod tests {
             .unwrap()
             .iter()
             .map(ToString::to_string);
+    }
+
+    #[test]
+    fn test_select_all_with_joins() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
 
         let query_str = r#"
         SELECT * 
