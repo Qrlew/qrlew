@@ -185,6 +185,7 @@ mod tests {
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         let queries = [
+            "SELECT city, COUNT(*) FROM order_table o JOIN user_table u ON(o.id=u.id) GROUP BY city ORDER BY city",
             "SELECT order_id, sum(price) FROM item_table GROUP BY order_id",
             "SELECT order_id, sum(price), sum(distinct price) FROM item_table GROUP BY order_id HAVING count(*) > 2",
             "SELECT order_id, sum(order_id) FROM item_table GROUP BY order_id",
