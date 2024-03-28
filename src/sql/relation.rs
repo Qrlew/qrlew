@@ -776,10 +776,9 @@ fn last(columns: &Hierarchy<Identifier>) -> Hierarchy<Identifier> {
     .collect()
 }
 
-/// If the identifier is quoted we keep its name as it is
-/// If it is unquoted we keep the lowercase name during parsing.
-/// This allows us to quote any identifier when rendering the relation
-/// to a query
+/// Returns the identifier value. If it is quoted it returns its value
+/// as it is whereas if unquoted it returns the lowercase value.
+/// Used to create relations field's name. 
 fn lower_case_unquoted_ident(ident: &ast::Ident) -> String {
     if let Some(_) = ident.quote_style {
         ident.value.clone()
@@ -1590,27 +1589,6 @@ mod tests {
     fn test_select_all_with_joins() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-
-        let query_str = r#"
-        SELECT * 
-        FROM table_2 AS t1 INNER JOIN table_2 AS t2 USING(x) INNER JOIN table_2 AS t3 USING(x) 
-        WHERE x > 50
-        ORDER BY x, t2.y, t2.z 
-        "#;
-        let query = parse(query_str).unwrap();
-        let relation = Relation::try_from(QueryWithRelations::new(
-            &query,
-            &relations
-        ))
-        .unwrap();
-        relation.display_dot().unwrap();
-        let query: &str = &ast::Query::from(&relation).to_string();
-        println!("{query}");
-        _ = database
-            .query(query)
-            .unwrap()
-            .iter()
-            .map(ToString::to_string);
 
         let query_str = r#"
         SELECT * 
