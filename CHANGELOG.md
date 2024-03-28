@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.17] - 2024-03-28
 ### Fixed
-- Fix order by 
+- Fix order by parsing [275](https://github.com/Qrlew/qrlew/pull/275)
 
 ## [0.9.16] - 2024-03-20
 ### Changed
