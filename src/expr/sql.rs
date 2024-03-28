@@ -947,21 +947,30 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr);
 
+        let epsilon = 1./f64::MAX;
+
         let str_expr = "log(b, x)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        let true_expr = parse_expr("(log(x)) / ((log(b)))").unwrap();
+        let true_expr = parse_expr(
+            format!("CASE WHEN ((log(b)) >= ({})) OR ((log(b)) <= (-({})))
+            THEN (log(x)) / ((log(b))) ELSE 0 END", epsilon, epsilon).as_str()
+        ).unwrap();
         assert_eq!(gen_expr, true_expr);
+
 
         let str_expr = "log10(x)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
-        let true_expr = parse_expr("(log(10)) / ((log(x)))").unwrap();
+        let true_expr = parse_expr(
+            format!("CASE WHEN ((log(x)) >= ({})) OR ((log(x)) <= (-({})))
+            THEN (log(10)) / ((log(x))) ELSE 0 END", epsilon, epsilon).as_str()
+        ).unwrap();
         assert_eq!(gen_expr, true_expr);
 
         let str_expr = "log2(x)";
@@ -970,7 +979,10 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        let true_expr = parse_expr("(log(2)) / ((log(x)))").unwrap();
+        let true_expr = parse_expr(
+            format!("CASE WHEN ((log(x)) >= ({})) OR ((log(x)) <= (-({})))
+            THEN (log(2)) / ((log(x))) ELSE 0 END", epsilon, epsilon).as_str()
+        ).unwrap();
         assert_eq!(gen_expr, true_expr);
     }
 
@@ -992,13 +1004,17 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         assert_eq!(ast_expr, gen_expr);
 
+        let epsilon = 1./f64::MAX;
         let str_expr = "tan(x)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
         let expr = Expr::try_from(&ast_expr).unwrap();
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        let true_expr = parse_expr("(sin(x)) / ((cos(x)))").unwrap();
+        let true_expr = parse_expr(
+            format!("CASE WHEN ((cos(x)) >= ({})) OR ((cos(x)) <= (-({})))
+            THEN (sin(x)) / ((cos(x))) ELSE 0 END", epsilon, epsilon).as_str()
+        ).unwrap();
         assert_eq!(gen_expr, true_expr);
     }
 
@@ -1032,7 +1048,11 @@ mod tests {
         println!("expr = {}", expr);
         let gen_expr = ast::Expr::from(&expr);
         println!("ast::expr = {gen_expr}");
-        let true_expr = parse_expr("(100) * (((180) / ((pi()))))").unwrap();
+        let epsilon = 1./f64::MAX;
+        let true_expr = parse_expr(
+            format!("(100) * ((CASE WHEN  ((pi()) >= ({})) OR  ((pi()) <= (-({})))
+            THEN (180) / ((pi())) ELSE 0 END))", epsilon, epsilon).as_str()
+        ).unwrap();
         assert_eq!(gen_expr, true_expr);
     }
 

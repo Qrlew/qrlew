@@ -164,7 +164,8 @@ impl From<Vec<DpEvent>> for DpEvent {
 }
 
 pub fn gaussian_noise(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
-    (2. * (1.25_f64 / delta).ln()).sqrt() * sensitivity / epsilon
+    // it can be inf so we clamp the results between 0 and f64::MAX
+    ((2. * (1.25_f64 / delta).ln()).sqrt() * sensitivity / epsilon).clamp(0.0, f64::MAX)
 }
 
 pub fn gaussian_tau(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
