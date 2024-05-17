@@ -257,11 +257,27 @@ impl<'a> IntoIterator for PrivacyUnitPath {
     }
 }
 
-/// Associate a PEID to each table
+/// Associate a PID to each table
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct PrivacyUnit(Vec<(String, PrivacyUnitPath)>);
+pub struct PrivacyUnit {
+    paths: Vec<(String, PrivacyUnitPath)>,
+    pu_column: Option<String>,
+    weight: Option<String>,
+}
 
 impl PrivacyUnit {
+    pub fn new(
+        paths: Vec<(String, PrivacyUnitPath)>,
+        pu_column: Option<String>,
+        weight: Option<String>,
+    ) -> Self {
+        PrivacyUnit {
+            paths,
+            pu_column,
+            weight
+        }
+    }
+
     pub fn privacy_prefix() -> &'static str {
         PRIVACY_PREFIX
     }
@@ -274,16 +290,24 @@ impl PrivacyUnit {
         PRIVACY_UNIT_ROW
     }
 
-    pub fn privacy_unit() -> &'static str {
-        PrivacyUnitPath::privacy_unit()
+    pub fn privacy_unit(&self) -> String {
+        self.pu_column.clone().unwrap_or(PrivacyUnitPath::privacy_unit().to_string())
     }
 
     pub fn privacy_unit_default() -> &'static str {
-        PrivacyUnitPath::privacy_unit_default()
+        PrivacyUnitPath::privacy_unit()
     }
 
-    pub fn privacy_unit_weight() -> &'static str {
+    pub fn privacy_unit_weight(&self) -> String {
+        self.weight.clone().unwrap_or(PRIVACY_UNIT_WEIGHT.to_string())
+    }
+
+    pub fn privacy_unit_weight_default() -> &'static str {
         PRIVACY_UNIT_WEIGHT
+    }
+
+    pub fn with_pu_column_and_weight(self, pu_column: String, weight: String) -> Self {
+        PrivacyUnit{paths: self.paths, pu_column: Some(pu_column), weight: Some(weight)}
     }
 }
 
@@ -303,13 +327,13 @@ impl Deref for PrivacyUnit {
     type Target = Vec<(String, PrivacyUnitPath)>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.paths
     }
 }
 
 impl From<PrivacyUnit> for Vec<(String, PrivacyUnitPath)> {
     fn from(value: PrivacyUnit) -> Self {
-        value.0
+        value.paths
     }
 }
 
@@ -325,7 +349,7 @@ impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for PrivacyUnit {
                 ),
             ));
         }
-        PrivacyUnit(result)
+        PrivacyUnit::new(result, None, None)
     }
 }
 

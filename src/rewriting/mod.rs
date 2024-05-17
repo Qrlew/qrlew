@@ -319,17 +319,13 @@ mod tests {
             (vec!["user_table"], Identifier::from("user_table")),
         ])));
         let privacy_unit = PrivacyUnit::from(vec![
-            (
-                "item_table",
-                vec![
-                    ("order_id", "order_table", "id"),
-                    ("user_id", "user_table", "id"),
-                ],
-                "name",
-            ),
-            ("order_table", vec![("user_id", "user_table", "id")], "name"),
-            ("user_table", vec![], "name"),
-        ]);
+            ("item_table", vec![], "order_id"),
+        ])
+        .with_pu_column_and_weight(
+            "order_id".to_string(),
+            PrivacyUnit::privacy_unit_weight_default().to_string()
+        );
+        println!("PU: {}", privacy_unit);
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_dp_event = relation

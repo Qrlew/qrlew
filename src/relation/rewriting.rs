@@ -946,6 +946,7 @@ mod tests {
             Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations))
                 .unwrap();
         let user = relations.get(&["user_table".to_string()]).unwrap().as_ref();
+        user.display_dot().unwrap();
         let relation = orders.with_referred_field(
             "user_id".into(),
             Arc::new(user.clone()),
@@ -953,6 +954,7 @@ mod tests {
             "id".into(),
             "peid".into(),
         );
+        relation.display_dot().unwrap();
         assert!(relation.schema()[0].name() == "peid");
         let relation = relation.filter_fields(|n| n != "peid");
         assert!(relation.schema()[0].name() != "peid");
