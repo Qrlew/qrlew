@@ -782,6 +782,21 @@ mod tests {
 
         let privacy_unit = PrivacyUnit::from((
             vec![
+                ("table1", vec![], "sarus_privacy_unit"),
+                ("table2", vec![("b", "table1", "id")], "sarus_privacy_unit"),
+            ],
+            false,
+        ));
+        let privacy_unit_tracking = PrivacyUnitTracking::new(&relations, PrivacyUnit::from(privacy_unit), Strategy::Hard);
+        for table in tables.clone() {
+            let pup_table = privacy_unit_tracking
+                .table(&table.clone().try_into().unwrap())
+                .unwrap();
+            pup_table.deref().display_dot().unwrap();
+        }
+
+        let privacy_unit = PrivacyUnit::from((
+            vec![
                 ("table1", vec![], "sarus_privacy_unit", "sarus_weight"),
                 ("table2", vec![("b", "table1", "id")], "sarus_privacy_unit", "sarus_weight"),
             ],
@@ -794,6 +809,7 @@ mod tests {
                 .unwrap();
             pup_table.deref().display_dot().unwrap();
         }
+
     }
 
     #[test]

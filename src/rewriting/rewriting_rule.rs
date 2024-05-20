@@ -1132,6 +1132,10 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Soft,
                     );
+                    // println!("DEBUG: PU tracking {:?}", privacy_unit_tracking);
+                    let rr: Relation = map.clone().into();
+                    rr.display_dot().unwrap();
+                    // end debug
                     privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()
