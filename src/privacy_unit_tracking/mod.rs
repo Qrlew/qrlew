@@ -262,7 +262,6 @@ impl<'a> PrivacyUnitTracking<'a> {
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::no_private_table(table.path()))?;
 
-        println!("DEBUG - PU: {}", self.privacy_unit.privacy_unit());
         let rel = Relation::from(table.clone())
             .with_field_path(self.relations, field_path.clone())
             .map_fields(|name, expr| {
@@ -272,23 +271,24 @@ impl<'a> PrivacyUnitTracking<'a> {
                     expr
                 }
             });
-
         let final_relation = if self.privacy_unit.privacy_unit_weight()==PrivacyUnit::privacy_unit_weight_default() {
             rel.insert_field(1, PrivacyUnit::privacy_unit_weight_default(), Expr::val(1))
         } else {
-            rel.map_fields(|name, expr| {
+            rel.rename_fields(|name, _expr| {
                 if name == self.privacy_unit.privacy_unit_weight() {
-                    Expr::col(PrivacyUnit::privacy_unit_weight_default())
+                    PrivacyUnit::privacy_unit_weight_default().to_string()
                 } else {
-                    expr
+                    name.to_string()
                 }
             })
         };
+        final_relation.display_dot().unwrap();
         PupRelation::try_from(final_relation)
     }
 
     /// Map privacy tracking from another PUP relation
     pub fn map(&self, map: &'a Map, input: PupRelation) -> Result<PupRelation> {
+        println!("DEBUG: In MAP");
         let relation: Relation = Relation::map()
             .with((
                 PrivacyUnit::privacy_unit_default(),
