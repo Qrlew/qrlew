@@ -312,7 +312,7 @@ mod tests {
     fn test_rewrite_as_privacy_unit_preserving() {
         let database = postgresql::test_database();
         let relations = database.relations();
-        let query = parse("SELECT order_id, price FROM item_table").unwrap();
+        let query = parse("SELECT item, price FROM item_table JOIN order_table ON (item_table.order_id=order_table.id)").unwrap();
         let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
@@ -330,6 +330,11 @@ mod tests {
             ("order_table", vec![("user_id", "user_table", "id")], "name"),
             ("user_table", vec![], "name"),
         ]);
+        // let privacy_unit = PrivacyUnit::from(vec![
+        //     ("item_table",vec![], "item",),
+        //     ("order_table", vec![("user_id", "user_table", "id")], "name"),
+        //     ("user_table", vec![], "name"),
+        // ]);
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
         let relation_with_dp_event = relation
