@@ -520,8 +520,8 @@ mod tests {
             .name("map_relation")
             .with(("income", expr!(income)))
             .with(("city", expr!(city)))
-            .with((PrivacyUnit::privacy_unit_default(), expr!(id)))
-            .with((PrivacyUnit::privacy_unit_weight_default(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit_weight(), expr!(id)))
             .filter(Expr::in_list(
                 Expr::col("city"),
                 Expr::list(vec!["Paris".to_string(), "London".to_string()]),
@@ -586,8 +586,8 @@ mod tests {
             .with(("income", expr!(income)))
             .with(("city", expr!(city)))
             .with(("age", expr!(age)))
-            .with((PrivacyUnit::privacy_unit_default(), expr!(id)))
-            .with((PrivacyUnit::privacy_unit_weight_default(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit(), expr!(id)))
+            .with((PrivacyUnit::privacy_unit_weight(), expr!(id)))
             .filter(Expr::in_list(
                 Expr::col("city"),
                 Expr::list(vec!["Paris".to_string(), "London".to_string()]),

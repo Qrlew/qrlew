@@ -17,7 +17,6 @@ use crate::{
 pub use privacy_unit::{PrivacyUnit, PrivacyUnitPath};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
 
-
 #[derive(Debug, Clone)]
 pub enum Error {
     NotPrivacyUnitPreserving(String),
@@ -62,7 +61,7 @@ pub enum Strategy {
     #[default]
     Soft,
     /// Protect at all cost.
-    /// Will succeed most of the time.
+    /// Will succeede most of the time.
     Hard,
 }
 
@@ -72,7 +71,7 @@ pub struct PupRelation(pub Relation);
 impl PupRelation {
 
     pub fn privacy_unit(&self) -> &str {
-        PrivacyUnit::privacy_unit_default()
+        PrivacyUnit::privacy_unit()
     }
 
     pub fn privacy_unit_default(&self) -> &str {
@@ -80,7 +79,7 @@ impl PupRelation {
     }
 
     pub fn privacy_unit_weight(&self) -> &str {
-        PrivacyUnit::privacy_unit_weight_default()
+        PrivacyUnit::privacy_unit_weight()
     }
 
     pub fn with_name(self, name: String) -> Result<Self> {
@@ -102,10 +101,10 @@ impl TryFrom<Relation> for PupRelation {
     type Error = Error;
 
     fn try_from(value: Relation) -> Result<Self> {
-        if value.schema().field(PrivacyUnit::privacy_unit_default()).is_ok()
+        if value.schema().field(PrivacyUnit::privacy_unit()).is_ok()
             && value
                 .schema()
-                .field(PrivacyUnit::privacy_unit_weight_default())
+                .field(PrivacyUnit::privacy_unit_weight())
                 .is_ok()
         {
             Ok(PupRelation(value))
@@ -113,7 +112,7 @@ impl TryFrom<Relation> for PupRelation {
             Err(Error::NotPrivacyUnitPreserving(
                 format!(
                     "Cannot convert to PUPRelation a relation that does not contains both {} and {} columns. \nGot: {}",
-                    PrivacyUnit::privacy_unit_default(), PrivacyUnit::privacy_unit_weight_default(), value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
+                    PrivacyUnit::privacy_unit(), PrivacyUnit::privacy_unit_weight(), value.schema().iter().map(|f| f.name()).collect::<Vec<_>>().join(",")
                 )
             ))
         }
@@ -261,42 +260,30 @@ impl<'a> PrivacyUnitTracking<'a> {
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::no_private_table(table.path()))?;
-
-        let rel = Relation::from(table.clone())
-            .with_field_path(self.relations, field_path.clone())
-            .map_fields(|name, expr| {
-                if name == PrivacyUnit::privacy_unit_default() && self.privacy_unit.privacy_unit()==PrivacyUnit::privacy_unit_default() {
-                    Expr::md5(Expr::cast_as_text(expr))
-                } else {
-                    expr
-                }
-            });
-        let final_relation = if self.privacy_unit.privacy_unit_weight()==PrivacyUnit::privacy_unit_weight_default() {
-            rel.insert_field(1, PrivacyUnit::privacy_unit_weight_default(), Expr::val(1))
-        } else {
-            rel.rename_fields(|name, _expr| {
-                if name == self.privacy_unit.privacy_unit_weight() {
-                    PrivacyUnit::privacy_unit_weight_default().to_string()
-                } else {
-                    name.to_string()
-                }
-            })
-        };
-        final_relation.display_dot().unwrap();
-        PupRelation::try_from(final_relation)
+        PupRelation::try_from(
+            Relation::from(table.clone())
+                .with_field_path(self.relations, field_path.clone())
+                .map_fields(|name, expr| {
+                    if name == PrivacyUnit::privacy_unit() {
+                        Expr::md5(Expr::cast_as_text(expr))
+                    } else {
+                        expr
+                    }
+                })
+                .insert_field(1, PrivacyUnit::privacy_unit_weight(), Expr::val(1)),
+        )
     }
 
     /// Map privacy tracking from another PUP relation
     pub fn map(&self, map: &'a Map, input: PupRelation) -> Result<PupRelation> {
-        println!("DEBUG: In MAP");
         let relation: Relation = Relation::map()
             .with((
-                PrivacyUnit::privacy_unit_default(),
-                Expr::col(PrivacyUnit::privacy_unit_default()),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(PrivacyUnit::privacy_unit()),
             ))
             .with((
-                PrivacyUnit::privacy_unit_weight_default(),
-                Expr::col(PrivacyUnit::privacy_unit_weight_default()),
+                PrivacyUnit::privacy_unit_weight(),
+                Expr::col(PrivacyUnit::privacy_unit_weight()),
             ))
             .with(map.clone())
             .input(Relation::from(input))
@@ -310,10 +297,10 @@ impl<'a> PrivacyUnitTracking<'a> {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(reduce.name())),
             Strategy::Hard => {
                 let relation: Relation = Relation::reduce()
-                    .with_group_by_column(PrivacyUnit::privacy_unit_default())
+                    .with_group_by_column(PrivacyUnit::privacy_unit())
                     .with((
-                        PrivacyUnit::privacy_unit_weight_default(),
-                        AggregateColumn::sum(PrivacyUnit::privacy_unit_weight_default()),
+                        PrivacyUnit::privacy_unit_weight(),
+                        AggregateColumn::sum(PrivacyUnit::privacy_unit_weight()),
                     ))
                     .with(reduce.clone())
                     .input(Relation::from(input))
@@ -339,48 +326,48 @@ impl<'a> PrivacyUnitTracking<'a> {
                 let names = join.names();
                 let names = names.with(vec![
                     (
-                        vec![Join::left_name(), PrivacyUnit::privacy_unit_default()],
-                        format!("_LEFT{}", PrivacyUnit::privacy_unit_default()),
+                        vec![Join::left_name(), PrivacyUnit::privacy_unit()],
+                        format!("_LEFT{}", PrivacyUnit::privacy_unit()),
                     ),
                     (
-                        vec![Join::left_name(), PrivacyUnit::privacy_unit_weight_default()],
-                        format!("_LEFT{}", PrivacyUnit::privacy_unit_weight_default()),
+                        vec![Join::left_name(), PrivacyUnit::privacy_unit_weight()],
+                        format!("_LEFT{}", PrivacyUnit::privacy_unit_weight()),
                     ),
                     (
-                        vec![Join::right_name(), PrivacyUnit::privacy_unit_default()],
-                        format!("_RIGHT{}", PrivacyUnit::privacy_unit_default()),
+                        vec![Join::right_name(), PrivacyUnit::privacy_unit()],
+                        format!("_RIGHT{}", PrivacyUnit::privacy_unit()),
                     ),
                     (
-                        vec![Join::right_name(), PrivacyUnit::privacy_unit_weight_default()],
-                        format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight_default()),
+                        vec![Join::right_name(), PrivacyUnit::privacy_unit_weight()],
+                        format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight()),
                     ),
                 ]);
                 let join: Join = Relation::join()
                     .names(names)
                     .operator(operator)
                     .and(Expr::eq(
-                        Expr::qcol(Join::left_name(), PrivacyUnit::privacy_unit_default()),
-                        Expr::qcol(Join::right_name(), PrivacyUnit::privacy_unit_default()),
+                        Expr::qcol(Join::left_name(), PrivacyUnit::privacy_unit()),
+                        Expr::qcol(Join::right_name(), PrivacyUnit::privacy_unit()),
                     ))
                     .left(Relation::from(left))
                     .right(Relation::from(right))
                     .build();
                 let mut builder = Relation::map();
                 builder = builder.with((
-                    PrivacyUnit::privacy_unit_default(),
-                    Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_default())),
+                    PrivacyUnit::privacy_unit(),
+                    Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit())),
                 ));
                 builder = builder.with((
-                    PrivacyUnit::privacy_unit_weight_default(),
+                    PrivacyUnit::privacy_unit_weight(),
                     Expr::multiply(
-                        Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_weight_default())),
-                        Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight_default())),
+                        Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_weight())),
+                        Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight())),
                     ),
                 ));
                 builder = join.names().iter().fold(builder, |b, (p, n)| {
                     if [
-                        PrivacyUnit::privacy_unit_default(),
-                        PrivacyUnit::privacy_unit_weight_default(),
+                        PrivacyUnit::privacy_unit(),
+                        PrivacyUnit::privacy_unit_weight(),
                     ]
                     .contains(&p[1].as_str())
                     {
@@ -408,12 +395,12 @@ impl<'a> PrivacyUnitTracking<'a> {
         let names = join.names();
         let names = names.with(vec![
             (
-                vec![Join::right_name(), PrivacyUnit::privacy_unit_default()],
-                format!("_RIGHT{}", PrivacyUnit::privacy_unit_default()),
+                vec![Join::right_name(), PrivacyUnit::privacy_unit()],
+                format!("_RIGHT{}", PrivacyUnit::privacy_unit()),
             ),
             (
-                vec![Join::right_name(), PrivacyUnit::privacy_unit_weight_default()],
-                format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight_default()),
+                vec![Join::right_name(), PrivacyUnit::privacy_unit_weight()],
+                format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight()),
             ),
         ]);
         let join: Join = Relation::join()
@@ -424,17 +411,17 @@ impl<'a> PrivacyUnitTracking<'a> {
             .build();
         let mut builder = Relation::map()
             .with((
-                PrivacyUnit::privacy_unit_default(),
-                Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit_default())),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit())),
             ))
             .with((
-                PrivacyUnit::privacy_unit_weight_default(),
-                Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight_default())),
+                PrivacyUnit::privacy_unit_weight(),
+                Expr::col(format!("_RIGHT{}", PrivacyUnit::privacy_unit_weight())),
             ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
             if [
-                PrivacyUnit::privacy_unit_default(),
-                PrivacyUnit::privacy_unit_weight_default(),
+                PrivacyUnit::privacy_unit(),
+                PrivacyUnit::privacy_unit_weight(),
             ]
             .contains(&p[1].as_str())
             {
@@ -460,12 +447,12 @@ impl<'a> PrivacyUnitTracking<'a> {
         let names = join.names();
         let names = names.with(vec![
             (
-                vec![Join::left_name(), PrivacyUnit::privacy_unit_default()],
-                format!("_LEFT{}", PrivacyUnit::privacy_unit_default()),
+                vec![Join::left_name(), PrivacyUnit::privacy_unit()],
+                format!("_LEFT{}", PrivacyUnit::privacy_unit()),
             ),
             (
-                vec![Join::left_name(), PrivacyUnit::privacy_unit_weight_default()],
-                format!("_LEFT{}", PrivacyUnit::privacy_unit_weight_default()),
+                vec![Join::left_name(), PrivacyUnit::privacy_unit_weight()],
+                format!("_LEFT{}", PrivacyUnit::privacy_unit_weight()),
             ),
         ]);
         let join: Join = Relation::join()
@@ -476,17 +463,17 @@ impl<'a> PrivacyUnitTracking<'a> {
             .build();
         let mut builder = Relation::map()
             .with((
-                PrivacyUnit::privacy_unit_default(),
-                Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_default())),
+                PrivacyUnit::privacy_unit(),
+                Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit())),
             ))
             .with((
-                PrivacyUnit::privacy_unit_weight_default(),
-                Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_weight_default())),
+                PrivacyUnit::privacy_unit_weight(),
+                Expr::col(format!("_LEFT{}", PrivacyUnit::privacy_unit_weight())),
             ));
         builder = join.names().iter().fold(builder, |b, (p, n)| {
             if [
-                PrivacyUnit::privacy_unit_default(),
-                PrivacyUnit::privacy_unit_weight_default(),
+                PrivacyUnit::privacy_unit(),
+                PrivacyUnit::privacy_unit_weight(),
             ]
             .contains(&p[1].as_str())
             {
@@ -573,7 +560,7 @@ mod tests {
             PrivacyUnitPath::from((vec![("user_id", "users", "id")], "id")),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit_default());
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
         // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
@@ -583,7 +570,7 @@ mod tests {
                 "name",
             )),
         );
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit_default());
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
         // Produce the query
         relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation).to_string();
@@ -609,7 +596,7 @@ mod tests {
             PrivacyUnitPath::from((vec![("user_id", "users", "id")], PrivacyUnit::privacy_unit_row())),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit_default());
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
         // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
@@ -620,7 +607,7 @@ mod tests {
             )),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit_default());
+        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
         // Produce the query
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -661,7 +648,7 @@ mod tests {
         table.display_dot().unwrap();
         println!("Schema privacy_tracked = {}", table.schema());
         println!("Query privacy tracked = {}", ast::Query::from(&*table));
-        assert_eq!(table.schema()[0].name(), PrivacyUnit::privacy_unit_default())
+        assert_eq!(table.schema()[0].name(), PrivacyUnit::privacy_unit())
     }
 
     #[test]
@@ -716,9 +703,9 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
-            (PrivacyUnit::privacy_unit_default(), DataType::text()),
+            (PrivacyUnit::privacy_unit(), DataType::text()),
             (
-                PrivacyUnit::privacy_unit_weight_default(),
+                PrivacyUnit::privacy_unit_weight(),
                 DataType::integer_value(1),
             ),
         ];
@@ -782,9 +769,9 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut true_fields = vec![
-            (PrivacyUnit::privacy_unit_default(), DataType::text()),
+            (PrivacyUnit::privacy_unit(), DataType::text()),
             (
-                PrivacyUnit::privacy_unit_weight_default(),
+                PrivacyUnit::privacy_unit_weight(),
                 DataType::integer_value(1),
             ),
         ];

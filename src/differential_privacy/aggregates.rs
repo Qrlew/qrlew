@@ -651,11 +651,11 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        PrivacyUnit::privacy_unit_default(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        PrivacyUnit::privacy_unit_weight_default(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),
@@ -1094,8 +1094,8 @@ mod tests {
             ("a", DataType::float_interval(-2., 2.)),
             ("b", DataType::integer_interval(0, 10)),
             ("c", DataType::float_interval(10., 20.)),
-            (PrivacyUnit::privacy_unit_default(), DataType::text()),
-            (PrivacyUnit::privacy_unit_weight_default(), DataType::float()),
+            (PrivacyUnit::privacy_unit(), DataType::text()),
+            (PrivacyUnit::privacy_unit_weight(), DataType::float()),
         ]
         .into_iter()
         .collect();
@@ -1261,11 +1261,11 @@ mod tests {
                     .with(("b", DataType::integer_values([1, 2, 5, 6, 7, 8])))
                     .with(("c", DataType::integer_range(5..=20)))
                     .with((
-                        PrivacyUnit::privacy_unit_default(),
+                        PrivacyUnit::privacy_unit(),
                         DataType::integer_range(1..=100),
                     ))
                     .with((
-                        PrivacyUnit::privacy_unit_weight_default(),
+                        PrivacyUnit::privacy_unit_weight(),
                         DataType::float_interval(0., 1.),
                     ))
                     .build(),

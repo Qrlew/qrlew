@@ -539,62 +539,6 @@ mod tests {
     }
 
     #[test]
-    fn test_census_with_admin_cols() {
-        let census: Relation = Relation::table()
-            .name("census")
-            .schema(
-                vec![
-                    ("capital_loss", DataType::integer()),
-                    ("age", DataType::integer()),
-                    ("sarus_privacy_unit", DataType::optional(DataType::id())),
-                    ("sarus_weight", DataType::float_interval(0.0, 20.0)),
-                    ("sarus_is_public", DataType::boolean()),
-                ]
-                .into_iter()
-                .collect::<Schema>()
-            )
-            .size(1000)
-            .build();
-        let relations: Hierarchy<Arc<Relation>> = vec![census]
-            .iter()
-            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into())))
-            .collect();
-        let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
-            (vec!["census"], Identifier::from("SYNTHETIC_census")),
-        ])));
-        let privacy_unit = PrivacyUnit::from(vec![
-            ("census", vec![], "sarus_privacy_unit"),
-        ]).with_pu_column_and_weight(
-            "sarus_privacy_unit".to_string(),
-            "sarus_weight".to_string()
-        );
-        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
-
-        let queries = [
-            "SELECT * FROM census"
-            // "SELECT SUM(CAST(capital_loss AS float) / 100000.) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
-            // "SELECT SUM(capital_loss) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
-            // "SELECT SUM(capital_loss / 100) AS my_sum FROM census WHERE capital_loss > 2231. AND capital_loss < 4356.;",
-            // "SELECT SUM(CASE WHEN age > 70 THEN 1 ELSE 0 END) AS s1 FROM census WHERE age > 20 AND age < 90;"
-        ];
-        for query_str in queries {
-            println!("\n{query_str}");
-            let query = parse(query_str).unwrap();
-            let relation = Relation::try_from(query.with(&relations)).unwrap();
-            relation.display_dot().unwrap();
-            let dp_relation = relation.rewrite_as_privacy_unit_preserving(
-                &relations,
-                synthetic_data.clone(),
-                privacy_unit.clone(),
-                dp_parameters.clone()
-            ).unwrap();
-            dp_relation.relation().display_dot().unwrap();
-            println!("dp_event = {}", dp_relation.dp_event());
-            assert!(!dp_relation.dp_event().is_no_op());
-        }
-    }
-
-    #[test]
     fn test_patients() {
         let axa_patients: Relation = Relation::table()
             .name("axa_patients")
