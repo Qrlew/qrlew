@@ -722,13 +722,6 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
             Property::DifferentiallyPrivate,
                     Parameters::DifferentialPrivacy(self.dp_parameters.clone()),
                 )
-            );
-            rewriting_rules.push(
-                RewritingRule::new(
-            vec![Property::PrivacyUnitPreserving],
-            Property::PrivacyUnitPreserving,
-                    Parameters::PrivacyUnit(self.privacy_unit.clone()),
-                )
             )
         }
         rewriting_rules
@@ -750,16 +743,6 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 vec![Property::Published, Property::Published],
                 Property::Published,
                 Parameters::None,
-            ),
-            RewritingRule::new(
-                vec![Property::Public, Property::PrivacyUnitPreserving],
-                Property::PrivacyUnitPreserving,
-                Parameters::PrivacyUnit(self.privacy_unit.clone()),
-            ),
-            RewritingRule::new(
-                vec![Property::PrivacyUnitPreserving, Property::Public],
-                Property::PrivacyUnitPreserving,
-                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![Property::Published, Property::PrivacyUnitPreserving],
@@ -1103,7 +1086,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         table: &'a Table,
         rewriting_rule: &'a RewritingRule,
     ) -> RelationWithDpEvent {
-        println!("DEBUG: RewriteVisitor, table ");
         let relation = Arc::new(
             match (rewriting_rule.output(), rewriting_rule.parameters()) {
                 (Property::Private, _) => table.clone().into(),
@@ -1124,7 +1106,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 _ => table.clone().into(),
             },
         );
-        println!("END DEBUG: RewriteVisitor, table ");
         (relation, DpEvent::no_op()).into()
     }
 
@@ -1134,7 +1115,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         rewriting_rule: &'a RewritingRule,
         rewritten_input: RelationWithDpEvent,
     ) -> RelationWithDpEvent {
-        println!("DEBUG: RewriteVisitor, map ");
         let (relation_input, dp_event_input) = rewritten_input.into();
         let relation: Arc<Relation> = Arc::new(
             match (
@@ -1152,7 +1132,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Soft,
                     );
-                    relation_input.display_dot().unwrap();
                     privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()
@@ -1164,7 +1143,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     .build(),
             },
         );
-        println!("END DEBUG: RewriteVisitor, map ");
         (relation, dp_event_input).into()
     }
 
@@ -1174,7 +1152,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         rewriting_rule: &'a RewritingRule,
         rewritten_input: RelationWithDpEvent,
     ) -> RelationWithDpEvent {
-        println!("DEBUG: RewriteVisitor, reduce ");
         let (relation_input, mut dp_event_input) = rewritten_input.into();
         let relation = Arc::new(
             match (
@@ -1215,7 +1192,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     .build(),
             },
         );
-        println!("END DEBUG: RewriteVisitor, map ");
         (relation, dp_event_input).into()
     }
 
@@ -1226,7 +1202,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         rewritten_left: RelationWithDpEvent,
         rewritten_right: RelationWithDpEvent,
     ) -> RelationWithDpEvent {
-        println!("DEBUG: RewriteVisitor, join ");
         let (relation_left, dp_event_left) = rewritten_left.into();
         let (relation_right, dp_event_right) = rewritten_right.into();
         let relation: Arc<Relation> = Arc::new(
@@ -1308,7 +1283,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     .build(),
             },
         );
-        println!("END DEBUG: RewriteVisitor, join ");
         (relation, dp_event_left.compose(dp_event_right)).into()
     }
 
