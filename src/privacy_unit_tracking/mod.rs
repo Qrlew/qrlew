@@ -148,7 +148,8 @@ impl Relation {
             Expr::col(referred_field),
         )
     }
-    /// Add the field containing the privacy unit
+    /// Add the field containing the privacy unit weight if provided or
+    /// insert it initialized to 1.
     pub fn privacy_unit_weight(self, referred_weight_field: &Option<String>) -> Self {
         if let Some(referred_weight_field) = referred_weight_field {
             self.identity_with_field(
