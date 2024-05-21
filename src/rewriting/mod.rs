@@ -73,7 +73,9 @@ impl Relation {
             privacy_unit,
             dp_parameters,
         ));
+        relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
+        relation_with_rules.display_dot().unwrap();
         relation_with_rules
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
@@ -486,7 +488,6 @@ mod tests {
             ).unwrap();
             dp_relation.relation().display_dot().unwrap();
         }
-
     }
 
     #[test]
@@ -570,16 +571,17 @@ mod tests {
             ("retail_demographics", vec![], "sarus_privacy_unit", "sarus_weight"),
             ("retail_transactions", vec![], "sarus_privacy_unit", "sarus_weight"),
         ];
-        
+
         let privacy_unit = PrivacyUnit::from((privacy_unit_paths, false));
 
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         let pup_queries = [
             // "SELECT household_id FROM retail_demographics", //is pup
-            // "SELECT household_id, COUNT(*) FROM retail_demographics GROUP BY household_id", //is not pup but it should be
-            // "SELECT d.household_id FROM retail_demographics as d JOIN retail_transactions AS t ON (d.household_id=t.household_id)", //is not pup it should be
-            "WITH my_tab AS (SELECT * FROM retail_demographics) SELECT * FROM my_tab" // It should be pup
+            // "SELECT COUNT(*) FROM retail_demographics GROUP BY household_id", //is pup
+            "SELECT household_id FROM retail_demographics as d JOIN retail_transactions AS t USING (household_id)",
+            //"SELECT household_id FROM retail_transactions as t JOIN retail_products AS p USING (product_id)",
+            // "WITH my_tab AS (SELECT * FROM retail_demographics) SELECT * FROM my_tab" // It should be pup
             // "SELECT COUNT(DISTINCT household_id) AS unique_customers FROM retail_transactions",
             // "SELECT * FROM retail_transactions t1 INNER JOIN retail_transactions t2 ON t1.product_id = t2.product_id",
             // "SELECT COUNT(*) FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",

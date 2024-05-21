@@ -722,6 +722,13 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
             Property::DifferentiallyPrivate,
                     Parameters::DifferentialPrivacy(self.dp_parameters.clone()),
                 )
+            );
+            rewriting_rules.push(
+                RewritingRule::new(
+            vec![Property::PrivacyUnitPreserving],
+            Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(self.privacy_unit.clone()),
+                )
             )
         }
         rewriting_rules
@@ -743,6 +750,16 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 vec![Property::Published, Property::Published],
                 Property::Published,
                 Parameters::None,
+            ),
+            RewritingRule::new(
+                vec![Property::Public, Property::PrivacyUnitPreserving],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
+                vec![Property::PrivacyUnitPreserving, Property::Public],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
                 vec![Property::Published, Property::PrivacyUnitPreserving],
@@ -1132,10 +1149,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                         privacy_unit.clone(),
                         crate::privacy_unit_tracking::Strategy::Soft,
                     );
-                    // println!("DEBUG: PU tracking {:?}", privacy_unit_tracking);
-                    let rr: Relation = map.clone().into();
-                    rr.display_dot().unwrap();
-                    // end debug
+                    relation_input.display_dot().unwrap();
                     privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()

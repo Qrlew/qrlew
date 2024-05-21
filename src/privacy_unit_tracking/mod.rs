@@ -151,12 +151,9 @@ impl Relation {
     /// Add the field containing the privacy unit
     pub fn privacy_unit_weight(self, referred_weight_field: &Option<String>) -> Self {
         if let Some(referred_weight_field) = referred_weight_field {
-            self.rename_fields( |fname, _expr|
-                if fname==referred_weight_field {
-                    PrivacyUnit::privacy_unit_weight().into()
-                } else {
-                    fname.into()
-                }
+            self.identity_with_field(
+                PrivacyUnit::privacy_unit_weight(),
+                Expr::col(referred_weight_field),
             )
         } else {
             self.insert_field(1, PrivacyUnit::privacy_unit_weight(), Expr::val(1))
@@ -280,7 +277,18 @@ impl<'a> PrivacyUnitTracking<'a> {
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::no_private_table(table.path()))?;
-        PupRelation::try_from(
+        let rel = Relation::from(table.clone())
+        .with_field_path(self.relations, field_path.clone())
+        .map_fields(|name, expr| {
+            if name == PrivacyUnit::privacy_unit() && self.privacy_unit.hash_privacy_unit() {
+                Expr::md5(Expr::cast_as_text(expr))
+            } else {
+                expr
+            }
+        });
+        println!("DEBUG: PUP table!");
+        rel.display_dot().unwrap();
+        let pup = PupRelation::try_from(
             Relation::from(table.clone())
                 .with_field_path(self.relations, field_path.clone())
                 .map_fields(|name, expr| {
@@ -290,11 +298,14 @@ impl<'a> PrivacyUnitTracking<'a> {
                         expr
                     }
                 })
-        )
+        );
+        println!("END DEBUG: PUP table!");
+        pup
     }
 
     /// Map privacy tracking from another PUP relation
     pub fn map(&self, map: &'a Map, input: PupRelation) -> Result<PupRelation> {
+        println!("DEBUG: PUP map!");
         let relation: Relation = Relation::map()
             .with((
                 PrivacyUnit::privacy_unit(),
@@ -337,6 +348,16 @@ impl<'a> PrivacyUnitTracking<'a> {
         right: PupRelation,
     ) -> Result<PupRelation> {
         // Create the privacy tracked join
+        println!("DEBUG: join");
+        Relation::from(join.clone()).display_dot().unwrap();
+
+        println!("DEBUG: left");
+        left.display_dot().unwrap();
+
+
+        println!("DEBUG: right");
+        right.display_dot().unwrap();
+
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(join)),
             Strategy::Hard => {
@@ -450,6 +471,8 @@ impl<'a> PrivacyUnitTracking<'a> {
             }
         });
         let relation: Relation = builder.input(Arc::new(join.into())).build();
+        println!("DEBUG join_left_published.");
+        relation.display_dot().unwrap();
         PupRelation::try_from(relation)
     }
 
@@ -502,6 +525,8 @@ impl<'a> PrivacyUnitTracking<'a> {
             }
         });
         let relation: Relation = builder.input(Arc::new(join.into())).build();
+        println!("DEBUG join_right_published.");
+        relation.display_dot().unwrap();
         PupRelation::try_from(relation)
     }
 
