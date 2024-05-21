@@ -278,7 +278,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::no_private_table(table.path()))?;
-        let rel = Relation::from(table.clone())
+        let relation = Relation::from(table.clone())
         .with_field_path(self.relations, field_path.clone())
         .map_fields(|name, expr| {
             if name == PrivacyUnit::privacy_unit() && self.privacy_unit.hash_privacy_unit() {
@@ -287,26 +287,15 @@ impl<'a> PrivacyUnitTracking<'a> {
                 expr
             }
         });
-        println!("DEBUG: PUP table!");
-        rel.display_dot().unwrap();
-        let pup = PupRelation::try_from(
-            Relation::from(table.clone())
-                .with_field_path(self.relations, field_path.clone())
-                .map_fields(|name, expr| {
-                    if name == PrivacyUnit::privacy_unit() && self.privacy_unit.hash_privacy_unit() {
-                        Expr::md5(Expr::cast_as_text(expr))
-                    } else {
-                        expr
-                    }
-                })
-        );
-        println!("END DEBUG: PUP table!");
-        pup
+        println!("DEBUG TABLE: ");
+        let pup = PupRelation::try_from(relation.clone()).unwrap();
+        pup.display_dot().unwrap();
+        println!("END DEBUG TABLE: ");
+        PupRelation::try_from(relation)
     }
 
     /// Map privacy tracking from another PUP relation
     pub fn map(&self, map: &'a Map, input: PupRelation) -> Result<PupRelation> {
-        println!("DEBUG: PUP map!");
         let relation: Relation = Relation::map()
             .with((
                 PrivacyUnit::privacy_unit(),
@@ -319,6 +308,7 @@ impl<'a> PrivacyUnitTracking<'a> {
             .with(map.clone())
             .input(Relation::from(input))
             .build();
+        println!("DEBUG MAP: ");
         PupRelation::try_from(relation)
     }
 
@@ -349,16 +339,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         right: PupRelation,
     ) -> Result<PupRelation> {
         // Create the privacy tracked join
-        println!("DEBUG: join");
-        Relation::from(join.clone()).display_dot().unwrap();
-
-        println!("DEBUG: left");
-        left.display_dot().unwrap();
-
-
-        println!("DEBUG: right");
-        right.display_dot().unwrap();
-
+        println!("DEBUG JOIN --- ");
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(join)),
             Strategy::Hard => {
@@ -417,7 +398,9 @@ impl<'a> PrivacyUnitTracking<'a> {
                         b.with((n, Expr::col(n)))
                     }
                 });
+                println!("DEBUG JOIN: ");
                 let relation: Relation = builder.input(Arc::new(join.into())).build();
+                println!("END DEBUG JOIN:");
                 PupRelation::try_from(relation)
             }
         }
@@ -472,8 +455,6 @@ impl<'a> PrivacyUnitTracking<'a> {
             }
         });
         let relation: Relation = builder.input(Arc::new(join.into())).build();
-        println!("DEBUG join_left_published.");
-        relation.display_dot().unwrap();
         PupRelation::try_from(relation)
     }
 
@@ -526,8 +507,6 @@ impl<'a> PrivacyUnitTracking<'a> {
             }
         });
         let relation: Relation = builder.input(Arc::new(join.into())).build();
-        println!("DEBUG join_right_published.");
-        relation.display_dot().unwrap();
         PupRelation::try_from(relation)
     }
 

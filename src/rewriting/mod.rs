@@ -73,9 +73,7 @@ impl Relation {
             privacy_unit,
             dp_parameters,
         ));
-        relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
-        relation_with_rules.display_dot().unwrap();
         relation_with_rules
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
@@ -109,6 +107,7 @@ impl Relation {
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
                 Property::Public | Property::Published | Property::DifferentiallyPrivate | Property::SyntheticData => {
+                    println!("DEBUG: rewrite");
                     Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
                 }
                 _ => None,
@@ -458,22 +457,22 @@ mod tests {
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         let queries = [
-            "SELECT COUNT(DISTINCT household_id) AS unique_customers FROM retail_transactions",
-            "SELECT * FROM retail_transactions t1 INNER JOIN retail_transactions t2 ON t1.product_id = t2.product_id",
+            // "SELECT COUNT(DISTINCT household_id) AS unique_customers FROM retail_transactions",
+            // "SELECT * FROM retail_transactions t1 INNER JOIN retail_transactions t2 ON t1.product_id = t2.product_id",
             "SELECT COUNT(*) FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
-            "SELECT * FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
-            "SELECT department, AVG(sales_value) AS average_sales FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id GROUP BY department",
-            "SELECT * FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id",
-            "WITH ranked_products AS (SELECT product_id, COUNT(*) AS my_count FROM retail_transactions GROUP BY product_id) SELECT product_id FROM ranked_products ORDER BY my_count",
-            //"SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp < CAST('2023-02-01' AS date) GROUP BY t.product_id, p.product_category", // cast date from string does not work in where
-            "SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp > '2023-01-01' AND t.transaction_timestamp < '2023-02-01' GROUP BY t.product_id, p.product_category",
-            "SELECT DISTINCT age, income FROM retail_demographics",
-            "SELECT age, income FROM retail_demographics GROUP BY age, income",
-            "SELECT quantity, AVG(sales_value) FROM retail_demographics AS d JOIN retail_transactions AS t ON d.household_id = t.household_id WHERE quantity > 0 AND sales_value > 0 AND sales_value < 100 GROUP BY quantity",
-            "WITH stats_stores AS (SELECT store_id, SUM(sales_value) AS sum_sales_value, AVG(retail_disc) FROM retail_transactions WHERE sales_value > 0 AND sales_value < 100 AND retail_disc > 0 AND retail_disc < 10 GROUP BY store_id) SELECT * FROM stats_stores WHERE sum_sales_value != 1",
-            "SELECT p.product_id, p.brand, COUNT(*) FROM retail_products p INNER JOIN retail_transactions t ON p.product_id = t.product_id GROUP BY p.product_id, p.brand",
-            "SELECT t.household_id, store_id, AVG(sales_value) FROM retail_demographics AS d JOIN retail_transactions AS t ON d.household_id = t.household_id WHERE sales_value > 0 AND sales_value < 100 GROUP BY t.household_id, store_id",
-            "SELECT * FROM retail_transactions AS t INNER JOIN retail_products p ON t.product_id = p.product_id",
+            // "SELECT * FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
+            // "SELECT department, AVG(sales_value) AS average_sales FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id GROUP BY department",
+            // "SELECT * FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id",
+            // "WITH ranked_products AS (SELECT product_id, COUNT(*) AS my_count FROM retail_transactions GROUP BY product_id) SELECT product_id FROM ranked_products ORDER BY my_count",
+            // //"SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp < CAST('2023-02-01' AS date) GROUP BY t.product_id, p.product_category", // cast date from string does not work in where
+            // "SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp > '2023-01-01' AND t.transaction_timestamp < '2023-02-01' GROUP BY t.product_id, p.product_category",
+            // "SELECT DISTINCT age, income FROM retail_demographics",
+            // "SELECT age, income FROM retail_demographics GROUP BY age, income",
+            // "SELECT quantity, AVG(sales_value) FROM retail_demographics AS d JOIN retail_transactions AS t ON d.household_id = t.household_id WHERE quantity > 0 AND sales_value > 0 AND sales_value < 100 GROUP BY quantity",
+            // "WITH stats_stores AS (SELECT store_id, SUM(sales_value) AS sum_sales_value, AVG(retail_disc) FROM retail_transactions WHERE sales_value > 0 AND sales_value < 100 AND retail_disc > 0 AND retail_disc < 10 GROUP BY store_id) SELECT * FROM stats_stores WHERE sum_sales_value != 1",
+            // "SELECT p.product_id, p.brand, COUNT(*) FROM retail_products p INNER JOIN retail_transactions t ON p.product_id = t.product_id GROUP BY p.product_id, p.brand",
+            // "SELECT t.household_id, store_id, AVG(sales_value) FROM retail_demographics AS d JOIN retail_transactions AS t ON d.household_id = t.household_id WHERE sales_value > 0 AND sales_value < 100 GROUP BY t.household_id, store_id",
+            // "SELECT * FROM retail_transactions AS t INNER JOIN retail_products p ON t.product_id = p.product_id",
         ];
         for query_str in queries {
             println!("\n{query_str}");
@@ -577,19 +576,13 @@ mod tests {
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
 
         let pup_queries = [
-            // "SELECT household_id FROM retail_demographics", //is pup
-            // "SELECT COUNT(*) FROM retail_demographics GROUP BY household_id", //is pup
-            "SELECT household_id FROM retail_demographics as d JOIN retail_transactions AS t USING (household_id)",
-            //"SELECT household_id FROM retail_transactions as t JOIN retail_products AS p USING (product_id)",
-            // "WITH my_tab AS (SELECT * FROM retail_demographics) SELECT * FROM my_tab" // It should be pup
             // "SELECT COUNT(DISTINCT household_id) AS unique_customers FROM retail_transactions",
             // "SELECT * FROM retail_transactions t1 INNER JOIN retail_transactions t2 ON t1.product_id = t2.product_id",
-            // "SELECT COUNT(*) FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
+            "SELECT COUNT(*) FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
             // "SELECT * FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id",
             // "SELECT department, AVG(sales_value) AS average_sales FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id GROUP BY department",
             // "SELECT * FROM retail_transactions INNER JOIN retail_products ON retail_transactions.product_id = retail_products.product_id",
             // "WITH ranked_products AS (SELECT product_id, COUNT(*) AS my_count FROM retail_transactions GROUP BY product_id) SELECT product_id FROM ranked_products ORDER BY my_count",
-            // //"SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp < CAST('2023-02-01' AS date) GROUP BY t.product_id, p.product_category", // cast date from string does not work in where
             // "SELECT t.product_id, p.product_category, COUNT(*) AS purchase_count FROM retail_transactions t INNER JOIN retail_products p ON t.product_id = p.product_id WHERE t.transaction_timestamp > '2023-01-01' AND t.transaction_timestamp < '2023-02-01' GROUP BY t.product_id, p.product_category",
             // "SELECT DISTINCT age, income FROM retail_demographics",
             // "SELECT age, income FROM retail_demographics GROUP BY age, income",
@@ -604,15 +597,13 @@ mod tests {
             let query = parse(query_str).unwrap();
             let relation = Relation::try_from(query.with(&relations)).unwrap();
             relation.display_dot().unwrap();
-            let pup_relation = relation.rewrite_as_privacy_unit_preserving(
+            let dp_relation = relation.rewrite_with_differential_privacy(
                 &relations,
                 synthetic_data.clone(),
                 privacy_unit.clone(),
                 dp_parameters.clone()
             ).unwrap();
-            let dp_event = pup_relation.dp_event();
-            println!("DP EVENT: {:?}", dp_event);
-            pup_relation.relation().display_dot().unwrap();
+            dp_relation.relation().display_dot().unwrap();
         }
 
     }
