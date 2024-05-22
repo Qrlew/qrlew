@@ -11,9 +11,8 @@ use crate::{
     builder::{Ready, With, WithIterator},
     expr::{AggregateColumn, Expr},
     hierarchy::Hierarchy,
-    namer,
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
-    visitor::Acceptor,
+    namer,
 };
 pub use privacy_unit::{PrivacyUnit, PrivacyUnitPath};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
@@ -142,9 +141,10 @@ impl Relation {
         };
         relation.identity_with_field(PrivacyUnitPath::privacy_unit(), Expr::col(referred_field))
     }
-    /// Add the field containing the privacy unit weight if provided or
-    /// insert it initialized to 1.
-    pub fn privacy_unit_weight(self, referred_weight_field: Option<String>) -> Self {
+    /// Insert the privacy unit weight field containing the if the referred_weight_field is Some
+    /// and if the field is not already in the schema. If referred_weight_field is None
+    /// then a privacy unit weight with 1s is added to self.
+    pub fn insert_privacy_unit_weight(self, referred_weight_field: Option<String>) -> Self {
         let weight_col_already_exists = self
             .schema()
             .field(PrivacyUnit::privacy_unit_weight())
@@ -167,15 +167,15 @@ impl Relation {
         referred_id: String,
         referred_field: String,
         referred_field_name: String,
-        referred_weight_field: Option<String>,
-        referred_weight_field_name: String,
+        referred_optional_field: Option<String>,
+        referred_optional_field_name: String,
     ) -> Relation {
         let left_size = referred_relation.schema().len();
         let names: Vec<String> = self
             .schema()
             .iter()
             .map(|f| f.name().to_string())
-            .filter(|name| name != &referred_field_name && name != &referred_weight_field_name)
+            .filter(|name| name != &referred_field_name && name != &referred_optional_field_name)
             .collect();
         let referred_relation = if referred_field == PrivacyUnit::privacy_unit_row() {
             Arc::new(referred_relation.deref().clone().privacy_unit_row())
@@ -206,8 +206,8 @@ impl Relation {
             .with_iter(left.into_iter().filter_map(|(o, i)| {
                 if referred_field == i.name() {
                     Some((referred_field_name.clone(), Expr::col(o.name())))
-                } else if referred_weight_field == Some(i.name().to_string()) {
-                    Some((referred_weight_field_name.clone(), Expr::col(o.name())))
+                } else if referred_optional_field == Some(i.name().to_string()) {
+                    Some((referred_optional_field_name.clone(), Expr::col(o.name())))
                 } else {
                     None
                 }
@@ -229,7 +229,7 @@ impl Relation {
         let referred_weight_field = field_path.referred_weight_field().clone();
         if field_path.path().is_empty() {
             self.privacy_unit(field_path.referred_field())
-                .privacy_unit_weight(referred_weight_field)
+                .insert_privacy_unit_weight(referred_weight_field)
         } else {
             field_path
                 .into_iter()
@@ -247,7 +247,7 @@ impl Relation {
                         referred_field.referred_weigh_field_name,
                     )
                 })
-                .privacy_unit_weight(referred_weight_field)
+                .insert_privacy_unit_weight(referred_weight_field)
         }
     }
 }
