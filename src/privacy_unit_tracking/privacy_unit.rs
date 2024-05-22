@@ -145,7 +145,7 @@ impl ReferredField {
             referred_field,
             referred_field_name,
             referred_weigh_field,
-            referred_weigh_field_name
+            referred_weigh_field_name,
         }
     }
 }
@@ -172,15 +172,19 @@ impl Display for ReferredField {
 pub struct PrivacyUnitPath {
     path: Path,
     privacy_unit_field: String,
-    weight_field: Option<String>
+    weight_field: Option<String>,
 }
 
 impl PrivacyUnitPath {
-    pub fn new(path: Path, privacy_unit_field: String, weight_field: Option<String>) -> PrivacyUnitPath {
+    pub fn new(
+        path: Path,
+        privacy_unit_field: String,
+        weight_field: Option<String>,
+    ) -> PrivacyUnitPath {
         PrivacyUnitPath {
             path,
             privacy_unit_field,
-            weight_field: weight_field
+            weight_field: weight_field,
         }
     }
 
@@ -229,8 +233,14 @@ impl From<(Vec<(&str, &str, &str)>, &str)> for PrivacyUnitPath {
 }
 
 impl From<(Vec<(&str, &str, &str)>, &str, &str)> for PrivacyUnitPath {
-    fn from((path, referred_field, referred_weight_field): (Vec<(&str, &str, &str)>, &str, &str)) -> Self {
-        PrivacyUnitPath::new(Path::from_iter(path), referred_field.into(), Some(referred_weight_field.into()))
+    fn from(
+        (path, referred_field, referred_weight_field): (Vec<(&str, &str, &str)>, &str, &str),
+    ) -> Self {
+        PrivacyUnitPath::new(
+            Path::from_iter(path),
+            referred_field.into(),
+            Some(referred_weight_field.into()),
+        )
     }
 }
 
@@ -239,7 +249,6 @@ impl<'a> From<&'a PrivacyUnitPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a st
         ((&value.path).into(), &value.privacy_unit_field)
     }
 }
-
 
 impl<'a> IntoIterator for PrivacyUnitPath {
     type Item = ReferredField;
@@ -286,9 +295,9 @@ impl<'a> IntoIterator for PrivacyUnitPath {
 
 /// Associate a PEID to each table
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct PrivacyUnit{
+pub struct PrivacyUnit {
     paths: Vec<(String, PrivacyUnitPath)>,
-    hash_privacy_unit: bool
+    hash_privacy_unit: bool,
 }
 
 impl PrivacyUnit {
@@ -356,11 +365,14 @@ impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str)>> for PrivacyUnit {
                 PrivacyUnitPath::new(
                     Path::from_iter(privacy_unit_tracking),
                     referred_field.into(),
-                    None
+                    None,
                 ),
             ));
         }
-        PrivacyUnit {paths: result, hash_privacy_unit: true}
+        PrivacyUnit {
+            paths: result,
+            hash_privacy_unit: true,
+        }
     }
 }
 
@@ -373,11 +385,14 @@ impl From<Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>> for PrivacyUnit {
                 PrivacyUnitPath::new(
                     Path::from_iter(privacy_unit_tracking),
                     referred_field.into(),
-                    Some(referred_weight_field.into())
+                    Some(referred_weight_field.into()),
                 ),
             ));
         }
-        PrivacyUnit {paths: result, hash_privacy_unit: true}
+        PrivacyUnit {
+            paths: result,
+            hash_privacy_unit: true,
+        }
     }
 }
 
@@ -395,7 +410,10 @@ impl From<(Vec<(&str, Vec<(&str, &str, &str)>, &str)>, bool)> for PrivacyUnit {
                 ),
             ));
         }
-        PrivacyUnit {paths: result, hash_privacy_unit: hash_pu}
+        PrivacyUnit {
+            paths: result,
+            hash_privacy_unit: hash_pu,
+        }
     }
 }
 
@@ -413,7 +431,10 @@ impl From<(Vec<(&str, Vec<(&str, &str, &str)>, &str, &str)>, bool)> for PrivacyU
                 ),
             ));
         }
-        PrivacyUnit {paths: result, hash_privacy_unit: hash_pu}
+        PrivacyUnit {
+            paths: result,
+            hash_privacy_unit: hash_pu,
+        }
     }
 }
 
@@ -467,7 +488,7 @@ mod tests {
             "name".into(),
             "peid".into(),
             None,
-            "weight".into()
+            "weight".into(),
         );
         println!("{referred_field}");
     }
@@ -494,7 +515,7 @@ mod tests {
                 ("user_id", "user_table", "id"),
             ],
             "name",
-            "weight_column"
+            "weight_column",
         )
             .into();
         println!("{:?}", field_path);
@@ -540,7 +561,7 @@ mod tests {
             ("user_table", vec![], "name"),
             ("product_table", vec![], PRIVACY_UNIT_ROW),
         ];
-        
+
         let privacy_unit = PrivacyUnit::from((paths, true));
         println!("{:?}", privacy_unit);
     }
@@ -555,13 +576,18 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "weight_col"
+                "weight_col",
             ),
-            ("order_table", vec![("user_id", "user_table", "id")], "name", "weight_col"),
+            (
+                "order_table",
+                vec![("user_id", "user_table", "id")],
+                "name",
+                "weight_col",
+            ),
             ("user_table", vec![], "name", "weight_col"),
             ("product_table", vec![], PRIVACY_UNIT_ROW, "weight_col"),
         ];
-        
+
         let privacy_unit = PrivacyUnit::from(paths);
         println!("{:?}", privacy_unit);
     }
@@ -576,13 +602,18 @@ mod tests {
                     ("user_id", "user_table", "id"),
                 ],
                 "name",
-                "weight_col"
+                "weight_col",
             ),
-            ("order_table", vec![("user_id", "user_table", "id")], "name", "weight_col"),
+            (
+                "order_table",
+                vec![("user_id", "user_table", "id")],
+                "name",
+                "weight_col",
+            ),
             ("user_table", vec![], "name", "weight_col"),
             ("product_table", vec![], PRIVACY_UNIT_ROW, "weight_col"),
         ];
-        
+
         let privacy_unit = PrivacyUnit::from((paths, false));
         println!("{:?}", privacy_unit);
     }
