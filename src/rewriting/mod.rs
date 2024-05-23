@@ -126,7 +126,6 @@ mod tests {
         ast,
         builder::{Ready, With},
         data_type::DataType,
-        differential_privacy::DpEvent,
         display::Dot,
         expr::Identifier,
         io::{postgresql, Database},
