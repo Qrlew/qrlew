@@ -5,14 +5,14 @@ use itertools::Itertools;
 
 use crate::{
     builder::{Ready, With},
-    differential_privacy::{DpParameters, DpEvent},
+    differential_privacy::{DpEvent, DpParameters},
+    expr::aggregate::Aggregate,
     hierarchy::Hierarchy,
     privacy_unit_tracking::{privacy_unit::PrivacyUnit, PrivacyUnitTracking},
-    expr::aggregate::Aggregate,
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
     synthetic_data::SyntheticData,
-    visitor::{Acceptor, Visited, Visitor}, display::Dot,
+    visitor::{Acceptor, Visited, Visitor},
 };
 
 /// A simple Property object to tag Relations properties
@@ -466,10 +466,7 @@ impl RelationWithDpEvent {
 
 impl From<RelationWithDpEvent> for (Relation, DpEvent) {
     fn from(value: RelationWithDpEvent) -> Self {
-        let RelationWithDpEvent {
-            relation,
-            dp_event,
-        } = value;
+        let RelationWithDpEvent { relation, dp_event } = value;
         (relation.deref().clone(), dp_event)
     }
 }
@@ -485,11 +482,7 @@ impl From<(Arc<Relation>, DpEvent)> for RelationWithDpEvent {
 
 /// A Visitor to rewrite a RelationWithRewritingRule
 pub trait RewriteVisitor<'a> {
-    fn table(
-        &self,
-        table: &'a Table,
-        rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithDpEvent;
+    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> RelationWithDpEvent;
     fn map(
         &self,
         map: &'a Map,
@@ -516,11 +509,7 @@ pub trait RewriteVisitor<'a> {
         rewritten_left: RelationWithDpEvent,
         rewritten_right: RelationWithDpEvent,
     ) -> RelationWithDpEvent;
-    fn values(
-        &self,
-        values: &'a Values,
-        rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithDpEvent;
+    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> RelationWithDpEvent;
 }
 /// Implement the visitor trait
 impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, RelationWithDpEvent>
@@ -562,10 +551,7 @@ impl<'a, V: RewriteVisitor<'a>> Visitor<'a, RelationWithRewritingRule<'a>, Relat
 
 impl<'a> RelationWithRewritingRule<'a> {
     /// Rewrite the RelationWithRewritingRule
-    pub fn rewrite<V: RewriteVisitor<'a>>(
-        &'a self,
-        rewrite_visitor: V,
-    ) -> RelationWithDpEvent {
+    pub fn rewrite<V: RewriteVisitor<'a>>(&'a self, rewrite_visitor: V) -> RelationWithDpEvent {
         self.accept(rewrite_visitor)
     }
 }
@@ -613,22 +599,18 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 ),
             ]
         } else {
-            vec![
-                RewritingRule::new(
-                    vec![],
-                    Property::Public,
-                    Parameters::None,
-                ),
-            ]
+            vec![RewritingRule::new(
+                vec![],
+                Property::Public,
+                Parameters::None,
+            )]
         };
         if let Some(synthetic_data) = &self.synthetic_data {
-            rewriting_rules.push(
-                RewritingRule::new(
-                    vec![],
-                    Property::SyntheticData,
-                    Parameters::SyntheticData(synthetic_data.clone()),
-                )
-            )
+            rewriting_rules.push(RewritingRule::new(
+                vec![],
+                Property::SyntheticData,
+                Parameters::SyntheticData(synthetic_data.clone()),
+            ))
         }
         rewriting_rules
     }
@@ -653,13 +635,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
             ),
         ];
         if let Some(synthetic_data) = &self.synthetic_data {
-            rewriting_rules.push(
-                RewritingRule::new(
-                    vec![Property::SyntheticData],
-                    Property::SyntheticData,
-                    Parameters::SyntheticData(synthetic_data.clone()),
-                )
-            )
+            rewriting_rules.push(RewritingRule::new(
+                vec![Property::SyntheticData],
+                Property::SyntheticData,
+                Parameters::SyntheticData(synthetic_data.clone()),
+            ))
         }
         rewriting_rules
     }
@@ -675,54 +655,47 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 vec![Property::Published],
                 Property::Published,
                 Parameters::None,
-            )
+            ),
         ];
         if let Some(synthetic_data) = &self.synthetic_data {
-            rewriting_rules.push(
-                RewritingRule::new(
-                    vec![Property::SyntheticData],
-                    Property::SyntheticData,
-                    Parameters::SyntheticData(synthetic_data.clone()),
-                )
-            );
-            // rewriting_rules.push(
-            //     RewritingRule::new(
-            //         vec![Property::SyntheticData],
-            //         Property::Published,
-            //         Parameters::None,
-            //     )
-            // );
+            rewriting_rules.push(RewritingRule::new(
+                vec![Property::SyntheticData],
+                Property::SyntheticData,
+                Parameters::SyntheticData(synthetic_data.clone()),
+            ));
         }
-        // We can compile into DP only if the aggregations are supported
-        if reduce.aggregate().iter().all(|f| {
-            match f.aggregate() {
-                Aggregate::Mean |
-                Aggregate::MeanDistinct |
-                Aggregate::Count |
-                Aggregate::CountDistinct |
-                Aggregate::Sum |
-                Aggregate::SumDistinct |
-                Aggregate::Std |
-                Aggregate::StdDistinct |
-                Aggregate::Var |
-                Aggregate::VarDistinct => true,
-                Aggregate::Min |
-                Aggregate::Max |
-                Aggregate::Median |
-                Aggregate::First |
-                Aggregate::Last |
-                Aggregate::Quantile(_) |
-                Aggregate::Quantiles(_) => reduce.group_by().contains(f.column()),
-                _ => false,
-            }
-        }) {
-            rewriting_rules.push(
-                RewritingRule::new(
+        rewriting_rules.push(RewritingRule::new(
             vec![Property::PrivacyUnitPreserving],
-            Property::DifferentiallyPrivate,
-                    Parameters::DifferentialPrivacy(self.dp_parameters.clone()),
-                )
-            )
+            Property::PrivacyUnitPreserving,
+            Parameters::PrivacyUnit(self.privacy_unit.clone()),
+        ));
+
+        // We can compile into DP only if the aggregations are supported
+        if reduce.aggregate().iter().all(|f| match f.aggregate() {
+            Aggregate::Mean
+            | Aggregate::MeanDistinct
+            | Aggregate::Count
+            | Aggregate::CountDistinct
+            | Aggregate::Sum
+            | Aggregate::SumDistinct
+            | Aggregate::Std
+            | Aggregate::StdDistinct
+            | Aggregate::Var
+            | Aggregate::VarDistinct => true,
+            Aggregate::Min
+            | Aggregate::Max
+            | Aggregate::Median
+            | Aggregate::First
+            | Aggregate::Last
+            | Aggregate::Quantile(_)
+            | Aggregate::Quantiles(_) => reduce.group_by().contains(f.column()),
+            _ => false,
+        }) {
+            rewriting_rules.push(RewritingRule::new(
+                vec![Property::PrivacyUnitPreserving],
+                Property::DifferentiallyPrivate,
+                Parameters::DifferentialPrivacy(self.dp_parameters.clone()),
+            ))
         }
         rewriting_rules
     }
@@ -763,6 +736,16 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
             RewritingRule::new(
+                vec![Property::Public, Property::PrivacyUnitPreserving],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
+                vec![Property::PrivacyUnitPreserving, Property::Public],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
                 vec![
                     Property::PrivacyUnitPreserving,
                     Property::DifferentiallyPrivate,
@@ -780,13 +763,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
             ),
         ];
         if let Some(synthetic_data) = &self.synthetic_data {
-            rewriting_rules.push(
-                RewritingRule::new(
-                    vec![Property::SyntheticData, Property::SyntheticData],
-                    Property::SyntheticData,
-                    Parameters::SyntheticData(synthetic_data.clone()),
-                )
-            )
+            rewriting_rules.push(RewritingRule::new(
+                vec![Property::SyntheticData, Property::SyntheticData],
+                Property::SyntheticData,
+                Parameters::SyntheticData(synthetic_data.clone()),
+            ))
         }
         rewriting_rules
     }
@@ -818,29 +799,27 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
             ),
         ];
         if let Some(synthetic_data) = &self.synthetic_data {
-            rewriting_rules.push(
-                RewritingRule::new(
-                    vec![Property::SyntheticData, Property::SyntheticData],
-                    Property::SyntheticData,
-                    Parameters::SyntheticData(synthetic_data.clone()),
-                )
-            )
+            rewriting_rules.push(RewritingRule::new(
+                vec![Property::SyntheticData, Property::SyntheticData],
+                Property::SyntheticData,
+                Parameters::SyntheticData(synthetic_data.clone()),
+            ))
         }
         rewriting_rules
     }
 
     fn values(&self, values: &'a Values) -> Vec<RewritingRule> {
-        let mut rewriting_rules = vec![
-            RewritingRule::new(vec![], Property::Public, Parameters::None),
-        ];
+        let mut rewriting_rules = vec![RewritingRule::new(
+            vec![],
+            Property::Public,
+            Parameters::None,
+        )];
         if let Some(synthetic_data) = &self.synthetic_data {
-            rewriting_rules.push(
-                RewritingRule::new(
-                    vec![],
-                    Property::SyntheticData,
-                    Parameters::SyntheticData(synthetic_data.clone()),
-                )
-            )
+            rewriting_rules.push(RewritingRule::new(
+                vec![],
+                Property::SyntheticData,
+                Parameters::SyntheticData(synthetic_data.clone()),
+            ))
         }
         rewriting_rules
     }
@@ -1081,12 +1060,8 @@ impl<'a> Rewriter<'a> {
 }
 
 impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
-    fn table(
-        &self,
-        table: &'a Table,
-        rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithDpEvent {
-        let relation = Arc::new(
+    fn table(&self, table: &'a Table, rewriting_rule: &'a RewritingRule) -> RelationWithDpEvent {
+        let relation: Arc<Relation> = Arc::new(
             match (rewriting_rule.output(), rewriting_rule.parameters()) {
                 (Property::Private, _) => table.clone().into(),
                 (Property::SyntheticData, Parameters::SyntheticData(synthetic_data)) => {
@@ -1233,8 +1208,14 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     [Property::Published, Property::PrivacyUnitPreserving],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
-                ) | (
+                )
+                | (
                     [Property::DifferentiallyPrivate, Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
+                )
+                | (
+                    [Property::Public, Property::PrivacyUnitPreserving],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
@@ -1256,8 +1237,14 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     [Property::PrivacyUnitPreserving, Property::Published],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
-                ) | (
+                )
+                | (
                     [Property::PrivacyUnitPreserving, Property::DifferentiallyPrivate],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
+                )
+                | (
+                    [Property::PrivacyUnitPreserving, Property::Public],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
@@ -1305,11 +1292,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         (relation, dp_event_left.compose(dp_event_right)).into()
     }
 
-    fn values(
-        &self,
-        values: &'a Values,
-        rewriting_rule: &'a RewritingRule,
-    ) -> RelationWithDpEvent {
+    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> RelationWithDpEvent {
         (Arc::new(values.clone().into()), DpEvent::no_op()).into()
     }
 }
@@ -1374,14 +1357,8 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
-            println!(
-                "PrivateQuery: {:?}",
-                relation_with_dp_event.dp_event()
-            );
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
+            println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
+            relation_with_dp_event.relation().display_dot().unwrap();
         }
     }
 
@@ -1436,14 +1413,8 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
-            println!(
-                "PrivateQuery: {:?}",
-                relation_with_dp_event.dp_event()
-            );
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
+            println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
+            relation_with_dp_event.relation().display_dot().unwrap();
         }
     }
 
@@ -1495,14 +1466,8 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
-            println!(
-                "PrivateQuery: {:?}",
-                relation_with_dp_event.dp_event()
-            );
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
+            println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
+            relation_with_dp_event.relation().display_dot().unwrap();
         }
     }
 
@@ -1554,14 +1519,8 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
-            println!(
-                "PrivateQuery: {:?}",
-                relation_with_dp_event.dp_event()
-            );
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
+            println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
+            relation_with_dp_event.relation().display_dot().unwrap();
         }
     }
 
@@ -1569,10 +1528,12 @@ mod tests {
     fn test_dp_supported_aggregations_query() {
         let database = postgresql::test_database();
         let relations = database.relations();
-        let query = parse(r#"
+        let query = parse(
+            r#"
             SELECT order_id, sum(price) FROM item_table GROUP BY order_id
         "#,
-        ).unwrap();
+        )
+        .unwrap();
         let synthetic_data = Some(SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
@@ -1609,14 +1570,8 @@ mod tests {
             println!("\nDEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
-            println!(
-                "PrivateQuery: {:?}",
-                relation_with_dp_event.dp_event()
-            );
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
+            println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
+            relation_with_dp_event.relation().display_dot().unwrap();
         }
     }
 
@@ -1624,10 +1579,12 @@ mod tests {
     fn test_no_synthetic_data() {
         let database = postgresql::test_database();
         let relations = database.relations();
-        let query = parse(r#"
+        let query = parse(
+            r#"
             SELECT order_id, sum(price) FROM item_table GROUP BY order_id
         "#,
-        ).unwrap();
+        )
+        .unwrap();
         let synthetic_data = None;
         let privacy_unit = PrivacyUnit::from(vec![
             (
@@ -1660,14 +1617,8 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
-            println!(
-                "PrivateQuery: {:?}",
-                relation_with_dp_event.dp_event()
-            );
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
+            println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
+            relation_with_dp_event.relation().display_dot().unwrap();
         }
     }
 
@@ -1675,10 +1626,12 @@ mod tests {
     fn test_dp_unsupported_aggregations_query() {
         let database = postgresql::test_database();
         let relations = database.relations();
-        let query = parse(r#"
+        let query = parse(
+            r#"
             SELECT order_id, max(price) FROM item_table GROUP BY order_id
         "#,
-        ).unwrap();
+        )
+        .unwrap();
         let synthetic_data = SyntheticData::new(Hierarchy::from([
             (vec!["item_table"], Identifier::from("item_table")),
             (vec!["order_table"], Identifier::from("order_table")),
@@ -1715,14 +1668,8 @@ mod tests {
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
             let relation_with_dp_event = rwrr.rewrite(Rewriter(&relations));
-            println!(
-                "PrivateQuery: {:?}",
-                relation_with_dp_event.dp_event()
-            );
-            relation_with_dp_event
-                .relation()
-                .display_dot()
-                .unwrap();
+            println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
+            relation_with_dp_event.relation().display_dot().unwrap();
         }
     }
 }
