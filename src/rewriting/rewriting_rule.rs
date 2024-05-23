@@ -663,14 +663,13 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Property::SyntheticData,
                 Parameters::SyntheticData(synthetic_data.clone()),
             ));
-            // rewriting_rules.push(
-            //     RewritingRule::new(
-            //         vec![Property::SyntheticData],
-            //         Property::Published,
-            //         Parameters::None,
-            //     )
-            // );
         }
+        rewriting_rules.push(RewritingRule::new(
+            vec![Property::PrivacyUnitPreserving],
+            Property::PrivacyUnitPreserving,
+            Parameters::PrivacyUnit(self.privacy_unit.clone()),
+        ));
+
         // We can compile into DP only if the aggregations are supported
         if reduce.aggregate().iter().all(|f| match f.aggregate() {
             Aggregate::Mean
@@ -696,11 +695,6 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 vec![Property::PrivacyUnitPreserving],
                 Property::DifferentiallyPrivate,
                 Parameters::DifferentialPrivacy(self.dp_parameters.clone()),
-            ));
-            rewriting_rules.push(RewritingRule::new(
-                vec![Property::PrivacyUnitPreserving],
-                Property::PrivacyUnitPreserving,
-                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ))
         }
         rewriting_rules
