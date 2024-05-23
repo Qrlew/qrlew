@@ -12,7 +12,7 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _},
     rewriting::relation_with_attributes::RelationWithAttributes,
     synthetic_data::SyntheticData,
-    visitor::{Acceptor, Visited, Visitor}, display::Dot,
+    visitor::{Acceptor, Visited, Visitor},
 };
 
 /// A simple Property object to tag Relations properties
@@ -722,6 +722,13 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
             Property::DifferentiallyPrivate,
                     Parameters::DifferentialPrivacy(self.dp_parameters.clone()),
                 )
+            );
+            rewriting_rules.push(
+                RewritingRule::new(
+            vec![Property::PrivacyUnitPreserving],
+            Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(self.privacy_unit.clone()),
+                )
             )
         }
         rewriting_rules
@@ -759,6 +766,16 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
             ),
             RewritingRule::new(
                 vec![Property::PrivacyUnitPreserving, Property::Published],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
+                vec![Property::Public, Property::PrivacyUnitPreserving],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ),
+            RewritingRule::new(
+                vec![Property::PrivacyUnitPreserving, Property::Public],
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
@@ -1086,7 +1103,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         table: &'a Table,
         rewriting_rule: &'a RewritingRule,
     ) -> RelationWithDpEvent {
-        let relation = Arc::new(
+        let relation: Arc<Relation> = Arc::new(
             match (rewriting_rule.output(), rewriting_rule.parameters()) {
                 (Property::Private, _) => table.clone().into(),
                 (Property::SyntheticData, Parameters::SyntheticData(synthetic_data)) => {
@@ -1237,6 +1254,10 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     [Property::DifferentiallyPrivate, Property::PrivacyUnitPreserving],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
+                ) | (
+                    [Property::Public, Property::PrivacyUnitPreserving],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
                 ) => {
                     let privacy_unit_tracking = PrivacyUnitTracking::new(
                         self.0,
@@ -1258,6 +1279,10 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Parameters::PrivacyUnit(privacy_unit),
                 ) | (
                     [Property::PrivacyUnitPreserving, Property::DifferentiallyPrivate],
+                    Property::PrivacyUnitPreserving,
+                    Parameters::PrivacyUnit(privacy_unit),
+                ) | (
+                    [Property::PrivacyUnitPreserving, Property::Public],
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {

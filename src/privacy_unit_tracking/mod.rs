@@ -8,11 +8,7 @@
 pub mod privacy_unit;
 
 use crate::{
-    builder::{Ready, With, WithIterator},
-    expr::{AggregateColumn, Expr},
-    hierarchy::Hierarchy,
-    relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
-    namer,
+    builder::{Ready, With, WithIterator}, expr::{AggregateColumn, Expr}, hierarchy::Hierarchy, namer, relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _}
 };
 pub use privacy_unit::{PrivacyUnit, PrivacyUnitPath};
 use std::{error, fmt, ops::Deref, result, sync::Arc};
