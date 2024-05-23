@@ -187,7 +187,7 @@ impl Relation {
                 Expr::qcol(Join::right_name(), &referring_id),
                 Expr::qcol(Join::left_name(), &referred_id),
             ))
-            .left(referred_relation.clone())
+            .left(referred_relation)
             .right(self)
             .build();
         let left: Vec<_> = join
