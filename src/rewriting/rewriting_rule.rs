@@ -1059,7 +1059,7 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for Score {
     }
 }
 
-pub struct Rewriter<'a>(&'a Hierarchy<Arc<Relation>>);
+pub struct Rewriter<'a>(&'a Hierarchy<Arc<Relation>>); // TODO implement this properly
 
 impl<'a> Rewriter<'a> {
     /// Creating a Rewriter with a strategy.
