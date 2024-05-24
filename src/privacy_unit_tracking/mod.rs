@@ -141,7 +141,7 @@ impl Relation {
         };
         relation.identity_with_field(PrivacyUnitPath::privacy_unit(), Expr::col(referred_field))
     }
-    /// Insert the privacy unit weight field containing the if the referred_weight_field is Some
+    /// Create a Relation with the privacy unit weight field if the referred_weight_field is Some
     /// and if the field is not already in the schema. If referred_weight_field is None
     /// then a privacy unit weight with 1s is added to self.
     pub fn with_privacy_unit_weight(self, referred_weight_field: Option<String>) -> Self {
