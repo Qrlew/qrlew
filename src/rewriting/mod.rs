@@ -12,9 +12,12 @@ pub use rewriting_rule::{
 use std::{error, fmt, result, sync::Arc};
 
 use crate::{
-    differential_privacy::dp_parameters::DpParameters, hierarchy::Hierarchy,
-    privacy_unit_tracking::{privacy_unit::PrivacyUnit, Strategy}, relation::Relation,
-    synthetic_data::SyntheticData, visitor::Acceptor,
+    differential_privacy::dp_parameters::DpParameters,
+    hierarchy::Hierarchy,
+    privacy_unit_tracking::{privacy_unit::PrivacyUnit, Strategy},
+    relation::Relation,
+    synthetic_data::SyntheticData,
+    visitor::Acceptor,
 };
 
 use rewriting_rule::{
@@ -65,7 +68,7 @@ impl Relation {
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
         dp_parameters: DpParameters,
-        strategy: Option<Strategy>
+        strategy: Option<Strategy>,
     ) -> Result<RelationWithDpEvent> {
         let strategy = strategy.unwrap_or(Strategy::Hard);
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
@@ -79,9 +82,10 @@ impl Relation {
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
-                Property::Public | Property::PrivacyUnitPreserving => {
-                    Some((rwrr.rewrite(Rewriter::new(relations, strategy)), rwrr.accept(Score)))
-                }
+                Property::Public | Property::PrivacyUnitPreserving => Some((
+                    rwrr.rewrite(Rewriter::new(relations, strategy)),
+                    rwrr.accept(Score),
+                )),
                 _ => None,
             })
             .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
@@ -94,7 +98,7 @@ impl Relation {
         relations: &'a Hierarchy<Arc<Relation>>,
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
-        dp_parameters: DpParameters
+        dp_parameters: DpParameters,
     ) -> Result<RelationWithDpEvent> {
         let relation_with_rules = self.set_rewriting_rules(RewritingRulesSetter::new(
             relations,
@@ -110,9 +114,10 @@ impl Relation {
                 Property::Public
                 | Property::Published
                 | Property::DifferentiallyPrivate
-                | Property::SyntheticData => {
-                    Some((rwrr.rewrite(Rewriter::new(relations, Strategy::Hard)), rwrr.accept(Score)))
-                }
+                | Property::SyntheticData => Some((
+                    rwrr.rewrite(Rewriter::new(relations, Strategy::Hard)),
+                    rwrr.accept(Score),
+                )),
                 _ => None,
             })
             .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
@@ -127,7 +132,15 @@ mod tests {
 
     use super::*;
     use crate::{
-        ast, builder::{Ready, With}, data_type::DataType, display::Dot, expr::Identifier, io::{postgresql, Database}, relation::{field::Constraint, Schema, Variant}, sql::parse, Expr, Relation
+        ast,
+        builder::{Ready, With},
+        data_type::DataType,
+        display::Dot,
+        expr::Identifier,
+        io::{postgresql, Database},
+        relation::{field::Constraint, Schema, Variant},
+        sql::parse,
+        Expr, Relation,
     };
 
     #[test]
@@ -388,7 +401,7 @@ mod tests {
                 synthetic_data,
                 privacy_unit,
                 dp_parameters,
-                None
+                None,
             )
             .unwrap();
         relation_with_dp_event.relation().display_dot().unwrap();

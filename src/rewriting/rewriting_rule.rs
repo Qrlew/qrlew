@@ -1053,13 +1053,16 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for Score {
 
 pub struct Rewriter<'a> {
     relations: &'a Hierarchy<Arc<Relation>>,
-    strategy: Strategy
+    strategy: Strategy,
 }
 
 impl<'a> Rewriter<'a> {
     /// Creating a Rewriter with a strategy.
     pub fn new(relations: &'a Hierarchy<Arc<Relation>>, strategy: Strategy) -> Rewriter<'a> {
-        Rewriter {relations, strategy}
+        Rewriter {
+            relations,
+            strategy,
+        }
     }
 }
 
