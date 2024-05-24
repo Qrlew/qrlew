@@ -209,7 +209,8 @@ impl Relation {
             .collect();
         Relation::map()
             .with_iter(left.into_iter().filter_map(|(o, i)| {
-                lookup_fields_to_names.get(i.name())
+                lookup_fields_to_names
+                    .get(i.name())
                     .and_then(|name| Some((name.clone(), Expr::col(o.name()))))
             }))
             .with_iter(right.into_iter().filter_map(|(o, i)| {

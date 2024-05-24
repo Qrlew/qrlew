@@ -157,10 +157,12 @@ impl Display for ReferredFields {
                 self.referred_id.clone()
             ),
             "→".yellow(),
-            self.referred_fields.iter().zip(self.referred_fields_name.iter())
-            .map(|(a, b)| format!("{} AS {}", a, b))
-            .collect::<Vec<_>>()
-            .join(", ")
+            self.referred_fields
+                .iter()
+                .zip(self.referred_fields_name.iter())
+                .map(|(a, b)| format!("{} AS {}", a, b))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     }
 }
@@ -261,7 +263,7 @@ impl<'a> IntoIterator for PrivacyUnitPath {
             if let Some(last_step) = &mut last_step {
                 let mut referred_fields = vec![step.referring_id.to_string()];
                 let mut referred_fields_name = vec![PrivacyUnitPath::privacy_unit().to_string()];
-                
+
                 if pu_referred_weight.is_some() {
                     referred_fields.push(step.referring_id.to_string());
                     referred_fields_name.push(PrivacyUnitPath::privacy_unit_weight().to_string())
@@ -285,7 +287,7 @@ impl<'a> IntoIterator for PrivacyUnitPath {
         if let Some(last_step) = last_step {
             let mut referred_fields = vec![self.privacy_unit_field];
             let mut referred_fields_name = vec![PrivacyUnitPath::privacy_unit().to_string()];
-            
+
             if let Some(name) = pu_referred_weight {
                 referred_fields.push(name);
                 referred_fields_name.push(PrivacyUnitPath::privacy_unit_weight().to_string())
@@ -521,14 +523,14 @@ mod tests {
                 ("order_id", "order_table", "id"),
                 ("user_id", "user_table", "id"),
             ],
-            "name", "weight_col"
+            "name",
+            "weight_col",
         )
             .into();
 
         let mut it = field_path.into_iter();
         println!("{}", it.next().unwrap());
         println!("{}", it.next().unwrap());
-
     }
 
     #[test]
