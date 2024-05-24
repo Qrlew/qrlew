@@ -123,7 +123,7 @@ pub struct ReferredFields {
     pub referred_relation: String,
     pub referred_id: String,
     pub referred_fields: Vec<String>,
-    pub referred_fields_name: Vec<String>,
+    pub referred_fields_names: Vec<String>,
 }
 
 impl ReferredFields {
@@ -132,16 +132,16 @@ impl ReferredFields {
         referred_relation: String,
         referred_id: String,
         referred_fields: Vec<String>,
-        referred_fields_name: Vec<String>,
+        referred_fields_names: Vec<String>,
     ) -> ReferredFields {
-        assert_eq!(referred_fields.len(), referred_fields_name.len());
+        assert_eq!(referred_fields.len(), referred_fields_names.len());
         assert!(referred_fields.len() > 0);
         ReferredFields {
             referring_id,
             referred_relation,
             referred_id,
             referred_fields,
-            referred_fields_name,
+            referred_fields_names,
         }
     }
 }
@@ -159,7 +159,7 @@ impl Display for ReferredFields {
             "→".yellow(),
             self.referred_fields
                 .iter()
-                .zip(self.referred_fields_name.iter())
+                .zip(self.referred_fields_names.iter())
                 .map(|(a, b)| format!("{} AS {}", a, b))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -262,18 +262,18 @@ impl<'a> IntoIterator for PrivacyUnitPath {
         for step in self.path {
             if let Some(last_step) = &mut last_step {
                 let mut referred_fields = vec![step.referring_id.to_string()];
-                let mut referred_fields_name = vec![PrivacyUnitPath::privacy_unit().to_string()];
+                let mut referred_fields_names = vec![PrivacyUnitPath::privacy_unit().to_string()];
 
                 if pu_referred_weight.is_some() {
                     referred_fields.push(step.referring_id.to_string());
-                    referred_fields_name.push(PrivacyUnitPath::privacy_unit_weight().to_string())
+                    referred_fields_names.push(PrivacyUnitPath::privacy_unit_weight().to_string())
                 };
                 field_path.push(ReferredFields::new(
                     last_step.referring_id.to_string(),
                     last_step.referred_relation.to_string(),
                     last_step.referred_id.to_string(),
                     referred_fields,
-                    referred_fields_name,
+                    referred_fields_names,
                 ));
                 *last_step = Step::new(
                     PrivacyUnitPath::privacy_unit().to_string(),
@@ -286,18 +286,18 @@ impl<'a> IntoIterator for PrivacyUnitPath {
         }
         if let Some(last_step) = last_step {
             let mut referred_fields = vec![self.privacy_unit_field];
-            let mut referred_fields_name = vec![PrivacyUnitPath::privacy_unit().to_string()];
+            let mut referred_fields_names = vec![PrivacyUnitPath::privacy_unit().to_string()];
 
             if let Some(name) = pu_referred_weight {
                 referred_fields.push(name);
-                referred_fields_name.push(PrivacyUnitPath::privacy_unit_weight().to_string())
+                referred_fields_names.push(PrivacyUnitPath::privacy_unit_weight().to_string())
             };
             field_path.push(ReferredFields::new(
                 last_step.referring_id,
                 last_step.referred_relation,
                 last_step.referred_id,
                 referred_fields,
-                referred_fields_name,
+                referred_fields_names,
             ));
         }
         field_path.into_iter()

@@ -76,16 +76,16 @@ impl Relation {
             synthetic_data,
             privacy_unit,
             dp_parameters,
+            strategy,
         ));
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules
             .select_rewriting_rules(RewritingRulesSelector)
             .into_iter()
             .filter_map(|rwrr| match rwrr.attributes().output() {
-                Property::Public | Property::PrivacyUnitPreserving => Some((
-                    rwrr.rewrite(Rewriter::new(relations, strategy)),
-                    rwrr.accept(Score),
-                )),
+                Property::Public | Property::PrivacyUnitPreserving => {
+                    Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
+                }
                 _ => None,
             })
             .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
@@ -105,6 +105,7 @@ impl Relation {
             synthetic_data,
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
         relation_with_rules
@@ -114,10 +115,9 @@ impl Relation {
                 Property::Public
                 | Property::Published
                 | Property::DifferentiallyPrivate
-                | Property::SyntheticData => Some((
-                    rwrr.rewrite(Rewriter::new(relations, Strategy::Hard)),
-                    rwrr.accept(Score),
-                )),
+                | Property::SyntheticData => {
+                    Some((rwrr.rewrite(Rewriter::new(relations)), rwrr.accept(Score)))
+                }
                 _ => None,
             })
             .max_by(|&(_, x), &(_, y)| x.partial_cmp(&y).unwrap())
@@ -844,6 +844,17 @@ mod tests {
                     Some(Strategy::Hard),
                 )
                 .unwrap();
+            let non_pup_queries = relation.rewrite_as_privacy_unit_preserving(
+                &relations,
+                synthetic_data.clone(),
+                privacy_unit.clone(),
+                dp_parameters.clone(),
+                Some(Strategy::Soft),
+            );
+            assert_eq!(
+                non_pup_queries.unwrap_err().to_string(),
+                Error::unreachable_property("privacy_unit_preserving").to_string()
+            );
             pup_relation.relation().display_dot().unwrap();
         }
     }

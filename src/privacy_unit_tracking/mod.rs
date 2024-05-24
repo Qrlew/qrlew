@@ -144,7 +144,7 @@ impl Relation {
     /// Insert the privacy unit weight field containing the if the referred_weight_field is Some
     /// and if the field is not already in the schema. If referred_weight_field is None
     /// then a privacy unit weight with 1s is added to self.
-    pub fn insert_privacy_unit_weight(self, referred_weight_field: Option<String>) -> Self {
+    pub fn with_privacy_unit_weight(self, referred_weight_field: Option<String>) -> Self {
         let weight_col_already_exists = self
             .schema()
             .field(PrivacyUnit::privacy_unit_weight())
@@ -153,10 +153,10 @@ impl Relation {
             if weight_col_already_exists {
                 self
             } else {
-                self.insert_field(1, PrivacyUnit::privacy_unit_weight(), Expr::col(field_name))
+                self.with_field(PrivacyUnit::privacy_unit_weight(), Expr::col(field_name))
             }
         } else {
-            self.insert_field(1, PrivacyUnit::privacy_unit_weight(), Expr::val(1))
+            self.with_field(PrivacyUnit::privacy_unit_weight(), Expr::val(1))
         }
     }
     /// Add fields designated with a foreign relation and a field
@@ -166,14 +166,14 @@ impl Relation {
         referred_relation: Arc<Relation>,
         referred_id: String,
         referred_fields: Vec<String>,
-        referred_fields_name: Vec<String>,
+        referred_fields_names: Vec<String>,
     ) -> Relation {
         let left_size = referred_relation.schema().len();
         let names: Vec<String> = self
             .schema()
             .iter()
             .map(|f| f.name().to_string())
-            .filter(|name| !referred_fields_name.contains(name))
+            .filter(|name| !referred_fields_names.contains(name))
             .collect();
         let referred_relation =
             if referred_fields.contains(&PrivacyUnit::privacy_unit_row().to_string()) {
@@ -184,7 +184,7 @@ impl Relation {
 
         let lookup_fields_to_names: HashMap<String, String> = referred_fields
             .into_iter()
-            .zip(referred_fields_name)
+            .zip(referred_fields_names)
             .map(|(field, name)| (field, name))
             .collect();
         let join: Relation = Relation::join()
@@ -230,7 +230,7 @@ impl Relation {
         let referred_weight_field = field_path.referred_weight_field().clone();
         if field_path.path().is_empty() {
             self.privacy_unit(field_path.referred_field())
-                .insert_privacy_unit_weight(referred_weight_field)
+                .with_privacy_unit_weight(referred_weight_field)
         } else {
             field_path
                 .into_iter()
@@ -243,10 +243,10 @@ impl Relation {
                             .clone(),
                         referred_fields.referred_id,
                         referred_fields.referred_fields,
-                        referred_fields.referred_fields_name,
+                        referred_fields.referred_fields_names,
                     )
                 })
-                .insert_privacy_unit_weight(referred_weight_field)
+                .with_privacy_unit_weight(referred_weight_field)
         }
     }
 }

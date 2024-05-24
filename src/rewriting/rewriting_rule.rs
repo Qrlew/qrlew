@@ -564,6 +564,7 @@ pub struct RewritingRulesSetter<'a> {
     synthetic_data: Option<SyntheticData>,
     privacy_unit: PrivacyUnit,
     dp_parameters: DpParameters,
+    strategy: Strategy,
 }
 
 impl<'a> RewritingRulesSetter<'a> {
@@ -572,12 +573,14 @@ impl<'a> RewritingRulesSetter<'a> {
         synthetic_data: Option<SyntheticData>,
         privacy_unit: PrivacyUnit,
         dp_parameters: DpParameters,
+        strategy: Strategy,
     ) -> RewritingRulesSetter {
         RewritingRulesSetter {
             relations,
             synthetic_data,
             privacy_unit,
             dp_parameters,
+            strategy,
         }
     }
 }
@@ -664,11 +667,14 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Parameters::SyntheticData(synthetic_data.clone()),
             ));
         }
-        rewriting_rules.push(RewritingRule::new(
-            vec![Property::PrivacyUnitPreserving],
-            Property::PrivacyUnitPreserving,
-            Parameters::PrivacyUnit(self.privacy_unit.clone()),
-        ));
+
+        if self.strategy == Strategy::Hard {
+            rewriting_rules.push(RewritingRule::new(
+                vec![Property::PrivacyUnitPreserving],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
+            ))
+        }
 
         // We can compile into DP only if the aggregations are supported
         if reduce.aggregate().iter().all(|f| match f.aggregate() {
@@ -753,20 +759,22 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
                 Property::PrivacyUnitPreserving,
                 Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ),
-            RewritingRule::new(
-                vec![
-                    Property::PrivacyUnitPreserving,
-                    Property::PrivacyUnitPreserving,
-                ],
-                Property::PrivacyUnitPreserving,
-                Parameters::PrivacyUnit(self.privacy_unit.clone()),
-            ),
         ];
         if let Some(synthetic_data) = &self.synthetic_data {
             rewriting_rules.push(RewritingRule::new(
                 vec![Property::SyntheticData, Property::SyntheticData],
                 Property::SyntheticData,
                 Parameters::SyntheticData(synthetic_data.clone()),
+            ))
+        }
+        if self.strategy == Strategy::Hard {
+            rewriting_rules.push(RewritingRule::new(
+                vec![
+                    Property::PrivacyUnitPreserving,
+                    Property::PrivacyUnitPreserving,
+                ],
+                Property::PrivacyUnitPreserving,
+                Parameters::PrivacyUnit(self.privacy_unit.clone()),
             ))
         }
         rewriting_rules
@@ -1051,18 +1059,12 @@ impl<'a> Visitor<'a, RelationWithRewritingRule<'a>, f64> for Score {
     }
 }
 
-pub struct Rewriter<'a> {
-    relations: &'a Hierarchy<Arc<Relation>>,
-    strategy: Strategy,
-}
+pub struct Rewriter<'a>(&'a Hierarchy<Arc<Relation>>);
 
 impl<'a> Rewriter<'a> {
     /// Creating a Rewriter with a strategy.
-    pub fn new(relations: &'a Hierarchy<Arc<Relation>>, strategy: Strategy) -> Rewriter<'a> {
-        Rewriter {
-            relations,
-            strategy,
-        }
+    pub fn new(relations: &'a Hierarchy<Arc<Relation>>) -> Rewriter<'a> {
+        Rewriter(relations)
     }
 }
 
@@ -1075,11 +1077,8 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     synthetic_data.table(table).unwrap().into()
                 }
                 (Property::PrivacyUnitPreserving, Parameters::PrivacyUnit(privacy_unit)) => {
-                    let privacy_unit_tracking = PrivacyUnitTracking::new(
-                        self.relations,
-                        privacy_unit.clone(),
-                        self.strategy,
-                    );
+                    let privacy_unit_tracking =
+                        PrivacyUnitTracking::new(self.0, privacy_unit.clone(), Strategy::Soft);
                     privacy_unit_tracking.table(table).unwrap().into()
                 }
                 (Property::DifferentiallyPrivate, _) => table.clone().into(),
@@ -1109,11 +1108,8 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_unit_tracking = PrivacyUnitTracking::new(
-                        self.relations,
-                        privacy_unit.clone(),
-                        self.strategy,
-                    );
+                    let privacy_unit_tracking =
+                        PrivacyUnitTracking::new(self.0, privacy_unit.clone(), Strategy::Soft);
                     privacy_unit_tracking
                         .map(map, relation_input.try_into().unwrap())
                         .unwrap()
@@ -1158,11 +1154,8 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_unit_tracking = PrivacyUnitTracking::new(
-                        self.relations,
-                        privacy_unit.clone(),
-                        self.strategy,
-                    );
+                    let privacy_unit_tracking =
+                        PrivacyUnitTracking::new(self.0, privacy_unit.clone(), Strategy::Hard);
                     privacy_unit_tracking
                         .reduce(reduce, relation_input.try_into().unwrap())
                         .unwrap()
@@ -1197,11 +1190,8 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_unit_tracking = PrivacyUnitTracking::new(
-                        self.relations,
-                        privacy_unit.clone(),
-                        self.strategy,
-                    );
+                    let privacy_unit_tracking =
+                        PrivacyUnitTracking::new(self.0, privacy_unit.clone(), Strategy::Hard);
                     privacy_unit_tracking
                         .join(
                             join,
@@ -1226,11 +1216,8 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_unit_tracking = PrivacyUnitTracking::new(
-                        self.relations,
-                        privacy_unit.clone(),
-                        self.strategy,
-                    );
+                    let privacy_unit_tracking =
+                        PrivacyUnitTracking::new(self.0, privacy_unit.clone(), Strategy::Hard);
                     privacy_unit_tracking
                         .join_left_published(
                             join,
@@ -1255,11 +1242,8 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                     Property::PrivacyUnitPreserving,
                     Parameters::PrivacyUnit(privacy_unit),
                 ) => {
-                    let privacy_unit_tracking = PrivacyUnitTracking::new(
-                        self.relations,
-                        privacy_unit.clone(),
-                        self.strategy,
-                    );
+                    let privacy_unit_tracking =
+                        PrivacyUnitTracking::new(self.0, privacy_unit.clone(), Strategy::Hard);
                     privacy_unit_tracking
                         .join_right_published(
                             join,
@@ -1271,7 +1255,6 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
                 }
                 _ => Relation::join()
                     .with(join.clone())
-                    // .left_names(names[0..rewritten_left])
                     .left(relation_left)
                     .right(relation_right)
                     .build(),
@@ -1354,6 +1337,7 @@ mod tests {
             Some(synthetic_data),
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1363,7 +1347,7 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations, Strategy::Hard));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations));
             println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
             relation_with_dp_event.relation().display_dot().unwrap();
         }
@@ -1410,6 +1394,7 @@ mod tests {
             Some(synthetic_data),
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1419,7 +1404,7 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations, Strategy::Hard));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations));
             println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
             relation_with_dp_event.relation().display_dot().unwrap();
         }
@@ -1463,6 +1448,7 @@ mod tests {
             Some(synthetic_data),
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1472,7 +1458,7 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations, Strategy::Hard));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations));
             println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
             relation_with_dp_event.relation().display_dot().unwrap();
         }
@@ -1516,6 +1502,7 @@ mod tests {
             Some(synthetic_data),
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1525,7 +1512,7 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations, Strategy::Hard));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations));
             println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
             relation_with_dp_event.relation().display_dot().unwrap();
         }
@@ -1567,6 +1554,7 @@ mod tests {
             synthetic_data,
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1576,7 +1564,7 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("\nDEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations, Strategy::Hard));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations));
             println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
             relation_with_dp_event.relation().display_dot().unwrap();
         }
@@ -1614,6 +1602,7 @@ mod tests {
             synthetic_data,
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1623,7 +1612,7 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations, Strategy::Hard));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations));
             println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
             relation_with_dp_event.relation().display_dot().unwrap();
         }
@@ -1665,6 +1654,7 @@ mod tests {
             Some(synthetic_data),
             privacy_unit,
             dp_parameters,
+            Strategy::Hard,
         ));
         relation_with_rules.display_dot().unwrap();
         let relation_with_rules = relation_with_rules.map_rewriting_rules(RewritingRulesEliminator);
@@ -1674,9 +1664,111 @@ mod tests {
             let num_dp = rwrr.accept(BudgetDispatcher);
             println!("DEBUG SPLIT BUDGET IN {}", num_dp);
             println!("DEBUG SCORE {}", rwrr.accept(Score));
-            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations, Strategy::Hard));
+            let relation_with_dp_event = rwrr.rewrite(Rewriter::new(&relations));
             println!("PrivateQuery: {:?}", relation_with_dp_event.dp_event());
             relation_with_dp_event.relation().display_dot().unwrap();
         }
+    }
+
+    #[test]
+    fn test_check_pup_to_pup_rule_reduce_and_joins() {
+        let database = postgresql::test_database();
+        let relations = database.relations();
+        // Print relations with paths
+        for (p, r) in relations.iter() {
+            println!("{} -> {r}", p.into_iter().join("."))
+        }
+
+        let synthetic_data = SyntheticData::new(Hierarchy::from([
+            (vec!["item_table"], Identifier::from("item_table")),
+            (vec!["order_table"], Identifier::from("order_table")),
+            (vec!["user_table"], Identifier::from("user_table")),
+        ]));
+        let privacy_unit = PrivacyUnit::from(vec![
+            (
+                "item_table",
+                vec![
+                    ("order_id", "order_table", "id"),
+                    ("user_id", "user_table", "id"),
+                ],
+                "name",
+            ),
+            ("order_table", vec![("user_id", "user_table", "id")], "name"),
+            ("user_table", vec![], "name"),
+        ]);
+
+        let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
+
+        // Check reduce
+        let query = parse("SELECT COUNT(*) FROM item_table").unwrap();
+
+        let pup_to_pup_rule = RewritingRule::new(
+            vec![Property::PrivacyUnitPreserving],
+            Property::PrivacyUnitPreserving,
+            Parameters::PrivacyUnit(privacy_unit.clone()),
+        );
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            Some(synthetic_data.clone()),
+            privacy_unit.clone(),
+            dp_parameters.clone(),
+            Strategy::Soft,
+        ));
+        relation_with_rules.display_dot().unwrap();
+        let attributes = relation_with_rules.attributes();
+        assert!(!attributes.contains(&pup_to_pup_rule));
+
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            Some(synthetic_data.clone()),
+            privacy_unit.clone(),
+            dp_parameters.clone(),
+            Strategy::Hard,
+        ));
+        relation_with_rules.display_dot().unwrap();
+        let attributes = relation_with_rules.attributes();
+        assert!(attributes.contains(&pup_to_pup_rule));
+
+        // Check join
+        let query = parse("SELECT * FROM item_table i JOIN user_table u ON (order_id=id)").unwrap();
+
+        let pup_to_pup_rule = RewritingRule::new(
+            vec![
+                Property::PrivacyUnitPreserving,
+                Property::PrivacyUnitPreserving,
+            ],
+            Property::PrivacyUnitPreserving,
+            Parameters::PrivacyUnit(privacy_unit.clone()),
+        );
+
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            Some(synthetic_data.clone()),
+            privacy_unit.clone(),
+            dp_parameters.clone(),
+            Strategy::Soft,
+        ));
+        relation_with_rules.inputs()[0].display_dot().unwrap();
+        let attributes = relation_with_rules.inputs()[0].attributes(); // we want to see the rules on the join
+        assert!(!attributes.contains(&pup_to_pup_rule));
+
+        let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        let relation_with_rules = relation.set_rewriting_rules(RewritingRulesSetter::new(
+            &relations,
+            Some(synthetic_data.clone()),
+            privacy_unit.clone(),
+            dp_parameters.clone(),
+            Strategy::Hard,
+        ));
+        relation_with_rules.inputs()[0].display_dot().unwrap();
+        let attributes = relation_with_rules.inputs()[0].attributes(); // we want to see the rules on the join
+        assert!(attributes.contains(&pup_to_pup_rule));
     }
 }
