@@ -118,39 +118,35 @@ impl Display for Path {
 
 /// A link to a relation and a field to keep with a new name
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
-pub struct ReferredField {
+pub struct ReferredFields {
     pub referring_id: String,
     pub referred_relation: String,
     pub referred_id: String,
-    pub referred_field: String,
-    pub referred_field_name: String,
-    pub referred_weigh_field: Option<String>,
-    pub referred_weigh_field_name: String,
+    pub referred_fields: Vec<String>,
+    pub referred_fields_name: Vec<String>,
 }
 
-impl ReferredField {
+impl ReferredFields {
     pub fn new(
         referring_id: String,
         referred_relation: String,
         referred_id: String,
-        referred_field: String,
-        referred_field_name: String,
-        referred_weigh_field: Option<String>,
-        referred_weigh_field_name: String,
-    ) -> ReferredField {
-        ReferredField {
+        referred_fields: Vec<String>,
+        referred_fields_name: Vec<String>,
+    ) -> ReferredFields {
+        assert_eq!(referred_fields.len(), referred_fields_name.len());
+        assert!(referred_fields.len() > 0);
+        ReferredFields {
             referring_id,
             referred_relation,
             referred_id,
-            referred_field,
-            referred_field_name,
-            referred_weigh_field,
-            referred_weigh_field_name,
+            referred_fields,
+            referred_fields_name,
         }
     }
 }
 
-impl Display for ReferredField {
+impl Display for ReferredFields {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -161,8 +157,8 @@ impl Display for ReferredField {
                 self.referred_id.clone()
             ),
             "→".yellow(),
-            self.referred_field,
-            self.referred_field_name
+            self.referred_fields[0],
+            self.referred_fields_name[0]
         )
     }
 }
@@ -251,23 +247,36 @@ impl<'a> From<&'a PrivacyUnitPath> for (Vec<(&'a str, &'a str, &'a str)>, &'a st
 }
 
 impl<'a> IntoIterator for PrivacyUnitPath {
-    type Item = ReferredField;
-    type IntoIter = <Vec<ReferredField> as IntoIterator>::IntoIter;
+    type Item = ReferredFields;
+    type IntoIter = <Vec<ReferredFields> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut field_path = vec![];
         let mut last_step: Option<Step> = None;
         // Fill the vec
+        let pu_referred_weight = self.referred_weight_field().clone();
         for step in self.path {
             if let Some(last_step) = &mut last_step {
-                field_path.push(ReferredField::new(
+                let (referred_fields, referred_fields_name) = if pu_referred_weight.is_some() {
+                    (
+                        vec![step.referring_id.to_string(), step.referring_id.to_string()],
+                        vec![
+                            PrivacyUnitPath::privacy_unit().to_string(),
+                            PrivacyUnitPath::privacy_unit_weight().to_string(),
+                        ],
+                    )
+                } else {
+                    (
+                        vec![step.referring_id.to_string()],
+                        vec![PrivacyUnitPath::privacy_unit().to_string()],
+                    )
+                };
+                field_path.push(ReferredFields::new(
                     last_step.referring_id.to_string(),
                     last_step.referred_relation.to_string(),
                     last_step.referred_id.to_string(),
-                    step.referring_id.to_string(),
-                    PrivacyUnitPath::privacy_unit().to_string(),
-                    None,
-                    PrivacyUnitPath::privacy_unit_weight().to_string(),
+                    referred_fields,
+                    referred_fields_name,
                 ));
                 *last_step = Step::new(
                     PrivacyUnitPath::privacy_unit().to_string(),
@@ -279,14 +288,26 @@ impl<'a> IntoIterator for PrivacyUnitPath {
             }
         }
         if let Some(last_step) = last_step {
-            field_path.push(ReferredField::new(
+            let (referred_fields, referred_fields_name) = if let Some(name) = pu_referred_weight {
+                (
+                    vec![self.privacy_unit_field, name],
+                    vec![
+                        PrivacyUnitPath::privacy_unit().to_string(),
+                        PrivacyUnitPath::privacy_unit_weight().to_string(),
+                    ],
+                )
+            } else {
+                (
+                    vec![self.privacy_unit_field],
+                    vec![PrivacyUnitPath::privacy_unit().to_string()],
+                )
+            };
+            field_path.push(ReferredFields::new(
                 last_step.referring_id,
                 last_step.referred_relation,
                 last_step.referred_id,
-                self.privacy_unit_field,
-                PrivacyUnitPath::privacy_unit().to_string(),
-                self.weight_field,
-                PrivacyUnitPath::privacy_unit_weight().to_string(),
+                referred_fields,
+                referred_fields_name,
             ));
         }
         field_path.into_iter()
@@ -481,14 +502,12 @@ mod tests {
 
     #[test]
     fn test_referred_field() {
-        let referred_field = ReferredField::new(
+        let referred_field = ReferredFields::new(
             "order_id".into(),
             "order_table".into(),
             "id".into(),
-            "name".into(),
-            "peid".into(),
-            None,
-            "weight".into(),
+            vec!["name".into()],
+            vec!["peid".into()],
         );
         println!("{referred_field}");
     }
@@ -505,6 +524,34 @@ mod tests {
         )
             .into();
         println!("{}", field_path);
+    }
+
+    #[test]
+    fn test_field_path_iterator() {
+        let field_path: PrivacyUnitPath = (
+            vec![
+                ("order_id", "order_table", "id"),
+                ("user_id", "user_table", "id"),
+            ],
+            "name",
+        )
+            .into();
+
+        let mut it = field_path.into_iter();
+        let rr = it.next();
+        if let Some(rf) = rr {
+            println!(
+                "{} {:?} {:?}",
+                rf.referred_id, rf.referred_fields, rf.referred_fields_name
+            );
+        }
+        let rr = it.next();
+        if let Some(rf) = rr {
+            println!(
+                "{} {:?} {:?}",
+                rf.referred_id, rf.referred_fields, rf.referred_fields_name
+            );
+        }
     }
 
     #[test]

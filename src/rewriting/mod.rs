@@ -123,15 +123,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ast,
-        builder::{Ready, With},
-        data_type::DataType,
-        display::Dot,
-        expr::Identifier,
-        io::{postgresql, Database},
-        relation::{field::Constraint, Schema, Variant},
-        sql::parse,
-        Relation,
+        ast, builder::{Ready, With}, data_type::DataType, display::Dot, expr::Identifier, io::{postgresql, Database}, relation::{field::Constraint, Schema, Variant}, sql::parse, Expr, Relation
     };
 
     #[test]
@@ -382,6 +374,9 @@ mod tests {
         ]);
         let dp_parameters = DpParameters::from_epsilon_delta(1., 1e-3);
         let relation = Relation::try_from(query.with(&relations)).unwrap();
+        relation.display_dot().unwrap();
+        let new_rel = relation.clone().identity_with_field("Ones", Expr::val(1));
+        new_rel.display_dot().unwrap();
         let relation_with_dp_event = relation
             .rewrite_as_privacy_unit_preserving(
                 &relations,

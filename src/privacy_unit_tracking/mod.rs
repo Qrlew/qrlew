@@ -15,7 +15,7 @@ use crate::{
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
 };
 pub use privacy_unit::{PrivacyUnit, PrivacyUnitPath};
-use std::{error, fmt, ops::Deref, result, sync::Arc};
+use std::{collections::HashMap, error, fmt, ops::Deref, result, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -159,29 +159,34 @@ impl Relation {
             self.insert_field(1, PrivacyUnit::privacy_unit_weight(), Expr::val(1))
         }
     }
-    /// Add a field designated with a foreign relation and a field
-    pub fn with_referred_field(
+    /// Add fields designated with a foreign relation and a field
+    pub fn with_referred_fields(
         self,
         referring_id: String,
         referred_relation: Arc<Relation>,
         referred_id: String,
-        referred_field: String,
-        referred_field_name: String,
-        referred_optional_field: Option<String>,
-        referred_optional_field_name: String,
+        referred_fields: Vec<String>,
+        referred_fields_name: Vec<String>,
     ) -> Relation {
         let left_size = referred_relation.schema().len();
         let names: Vec<String> = self
             .schema()
             .iter()
             .map(|f| f.name().to_string())
-            .filter(|name| name != &referred_field_name && name != &referred_optional_field_name)
+            .filter(|name| !referred_fields_name.contains(name))
             .collect();
-        let referred_relation = if referred_field == PrivacyUnit::privacy_unit_row() {
-            Arc::new(referred_relation.deref().clone().privacy_unit_row())
-        } else {
-            referred_relation
-        };
+        let referred_relation =
+            if referred_fields.contains(&PrivacyUnit::privacy_unit_row().to_string()) {
+                Arc::new(referred_relation.deref().clone().privacy_unit_row())
+            } else {
+                referred_relation
+            };
+
+        let lookup_fields_to_names: HashMap<String, String> = referred_fields
+            .into_iter()
+            .zip(referred_fields_name)
+            .map(|(field, name)| (field, name))
+            .collect();
         let join: Relation = Relation::join()
             .inner(Expr::eq(
                 Expr::qcol(Join::right_name(), &referring_id),
@@ -204,10 +209,8 @@ impl Relation {
             .collect();
         Relation::map()
             .with_iter(left.into_iter().filter_map(|(o, i)| {
-                if referred_field == i.name() {
-                    Some((referred_field_name.clone(), Expr::col(o.name())))
-                } else if referred_optional_field == Some(i.name().to_string()) {
-                    Some((referred_optional_field_name.clone(), Expr::col(o.name())))
+                if let Some(name) = lookup_fields_to_names.get(i.name()) {
+                    Some((name, Expr::col(o.name())))
                 } else {
                     None
                 }
@@ -233,18 +236,16 @@ impl Relation {
         } else {
             field_path
                 .into_iter()
-                .fold(self, |relation, referred_field| {
-                    relation.with_referred_field(
-                        referred_field.referring_id,
+                .fold(self, |relation, referred_fields| {
+                    relation.with_referred_fields(
+                        referred_fields.referring_id,
                         relations
-                            .get(&[referred_field.referred_relation.to_string()])
+                            .get(&[referred_fields.referred_relation.to_string()])
                             .unwrap()
                             .clone(),
-                        referred_field.referred_id,
-                        referred_field.referred_field,
-                        referred_field.referred_field_name,
-                        referred_field.referred_weigh_field,
-                        referred_field.referred_weigh_field_name,
+                        referred_fields.referred_id,
+                        referred_fields.referred_fields,
+                        referred_fields.referred_fields_name,
                     )
                 })
                 .insert_privacy_unit_weight(referred_weight_field)
