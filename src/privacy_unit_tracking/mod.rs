@@ -576,7 +576,7 @@ mod tests {
             PrivacyUnitPath::from((vec![("user_id", "users", "id")], "id")),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
@@ -586,7 +586,7 @@ mod tests {
                 "name",
             )),
         );
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Produce the query
         relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation).to_string();
@@ -602,7 +602,7 @@ mod tests {
                 .join("\n")
         );
         let relation = relation.filter_fields(|n| n != "peid");
-        assert!(relation.schema()[0].name() != "peid");
+        assert!(relation.schema()[1].name() != "peid");
 
         // with row privacy
         // Link orders to users
@@ -615,7 +615,7 @@ mod tests {
             )),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
@@ -626,7 +626,7 @@ mod tests {
             )),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Produce the query
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -667,7 +667,7 @@ mod tests {
         table.display_dot().unwrap();
         println!("Schema privacy_tracked = {}", table.schema());
         println!("Query privacy tracked = {}", ast::Query::from(&*table));
-        assert_eq!(table.schema()[0].name(), PrivacyUnit::privacy_unit())
+        assert_eq!(table.schema()[1].name(), PrivacyUnit::privacy_unit())
     }
 
     #[test]
