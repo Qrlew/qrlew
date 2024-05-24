@@ -18,7 +18,7 @@ pub struct PostgreSqlTranslator;
 
 impl RelationToQueryTranslator for PostgreSqlTranslator {
     fn first(&self, expr: &expr::Expr) -> ast::Expr {
-        ast::Expr::from(expr)
+        self.expr(expr)
     }
 
     fn mean(&self, expr: &expr::Expr) -> ast::Expr {
