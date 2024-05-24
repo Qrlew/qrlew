@@ -209,11 +209,8 @@ impl Relation {
             .collect();
         Relation::map()
             .with_iter(left.into_iter().filter_map(|(o, i)| {
-                if let Some(name) = lookup_fields_to_names.get(i.name()) {
-                    Some((name, Expr::col(o.name())))
-                } else {
-                    None
-                }
+                lookup_fields_to_names.get(i.name())
+                    .and_then(|name| Some((name.clone(), Expr::col(o.name()))))
             }))
             .with_iter(right.into_iter().filter_map(|(o, i)| {
                 names

@@ -150,15 +150,17 @@ impl Display for ReferredFields {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} {} {} AS {}",
+            "{} {} {}",
             Step::new(
                 self.referring_id.clone(),
                 self.referred_relation.clone(),
                 self.referred_id.clone()
             ),
             "→".yellow(),
-            self.referred_fields[0],
-            self.referred_fields_name[0]
+            self.referred_fields.iter().zip(self.referred_fields_name.iter())
+            .map(|(a, b)| format!("{} AS {}", a, b))
+            .collect::<Vec<_>>()
+            .join(", ")
         )
     }
 }
@@ -257,19 +259,12 @@ impl<'a> IntoIterator for PrivacyUnitPath {
         let pu_referred_weight = self.referred_weight_field().clone();
         for step in self.path {
             if let Some(last_step) = &mut last_step {
-                let (referred_fields, referred_fields_name) = if pu_referred_weight.is_some() {
-                    (
-                        vec![step.referring_id.to_string(), step.referring_id.to_string()],
-                        vec![
-                            PrivacyUnitPath::privacy_unit().to_string(),
-                            PrivacyUnitPath::privacy_unit_weight().to_string(),
-                        ],
-                    )
-                } else {
-                    (
-                        vec![step.referring_id.to_string()],
-                        vec![PrivacyUnitPath::privacy_unit().to_string()],
-                    )
+                let mut referred_fields = vec![step.referring_id.to_string()];
+                let mut referred_fields_name = vec![PrivacyUnitPath::privacy_unit().to_string()];
+                
+                if pu_referred_weight.is_some() {
+                    referred_fields.push(step.referring_id.to_string());
+                    referred_fields_name.push(PrivacyUnitPath::privacy_unit_weight().to_string())
                 };
                 field_path.push(ReferredFields::new(
                     last_step.referring_id.to_string(),
@@ -288,19 +283,12 @@ impl<'a> IntoIterator for PrivacyUnitPath {
             }
         }
         if let Some(last_step) = last_step {
-            let (referred_fields, referred_fields_name) = if let Some(name) = pu_referred_weight {
-                (
-                    vec![self.privacy_unit_field, name],
-                    vec![
-                        PrivacyUnitPath::privacy_unit().to_string(),
-                        PrivacyUnitPath::privacy_unit_weight().to_string(),
-                    ],
-                )
-            } else {
-                (
-                    vec![self.privacy_unit_field],
-                    vec![PrivacyUnitPath::privacy_unit().to_string()],
-                )
+            let mut referred_fields = vec![self.privacy_unit_field];
+            let mut referred_fields_name = vec![PrivacyUnitPath::privacy_unit().to_string()];
+            
+            if let Some(name) = pu_referred_weight {
+                referred_fields.push(name);
+                referred_fields_name.push(PrivacyUnitPath::privacy_unit_weight().to_string())
             };
             field_path.push(ReferredFields::new(
                 last_step.referring_id,
@@ -533,25 +521,14 @@ mod tests {
                 ("order_id", "order_table", "id"),
                 ("user_id", "user_table", "id"),
             ],
-            "name",
+            "name", "weight_col"
         )
             .into();
 
         let mut it = field_path.into_iter();
-        let rr = it.next();
-        if let Some(rf) = rr {
-            println!(
-                "{} {:?} {:?}",
-                rf.referred_id, rf.referred_fields, rf.referred_fields_name
-            );
-        }
-        let rr = it.next();
-        if let Some(rf) = rr {
-            println!(
-                "{} {:?} {:?}",
-                rf.referred_id, rf.referred_fields, rf.referred_fields_name
-            );
-        }
+        println!("{}", it.next().unwrap());
+        println!("{}", it.next().unwrap());
+
     }
 
     #[test]
