@@ -531,16 +531,7 @@ impl Reduce {
 mod tests {
     use super::*;
     use crate::{
-        ast,
-        builder::With,
-        data_type::Variant,
-        display::Dot,
-        io::{postgresql, Database},
-        privacy_unit_tracking::PrivacyUnit,
-        privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
-        relation::{Schema, Variant as _},
-        sql::parse,
-        Relation,
+        ast, builder::With, data_type::Variant, display::Dot, io::{postgresql, Database}, privacy_unit_tracking::{PrivacyUnit, PrivacyUnitTracking, Strategy}, relation::{Schema, Variant as _}, sql::parse, DataType, Relation
     };
     use std::{ops::Deref, sync::Arc};
 

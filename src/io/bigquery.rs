@@ -31,17 +31,16 @@ use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 
 use crate::{
     data_type::{
-        self,
         generator::Generator,
-        value::{self, Value, Variant},
-        DataTyped, List,
+        value::{self, Value},
+        DataTyped,
     },
     namer,
     relation::{Constraint, Schema, Table, TableBuilder, Variant as _},
     DataType, Ready as _,
 };
 use rand::{rngs::StdRng, SeedableRng};
-use std::{env, fmt, process::Command, result, str::FromStr, sync::Arc, sync::Mutex, thread, time};
+use std::{fmt, process::Command, result, sync::Arc, sync::Mutex, thread, time};
 
 const DB: &str = "qrlew-bigquery-test";
 const PORT: u16 = 9050;
@@ -147,24 +146,24 @@ pub static BQ_CLIENT: Mutex<Option<Client>> = Mutex::new(None);
 pub static BIGQUERY_CONTAINER: Mutex<bool> = Mutex::new(false);
 
 impl Database {
-    fn db() -> String {
-        env::var("BIGQUERY_DB").unwrap_or(DB.into())
-    }
+    // fn db() -> String {
+    //     env::var("BIGQUERY_DB").unwrap_or(DB.into())
+    // }
 
-    fn port() -> u16 {
-        match env::var("BIGQUERY_PORT") {
-            Ok(port) => u16::from_str(&port).unwrap_or(PORT),
-            Err(_) => PORT,
-        }
-    }
+    // fn port() -> u16 {
+    //     match env::var("BIGQUERY_PORT") {
+    //         Ok(port) => u16::from_str(&port).unwrap_or(PORT),
+    //         Err(_) => PORT,
+    //     }
+    // }
 
-    fn project_id() -> String {
-        env::var("BIGQUERY_PROJECT_ID").unwrap_or(PROJECT_ID.into())
-    }
+    // fn project_id() -> String {
+    //     env::var("BIGQUERY_PROJECT_ID").unwrap_or(PROJECT_ID.into())
+    // }
 
     fn check_client(client: &Client) -> Result<()> {
         let rt = tokio::runtime::Runtime::new()?;
-        let res = rt.block_on(async_query("SELECT 1", &client, None))?;
+        let _res = rt.block_on(async_query("SELECT 1", &client, None))?;
         Ok(())
     }
 
@@ -387,7 +386,7 @@ async fn build_client(auth_uri: String, tmp_file_credentials: &NamedTempFile) ->
 }
 
 pub async fn async_row_query(query_str: &str, client: &Client) -> ResultSet {
-    let mut rs = client
+    let rs = client
         .job()
         .query(PROJECT_ID, QueryRequest::new(query_str))
         .await
@@ -465,7 +464,7 @@ impl DatabaseTrait for Database {
     }
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
-        let mut rt = tokio::runtime::Runtime::new()?;
+        let rt = tokio::runtime::Runtime::new()?;
         let bq_table: BQTable = table.clone().try_into()?;
 
         rt.block_on(self.client.table().create(bq_table))?;
@@ -473,7 +472,7 @@ impl DatabaseTrait for Database {
     }
 
     fn insert_data(&mut self, table: &Table) -> Result<()> {
-        let mut rt = tokio::runtime::Runtime::new()?;
+        let rt = tokio::runtime::Runtime::new()?;
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
 
@@ -551,7 +550,7 @@ async fn async_query(
         use_query_cache: None,
         format_options: None,
     };
-    let mut rs = client.job().query(PROJECT_ID, query_request).await?;
+    let rs = client.job().query(PROJECT_ID, query_request).await?;
     let query_response = rs.query_response();
     let schema = &query_response.schema;
     if let Some(table_schema) = schema {
@@ -720,8 +719,8 @@ impl TryFrom<(Option<serde_json::Value>, field_type::FieldType)> for SqlValue {
                     let seconds = timestamp as i64; // Whole seconds part
                     let nanoseconds = ((timestamp - seconds as f64) * 1_000_000_000.0) as u32; // Fractional part in nanoseconds
                     let datetime =
-                        chrono::NaiveDateTime::from_timestamp_opt(seconds, nanoseconds).unwrap();
-                    value::Value::date_time(datetime).try_into()
+                        chrono::DateTime::from_timestamp(seconds, nanoseconds).unwrap();
+                    value::Value::date_time(datetime.naive_utc()).try_into()
                 }
                 field_type::FieldType::Date => value::Value::date(
                     chrono::NaiveDate::parse_from_str(&val_as_str[..], "%Y-%m-%d")?,
@@ -782,7 +781,7 @@ impl TryFrom<DataType> for field_type::FieldType {
             DataType::Time(_) => Ok(field_type::FieldType::Time),
             DataType::DateTime(_) => Ok(field_type::FieldType::Datetime),
             DataType::Duration(_) => todo!(),
-            DataType::Id(i) => Ok(field_type::FieldType::String),
+            DataType::Id(_) => Ok(field_type::FieldType::String),
             DataType::Function(_) => todo!(),
             DataType::Any => todo!(),
         }

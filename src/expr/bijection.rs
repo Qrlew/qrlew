@@ -59,7 +59,7 @@ impl Expr {
 
 #[cfg(test)]
 mod tests {
-    use identifier::Identifier;
+    use crate::expr::identifier::Identifier;
 
     use super::*;
 

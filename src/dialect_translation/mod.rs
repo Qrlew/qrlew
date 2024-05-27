@@ -715,21 +715,6 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
 
 relation_to_query_tranlator_trait_constructor!();
 
-/// Constructors for creating functions that convert AST functions with
-/// a single args to annequivalent sarus functions
-macro_rules! try_unary_function_constructor {
-    ($( $enum:ident ),*) => {
-        paste! {
-            $(
-                fn [<try_ $enum:snake>](&self, arg: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
-                    let converted = self.try_function_args(vec![arg.clone()], context)?;
-                    Ok(expr::Expr::[<$enum:snake>](converted[0]))
-                }
-            )*
-        }
-    }
-}
-
 /// Build Sarus Relation from dialect specific AST
 pub trait QueryToRelationTranslator {
     type D: Dialect;

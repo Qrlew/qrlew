@@ -689,7 +689,7 @@ impl Injection for Base<Date, DateTime> {
         &self,
         arg: &<Self::Domain as Variant>::Element,
     ) -> Result<<Self::CoDomain as Variant>::Element> {
-        self.value_map(|arg| arg.and_hms(0, 0, 0), arg)
+        self.value_map(|arg| arg.and_hms_opt(0, 0, 0).unwrap(), arg)
     }
 }
 
@@ -764,7 +764,7 @@ impl Injection for Base<DateTime, Date> {
         self.value_map_option(
             |arg| {
                 let date = arg.date();
-                if *arg == date.and_hms(0, 0, 0) {
+                if *arg == date.and_hms_opt(0, 0, 0).unwrap() {
                     Some(date)
                 } else {
                     None

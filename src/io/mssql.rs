@@ -5,8 +5,8 @@ use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 use crate::{
     data_type::{
         generator::Generator,
-        value::{self, Value, Variant},
-        DataTyped, List,
+        value::{self, Value},
+        DataTyped,
     },
     namer,
     relation::{Schema, Table, TableBuilder, Variant as _},
@@ -17,11 +17,11 @@ use rand::{rngs::StdRng, SeedableRng};
 use sqlx::{
     self,
     mssql::{
-        self, Mssql, MssqlArguments, MssqlConnectOptions, MssqlPoolOptions, MssqlQueryResult,
+        self, Mssql, MssqlArguments, MssqlPoolOptions, MssqlQueryResult,
         MssqlRow, MssqlValueRef,
     },
     query::Query,
-    Connection, Decode, Encode, MssqlConnection, MssqlPool, Pool, Row, Type, TypeInfo,
+    Decode, Encode, MssqlPool, Pool, Row, Type, TypeInfo,
     ValueRef as _,
 };
 use std::{
@@ -44,8 +44,7 @@ impl From<sqlx::Error> for Error {
 pub struct Database {
     name: String,
     tables: Vec<Table>,
-    pool: MssqlPool,
-    drop: bool,
+    pool: MssqlPool
 }
 
 pub static MSSQL_POOL: Mutex<Option<Pool<Mssql>>> = Mutex::new(None);
@@ -53,9 +52,9 @@ pub static MSSQL_POOL: Mutex<Option<Pool<Mssql>>> = Mutex::new(None);
 pub static MSSQL_CONTAINER: Mutex<bool> = Mutex::new(false);
 
 impl Database {
-    fn db() -> String {
-        env::var("MSSQL_DB").unwrap_or(DB.into())
-    }
+    // fn db() -> String {
+    //     env::var("MSSQL_DB").unwrap_or(DB.into())
+    // }
 
     fn port() -> u16 {
         match env::var("MSSQL_PORT") {
@@ -307,16 +306,14 @@ impl DatabaseTrait for Database {
             Database {
                 name,
                 tables: vec![],
-                pool,
-                drop: false,
+                pool
             }
             .with_tables(tables_to_be_created)
         } else {
             Ok(Database {
                 name,
                 tables,
-                pool,
-                drop: false,
+                pool
             })
         }
     }
@@ -555,9 +552,9 @@ impl Encode<'_, mssql::Mssql> for SqlValue {
 
     fn produces(&self) -> Option<<mssql::Mssql as sqlx::Database>::TypeInfo> {
         match self {
-            SqlValue::Boolean(b) => Some(<bool as Type<Mssql>>::type_info()),
-            SqlValue::Integer(i) => Some(<i64 as Type<Mssql>>::type_info()),
-            SqlValue::Float(f) => Some(<f64 as Type<Mssql>>::type_info()),
+            SqlValue::Boolean(_) => Some(<bool as Type<Mssql>>::type_info()),
+            SqlValue::Integer(_) => Some(<i64 as Type<Mssql>>::type_info()),
+            SqlValue::Float(_) => Some(<f64 as Type<Mssql>>::type_info()),
             SqlValue::Text(t) => <String as Encode<'_, mssql::Mssql>>::produces(t.deref()),
             SqlValue::Optional(o) => {
                 let value = o.clone().map(|v| v.as_ref().clone());
@@ -577,7 +574,7 @@ impl Type<mssql::Mssql> for SqlValue {
         <String as Type<Mssql>>::type_info()
     }
 
-    fn compatible(ty: &<mssql::Mssql as sqlx::Database>::TypeInfo) -> bool {
+    fn compatible(_ty: &<mssql::Mssql as sqlx::Database>::TypeInfo) -> bool {
         true
     }
 }

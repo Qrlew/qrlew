@@ -122,7 +122,7 @@ impl FromSql for Value {
             rusqlite::types::ValueRef::Integer(i) => Value::integer(i),
             rusqlite::types::ValueRef::Real(f) => Value::float(f),
             rusqlite::types::ValueRef::Text(s) => Value::text(String::from_utf8_lossy(s)),
-            rusqlite::types::ValueRef::Blob(b) => Value::bytes(b.clone()),
+            rusqlite::types::ValueRef::Blob(b) => Value::bytes(b),
         })
     }
 }

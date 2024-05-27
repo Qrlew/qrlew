@@ -49,9 +49,9 @@ pub static POSTGRES_POOL: Mutex<Option<Pool<PostgresConnectionManager<NoTls>>>> 
 pub static POSTGRES_CONTAINER: Mutex<bool> = Mutex::new(false);
 
 impl Database {
-    fn db() -> String {
-        env::var("POSTGRES_DB").unwrap_or(DB.into())
-    }
+    // fn db() -> String {
+    //     env::var("POSTGRES_DB").unwrap_or(DB.into())
+    // }
 
     fn port() -> usize {
         match env::var("POSTGRES_PORT") {
