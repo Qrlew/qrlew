@@ -925,18 +925,8 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         let flat_args = flat_args?;
         let function_name: &str = &function.name.0.iter().join(".").to_lowercase();
         let distinct: bool = match &function.args {
-            ast::FunctionArguments::None => false,
-            ast::FunctionArguments::Subquery(_) => false,
-            ast::FunctionArguments::List(func_arg_list) => {
-                if let Some(duplicate_treatment) = func_arg_list.duplicate_treatment {
-                    match duplicate_treatment {
-                        ast::DuplicateTreatment::Distinct => true,
-                        ast::DuplicateTreatment::All => false,
-                    }
-                } else {
-                    false
-                }
-            }
+            ast::FunctionArguments::List(func_arg_list) if func_arg_list.duplicate_treatment == Some(ast::DuplicateTreatment::Distinct) => true,
+            _ => false,
         };
         Ok(match function_name {
             // Math Functions

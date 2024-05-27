@@ -19,34 +19,34 @@ rand = "0.8"
 log = "0.4"
 env_logger = "0.11"
 colored = "2.0"
-itertools = "0.12"
-paste = "1.0.7"
+itertools = "0.13"
+paste = "1.0.15"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 sqlparser = "0.46"
 dot = "0.1"
-base64 = "0.21"
-rusqlite = { version = "0.30", features = ["chrono"], optional = true }
+base64 = "0.22"
+rusqlite = { version = "0.31", features = ["chrono"], optional = true }
 postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 r2d2 = "0.8"
 r2d2_postgres = "0.18"
-rust_decimal = { version = "1.29", features = [ "tokio-pg" ] }
+rust_decimal = { version = "1.35", features = [ "tokio-pg" ] }
 statrs = "0.16.0"
 sqlx = { version = "0.6.3", features = ["mssql", "runtime-tokio-native-tls", "offline", "any"], optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
 
 # bigquery dependencies
-gcp-bigquery-client = { version = "=0.18.0", optional = true }
-wiremock = { version = "0.5.19", optional = true }
+gcp-bigquery-client = { version = "=0.20.0", optional = true }
+wiremock = { version = "0.6", optional = true }
 tempfile = { version = "3.6.0", optional = true }
-yup-oauth2 = { version = "=8.3.2", optional = true } # 8.3.3 makes the compiling of gcp-bigquery-client fail
+yup-oauth2 = { version = "9.0", optional = true }
 
 [features]
 # Use SQLite for tests and examples
 sqlite = ["dep:rusqlite"]
 mssql = ["dep:sqlx", "dep:tokio"]
-bigquery = ["dep:gcp-bigquery-client", "dep:wiremock", "dep:tempfile", "dep:yup-oauth2"]
+bigquery = ["dep:gcp-bigquery-client", "dep:wiremock", "dep:tempfile", "dep:yup-oauth2", "dep:tokio"]
 # Tests
 checked_injections = []
 # Multiplicity features are tested on large datasets (may take too much memory)
