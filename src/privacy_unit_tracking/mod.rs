@@ -11,11 +11,11 @@ use crate::{
     builder::{Ready, With, WithIterator},
     expr::{AggregateColumn, Expr},
     hierarchy::Hierarchy,
+    namer,
     relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
-    namer, display::Dot
 };
 pub use privacy_unit::{PrivacyUnit, PrivacyUnitPath};
-use std::{error, fmt, ops::Deref, result, sync::Arc};
+use std::{collections::HashMap, error, fmt, ops::Deref, result, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -69,7 +69,6 @@ pub enum Strategy {
 pub struct PupRelation(pub Relation);
 
 impl PupRelation {
-
     pub fn privacy_unit(&self) -> &str {
         PrivacyUnit::privacy_unit()
     }
@@ -131,10 +130,7 @@ impl Relation {
     /// Add the field for the row privacy
     pub fn privacy_unit_row(self) -> Self {
         let expr = Expr::random(namer::new_id(self.name()));
-        self.identity_with_field(
-            PrivacyUnit::privacy_unit_row(),
-            expr,
-        )
+        self.identity_with_field(PrivacyUnit::privacy_unit_row(), expr)
     }
     /// Add the field containing the privacy unit
     pub fn privacy_unit(self, referred_field: &str) -> Self {
@@ -143,36 +139,54 @@ impl Relation {
         } else {
             self
         };
-        relation.identity_with_field(
-            PrivacyUnitPath::privacy_unit(),
-            Expr::col(referred_field),
-        )
+        relation.identity_with_field(PrivacyUnitPath::privacy_unit(), Expr::col(referred_field))
     }
-    /// Add a field designated with a foreign relation and a field
-    pub fn with_referred_field(
+    /// Create a Relation with the privacy unit weight field if the referred_weight_field is Some
+    /// and if the field is not already in the schema. If referred_weight_field is None
+    /// then a privacy unit weight with 1s is added to self.
+    pub fn with_privacy_unit_weight(self, referred_weight_field: Option<String>) -> Self {
+        let weight_col_already_exists = self
+            .schema()
+            .field(PrivacyUnit::privacy_unit_weight())
+            .is_ok();
+        if let Some(field_name) = referred_weight_field {
+            if weight_col_already_exists {
+                self
+            } else {
+                self.with_field(PrivacyUnit::privacy_unit_weight(), Expr::col(field_name))
+            }
+        } else {
+            self.with_field(PrivacyUnit::privacy_unit_weight(), Expr::val(1))
+        }
+    }
+    /// Add fields designated with a foreign relation and a field
+    pub fn with_referred_fields(
         self,
         referring_id: String,
         referred_relation: Arc<Relation>,
         referred_id: String,
-        referred_field: String,
-        referred_field_name: String,
+        referred_fields: Vec<String>,
+        referred_fields_names: Vec<String>,
     ) -> Relation {
         let left_size = referred_relation.schema().len();
         let names: Vec<String> = self
             .schema()
             .iter()
             .map(|f| f.name().to_string())
-            .filter(|name| name != &referred_field_name)
+            .filter(|name| !referred_fields_names.contains(name))
             .collect();
-        let referred_relation = if referred_field == PrivacyUnit::privacy_unit_row() {
-            Arc::new(
-                referred_relation.deref()
-                    .clone()
-                    .privacy_unit_row()
-            )
-        } else {
-            referred_relation
-        };
+        let referred_relation =
+            if referred_fields.contains(&PrivacyUnit::privacy_unit_row().to_string()) {
+                Arc::new(referred_relation.deref().clone().privacy_unit_row())
+            } else {
+                referred_relation
+            };
+
+        let lookup_fields_to_names: HashMap<String, String> = referred_fields
+            .into_iter()
+            .zip(referred_fields_names)
+            .map(|(field, name)| (field, name))
+            .collect();
         let join: Relation = Relation::join()
             .inner(Expr::eq(
                 Expr::qcol(Join::right_name(), &referring_id),
@@ -194,9 +208,10 @@ impl Relation {
             .skip(left_size)
             .collect();
         Relation::map()
-            .with_iter(left.into_iter().find_map(|(o, i)| {
-                (referred_field == i.name())
-                    .then_some((referred_field_name.clone(), Expr::col(o.name())))
+            .with_iter(left.into_iter().filter_map(|(o, i)| {
+                lookup_fields_to_names
+                    .get(i.name())
+                    .and_then(|name| Some((name.clone(), Expr::col(o.name()))))
             }))
             .with_iter(right.into_iter().filter_map(|(o, i)| {
                 names
@@ -212,23 +227,26 @@ impl Relation {
         relations: &Hierarchy<Arc<Relation>>,
         field_path: PrivacyUnitPath,
     ) -> Relation {
+        let referred_weight_field = field_path.referred_weight_field().clone();
         if field_path.path().is_empty() {
             self.privacy_unit(field_path.referred_field())
+                .with_privacy_unit_weight(referred_weight_field)
         } else {
             field_path
                 .into_iter()
-                .fold(self, |relation, referred_field| {
-                    relation.with_referred_field(
-                        referred_field.referring_id,
+                .fold(self, |relation, referred_fields| {
+                    relation.with_referred_fields(
+                        referred_fields.referring_id,
                         relations
-                            .get(&[referred_field.referred_relation.to_string()])
+                            .get(&[referred_fields.referred_relation.to_string()])
                             .unwrap()
                             .clone(),
-                        referred_field.referred_id,
-                        referred_field.referred_field,
-                        referred_field.referred_field_name,
+                        referred_fields.referred_id,
+                        referred_fields.referred_fields,
+                        referred_fields.referred_fields_names,
                     )
                 })
+                .with_privacy_unit_weight(referred_weight_field)
         }
     }
 }
@@ -260,18 +278,16 @@ impl<'a> PrivacyUnitTracking<'a> {
             .iter()
             .find(|(name, _field_path)| table.name() == self.relations[name.as_str()].name())
             .ok_or(Error::no_private_table(table.path()))?;
-        PupRelation::try_from(
-            Relation::from(table.clone())
-                .with_field_path(self.relations, field_path.clone())
-                .map_fields(|name, expr| {
-                    if name == PrivacyUnit::privacy_unit() {
-                        Expr::md5(Expr::cast_as_text(expr))
-                    } else {
-                        expr
-                    }
-                })
-                .insert_field(1, PrivacyUnit::privacy_unit_weight(), Expr::val(1)),
-        )
+        let relation = Relation::from(table.clone())
+            .with_field_path(self.relations, field_path.clone())
+            .map_fields(|name, expr| {
+                if name == PrivacyUnit::privacy_unit() && self.privacy_unit.hash_privacy_unit() {
+                    Expr::md5(Expr::cast_as_text(expr))
+                } else {
+                    expr
+                }
+            });
+        PupRelation::try_from(relation)
     }
 
     /// Map privacy tracking from another PUP relation
@@ -560,7 +576,7 @@ mod tests {
             PrivacyUnitPath::from((vec![("user_id", "users", "id")], "id")),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
@@ -570,7 +586,7 @@ mod tests {
                 "name",
             )),
         );
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Produce the query
         relation.display_dot().unwrap();
         let query: &str = &ast::Query::from(&relation).to_string();
@@ -586,17 +602,20 @@ mod tests {
                 .join("\n")
         );
         let relation = relation.filter_fields(|n| n != "peid");
-        assert!(relation.schema()[0].name() != "peid");
+        assert!(relation.schema()[1].name() != "peid");
 
         // with row privacy
         // Link orders to users
         let orders = relations.get(&["orders".to_string()]).unwrap().as_ref();
         let relation = orders.clone().with_field_path(
             &relations,
-            PrivacyUnitPath::from((vec![("user_id", "users", "id")], PrivacyUnit::privacy_unit_row())),
+            PrivacyUnitPath::from((
+                vec![("user_id", "users", "id")],
+                PrivacyUnit::privacy_unit_row(),
+            )),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Link items to orders
         let items = relations.get(&["items".to_string()]).unwrap().as_ref();
         let relation = items.clone().with_field_path(
@@ -607,7 +626,7 @@ mod tests {
             )),
         );
         relation.display_dot().unwrap();
-        assert!(relation.schema()[0].name() == PrivacyUnit::privacy_unit());
+        assert!(relation.schema()[1].name() == PrivacyUnit::privacy_unit());
         // Produce the query
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -648,7 +667,7 @@ mod tests {
         table.display_dot().unwrap();
         println!("Schema privacy_tracked = {}", table.schema());
         println!("Query privacy tracked = {}", ast::Query::from(&*table));
-        assert_eq!(table.schema()[0].name(), PrivacyUnit::privacy_unit())
+        assert_eq!(table.schema()[1].name(), PrivacyUnit::privacy_unit())
     }
 
     #[test]
@@ -723,6 +742,90 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .join("\n");
+    }
+
+    #[test]
+    fn test_join_privacy_tracking_without_hashing_pu() {
+        let table1: Table = Relation::table()
+            .schema(
+                Schema::empty()
+                    .with((
+                        "sarus_privacy_unit".to_string(),
+                        DataType::optional(DataType::id()),
+                    ))
+                    .with((
+                        "sarus_weight".to_string(),
+                        DataType::float_interval(0.0, 20.0),
+                    ))
+                    .with(("id", DataType::id()))
+                    .with(("a", DataType::float())),
+            )
+            .name("table1")
+            .size(10)
+            .build();
+        let table2: Table = Relation::table()
+            .schema(
+                Schema::empty()
+                    .with((
+                        "sarus_privacy_unit".to_string(),
+                        DataType::optional(DataType::id()),
+                    ))
+                    .with((
+                        "sarus_weight".to_string(),
+                        DataType::float_interval(0.0, 20.0),
+                    ))
+                    .with(("b", DataType::integer())),
+            )
+            .name("table2")
+            .size(20)
+            .build();
+        let tables = vec![table1, table2];
+        let relations: Hierarchy<Arc<Relation>> = tables
+            .iter()
+            .map(|t| (Identifier::from(t.name()), Arc::new(t.clone().into()))) // Tables can be accessed from their name or path
+            .chain(
+                tables
+                    .iter()
+                    .map(|t| (t.path().clone(), Arc::new(t.clone().into()))),
+            )
+            .collect();
+
+        let privacy_unit = PrivacyUnit::from((
+            vec![
+                ("table1", vec![], "sarus_privacy_unit"),
+                ("table2", vec![("b", "table1", "id")], "sarus_privacy_unit"),
+            ],
+            false,
+        ));
+        let privacy_unit_tracking =
+            PrivacyUnitTracking::new(&relations, PrivacyUnit::from(privacy_unit), Strategy::Hard);
+        for table in tables.clone() {
+            let pup_table = privacy_unit_tracking
+                .table(&table.clone().try_into().unwrap())
+                .unwrap();
+            pup_table.deref().display_dot().unwrap();
+        }
+
+        let privacy_unit = PrivacyUnit::from((
+            vec![
+                ("table1", vec![], "sarus_privacy_unit", "sarus_weight"),
+                (
+                    "table2",
+                    vec![("b", "table1", "id")],
+                    "sarus_privacy_unit",
+                    "sarus_weight",
+                ),
+            ],
+            false,
+        ));
+        let privacy_unit_tracking =
+            PrivacyUnitTracking::new(&relations, PrivacyUnit::from(privacy_unit), Strategy::Hard);
+        for table in tables {
+            let pup_table = privacy_unit_tracking
+                .table(&table.clone().try_into().unwrap())
+                .unwrap();
+            pup_table.deref().display_dot().unwrap();
+        }
     }
 
     #[test]

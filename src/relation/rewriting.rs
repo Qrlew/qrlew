@@ -946,12 +946,12 @@ mod tests {
             Relation::try_from(parse("SELECT * FROM order_table").unwrap().with(&relations))
                 .unwrap();
         let user = relations.get(&["user_table".to_string()]).unwrap().as_ref();
-        let relation = orders.with_referred_field(
+        let relation = orders.with_referred_fields(
             "user_id".into(),
             Arc::new(user.clone()),
             "id".into(),
-            "id".into(),
-            "peid".into(),
+            vec!["id".into()],
+            vec!["peid".into()],
         );
         assert!(relation.schema()[0].name() == "peid");
         let relation = relation.filter_fields(|n| n != "peid");
