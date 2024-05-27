@@ -782,15 +782,14 @@ pub trait QueryToRelationTranslator {
         context: &Hierarchy<Identifier>,
     ) -> Result<Vec<expr::Expr>> {
         match args {
-            ast::FunctionArguments::None => Ok(vec![]),
-            ast::FunctionArguments::Subquery(_) => Ok(vec![]),
+            ast::FunctionArguments::None
+            | ast::FunctionArguments::Subquery(_) => Ok(vec![]),
             ast::FunctionArguments::List(arg_list) => arg_list.args
                 .iter()
                 .map(|func_arg| match func_arg {
-                    ast::FunctionArg::Named { name: _, arg, operator: _ } => {
+                    ast::FunctionArg::Named {arg, .. } | ast::FunctionArg::Unnamed(arg) => {
                         self.try_function_arg_expr(arg, context)
                     }
-                    ast::FunctionArg::Unnamed(arg) => self.try_function_arg_expr(arg, context),
                 })
                 .collect(),
         }
