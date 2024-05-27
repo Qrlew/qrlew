@@ -292,8 +292,7 @@ impl QueryToRelationTranslator for MsSqlTranslator {
     ) -> Result<expr::Expr> {
         // need to check func.args:
         let args = match &func.args {
-            ast::FunctionArguments::None
-            | ast::FunctionArguments::Subquery(_) => vec![],
+            ast::FunctionArguments::None | ast::FunctionArguments::Subquery(_) => vec![],
             ast::FunctionArguments::List(l) => l.args.iter().collect(),
         };
         // We expect 2 args
@@ -361,8 +360,9 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
             ast::FunctionArgExpr::Expr(e) => match e {
                 ast::Expr::Function(f) => {
                     let arg_vec = match &f.args {
-                        ast::FunctionArguments::None
-                        | ast::FunctionArguments::Subquery(_) => vec![],
+                        ast::FunctionArguments::None | ast::FunctionArguments::Subquery(_) => {
+                            vec![]
+                        }
                         ast::FunctionArguments::List(func_args) => func_args.args.iter().collect(),
                     };
                     if (f.name == expected_f_name) && (arg_vec[0] == &expected_first_arg) {

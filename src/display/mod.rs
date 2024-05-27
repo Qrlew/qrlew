@@ -186,7 +186,8 @@ mod tests {
         builder::{Ready, With},
         data_type::DataType,
         expr::Expr,
-        relation::{schema::Schema, Relation}, WithoutContext as _,
+        relation::{schema::Schema, Relation},
+        WithoutContext as _,
     };
 
     #[test]

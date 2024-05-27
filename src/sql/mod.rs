@@ -112,11 +112,8 @@ mod tests {
         builder::With,
         display::Dot,
         io::{postgresql, Database},
-        relation::{Relation, Variant as _,}
+        relation::{Relation, Variant as _},
     };
-    
-    
-    
 
     #[test]
     fn test_display() {

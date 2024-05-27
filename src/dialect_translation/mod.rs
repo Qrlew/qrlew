@@ -3,17 +3,8 @@
 //!     - a method to provide a sqlparser::Dialect for the parsing
 //!     - methods varying from dialect to dialect regarding the conversion from AST to Expr+Relation and vice-versa
 
+use sqlparser::{ast, dialect::Dialect};
 
-use sqlparser::{
-    ast,
-    dialect::{Dialect},
-};
-
-use crate::{
-    expr::{self, Function},
-    relation::sql::FromRelationVisitor,
-    visitor::Acceptor, WithoutContext,
-};
 use crate::{
     data_type::DataTyped,
     expr::Identifier,
@@ -21,6 +12,12 @@ use crate::{
     relation::{Join, JoinOperator, Table, Variant},
     sql::Result,
     DataType, Relation,
+};
+use crate::{
+    expr::{self, Function},
+    relation::sql::FromRelationVisitor,
+    visitor::Acceptor,
+    WithoutContext,
 };
 
 use paste::paste;
@@ -787,12 +784,12 @@ pub trait QueryToRelationTranslator {
         context: &Hierarchy<Identifier>,
     ) -> Result<Vec<expr::Expr>> {
         match args {
-            ast::FunctionArguments::None
-            | ast::FunctionArguments::Subquery(_) => Ok(vec![]),
-            ast::FunctionArguments::List(arg_list) => arg_list.args
+            ast::FunctionArguments::None | ast::FunctionArguments::Subquery(_) => Ok(vec![]),
+            ast::FunctionArguments::List(arg_list) => arg_list
+                .args
                 .iter()
                 .map(|func_arg| match func_arg {
-                    ast::FunctionArg::Named {arg, .. } | ast::FunctionArg::Unnamed(arg) => {
+                    ast::FunctionArg::Named { arg, .. } | ast::FunctionArg::Unnamed(arg) => {
                         self.try_function_arg_expr(arg, context)
                     }
                 })

@@ -12,9 +12,7 @@ use crate::{
     namer,
     relation::{Table, Variant as _},
 };
-use std::{
-    env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
-};
+use std::{env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time};
 
 use colored::Colorize;
 use postgres::{

@@ -539,7 +539,6 @@ mod tests {
     };
 
     use colored::Colorize;
-    
 
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]

@@ -220,14 +220,20 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 match_value: _,
                 opt_search_modifier: _,
             } => Dependencies::empty(),
-            ast::Expr::IntroducedString { introducer: _, value: _ } => Dependencies::empty(),
+            ast::Expr::IntroducedString {
+                introducer: _,
+                value: _,
+            } => Dependencies::empty(),
             ast::Expr::RLike {
                 negated: _,
                 expr: _,
                 pattern: _,
                 regexp: _,
             } => todo!(),
-            ast::Expr::Struct { values: _, fields: _ } => todo!(),
+            ast::Expr::Struct {
+                values: _,
+                fields: _,
+            } => todo!(),
             ast::Expr::Named { expr: _, name: _ } => todo!(),
             ast::Expr::Convert {
                 expr: _,
@@ -495,10 +501,16 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 overlay_from: _,
                 overlay_for: _,
             } => todo!(),
-            ast::Expr::Collate { expr: _, collation: _ } => todo!(),
+            ast::Expr::Collate {
+                expr: _,
+                collation: _,
+            } => todo!(),
             ast::Expr::Nested(expr) => dependencies.get(expr).clone(),
             ast::Expr::Value(value) => self.value(value),
-            ast::Expr::TypedString { data_type: _, value: _ } => todo!(),
+            ast::Expr::TypedString {
+                data_type: _,
+                value: _,
+            } => todo!(),
             ast::Expr::MapAccess { column: _, keys: _ } => todo!(),
             ast::Expr::Function(function) => self.function(function, {
                 let mut result = vec![];
@@ -551,7 +563,10 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                     .collect(),
                 else_result.clone().map(|x| dependencies.get(&*x).clone()),
             ),
-            ast::Expr::Exists { subquery: _, negated: _ } => todo!(),
+            ast::Expr::Exists {
+                subquery: _,
+                negated: _,
+            } => todo!(),
             ast::Expr::Subquery(_) => todo!(),
             ast::Expr::GroupingSets(_) => todo!(),
             ast::Expr::Cube(_) => todo!(),
@@ -565,14 +580,20 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 match_value: _,
                 opt_search_modifier: _,
             } => todo!(),
-            ast::Expr::IntroducedString { introducer: _, value: _ } => todo!(),
+            ast::Expr::IntroducedString {
+                introducer: _,
+                value: _,
+            } => todo!(),
             ast::Expr::RLike {
                 negated: _,
                 expr: _,
                 pattern: _,
                 regexp: _,
             } => todo!(),
-            ast::Expr::Struct { values: _, fields: _ } => todo!(),
+            ast::Expr::Struct {
+                values: _,
+                fields: _,
+            } => todo!(),
             ast::Expr::Named { expr: _, name: _ } => todo!(),
             ast::Expr::Convert {
                 expr: _,
@@ -925,7 +946,11 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
         let flat_args = flat_args?;
         let function_name: &str = &function.name.0.iter().join(".").to_lowercase();
         let distinct: bool = match &function.args {
-            ast::FunctionArguments::List(func_arg_list) if func_arg_list.duplicate_treatment == Some(ast::DuplicateTreatment::Distinct) => true,
+            ast::FunctionArguments::List(func_arg_list)
+                if func_arg_list.duplicate_treatment == Some(ast::DuplicateTreatment::Distinct) =>
+            {
+                true
+            }
             _ => false,
         };
         Ok(match function_name {

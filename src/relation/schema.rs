@@ -9,7 +9,7 @@ use super::{field::Field, Error, Result};
 use crate::{
     builder::{Ready, With},
     data_type::{DataType, DataTyped},
-    expr::{identifier::Identifier},
+    expr::identifier::Identifier,
 };
 
 /// A struct holding Fields as in https://github.com/apache/arrow-datafusion/blob/5b23180cf75ea7155d7c35a40f224ce4d5ad7fb8/datafusion/src/logical_plan/dfschema.rs#L36
@@ -260,7 +260,7 @@ impl Ready<Schema> for Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data_type::{DataType};
+    use crate::data_type::DataType;
     use std::panic::catch_unwind;
 
     #[test]

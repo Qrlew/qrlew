@@ -1,6 +1,6 @@
 use crate::{
-    builder::{Ready},
-    expr::{Identifier},
+    builder::Ready,
+    expr::Identifier,
     hierarchy::Hierarchy,
     relation::{Relation, Table, Variant as _},
 };

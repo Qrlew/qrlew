@@ -1723,10 +1723,7 @@ impl Variant for List {
     }
 
     fn try_empty(&self) -> Result<Self> {
-        Ok(Self::new(
-            self.data_type().try_empty()?.into(),
-            0.into(),
-        ))
+        Ok(Self::new(self.data_type().try_empty()?.into(), 0.into()))
     }
 }
 
@@ -1843,10 +1840,7 @@ impl Variant for Set {
     }
 
     fn try_empty(&self) -> Result<Self> {
-        Ok(Self::new(
-            self.data_type().try_empty()?.into(),
-            0.into(),
-        ))
+        Ok(Self::new(self.data_type().try_empty()?.into(), 0.into()))
     }
 }
 

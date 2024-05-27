@@ -8,7 +8,8 @@ use crate::{
         AggregateColumn, Column, Expr, Identifier,
     },
     privacy_unit_tracking::PupRelation,
-    relation::{Map, Reduce, Relation, Variant}, Ready,
+    relation::{Map, Reduce, Relation, Variant},
+    Ready,
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 

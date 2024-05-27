@@ -1,12 +1,7 @@
-
-
 use crate::expr;
 
-use super::{
-    function_builder, QueryToRelationTranslator, RelationToQueryTranslator,
-};
+use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
-
 
 #[derive(Clone, Copy)]
 pub struct PostgreSqlTranslator;
@@ -96,7 +91,6 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
     use crate::{

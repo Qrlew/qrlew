@@ -1,7 +1,4 @@
-use crate::{
-    expr::{Expr},
-    namer,
-};
+use crate::{expr::Expr, namer};
 use std::f64::consts::PI;
 
 impl Expr {

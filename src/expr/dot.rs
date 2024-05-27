@@ -201,7 +201,8 @@ mod tests {
         builder::{Ready, With},
         data_type::DataType,
         display::Dot,
-        relation::{schema::Schema, Relation}, WithoutContext as _,
+        relation::{schema::Schema, Relation},
+        WithoutContext as _,
     };
     use std::sync::Arc;
 

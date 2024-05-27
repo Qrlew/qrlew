@@ -618,7 +618,11 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
         rewriting_rules
     }
 
-    fn map(&self, _map: &'a Map, _input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+    fn map(
+        &self,
+        _map: &'a Map,
+        _input: Arc<RelationWithRewritingRules<'a>>,
+    ) -> Vec<RewritingRule> {
         let mut rewriting_rules = vec![
             RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(
@@ -1282,7 +1286,11 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         (relation, dp_event_left.compose(dp_event_right)).into()
     }
 
-    fn values(&self, values: &'a Values, _rewriting_rule: &'a RewritingRule) -> RelationWithDpEvent {
+    fn values(
+        &self,
+        values: &'a Values,
+        _rewriting_rule: &'a RewritingRule,
+    ) -> RelationWithDpEvent {
         (Arc::new(values.clone().into()), DpEvent::no_op()).into()
     }
 }

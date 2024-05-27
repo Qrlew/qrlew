@@ -2,9 +2,7 @@ use std::{io, iter};
 
 use itertools::Itertools;
 
-use super::{
-    Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule,
-};
+use super::{Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule};
 use crate::{
     display::{self, colors},
     namer,
@@ -155,7 +153,6 @@ impl<'a> RelationWithRewritingRule<'a> {
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
     use crate::{

@@ -113,7 +113,7 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::{DataType},
+        data_type::DataType,
         dialect_translation::RelationWithTranslator,
         expr::Expr,
         namer,

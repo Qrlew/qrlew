@@ -1,9 +1,8 @@
 //! Methods to convert Relations to ast::Query
 
-
 use super::{
-    Join, Map, OrderBy, Reduce, Relation, Set, SetOperator,
-    SetQuantifier, Table, Values, Variant as _, Visitor,
+    Join, Map, OrderBy, Reduce, Relation, Set, SetOperator, SetQuantifier, Table, Values,
+    Variant as _, Visitor,
 };
 use crate::{
     ast,
