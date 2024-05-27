@@ -105,11 +105,11 @@ mod tests {
     };
     use std::sync::Arc;
 
-    fn assert_same_query_str(query_1: &str, query_2: &str) {
-        let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
-        let b_no_whitespace: String = query_2.chars().filter(|c| !c.is_whitespace()).collect();
-        assert_eq!(a_no_whitespace, b_no_whitespace);
-    }
+    // fn assert_same_query_str(query_1: &str, query_2: &str) {
+    //     let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
+    //     let b_no_whitespace: String = query_2.chars().filter(|c| !c.is_whitespace()).collect();
+    //     assert_eq!(a_no_whitespace, b_no_whitespace);
+    // }
 
     #[test]
     fn test_query() -> Result<()> {

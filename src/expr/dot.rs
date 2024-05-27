@@ -275,9 +275,9 @@ mod tests {
             ("c", Value::float(3.)),
             ("d", Value::integer(4)),
         ]);
-        &expr! { a*b+d }.with(val.clone()).display_dot().unwrap();
-        &expr! { d+a*b }.with(val.clone()).display_dot().unwrap();
-        &expr! { (a*b+d) }.with(val).display_dot().unwrap();
+        let _ = &expr! { a*b+d }.with(val.clone()).display_dot().unwrap();
+        let _ = &expr! { d+a*b }.with(val.clone()).display_dot().unwrap();
+        let _ = &expr! { (a*b+d) }.with(val).display_dot().unwrap();
     }
 
     #[test]

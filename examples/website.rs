@@ -1,3 +1,4 @@
+#[allow(unused)]
 fn rewrite() {
     use qrlew::ast::Query;
     use qrlew::display::Dot;

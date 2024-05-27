@@ -901,7 +901,7 @@ mod tests {
     use super::*;
     use crate::{
         ast,
-        data_type::{value::List, DataType, DataTyped},
+        data_type::{DataType, DataTyped},
         display::Dot,
         expr::AggregateColumn,
         io::{postgresql, Database},
@@ -960,21 +960,21 @@ mod tests {
         assert!(relation.schema()[0].name() != "peid");
     }
 
-    fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {
-        let mut sorted_results: Vec<Vec<String>> = vec![];
-        for row in results {
-            let mut str_row = vec![];
-            for i in 0..size {
-                str_row.push(match row[i].to_string().parse::<f64>() {
-                    Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
-                    Err(_) => row[i].to_string(),
-                })
-            }
-            sorted_results.push(str_row)
-        }
-        sorted_results.sort();
-        sorted_results
-    }
+    // fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {
+    //     let mut sorted_results: Vec<Vec<String>> = vec![];
+    //     for row in results {
+    //         let mut str_row = vec![];
+    //         for i in 0..size {
+    //             str_row.push(match row[i].to_string().parse::<f64>() {
+    //                 Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
+    //                 Err(_) => row[i].to_string(),
+    //             })
+    //         }
+    //         sorted_results.push(str_row)
+    //     }
+    //     sorted_results.sort();
+    //     sorted_results
+    // }
 
     #[test]
     fn test_sums_by_group() {
@@ -1057,12 +1057,12 @@ mod tests {
         }
 
         // group by and aggregates have the same argument
-        let mut relation = relations
+        let relation = relations
             .get(&["user_table".into()])
             .unwrap()
             .as_ref()
             .clone();
-        relation = relation.l1_norms("id", &vec!["age"], &vec!["age"]);
+        relation.l1_norms("id", &vec!["age"], &vec!["age"]);
     }
 
     #[test]
