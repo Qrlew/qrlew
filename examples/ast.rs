@@ -62,6 +62,9 @@ fn build_ast() -> Result<(), &'static str> {
             having: None,
             qualify: None,
             named_window: vec![],
+            window_before_qualify: false,
+            value_table_mode: None,
+            connect_by: None,
         }))),
         order_by: vec![],
         limit: None,
@@ -80,6 +83,7 @@ fn build_ast() -> Result<(), &'static str> {
         },
         query: Box::new(query.clone()),
         from: None,
+        materialized: None
     };
     println!("{}", cte);
     let cte = Cte {
@@ -89,6 +93,7 @@ fn build_ast() -> Result<(), &'static str> {
         },
         query: Box::new(query),
         from: Some(Ident::new("fro")),
+        materialized: None
     };
     println!("{}", cte);
 

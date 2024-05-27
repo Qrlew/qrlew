@@ -152,6 +152,9 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                         having: None,
                         qualify: None,
                         named_window: vec![],
+                        window_before_qualify: false,
+                        value_table_mode: None,
+                        connect_by: None
                     }))),
                     order_by,
                     limit,
@@ -216,7 +219,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
 
             fn insert(&self, prefix: &str, table: &Table) -> ast::Statement {
-                ast::Statement::Insert {
+                ast::Statement::Insert(ast::Insert {
                     or: None,
                     into: true,
                     table_name: ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
@@ -251,7 +254,8 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     ignore: false,
                     replace_into: false,
                     priority: None,
-                }
+                    insert_alias: None,
+                })
             }
 
             fn cte(
@@ -264,6 +268,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     alias: ast::TableAlias {name, columns},
                     query: Box::new(query),
                     from: None,
+                    materialized: None
                 }
             }
             fn join_projection(&self, join: &Join) -> Vec<ast::SelectItem> {
@@ -773,17 +778,21 @@ pub trait QueryToRelationTranslator {
 
     fn try_function_args(
         &self,
-        args: Vec<ast::FunctionArg>,
+        args: ast::FunctionArguments,
         context: &Hierarchy<Identifier>,
     ) -> Result<Vec<expr::Expr>> {
-        args.iter()
-            .map(|func_arg| match func_arg {
-                ast::FunctionArg::Named { name: _, arg } => {
-                    self.try_function_arg_expr(arg, context)
-                }
-                ast::FunctionArg::Unnamed(arg) => self.try_function_arg_expr(arg, context),
-            })
-            .collect()
+        match args {
+            ast::FunctionArguments::None
+            | ast::FunctionArguments::Subquery(_) => Ok(vec![]),
+            ast::FunctionArguments::List(arg_list) => arg_list.args
+                .iter()
+                .map(|func_arg| match func_arg {
+                    ast::FunctionArg::Named {arg, .. } | ast::FunctionArg::Unnamed(arg) => {
+                        self.try_function_arg_expr(arg, context)
+                    }
+                })
+                .collect(),
+        }
     }
 
     fn try_function_arg_expr(
@@ -816,17 +825,21 @@ fn function_builder(name: &str, exprs: Vec<ast::Expr>, distinct: bool) -> ast::E
         .collect();
     let function_name = name.to_uppercase();
     let name = ast::ObjectName(vec![ast::Ident::from(&function_name[..])]);
-    let funtion = ast::Function {
-        name,
+    let ast_distinct = if distinct {Some(ast::DuplicateTreatment::Distinct)} else {None};
+    let func_args_list = ast::FunctionArgumentList {
+        duplicate_treatment: ast_distinct,
         args: function_args,
+        clauses: vec![],
+    };
+    let function = ast::Function {
+        name,
+        args: ast::FunctionArguments::List(func_args_list),
         over: None,
-        distinct: distinct,
-        special: false,
-        order_by: vec![],
         filter: None,
         null_treatment: None,
+        within_group: vec![]
     };
-    ast::Expr::Function(funtion)
+    ast::Expr::Function(function)
 }
 
 // AST CAST expression builder
@@ -835,6 +848,7 @@ fn cast_builder(expr: ast::Expr, as_type: ast::DataType) -> ast::Expr {
         expr: Box::new(expr),
         data_type: as_type,
         format: None,
+        kind: ast::CastKind::Cast,
     }
 }
 

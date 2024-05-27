@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - use a column present in the schema as privacy unit weight
 - added flag to PrivacyUnit to deactivate the md5 of the privacy_unit field
 - added new rewriting rules: PUP -> PUP for the Reduce and (Pub, PUP) -> PUP, (PUP, Pub) -> PUP for the Join 
+- upgrade dependencies
 
 ## [0.9.17] - 2024-03-28
 ### Fixed

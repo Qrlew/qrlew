@@ -44,8 +44,8 @@ impl RelationToQueryTranslator for PostgreSqlTranslator {
         // SELECT TRUNC(CAST (0.12 AS DOUBLE PRECISION)) passes.
         // Here we check precision, if it is 0 we remove it (such that the precision is implicit).
         let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        ast::Expr::Function(ast::Function {
-            name: ast::ObjectName(vec![ast::Ident::from("TRUNC")]),
+        let func_args_list = ast::FunctionArgumentList {
+            duplicate_treatment: None,
             args: ast_exprs
                 .into_iter()
                 .filter_map(|e| {
@@ -53,12 +53,15 @@ impl RelationToQueryTranslator for PostgreSqlTranslator {
                         .then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
                 })
                 .collect(),
+            clauses: vec![],
+        };
+        ast::Expr::Function(ast::Function {
+            name: ast::ObjectName(vec![ast::Ident::from("TRUNC")]),
+            args: ast::FunctionArguments::List(func_args_list),
             over: None,
-            distinct: false,
-            special: false,
-            order_by: vec![],
             filter: None,
             null_treatment: None,
+            within_group: vec![],
         })
     }
 
@@ -66,8 +69,8 @@ impl RelationToQueryTranslator for PostgreSqlTranslator {
         // Same as TRUNC
         // what if I wanted to do round(0, 0)
         let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        ast::Expr::Function(ast::Function {
-            name: ast::ObjectName(vec![ast::Ident::from("ROUND")]),
+        let func_args_list = ast::FunctionArgumentList {
+            duplicate_treatment: None,
             args: ast_exprs
                 .into_iter()
                 .filter_map(|e| {
@@ -75,12 +78,15 @@ impl RelationToQueryTranslator for PostgreSqlTranslator {
                         .then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
                 })
                 .collect(),
+            clauses: vec![],
+        };
+        ast::Expr::Function(ast::Function {
+            name: ast::ObjectName(vec![ast::Ident::from("ROUND")]),
+            args: ast::FunctionArguments::List(func_args_list),
             over: None,
-            distinct: false,
-            special: false,
-            order_by: vec![],
             filter: None,
             null_treatment: None,
+            within_group: vec![],
         })
     }
 }

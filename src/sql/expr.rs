@@ -44,10 +44,9 @@ impl<'a> Acceptor<'a> for ast::Expr {
             ast::Expr::Identifier(_) => Dependencies::empty(),
             ast::Expr::CompoundIdentifier(_) => Dependencies::empty(),
             ast::Expr::JsonAccess {
-                left,
-                operator: _,
-                right,
-            } => Dependencies::from([left.as_ref(), right.as_ref()]),
+              value,
+              path
+            } => Dependencies::from([value.as_ref()]),
             ast::Expr::CompositeAccess { expr, key: _ } => Dependencies::from([expr.as_ref()]),
             ast::Expr::IsFalse(expr) => Dependencies::from([expr.as_ref()]),
             ast::Expr::IsNotFalse(expr) => Dependencies::from([expr.as_ref()]),
@@ -120,16 +119,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 expr,
                 data_type: _,
                 format: _,
-            } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::TryCast {
-                expr,
-                data_type: _,
-                format: _,
-            } => Dependencies::from([expr.as_ref()]),
-            ast::Expr::SafeCast {
-                expr,
-                data_type: _,
-                format: _,
+                kind: _,
             } => Dependencies::from([expr.as_ref()]),
             ast::Expr::AtTimeZone {
                 timestamp,
@@ -180,23 +170,23 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 data_type: _,
                 value: _,
             } => Dependencies::empty(),
-            ast::Expr::MapAccess { column, keys } => {
-                iter::once(column.as_ref()).chain(keys.iter()).collect()
-            }
-            ast::Expr::Function(function) => function
-                .args
-                .iter()
-                .map(|arg| match arg {
-                    ast::FunctionArg::Named { name: _, arg } => arg,
-                    ast::FunctionArg::Unnamed(arg) => arg,
-                })
-                .filter_map(|arg| match arg {
-                    ast::FunctionArgExpr::Expr(expr) => Some(expr),
-                    _ => None,
-                })
-                .collect(),
-            ast::Expr::AggregateExpressionWithFilter { expr, filter } => {
-                Dependencies::from([expr.as_ref(), filter.as_ref()])
+            ast::Expr::MapAccess { column, keys } => Dependencies::from([column.as_ref()]),
+            ast::Expr::Function(function) => {
+                match &function.args {
+                    ast::FunctionArguments::None => Dependencies::empty(),
+                    ast::FunctionArguments::Subquery(_) => Dependencies::empty(),
+                    ast::FunctionArguments::List(list_args) => list_args.args
+                    .iter()
+                    .map(|arg| match arg {
+                        ast::FunctionArg::Named { name: _, arg, operator: _} => arg,
+                        ast::FunctionArg::Unnamed(arg) => arg,
+                    })
+                    .filter_map(|arg| match arg {
+                        ast::FunctionArgExpr::Expr(expr) => Some(expr),
+                        _ => None,
+                    })
+                    .collect(),
+                }
             }
             ast::Expr::Case {
                 operand,
@@ -216,9 +206,6 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 negated: _,
             } => Dependencies::empty(),
             ast::Expr::Subquery(_) => Dependencies::empty(),
-            ast::Expr::ArraySubquery(_) => Dependencies::empty(),
-            ast::Expr::ListAgg(_) => Dependencies::empty(),
-            ast::Expr::ArrayAgg(_) => Dependencies::empty(),
             ast::Expr::GroupingSets(exprs) => exprs.iter().flat_map(|exprs| exprs.iter()).collect(),
             ast::Expr::Cube(exprs) => exprs.iter().flat_map(|exprs| exprs.iter()).collect(),
             ast::Expr::Rollup(exprs) => exprs.iter().flat_map(|exprs| exprs.iter()).collect(),
@@ -242,9 +229,12 @@ impl<'a> Acceptor<'a> for ast::Expr {
             } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
-            ast::Expr::Convert { expr, data_type, charset, target_before_value } => todo!(),
+            ast::Expr::Convert { expr, data_type, charset, target_before_value, styles } => todo!(),
             ast::Expr::Wildcard => todo!(),
             ast::Expr::QualifiedWildcard(_) => todo!(),
+            ast::Expr::Dictionary(_) => Dependencies::empty(),
+            ast::Expr::OuterJoin(expr) => Dependencies::from([expr.as_ref()]),
+            ast::Expr::Prior(expr) => Dependencies::from([expr.as_ref()]),
         }
     }
 }
@@ -296,9 +286,8 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Identifier(ident) => self.identifier(ident),
             ast::Expr::CompoundIdentifier(idents) => self.compound_identifier(idents),
             ast::Expr::JsonAccess {
-                left,
-                operator,
-                right,
+                    value,
+                path
             } => todo!(),
             ast::Expr::CompositeAccess { expr, key } => todo!(),
             ast::Expr::IsFalse(expr) => self.is(
@@ -450,17 +439,8 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 data_type,
                 format: _,
+                kind: _
             } => self.cast(dependencies.get(expr).clone(), data_type),
-            ast::Expr::TryCast {
-                expr,
-                data_type,
-                format: _,
-            } => todo!(),
-            ast::Expr::SafeCast {
-                expr,
-                data_type,
-                format: _,
-            } => todo!(),
             ast::Expr::AtTimeZone {
                 timestamp,
                 time_zone,
@@ -518,9 +498,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Function(function) => {
                 self.function(function, {
                     let mut result = vec![];
-                    for function_arg in function.args.iter() {
+                    let function_args = match &function.args {
+                        ast::FunctionArguments::None => vec![],
+                        ast::FunctionArguments::Subquery(_) => vec![],
+                        ast::FunctionArguments::List(arg_list) => arg_list.args.iter().collect(),
+                    };
+                    for function_arg in function_args.iter() {
                         result.push(match function_arg {
-                            ast::FunctionArg::Named { name, arg } => FunctionArg::Named {
+                            ast::FunctionArg::Named { name, arg , operator} => FunctionArg::Named {
                                 name: name.clone(),
                                 arg: match arg {
                                     ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
@@ -542,7 +527,6 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                     result
                 })
             }
-            ast::Expr::AggregateExpressionWithFilter { expr, filter } => todo!(),
             ast::Expr::Case {
                 operand,
                 conditions,
@@ -562,9 +546,6 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ),
             ast::Expr::Exists { subquery, negated } => todo!(),
             ast::Expr::Subquery(_) => todo!(),
-            ast::Expr::ArraySubquery(_) => todo!(),
-            ast::Expr::ListAgg(_) => todo!(),
-            ast::Expr::ArrayAgg(_) => todo!(),
             ast::Expr::GroupingSets(_) => todo!(),
             ast::Expr::Cube(_) => todo!(),
             ast::Expr::Rollup(_) => todo!(),
@@ -586,9 +567,12 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
-            ast::Expr::Convert { expr, data_type, charset, target_before_value } => todo!(),
+            ast::Expr::Convert { expr, data_type, charset, target_before_value, styles } => todo!(),
             ast::Expr::Wildcard => todo!(),
             ast::Expr::QualifiedWildcard(_) => todo!(),
+            ast::Expr::Dictionary(_) => todo!(),
+            ast::Expr::OuterJoin(_) => todo!(),
+            ast::Expr::Prior(_) => todo!(),
         }
     }
 }
@@ -851,6 +835,18 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             ast::BinaryOperator::PGNotLikeMatch => todo!(),
             ast::BinaryOperator::PGNotILikeMatch => todo!(),
             ast::BinaryOperator::PGStartsWith => todo!(),
+            ast::BinaryOperator::Arrow => todo!(),
+            ast::BinaryOperator::LongArrow => todo!(),
+            ast::BinaryOperator::HashArrow => todo!(),
+            ast::BinaryOperator::HashLongArrow => todo!(),
+            ast::BinaryOperator::AtAt => todo!(),
+            ast::BinaryOperator::AtArrow => todo!(),
+            ast::BinaryOperator::ArrowAt => todo!(),
+            ast::BinaryOperator::HashMinus => todo!(),
+            ast::BinaryOperator::AtQuestion => todo!(),
+            ast::BinaryOperator::Question => todo!(),
+            ast::BinaryOperator::QuestionAnd => todo!(),
+            ast::BinaryOperator::QuestionPipe => todo!(),
         })
     }
 
@@ -883,7 +879,6 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             ast::Value::Boolean(_) => todo!(),
             ast::Value::Null => todo!(),
             ast::Value::Placeholder(_) => todo!(),
-            ast::Value::UnQuotedString(_) => todo!(),
             ast::Value::DollarQuotedString(_) => todo!(),
             ast::Value::SingleQuotedByteStringLiteral(_) => todo!(),
             ast::Value::DoubleQuotedByteStringLiteral(_) => todo!(),
@@ -906,9 +901,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             .collect();
         let flat_args = flat_args?;
         let function_name: &str = &function.name.0.iter().join(".").to_lowercase();
-        if function.distinct && !["count", "sum", "avg", "variance", "stddev"].contains(&function_name) {
-            todo!()
-        }
+        let distinct: bool = match &function.args {
+            ast::FunctionArguments::List(func_arg_list) if func_arg_list.duplicate_treatment == Some(ast::DuplicateTreatment::Distinct) => true,
+            _ => false,
+        };
         Ok(match function_name {
             // Math Functions
             "opposite" => Expr::opposite(flat_args[0].clone()),
@@ -1057,15 +1053,15 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
-            "count" if function.distinct => Expr::count_distinct(flat_args[0].clone()),
+            "count" if distinct => Expr::count_distinct(flat_args[0].clone()),
             "count" => Expr::count(flat_args[0].clone()),
-            "avg" if function.distinct  => Expr::mean_distinct(flat_args[0].clone()),
+            "avg" if distinct  => Expr::mean_distinct(flat_args[0].clone()),
             "avg" => Expr::mean(flat_args[0].clone()),
-            "sum" if function.distinct => Expr::sum_distinct(flat_args[0].clone()),
+            "sum" if distinct => Expr::sum_distinct(flat_args[0].clone()),
             "sum" => Expr::sum(flat_args[0].clone()),
-            "variance" if function.distinct => Expr::var_distinct(flat_args[0].clone()),
+            "variance" if distinct => Expr::var_distinct(flat_args[0].clone()),
             "variance" => Expr::var(flat_args[0].clone()),
-            "stddev" if function.distinct => Expr::std_distinct(flat_args[0].clone()),
+            "stddev" if distinct => Expr::std_distinct(flat_args[0].clone()),
             "stddev" => Expr::std(flat_args[0].clone()),
             _ => todo!(),
         })
@@ -1240,7 +1236,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             match field {
                 ast::DateTimeField::Year => Expr::extract_year(expr.clone()?),
                 ast::DateTimeField::Month => Expr::extract_month(expr.clone()?),
-                ast::DateTimeField::Week => Expr::extract_week(expr.clone()?),
+                ast::DateTimeField::Week(_) => Expr::extract_week(expr.clone()?),
                 ast::DateTimeField::Day => Expr::extract_day(expr.clone()?),
                 ast::DateTimeField::Hour => Expr::extract_hour(expr.clone()?),
                 ast::DateTimeField::Minute => Expr::extract_minute(expr.clone()?),

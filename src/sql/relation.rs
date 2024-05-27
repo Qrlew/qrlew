@@ -540,6 +540,9 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             having,
             named_window,
             qualify,
+            window_before_qualify ,
+            value_table_mode ,
+            connect_by 
         } = select;
         if top.is_some() {
             return Err(Error::other("TOP is not supported"));
@@ -1458,7 +1461,7 @@ mod tests {
         assert_eq!(
             relation.data_type(),
             DataType::structured(vec![
-                ("field_fp0x", DataType::integer_interval(0, 30)),
+                ("field_hcgq", DataType::integer_interval(0, 30)),
                 ("my_count", DataType::integer_interval(0, 10)),
             ])
         );
