@@ -59,69 +59,37 @@ impl RelationToQueryTranslator for MsSqlTranslator {
 
     /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
     fn md5(&self, expr: &expr::Expr) -> ast::Expr {
-        // In sql parser 0.4 it has been introduced CONVERT as an expression
-        // but if doesn't allow for a style argument (see the doc here:
-        // https://learn.microsoft.com/fr-fr/sql/t-sql/functions/cast-and-convert-transact-sql?view=sql-server-ver16)
-        // which is needed for the convertion.
-        // So we can't parse the fllowing:
-        // let input_sql = r#"
-        // SELECT CONVERT(X, VARCHAR(MAX)) FROM table_x
-        // "#;
-        // TODO: If we need to parse it, maybe we can use something like CONVERT_SARUS such that it can be
-        // seen as a function from the parser. But maybe we don't need to parse it.
         let ast_expr = self.expr(expr);
-        let ast_expr_as_function_arg =
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(ast_expr));
+    
+        // Construct HASHBYTES('MD5', X)
         let md5_literal = ast::Expr::Value(ast::Value::SingleQuotedString("MD5".to_string()));
         let md5_literal_as_function_arg =
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
-        let hash_byte = ast::Expr::Function(ast::Function {
-            name: ast::ObjectName(vec![ast::Ident::from("HASHBYTES")]),
+        ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
+        let ast_expr_as_function_arg =
+            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(ast_expr));
+
+        let func_args_list = ast::FunctionArgumentList {
+            duplicate_treatment: None,
             args: vec![md5_literal_as_function_arg, ast_expr_as_function_arg],
+            clauses: vec![],
+        };
+        let hash_byte_expr = ast::Expr::Function(ast::Function {
+            name: ast::ObjectName(vec![ast::Ident::from("HASHBYTES")]),
+            args: ast::FunctionArguments::List(func_args_list),
             over: None,
-            distinct: false,
-            special: false,
-            order_by: vec![],
             filter: None,
             null_treatment: None,
+            within_group: vec![],
         });
 
-        let hash_byte_as_function_arg =
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(hash_byte));
-
-        // VARCHAR(MAX) is treated as a function with MAX argument as identifier.
-        let varchartype_expr = ast::Expr::Function(ast::Function {
-            name: ast::ObjectName(vec![ast::Ident::from("VARCHAR")]),
-            args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                ast::Expr::Identifier(ast::Ident::from("MAX")),
-            ))],
-            over: None,
-            distinct: false,
-            special: false,
-            order_by: vec![],
-            filter: None,
-            null_treatment: None,
-        });
-
-        let varchartype_as_function_arg =
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(varchartype_expr));
-
-        ast::Expr::Function(ast::Function {
-            name: ast::ObjectName(vec![ast::Ident::from("CONVERT")]),
-            args: vec![
-                varchartype_as_function_arg,
-                hash_byte_as_function_arg,
-                ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(ast::Expr::Value(
-                    ast::Value::Number("2".to_string(), false),
-                ))),
-            ],
-            over: None,
-            distinct: false,
-            special: false,
-            order_by: vec![],
-            filter: None,
-            null_treatment: None,
-        })
+        // Construct the CONVERT expr
+        ast::Expr::Convert {
+            expr: Box::new(hash_byte_expr),
+            data_type: Some(ast::DataType::Varchar(Some(ast::CharacterLength::Max))),
+            charset: None,
+            target_before_value: true,
+            styles: vec![ast::Expr::Value(ast::Value::Number("2".to_string(), false))]
+        }
     }
 
     fn cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
@@ -135,8 +103,9 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         let ast_expr = self.expr(expr);
         ast::Expr::Cast {
             expr: Box::new(ast_expr),
-            data_type: ast::DataType::Nvarchar(Some(255)),
+            data_type: ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {length: 255, unit:None })),
             format: None,
+            kind: ast::CastKind::Cast,
         }
     }
     fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
@@ -219,6 +188,9 @@ impl RelationToQueryTranslator for MsSqlTranslator {
                 having: None,
                 qualify: None,
                 named_window: vec![],
+                window_before_qualify: false,
+                value_table_mode: None,
+                connect_by: None
             }))),
             order_by,
             limit: None,
@@ -317,7 +289,11 @@ impl QueryToRelationTranslator for MsSqlTranslator {
         context: &Hierarchy<expr::Identifier>,
     ) -> Result<expr::Expr> {
         // need to check func.args:
-        let args = &func.args;
+        let args = match &func.args {
+            ast::FunctionArguments::None => vec![],
+            ast::FunctionArguments::Subquery(_) => vec![],
+            ast::FunctionArguments::List(l) => l.args.clone(),
+        };
         // We expect 2 args
         if args.len() != 3 {
             let expr = ast::Expr::Function(func.clone());
@@ -325,11 +301,15 @@ impl QueryToRelationTranslator for MsSqlTranslator {
         } else {
             let is_first_arg_valid = is_varchar_valid(&args[0]);
             let is_last_arg_valid = is_literal_two_arg(&args[2]);
-            let extract_x_arg = extract_hashbyte_expression_if_valid(&args[1]);
+            let extract_x_arg = extract_hashbyte_expression_if_valid(&args[1]); 
             if is_first_arg_valid && is_last_arg_valid && extract_x_arg.is_some() {
-                // Code to execute when both booleans are true and the option is Some
+                let function_args = ast::FunctionArgumentList {
+                    duplicate_treatment: None,
+                    args: vec![extract_x_arg.unwrap()],
+                    clauses: vec![],
+                };
                 let converted_x_arg =
-                    self.try_function_args(vec![extract_x_arg.unwrap()], context)?;
+                    self.try_function_args(ast::FunctionArguments::List(function_args), context)?;
                 Ok(expr::Expr::md5(converted_x_arg[0].clone()))
             } else {
                 let expr = ast::Expr::Function(func.clone());
@@ -378,8 +358,13 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
         ast::FunctionArg::Unnamed(fargexpr) => match fargexpr {
             ast::FunctionArgExpr::Expr(e) => match e {
                 ast::Expr::Function(f) => {
-                    if (f.name == expected_f_name) && (f.args[0] == expected_first_arg) {
-                        Some(f.args[1].clone())
+                    let arg_vec = match &f.args {
+                        ast::FunctionArguments::None => vec![],
+                        ast::FunctionArguments::Subquery(_) => vec![],
+                        ast::FunctionArguments::List(func_args) => func_args.args.iter().collect(),
+                    };
+                    if (f.name == expected_f_name) && (arg_vec[0] == &expected_first_arg) {
+                        Some(arg_vec[1].clone())
                     } else {
                         None
                     }
@@ -394,7 +379,7 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
 // method to override DataType -> ast::DataType
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
-        DataType::Text(_) => ast::DataType::Nvarchar(Some(255)),
+        DataType::Text(_) => ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength { length: 255, unit: None})),
         //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL,
         // SQLParser doesn't support the BIT DataType (mssql equivalent of bool)
         DataType::Optional(o) => translate_data_type(o.data_type().clone()),

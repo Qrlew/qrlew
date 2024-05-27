@@ -24,6 +24,7 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             },
             query: Box::new(query),
             from: None,
+            materialized: None
         }
     }
     fn first(&self, expr: &expr::Expr) -> ast::Expr {
@@ -55,6 +56,7 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             expr: Box::new(ast_expr),
             data_type: ast::DataType::String(None),
             format: None,
+            kind: ast::CastKind::Cast,
         }
     }
     fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {

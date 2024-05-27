@@ -201,46 +201,58 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::function::Function::DatetimeDiff
             | expr::function::Function::Date
             | expr::function::Function::FromUnixtime
-            | expr::function::Function::UnixTimestamp => ast::Expr::Function(ast::Function {
+            | expr::function::Function::UnixTimestamp => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: None,
+                    args: arguments
+                        .into_iter()
+                        .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                        .collect(),
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
-                args: arguments
-                    .into_iter()
-                    .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
-                    .collect(),
+                args: ast::FunctionArguments::List(func_args_list),
                 over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
                 filter: None,
                 null_treatment: None,
-            }),
-            expr::function::Function::RegexpExtract => ast::Expr::Function(ast::Function {
+                within_group: vec![],
+                })},
+            expr::function::Function::RegexpExtract => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: None,
+                    args: vec![arguments[0].clone(), arguments[1].clone(), arguments[2].clone(), arguments[3].clone()]
+                        .into_iter()
+                        .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                        .collect(),
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
-                args: vec![arguments[0].clone(), arguments[1].clone(), arguments[2].clone(), arguments[3].clone()]
-                    .into_iter()
-                    .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
-                    .collect(),
+                args: ast::FunctionArguments::List(func_args_list),
                 over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
                 filter: None,
                 null_treatment: None,
-            }),
+                within_group: vec![],
+                })},
             expr::function::Function::Round
-            | expr::function::Function::Trunc => ast::Expr::Function(ast::Function {
+            | expr::function::Function::Trunc => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: None,
+                    args: arguments
+                        .into_iter()
+                        .filter_map(|e| (e!=ast::Expr::Value(ast::Value::Number("0".to_string(), false))).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
+                        .collect(),
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
-                args: arguments
-                    .into_iter()
-                    .filter_map(|e| (e!=ast::Expr::Value(ast::Value::Number("0".to_string(), false))).then_some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))))
-                    .collect(),
+                args: ast::FunctionArguments::List(func_args_list),
                 over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
                 filter: None,
                 null_treatment: None,
-            }),
+                within_group: vec![],
+                })},
             expr::function::Function::Case => ast::Expr::Case {
                 operand: None,
                 conditions: vec![arguments[0].clone()],
@@ -267,48 +279,53 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::text().into(),
                 format: None,
+                kind: ast::CastKind::Cast,
             },
             expr::function::Function::CastAsFloat => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::float().into(),
                 format: None,
+                kind: ast::CastKind::Cast,
             },
             expr::function::Function::CastAsInteger => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::integer().into(),
                 format: None,
+                kind: ast::CastKind::Cast,
             },
             expr::function::Function::CastAsBoolean => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::boolean().into(),
                 format: None,
+                kind: ast::CastKind::Cast,
             },
             expr::function::Function::CastAsDateTime => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::date_time().into(),
                 format: None,
+                kind: ast::CastKind::Cast,
             },
             expr::function::Function::CastAsDate => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::date().into(),
                 format: None,
+                kind: ast::CastKind::Cast,
             },
             expr::function::Function::CastAsTime => ast::Expr::Cast {
                 expr: arguments[0].clone().into(),
                 data_type: DataType::time().into(),
                 format: None,
+                kind: ast::CastKind::Cast,
             },
             expr::function::Function::CurrentDate
             | expr::function::Function::CurrentTime
             | expr::function::Function::CurrentTimestamp => ast::Expr::Function(ast::Function {
                 name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
-                args: vec![],
+                args: ast::FunctionArguments::None,
                 over: None,
-                distinct: false,
-                special: true,
-                order_by: vec![],
                 filter: None,
                 null_treatment: None,
+                within_group: vec![],
             }),
             expr::function::Function::ExtractYear => ast::Expr::Extract {field: ast::DateTimeField::Year, expr: arguments[0].clone().into()},
             expr::function::Function::ExtractMonth => ast::Expr::Extract {field: ast::DateTimeField::Month, expr: arguments[0].clone().into()},
@@ -319,7 +336,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             expr::function::Function::ExtractMicrosecond => ast::Expr::Extract {field: ast::DateTimeField::Microsecond, expr: arguments[0].clone().into()},
             expr::function::Function::ExtractMillisecond => ast::Expr::Extract {field: ast::DateTimeField::Millisecond, expr: arguments[0].clone().into()},
             expr::function::Function::ExtractDow => ast::Expr::Extract {field: ast::DateTimeField::Dow, expr: arguments[0].clone().into()},
-            expr::function::Function::ExtractWeek => ast::Expr::Extract {field: ast::DateTimeField::Week, expr: arguments[0].clone().into()},
+            expr::function::Function::ExtractWeek => ast::Expr::Extract {field: ast::DateTimeField::Week(None), expr: arguments[0].clone().into()},
             expr::function::Function::Like => ast::Expr::Like {
                 negated: false,
                 expr: arguments[0].clone().into(),
@@ -333,19 +350,22 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 escape_char: None,
             },
             expr::function::Function::Choose => if let ast::Expr::Tuple(t) = &arguments[1] {
-                ast::Expr::Function(ast::Function {
-                    name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: None,
                     args: vec![arguments[0].clone()]
                         .into_iter()
                         .chain(t.clone())
                         .map(|e| ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
                         .collect(),
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                    name: ast::ObjectName(vec![ast::Ident::new(function.to_string())]),
+                    args: ast::FunctionArguments::List(func_args_list),
                     over: None,
-                    distinct: false,
-                    special: false,
-                    order_by: vec![],
                     filter: None,
                     null_treatment: None,
+                    within_group: vec![],
                 })
             } else {
                 todo!()
@@ -371,196 +391,104 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
         argument: ast::Expr,
     ) -> ast::Expr {
         match aggregate {
-            expr::aggregate::Aggregate::Min => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("min"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
+            expr::aggregate::Aggregate::Min
+            | expr::aggregate::Aggregate::Max
+            | expr::aggregate::Aggregate::First
+            | expr::aggregate::Aggregate::Last
+            | expr::aggregate::Aggregate::Mean
+            | expr::aggregate::Aggregate::Count
+            | expr::aggregate::Aggregate::Sum 
+            | expr::aggregate::Aggregate::Std 
+            | expr::aggregate::Aggregate::Var => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: None,
+                    args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(aggregate.to_string())]),
+                args: ast::FunctionArguments::List(func_args_list),
                 over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
                 filter: None,
                 null_treatment: None,
-            }),
-            expr::aggregate::Aggregate::Max => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("max"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
+                within_group: vec![],
+                })},
+            expr::aggregate::Aggregate::MeanDistinct => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: Some(ast::DuplicateTreatment::Distinct),
+                    args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(String::from("avg"))]),
+                args: ast::FunctionArguments::List(func_args_list),
                 over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
                 filter: None,
                 null_treatment: None,
-            }),
+                within_group: vec![],
+                })},
+            expr::aggregate::Aggregate::CountDistinct => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: Some(ast::DuplicateTreatment::Distinct),
+                    args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(String::from("count"))]),
+                args: ast::FunctionArguments::List(func_args_list),
+                over: None,
+                filter: None,
+                null_treatment: None,
+                within_group: vec![],
+                })},
+            expr::aggregate::Aggregate::SumDistinct => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: Some(ast::DuplicateTreatment::Distinct),
+                    args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(String::from("sum"))]),
+                args: ast::FunctionArguments::List(func_args_list),
+                over: None,
+                filter: None,
+                null_treatment: None,
+                within_group: vec![],
+                })},
+            expr::aggregate::Aggregate::StdDistinct => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: Some(ast::DuplicateTreatment::Distinct),
+                    args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(String::from("stddev"))]),
+                args: ast::FunctionArguments::List(func_args_list),
+                over: None,
+                filter: None,
+                null_treatment: None,
+                within_group: vec![],
+                })},
+            expr::aggregate::Aggregate::VarDistinct => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: Some(ast::DuplicateTreatment::Distinct),
+                    args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(String::from("variance"))]),
+                args: ast::FunctionArguments::List(func_args_list),
+                over: None,
+                filter: None,
+                null_treatment: None,
+                within_group: vec![],
+                })},
             expr::aggregate::Aggregate::Median => todo!(),
             expr::aggregate::Aggregate::NUnique => todo!(),
-            // TODO this is a very simple implementation. It will break in non obvious cases. We should fix it.
-            expr::aggregate::Aggregate::First => argument,
-            // TODO this is a very simple implementation. It will break in non obvious cases. We should fix it.
-            expr::aggregate::Aggregate::Last => argument,
-            expr::aggregate::Aggregate::Mean => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("avg"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
             expr::aggregate::Aggregate::List => todo!(),
-            expr::aggregate::Aggregate::Count => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("count"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
             expr::aggregate::Aggregate::Quantile(_) => todo!(),
             expr::aggregate::Aggregate::Quantiles(_) => todo!(),
-            expr::aggregate::Aggregate::Sum => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("sum"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
             expr::aggregate::Aggregate::AggGroups => todo!(),
-            expr::aggregate::Aggregate::Std => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("stddev"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
-            expr::aggregate::Aggregate::Var => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("variance"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: false,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
-            expr::aggregate::Aggregate::MeanDistinct => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("avg"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: true,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
-            expr::aggregate::Aggregate::CountDistinct => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("count"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: true,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
-            expr::aggregate::Aggregate::SumDistinct => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("sum"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: true,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
-            expr::aggregate::Aggregate::StdDistinct => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("stddev"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: true,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
-            expr::aggregate::Aggregate::VarDistinct => ast::Expr::Function(ast::Function {
-                name: ast::ObjectName(vec![ast::Ident {
-                    value: String::from("variance"),
-                    quote_style: None,
-                }]),
-                args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
-                    argument,
-                ))],
-                over: None,
-                distinct: true,
-                special: false,
-                order_by: vec![],
-                filter: None,
-                null_treatment: None,
-            }),
         }
     }
 

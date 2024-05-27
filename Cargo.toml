@@ -24,7 +24,7 @@ paste = "1.0.7"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-sqlparser = "0.43"
+sqlparser = "0.46"
 dot = "0.1"
 base64 = "0.21"
 rusqlite = { version = "0.30", features = ["chrono"], optional = true }
