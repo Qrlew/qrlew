@@ -2731,7 +2731,7 @@ mod tests {
         super::{value::Value, Struct},
         *,
     };
-    use chrono::{self, NaiveDate, DateTime, NaiveTime};
+    use chrono::{self, DateTime, NaiveDate, NaiveTime};
 
     #[test]
     fn test_argument_conversion() {
@@ -3842,11 +3842,15 @@ mod tests {
         let set: DataType = DataType::structured_from_data_types([
             DataType::date_time_interval(
                 DateTime::from_timestamp(1662921288, 0).unwrap().naive_utc(),
-                DateTime::from_timestamp(1862921288, 111110).unwrap().naive_utc(),
+                DateTime::from_timestamp(1862921288, 111110)
+                    .unwrap()
+                    .naive_utc(),
             ),
             DataType::date_time_interval(
                 DateTime::from_timestamp(1362921288, 0).unwrap().naive_utc(),
-                DateTime::from_timestamp(2062921288, 111110).unwrap().naive_utc(),
+                DateTime::from_timestamp(2062921288, 111110)
+                    .unwrap()
+                    .naive_utc(),
             ),
         ]);
         let im = fun.super_image(&set).unwrap();
@@ -3855,7 +3859,9 @@ mod tests {
             im,
             DataType::date_time_interval(
                 DateTime::from_timestamp(1662921288, 0).unwrap().naive_utc(),
-                DateTime::from_timestamp(2062921288, 111110).unwrap().naive_utc()
+                DateTime::from_timestamp(2062921288, 111110)
+                    .unwrap()
+                    .naive_utc()
             ),
         );
     }

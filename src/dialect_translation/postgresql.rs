@@ -93,11 +93,17 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 mod tests {
 
     use super::*;
+    use crate::sql::Result;
     use crate::{
-        builder::Ready, data_type::DataType, dialect_translation::RelationWithTranslator, hierarchy::Hierarchy, io::{postgresql, Database as _}, relation::{schema::Schema, Relation}, sql::{parse_with_dialect, relation::QueryWithRelations}
+        builder::Ready,
+        data_type::DataType,
+        dialect_translation::RelationWithTranslator,
+        hierarchy::Hierarchy,
+        io::{postgresql, Database as _},
+        relation::{schema::Schema, Relation},
+        sql::{parse_with_dialect, relation::QueryWithRelations},
     };
     use std::sync::Arc;
-    use crate::sql::Result;
 
     fn assert_same_query_str(query_1: &str, query_2: &str) {
         let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();

@@ -225,8 +225,12 @@ mod tests {
             chrono::NaiveDateTime::generate_between(
                 &mut rng,
                 &[
-                    chrono::DateTime::from_timestamp(1662921288, 0).unwrap().naive_utc(),
-                    chrono::DateTime::from_timestamp(1662921288, 0).unwrap().naive_utc()
+                    chrono::DateTime::from_timestamp(1662921288, 0)
+                        .unwrap()
+                        .naive_utc(),
+                    chrono::DateTime::from_timestamp(1662921288, 0)
+                        .unwrap()
+                        .naive_utc()
                 ]
             )
         );
@@ -235,8 +239,12 @@ mod tests {
             chrono::NaiveDateTime::generate_between(
                 &mut rng,
                 &[
-                    chrono::DateTime::from_timestamp(1662921288, 0).unwrap().naive_utc(),
-                    chrono::DateTime::from_timestamp(1693921288, 0).unwrap().naive_utc()
+                    chrono::DateTime::from_timestamp(1662921288, 0)
+                        .unwrap()
+                        .naive_utc(),
+                    chrono::DateTime::from_timestamp(1693921288, 0)
+                        .unwrap()
+                        .naive_utc()
                 ]
             )
         );

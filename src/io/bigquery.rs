@@ -718,8 +718,7 @@ impl TryFrom<(Option<serde_json::Value>, field_type::FieldType)> for SqlValue {
                     let timestamp: f64 = val_as_str.parse()?;
                     let seconds = timestamp as i64; // Whole seconds part
                     let nanoseconds = ((timestamp - seconds as f64) * 1_000_000_000.0) as u32; // Fractional part in nanoseconds
-                    let datetime =
-                        chrono::DateTime::from_timestamp(seconds, nanoseconds).unwrap();
+                    let datetime = chrono::DateTime::from_timestamp(seconds, nanoseconds).unwrap();
                     value::Value::date_time(datetime.naive_utc()).try_into()
                 }
                 field_type::FieldType::Date => value::Value::date(

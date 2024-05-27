@@ -17,12 +17,10 @@ use rand::{rngs::StdRng, SeedableRng};
 use sqlx::{
     self,
     mssql::{
-        self, Mssql, MssqlArguments, MssqlPoolOptions, MssqlQueryResult,
-        MssqlRow, MssqlValueRef,
+        self, Mssql, MssqlArguments, MssqlPoolOptions, MssqlQueryResult, MssqlRow, MssqlValueRef,
     },
     query::Query,
-    Decode, Encode, MssqlPool, Pool, Row, Type, TypeInfo,
-    ValueRef as _,
+    Decode, Encode, MssqlPool, Pool, Row, Type, TypeInfo, ValueRef as _,
 };
 use std::{
     env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
@@ -44,7 +42,7 @@ impl From<sqlx::Error> for Error {
 pub struct Database {
     name: String,
     tables: Vec<Table>,
-    pool: MssqlPool
+    pool: MssqlPool,
 }
 
 pub static MSSQL_POOL: Mutex<Option<Pool<Mssql>>> = Mutex::new(None);
@@ -306,15 +304,11 @@ impl DatabaseTrait for Database {
             Database {
                 name,
                 tables: vec![],
-                pool
+                pool,
             }
             .with_tables(tables_to_be_created)
         } else {
-            Ok(Database {
-                name,
-                tables,
-                pool
-            })
+            Ok(Database { name, tables, pool })
         }
     }
 
