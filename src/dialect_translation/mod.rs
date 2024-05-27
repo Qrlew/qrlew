@@ -2,26 +2,24 @@
 //! A specific Dialect is a struct holding:
 //!     - a method to provide a sqlparser::Dialect for the parsing
 //!     - methods varying from dialect to dialect regarding the conversion from AST to Expr+Relation and vice-versa
-use std::{iter::once, ops::Deref};
+
 
 use sqlparser::{
     ast,
-    dialect::{BigQueryDialect, Dialect, PostgreSqlDialect},
+    dialect::{Dialect},
 };
 
 use crate::{
-    data_type::function::cast,
     expr::{self, Function},
-    relation::{self, sql::FromRelationVisitor},
-    visitor::Acceptor,
-    WithContext, WithoutContext,
+    relation::sql::FromRelationVisitor,
+    visitor::Acceptor, WithoutContext,
 };
 use crate::{
     data_type::DataTyped,
     expr::Identifier,
     hierarchy::Hierarchy,
     relation::{Join, JoinOperator, Table, Variant},
-    sql::{self, parse, parse_with_dialect, Error, Result},
+    sql::Result,
     DataType, Relation,
 };
 
@@ -275,7 +273,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     materialized: None,
                 }
             }
-            fn join_projection(&self, join: &Join) -> Vec<ast::SelectItem> {
+            fn join_projection(&self, _join: &Join) -> Vec<ast::SelectItem> {
                 vec![ast::SelectItem::Wildcard(
                     ast::WildcardAdditionalOptions::default(),
                 )]
@@ -813,7 +811,7 @@ pub trait QueryToRelationTranslator {
     ) -> Result<expr::Expr> {
         match func_arg_expr {
             ast::FunctionArgExpr::Expr(e) => self.try_expr(e, context),
-            ast::FunctionArgExpr::QualifiedWildcard(o) => todo!(),
+            ast::FunctionArgExpr::QualifiedWildcard(_o) => todo!(),
             ast::FunctionArgExpr::Wildcard => todo!(),
         }
     }

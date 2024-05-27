@@ -204,7 +204,7 @@ mod tests {
     use crate::{
         ast,
         builder::With,
-        data_type::{DataType, DataTyped, Integer, Variant},
+        data_type::{DataType, DataTyped, Variant},
         display::Dot,
         expr::AggregateColumn,
         io::{postgresql, Database},

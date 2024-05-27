@@ -8,8 +8,7 @@ use crate::{
         AggregateColumn, Column, Expr, Identifier,
     },
     privacy_unit_tracking::PupRelation,
-    relation::{field::Field, Map, Reduce, Relation, Variant},
-    DataType, Ready,
+    relation::{Map, Reduce, Relation, Variant}, Ready,
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 
@@ -520,7 +519,7 @@ impl Reduce {
                 .build()
         } else {
             builder
-                .group_by_iter(self.group_by().clone().to_vec())
+                .group_by_iter(self.group_by().to_vec())
                 .with_iter(aggs)
                 .build()
         }
@@ -538,7 +537,7 @@ mod tests {
         io::{postgresql, Database},
         privacy_unit_tracking::PrivacyUnit,
         privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
-        relation::{Constraint, Schema, Variant as _},
+        relation::{Schema, Variant as _},
         sql::parse,
         Relation,
     };

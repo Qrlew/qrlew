@@ -12,7 +12,6 @@ use crate::{
     builder::{Ready, With, WithIterator, WithoutContext},
     dialect::{Dialect, GenericDialect},
     dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator},
-    display::Dot,
     expr::{Expr, Identifier, Reduce, Split},
     hierarchy::{Hierarchy, Path},
     namer::{self, FIELD},
@@ -25,10 +24,9 @@ use crate::{
     types::And,
     visitor::{Acceptor, Dependencies, Visited},
 };
-use dot::Id;
+
 use itertools::Itertools;
 use std::{
-    collections::HashMap,
     convert::TryFrom,
     iter::{once, Iterator},
     ops::Deref,
@@ -143,7 +141,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let VisitedQueryRelations {
             relations,
             visited,
-            translator,
+            translator: _,
         } = self;
         // Process the table_factor
 
@@ -605,9 +603,9 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             having,
             named_window,
             qualify,
-            window_before_qualify,
-            value_table_mode,
-            connect_by,
+            window_before_qualify: _,
+            value_table_mode: _,
+            connect_by: _,
         } = select;
         if top.is_some() {
             return Err(Error::other("TOP is not supported"));
@@ -744,9 +742,9 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> Visitor<'a, Result<Arc<Rel
 {
     fn dependencies(&self, acceptor: &'a ast::Query) -> Dependencies<'a, ast::Query> {
         let TryIntoRelationVisitor {
-            relations,
+            relations: _,
             query_names,
-            translator,
+            translator: _,
         } = self;
         let mut dependencies = acceptor.dependencies();
         // Add subqueries from the body
@@ -1300,7 +1298,7 @@ mod tests {
             .schema(schema_1.clone())
             .size(100)
             .build();
-        let relation = Relation::try_from(QueryWithRelations::new(
+        let _relation = Relation::try_from(QueryWithRelations::new(
             &query,
             &Hierarchy::from([(["schema", "table_1"], Arc::new(table_1))]),
         ));

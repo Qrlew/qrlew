@@ -7,8 +7,7 @@ pub mod colors;
 pub mod dot;
 
 use crate::{
-    builder::{WithContext, WithoutContext},
-    data_type::DataTyped,
+    builder::WithContext,
     namer,
     rewriting::{RelationWithRewritingRule, RelationWithRewritingRules},
     DataType, Expr, Relation, Value,
@@ -17,7 +16,6 @@ use std::{
     fs::File,
     io::{Result, Write},
     process::Command,
-    sync::Arc,
 };
 
 pub trait Dot {
@@ -188,7 +186,7 @@ mod tests {
         builder::{Ready, With},
         data_type::DataType,
         expr::Expr,
-        relation::{schema::Schema, Relation},
+        relation::{schema::Schema, Relation}, WithoutContext as _,
     };
 
     #[test]

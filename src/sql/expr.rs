@@ -43,7 +43,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
         match self {
             ast::Expr::Identifier(_) => Dependencies::empty(),
             ast::Expr::CompoundIdentifier(_) => Dependencies::empty(),
-            ast::Expr::JsonAccess { value, path } => Dependencies::from([value.as_ref()]),
+            ast::Expr::JsonAccess { value, path: _ } => Dependencies::from([value.as_ref()]),
             ast::Expr::CompositeAccess { expr, key: _ } => Dependencies::from([expr.as_ref()]),
             ast::Expr::IsFalse(expr) => Dependencies::from([expr.as_ref()]),
             ast::Expr::IsNotFalse(expr) => Dependencies::from([expr.as_ref()]),
@@ -132,7 +132,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 expr,
                 substring_from,
                 substring_for,
-                special,
+                special: _,
             } => vec![Some(expr), substring_from.as_ref(), substring_for.as_ref()]
                 .iter()
                 .filter_map(|expr| expr.map(AsRef::as_ref))
@@ -167,7 +167,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 data_type: _,
                 value: _,
             } => Dependencies::empty(),
-            ast::Expr::MapAccess { column, keys } => Dependencies::from([column.as_ref()]),
+            ast::Expr::MapAccess { column, keys: _ } => Dependencies::from([column.as_ref()]),
             ast::Expr::Function(function) => match &function.args {
                 ast::FunctionArguments::None => Dependencies::empty(),
                 ast::FunctionArguments::Subquery(_) => Dependencies::empty(),
@@ -216,25 +216,25 @@ impl<'a> Acceptor<'a> for ast::Expr {
             ast::Expr::Array(_) => Dependencies::empty(),
             ast::Expr::Interval(_) => Dependencies::empty(),
             ast::Expr::MatchAgainst {
-                columns,
-                match_value,
-                opt_search_modifier,
+                columns: _,
+                match_value: _,
+                opt_search_modifier: _,
             } => Dependencies::empty(),
-            ast::Expr::IntroducedString { introducer, value } => Dependencies::empty(),
+            ast::Expr::IntroducedString { introducer: _, value: _ } => Dependencies::empty(),
             ast::Expr::RLike {
-                negated,
-                expr,
-                pattern,
-                regexp,
+                negated: _,
+                expr: _,
+                pattern: _,
+                regexp: _,
             } => todo!(),
-            ast::Expr::Struct { values, fields } => todo!(),
-            ast::Expr::Named { expr, name } => todo!(),
+            ast::Expr::Struct { values: _, fields: _ } => todo!(),
+            ast::Expr::Named { expr: _, name: _ } => todo!(),
             ast::Expr::Convert {
-                expr,
-                data_type,
-                charset,
-                target_before_value,
-                styles,
+                expr: _,
+                data_type: _,
+                charset: _,
+                target_before_value: _,
+                styles: _,
             } => todo!(),
             ast::Expr::Wildcard => todo!(),
             ast::Expr::QualifiedWildcard(_) => todo!(),
@@ -291,8 +291,8 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
         match acceptor {
             ast::Expr::Identifier(ident) => self.identifier(ident),
             ast::Expr::CompoundIdentifier(idents) => self.compound_identifier(idents),
-            ast::Expr::JsonAccess { value, path } => todo!(),
-            ast::Expr::CompositeAccess { expr, key } => todo!(),
+            ast::Expr::JsonAccess { value: _, path: _ } => todo!(),
+            ast::Expr::CompositeAccess { expr: _, key: _ } => todo!(),
             ast::Expr::IsFalse(expr) => self.is(
                 self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
                 Some(false),
@@ -340,14 +340,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 }
             }
             ast::Expr::InSubquery {
-                expr,
-                subquery,
-                negated,
+                expr: _,
+                subquery: _,
+                negated: _,
             } => todo!(),
             ast::Expr::InUnnest {
-                expr,
-                array_expr,
-                negated,
+                expr: _,
+                array_expr: _,
+                negated: _,
             } => todo!(),
             ast::Expr::Between {
                 expr,
@@ -418,22 +418,22 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 }
             }
             ast::Expr::SimilarTo {
-                negated,
-                expr,
-                pattern,
-                escape_char,
+                negated: _,
+                expr: _,
+                pattern: _,
+                escape_char: _,
             } => todo!(),
             ast::Expr::AnyOp {
-                left,
+                left: _,
                 compare_op: _,
-                right,
+                right: _,
             } => {
                 todo!()
             }
             ast::Expr::AllOp {
-                left,
+                left: _,
                 compare_op: _,
-                right,
+                right: _,
             } => {
                 todo!()
             }
@@ -445,8 +445,8 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 kind: _,
             } => self.cast(dependencies.get(expr).clone(), data_type),
             ast::Expr::AtTimeZone {
-                timestamp,
-                time_zone,
+                timestamp: _,
+                time_zone: _,
             } => todo!(),
             ast::Expr::Extract { field, expr } => {
                 self.extract(field, dependencies.get(expr).clone())
@@ -461,7 +461,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 substring_from,
                 substring_for,
-                special,
+                special: _,
             } => self.substring(
                 dependencies.get(expr).clone(),
                 substring_from
@@ -480,7 +480,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 let trim_what = match (trim_what, trim_characters) {
                     (None, None) => None,
                     (Some(x), None) => Some(x.as_ref()),
-                    (None, Some(v)) => todo!(),
+                    (None, Some(_v)) => todo!(),
                     _ => todo!(),
                 };
                 self.trim(
@@ -490,16 +490,16 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 )
             }
             ast::Expr::Overlay {
-                expr,
-                overlay_what,
-                overlay_from,
-                overlay_for,
+                expr: _,
+                overlay_what: _,
+                overlay_from: _,
+                overlay_for: _,
             } => todo!(),
-            ast::Expr::Collate { expr, collation } => todo!(),
+            ast::Expr::Collate { expr: _, collation: _ } => todo!(),
             ast::Expr::Nested(expr) => dependencies.get(expr).clone(),
             ast::Expr::Value(value) => self.value(value),
-            ast::Expr::TypedString { data_type, value } => todo!(),
-            ast::Expr::MapAccess { column, keys } => todo!(),
+            ast::Expr::TypedString { data_type: _, value: _ } => todo!(),
+            ast::Expr::MapAccess { column: _, keys: _ } => todo!(),
             ast::Expr::Function(function) => self.function(function, {
                 let mut result = vec![];
                 let function_args = match &function.args {
@@ -512,7 +512,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                         ast::FunctionArg::Named {
                             name,
                             arg,
-                            operator,
+                            operator: _,
                         } => FunctionArg::Named {
                             name: name.clone(),
                             arg: match arg {
@@ -551,35 +551,35 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                     .collect(),
                 else_result.clone().map(|x| dependencies.get(&*x).clone()),
             ),
-            ast::Expr::Exists { subquery, negated } => todo!(),
+            ast::Expr::Exists { subquery: _, negated: _ } => todo!(),
             ast::Expr::Subquery(_) => todo!(),
             ast::Expr::GroupingSets(_) => todo!(),
             ast::Expr::Cube(_) => todo!(),
             ast::Expr::Rollup(_) => todo!(),
             ast::Expr::Tuple(_) => todo!(),
-            ast::Expr::ArrayIndex { obj, indexes } => todo!(),
+            ast::Expr::ArrayIndex { obj: _, indexes: _ } => todo!(),
             ast::Expr::Array(_) => todo!(),
             ast::Expr::Interval(_) => todo!(),
             ast::Expr::MatchAgainst {
-                columns,
-                match_value,
-                opt_search_modifier,
+                columns: _,
+                match_value: _,
+                opt_search_modifier: _,
             } => todo!(),
-            ast::Expr::IntroducedString { introducer, value } => todo!(),
+            ast::Expr::IntroducedString { introducer: _, value: _ } => todo!(),
             ast::Expr::RLike {
-                negated,
-                expr,
-                pattern,
-                regexp,
+                negated: _,
+                expr: _,
+                pattern: _,
+                regexp: _,
             } => todo!(),
-            ast::Expr::Struct { values, fields } => todo!(),
-            ast::Expr::Named { expr, name } => todo!(),
+            ast::Expr::Struct { values: _, fields: _ } => todo!(),
+            ast::Expr::Named { expr: _, name: _ } => todo!(),
             ast::Expr::Convert {
-                expr,
-                data_type,
-                charset,
-                target_before_value,
-                styles,
+                expr: _,
+                data_type: _,
+                charset: _,
+                target_before_value: _,
+                styles: _,
             } => todo!(),
             ast::Expr::Wildcard => todo!(),
             ast::Expr::QualifiedWildcard(_) => todo!(),
@@ -784,7 +784,7 @@ impl From<&Vec<ast::Ident>> for Identifier {
 }
 
 impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
-    fn qualified_wildcard(&self, idents: &'a Vec<ast::Ident>) -> Result<Expr> {
+    fn qualified_wildcard(&self, _idents: &'a Vec<ast::Ident>) -> Result<Expr> {
         todo!()
     }
 

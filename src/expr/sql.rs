@@ -1,7 +1,7 @@
 //! Convert Expr into ast::Expr
 use crate::{
     ast,
-    data_type::{Boolean, DataType},
+    data_type::{DataType},
     expr::{self, Expr},
     visitor::Acceptor,
 };

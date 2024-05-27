@@ -1,20 +1,13 @@
-use std::sync::Arc;
 
-use crate::{
-    expr,
-    hierarchy::Hierarchy,
-    relation::sql::FromRelationVisitor,
-    sql::{parse_with_dialect, query_names::IntoQueryNamesVisitor},
-    visitor::Acceptor,
-    Relation,
-};
+
+use crate::expr;
 
 use super::{
-    function_builder, QueryToRelationTranslator, RelationToQueryTranslator, RelationWithTranslator,
+    function_builder, QueryToRelationTranslator, RelationToQueryTranslator,
 };
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
-use crate::sql::{Error, Result};
+
 #[derive(Clone, Copy)]
 pub struct PostgreSqlTranslator;
 
@@ -103,18 +96,15 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 
 #[cfg(test)]
 mod tests {
-    use sqlparser::dialect;
+    
 
     use super::*;
     use crate::{
-        builder::{Ready, With},
-        data_type::{DataType, Value as _},
-        display::Dot,
-        expr::Expr,
+        builder::Ready,
+        data_type::DataType,
         io::{postgresql, Database as _},
-        namer,
-        relation::{schema::Schema, Relation, TableBuilder},
-        sql::{parse, relation::QueryWithRelations},
+        relation::{schema::Schema, Relation},
+        sql::relation::QueryWithRelations,
     };
     use std::sync::Arc;
 

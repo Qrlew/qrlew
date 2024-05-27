@@ -59,7 +59,7 @@ pub fn render<
         )?;
     }
     for n in g.nodes().iter() {
-        let mut colorstring;
+        let colorstring;
 
         indent(w)?;
         let id = g.node_id(n);
@@ -115,7 +115,7 @@ pub fn render<
     }
 
     for e in g.edges().iter() {
-        let mut colorstring;
+        let colorstring;
         let escaped_label = &g.edge_label(e).to_dot_string();
         let start_arrow = g.edge_start_arrow(e);
         let end_arrow = g.edge_end_arrow(e);

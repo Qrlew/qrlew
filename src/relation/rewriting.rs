@@ -5,11 +5,10 @@ use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, function::Function, DataType, DataTyped, Variant as _},
-    display::Dot,
     expr::{self, aggregate, Aggregate, Expr, Identifier, Value},
     hierarchy::Hierarchy,
     io,
-    namer::{self, name_from_content},
+    namer::{self},
     relation::{self, LEFT_INPUT_NAME, RIGHT_INPUT_NAME},
 };
 use std::{
@@ -430,7 +429,7 @@ impl Relation {
     /// Compute L2 norms of the vectors formed by the group values for each entities
     pub fn l2_norms(self, entities: &str, groups: &[&str], values: &[&str]) -> Self {
         let mut entities_groups = vec![entities];
-        entities_groups.extend(groups.clone());
+        entities_groups.extend(groups);
         let names = values
             .iter()
             .map(|v| format!("_NORM_{}", v))
@@ -1537,7 +1536,7 @@ mod tests {
 
     #[test]
     fn test_poisson_sampling() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
 
         let proba = 0.5;
@@ -1646,7 +1645,7 @@ mod tests {
     #[ignore] // Too fragile
     #[test]
     fn test_sampling_query() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
 
         // relation with reduce

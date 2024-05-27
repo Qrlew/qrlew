@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_relation_hierarchy() -> Result<()> {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         println!("{}", database.relations());
         Ok(())
     }

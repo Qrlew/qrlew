@@ -4,7 +4,7 @@ use crate::{
     ast,
     visitor::{self, Acceptor, Dependencies, Visited},
 };
-use itertools::Itertools;
+
 use std::iter::Iterator;
 
 /// A type to hold queries and relations with their aliases
@@ -75,7 +75,7 @@ fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> 
             .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries())
             .collect(),
         ast::SetExpr::SetOperation { .. } => vec![],
-        ast::SetExpr::Values(values) => todo!(),
+        ast::SetExpr::Values(_values) => todo!(),
         _ => todo!(), // Not implemented
     }
 }

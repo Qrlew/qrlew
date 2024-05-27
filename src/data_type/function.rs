@@ -708,7 +708,7 @@ impl<F: Function> Function for Optional<F> {
                 .map(|dt| DataType::optional(dt)),
             set => self.0.super_image(&set),
         }
-        .or_else(|err| Ok(self.co_domain()))
+        .or_else(|_err| Ok(self.co_domain()))
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
@@ -719,7 +719,7 @@ impl<F: Function> Function for Optional<F> {
             },
             arg => self.0.value(arg),
         }
-        .or_else(|err| Ok(Value::none()))
+        .or_else(|_err| Ok(Value::none()))
     }
 }
 
@@ -1427,11 +1427,11 @@ pub fn md5() -> impl Function {
     )
 }
 
-pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function {
+pub fn random<R: rand::Rng + Send + 'static>(rng: Mutex<R>) -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
-        Arc::new(Mutex::new(RefCell::new(move |v| {
+        Arc::new(Mutex::new(RefCell::new(move |_v| {
             rng.lock().unwrap().borrow_mut().gen::<f64>().into()
         }))),
     )
@@ -3155,7 +3155,7 @@ mod tests {
         assert_eq!(
             optional_greatest
                 .super_image(&DataType::optional(
-                    (DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.))
+                    DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.)
                 ))
                 .unwrap(),
             optional_greatest

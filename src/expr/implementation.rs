@@ -140,7 +140,7 @@ function_implementations!(
             Function::CastAsDate => Arc::new(Optional::new(function::cast(DataType::date()))),
             Function::CastAsTime => Arc::new(Optional::new(function::cast(DataType::time()))),
             Function::Concat(n) => Arc::new(function::concat(n)),
-            Function::Random(n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
+            Function::Random(_n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
             Function::Coalesce => Arc::new(function::coalesce()),
             _ => unreachable!(),
         }

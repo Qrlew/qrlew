@@ -1724,7 +1724,7 @@ impl Variant for List {
 
     fn try_empty(&self) -> Result<Self> {
         Ok(Self::new(
-            self.data_type().deref().try_empty()?.into(),
+            self.data_type().try_empty()?.into(),
             0.into(),
         ))
     }
@@ -1844,7 +1844,7 @@ impl Variant for Set {
 
     fn try_empty(&self) -> Result<Self> {
         Ok(Self::new(
-            self.data_type().deref().try_empty()?.into(),
+            self.data_type().try_empty()?.into(),
             0.into(),
         ))
     }
@@ -1957,7 +1957,7 @@ impl Variant for Array {
 
     fn try_empty(&self) -> Result<Self> {
         Ok(Self::new(
-            self.data_type().deref().try_empty()?.into(),
+            self.data_type().try_empty()?.into(),
             Arc::new([0 as usize]),
         ))
     }

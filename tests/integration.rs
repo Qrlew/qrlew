@@ -11,12 +11,12 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     dialect_translation::{
-        postgresql::PostgreSqlTranslator, QueryToRelationTranslator, RelationToQueryTranslator, RelationWithTranslator
+        RelationToQueryTranslator, RelationWithTranslator
     },
     expr,
     io::{postgresql, Database},
     relation::Variant as _,
-    sql::{parse, parse_with_dialect, relation::QueryWithRelations},
+    sql::{parse},
     Relation, With,
 };
 

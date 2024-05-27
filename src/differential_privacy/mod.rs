@@ -11,8 +11,8 @@ pub mod group_by;
 use crate::{
     builder::With,
     expr,
-    privacy_unit_tracking::{self, privacy_unit, PupRelation},
-    relation::{rewriting, Constraint, Reduce, Relation, Variant},
+    privacy_unit_tracking::{self, PupRelation},
+    relation::{rewriting, Reduce, Relation, Variant},
     Ready,
 };
 use std::{error, fmt, ops::Deref, result};
@@ -223,7 +223,7 @@ mod tests {
 
         let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
-        let mult: f64 = 2000.
+        let _mult: f64 = 2000.
             * DpAggregatesParameters::from_dp_parameters(parameters.clone(), 1.)
                 .privacy_unit_multiplicity();
         assert!(matches!(

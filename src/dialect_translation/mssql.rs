@@ -1,15 +1,14 @@
 use crate::{
     data_type::{DataType, DataTyped as _},
-    expr::{self, Function as _},
+    expr::{self},
     hierarchy::Hierarchy,
-    relation::{sql::FromRelationVisitor, Relation, Table, Variant as _},
-    visitor::Acceptor,
+    relation::{Table, Variant as _},
     WithoutContext,
 };
 
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator, Result};
 use sqlparser::{
-    ast::{self, CharacterLength},
+    ast::{self},
     dialect::MsSqlDialect,
 };
 #[derive(Clone, Copy)]

@@ -113,11 +113,11 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::{DataType, Value as _},
+        data_type::{DataType},
         dialect_translation::RelationWithTranslator,
         expr::Expr,
         namer,
-        relation::{schema::Schema, Relation, Variant as _},
+        relation::{schema::Schema, Relation},
     };
     use std::sync::Arc;
 

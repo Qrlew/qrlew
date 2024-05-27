@@ -10,7 +10,7 @@ pub mod relation;
 pub mod visitor;
 pub mod writer;
 
-use crate::{ast, relation::Variant as _};
+use crate::ast;
 
 // I would put here the abstact AST Visitor.
 // Then in expr.rs module we write an implementation of the abstract visitor for Qrlew expr
@@ -112,12 +112,11 @@ mod tests {
         builder::With,
         display::Dot,
         io::{postgresql, Database},
-        relation::Relation,
-        DataType,
+        relation::{Relation, Variant as _,}
     };
-    use colored::Colorize;
-    use itertools::Itertools;
-    use sqlparser::dialect::BigQueryDialect;
+    
+    
+    
 
     #[test]
     fn test_display() {

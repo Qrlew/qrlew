@@ -4,7 +4,6 @@ use std::{fmt, io, string};
 
 use super::{aggregate, function, Column, Error, Expr, Value, Visitor};
 use crate::{
-    builder::{WithContext as _, WithoutContext as _},
     data_type::{DataType, DataTyped},
     display::{self, colors},
     namer,
@@ -202,7 +201,7 @@ mod tests {
         builder::{Ready, With},
         data_type::DataType,
         display::Dot,
-        relation::{schema::Schema, Relation},
+        relation::{schema::Schema, Relation}, WithoutContext as _,
     };
     use std::sync::Arc;
 

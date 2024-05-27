@@ -337,7 +337,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         match self.strategy {
             Strategy::Soft => Err(Error::not_privacy_unit_preserving(join)),
             Strategy::Hard => {
-                let name = join.name();
+                let _name = join.name();
                 let operator = join.operator().clone();
                 let names = join.names();
                 let names = names.with(vec![
@@ -406,7 +406,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         left: Relation,
         right: PupRelation,
     ) -> Result<PupRelation> {
-        let name = join.name();
+        let _name = join.name();
         let operator = join.operator().clone();
         let names = join.names();
         let names = names.with(vec![
@@ -458,7 +458,7 @@ impl<'a> PrivacyUnitTracking<'a> {
         left: PupRelation,
         right: Relation,
     ) -> Result<PupRelation> {
-        let name = join.name();
+        let _name = join.name();
         let operator = join.operator().clone();
         let names = join.names();
         let names = names.with(vec![

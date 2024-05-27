@@ -9,7 +9,6 @@ use super::{
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    display::Dot,
     expr::{self, AggregateColumn, Expr, Identifier, Split},
     hierarchy::Hierarchy,
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
@@ -141,7 +140,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
-    pub fn filter_iter(mut self, iter: Vec<Expr>) -> Self {
+    pub fn filter_iter(self, iter: Vec<Expr>) -> Self {
         let filter = iter
             .into_iter()
             .fold(Expr::val(true), |f, x| Expr::and(f, x));
@@ -153,7 +152,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
-    pub fn order_by_iter(mut self, iter: Vec<(Expr, bool)>) -> Self {
+    pub fn order_by_iter(self, iter: Vec<(Expr, bool)>) -> Self {
         iter.into_iter().fold(self, |w, (x, b)| w.order_by(x, b))
     }
 
@@ -1064,7 +1063,7 @@ impl Ready<Values> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataTyped, display::Dot, expr::aggregate::Aggregate, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType};
 
     #[test]
     fn test_map_building() {

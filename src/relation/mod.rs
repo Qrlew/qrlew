@@ -1154,7 +1154,7 @@ impl Set {
     fn schema(
         names: Vec<String>,
         operator: &SetOperator,
-        quantifier: &SetQuantifier,
+        _quantifier: &SetQuantifier,
         left: &Relation,
         right: &Relation,
     ) -> Schema {
@@ -1183,7 +1183,7 @@ impl Set {
     /// Compute the size of the join
     fn size(
         operator: &SetOperator,
-        quantifier: &SetQuantifier,
+        _quantifier: &SetQuantifier,
         left: &Relation,
         right: &Relation,
     ) -> Integer {
@@ -1647,7 +1647,7 @@ impl Ready<Relation> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::{schema::Schema, *};
-    use crate::ast;
+    
     use crate::{builder::With, data_type::DataType, display::Dot};
 
     #[test]

@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_rewrite() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
 
         for (p, r) in relations.iter() {

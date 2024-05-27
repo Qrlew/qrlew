@@ -618,7 +618,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
         rewriting_rules
     }
 
-    fn map(&self, map: &'a Map, input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
+    fn map(&self, _map: &'a Map, _input: Arc<RelationWithRewritingRules<'a>>) -> Vec<RewritingRule> {
         let mut rewriting_rules = vec![
             RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
             RewritingRule::new(
@@ -650,7 +650,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
     fn reduce(
         &self,
         reduce: &'a Reduce,
-        input: Arc<RelationWithRewritingRules<'a>>,
+        _input: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
         let mut rewriting_rules = vec![
             RewritingRule::new(vec![Property::Public], Property::Public, Parameters::None),
@@ -708,9 +708,9 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
 
     fn join(
         &self,
-        join: &'a Join,
-        left: Arc<RelationWithRewritingRules<'a>>,
-        right: Arc<RelationWithRewritingRules<'a>>,
+        _join: &'a Join,
+        _left: Arc<RelationWithRewritingRules<'a>>,
+        _right: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
         let mut rewriting_rules = vec![
             RewritingRule::new(
@@ -782,9 +782,9 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
 
     fn set(
         &self,
-        set: &'a Set,
-        left: Arc<RelationWithRewritingRules<'a>>,
-        right: Arc<RelationWithRewritingRules<'a>>,
+        _set: &'a Set,
+        _left: Arc<RelationWithRewritingRules<'a>>,
+        _right: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
         let mut rewriting_rules = vec![
             RewritingRule::new(
@@ -816,7 +816,7 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
         rewriting_rules
     }
 
-    fn values(&self, values: &'a Values) -> Vec<RewritingRule> {
+    fn values(&self, _values: &'a Values) -> Vec<RewritingRule> {
         let mut rewriting_rules = vec![RewritingRule::new(
             vec![],
             Property::Public,
@@ -837,13 +837,13 @@ impl<'a> SetRewritingRulesVisitor<'a> for RewritingRulesSetter<'a> {
 pub struct RewritingRulesEliminator;
 
 impl<'a> MapRewritingRulesVisitor<'a> for RewritingRulesEliminator {
-    fn table(&self, table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
+    fn table(&self, _table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
         rewriting_rules.into_iter().cloned().collect()
     }
 
     fn map(
         &self,
-        map: &'a Map,
+        _map: &'a Map,
         rewriting_rules: &'a [RewritingRule],
         input: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
@@ -861,7 +861,7 @@ impl<'a> MapRewritingRulesVisitor<'a> for RewritingRulesEliminator {
 
     fn reduce(
         &self,
-        reduce: &'a Reduce,
+        _reduce: &'a Reduce,
         rewriting_rules: &'a [RewritingRule],
         input: Arc<RelationWithRewritingRules<'a>>,
     ) -> Vec<RewritingRule> {
@@ -879,7 +879,7 @@ impl<'a> MapRewritingRulesVisitor<'a> for RewritingRulesEliminator {
 
     fn join(
         &self,
-        join: &'a Join,
+        _join: &'a Join,
         rewriting_rules: &'a [RewritingRule],
         left: Arc<RelationWithRewritingRules<'a>>,
         right: Arc<RelationWithRewritingRules<'a>>,
@@ -906,7 +906,7 @@ impl<'a> MapRewritingRulesVisitor<'a> for RewritingRulesEliminator {
 
     fn set(
         &self,
-        set: &'a Set,
+        _set: &'a Set,
         rewriting_rules: &'a [RewritingRule],
         left: Arc<RelationWithRewritingRules<'a>>,
         right: Arc<RelationWithRewritingRules<'a>>,
@@ -933,7 +933,7 @@ impl<'a> MapRewritingRulesVisitor<'a> for RewritingRulesEliminator {
 
     fn values(
         &self,
-        values: &'a Values,
+        _values: &'a Values,
         rewriting_rules: &'a [RewritingRule],
     ) -> Vec<RewritingRule> {
         rewriting_rules.into_iter().cloned().collect()
@@ -944,13 +944,13 @@ impl<'a> MapRewritingRulesVisitor<'a> for RewritingRulesEliminator {
 pub struct RewritingRulesSelector;
 
 impl<'a> SelectRewritingRuleVisitor<'a> for RewritingRulesSelector {
-    fn table(&self, table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
+    fn table(&self, _table: &'a Table, rewriting_rules: &'a [RewritingRule]) -> Vec<RewritingRule> {
         rewriting_rules.into_iter().cloned().collect()
     }
 
     fn map(
         &self,
-        map: &'a Map,
+        _map: &'a Map,
         rewriting_rules: &'a [RewritingRule],
         input: &RelationWithRewritingRule<'a>,
     ) -> Vec<RewritingRule> {
@@ -963,7 +963,7 @@ impl<'a> SelectRewritingRuleVisitor<'a> for RewritingRulesSelector {
 
     fn reduce(
         &self,
-        reduce: &'a Reduce,
+        _reduce: &'a Reduce,
         rewriting_rules: &'a [RewritingRule],
         input: &RelationWithRewritingRule<'a>,
     ) -> Vec<RewritingRule> {
@@ -976,7 +976,7 @@ impl<'a> SelectRewritingRuleVisitor<'a> for RewritingRulesSelector {
 
     fn join(
         &self,
-        join: &'a Join,
+        _join: &'a Join,
         rewriting_rules: &'a [RewritingRule],
         left: &RelationWithRewritingRule<'a>,
         right: &RelationWithRewritingRule<'a>,
@@ -993,7 +993,7 @@ impl<'a> SelectRewritingRuleVisitor<'a> for RewritingRulesSelector {
 
     fn set(
         &self,
-        set: &'a Set,
+        _set: &'a Set,
         rewriting_rules: &'a [RewritingRule],
         left: &RelationWithRewritingRule<'a>,
         right: &RelationWithRewritingRule<'a>,
@@ -1010,7 +1010,7 @@ impl<'a> SelectRewritingRuleVisitor<'a> for RewritingRulesSelector {
 
     fn values(
         &self,
-        values: &'a Values,
+        _values: &'a Values,
         rewriting_rules: &'a [RewritingRule],
     ) -> Vec<RewritingRule> {
         rewriting_rules.into_iter().cloned().collect()
@@ -1266,7 +1266,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
     fn set(
         &self,
         set: &'a Set,
-        rewriting_rule: &'a RewritingRule,
+        _rewriting_rule: &'a RewritingRule,
         rewritten_left: RelationWithDpEvent,
         rewritten_right: RelationWithDpEvent,
     ) -> RelationWithDpEvent {
@@ -1282,7 +1282,7 @@ impl<'a> RewriteVisitor<'a> for Rewriter<'a> {
         (relation, dp_event_left.compose(dp_event_right)).into()
     }
 
-    fn values(&self, values: &'a Values, rewriting_rule: &'a RewritingRule) -> RelationWithDpEvent {
+    fn values(&self, values: &'a Values, _rewriting_rule: &'a RewritingRule) -> RelationWithDpEvent {
         (Arc::new(values.clone().into()), DpEvent::no_op()).into()
     }
 }

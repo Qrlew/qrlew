@@ -326,14 +326,14 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
 
     fn set(
         &self,
-        set: &'a Set,
-        left: RelationWithWeight,
-        right: RelationWithWeight,
+        _set: &'a Set,
+        _left: RelationWithWeight,
+        _right: RelationWithWeight,
     ) -> RelationWithWeight {
         todo!()
     }
 
-    fn values(&self, values: &'a Values) -> RelationWithWeight {
+    fn values(&self, _values: &'a Values) -> RelationWithWeight {
         todo!()
     }
 }
@@ -415,7 +415,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for TableSamplerVisito
             .build()
     }
 
-    fn set(&self, set: &'a Set, left: Relation, right: Relation) -> Relation {
+    fn set(&self, _set: &'a Set, _left: Relation, _right: Relation) -> Relation {
         todo!()
     }
 
@@ -536,12 +536,10 @@ mod tests {
         ast,
         display::Dot,
         io::{postgresql, Database},
-        namer,
-        sql::parse,
     };
 
     use colored::Colorize;
-    use itertools::Itertools;
+    
 
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]

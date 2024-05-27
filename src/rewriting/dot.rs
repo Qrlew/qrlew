@@ -1,13 +1,12 @@
-use std::{fmt, io, iter, string};
+use std::{io, iter};
 
 use itertools::Itertools;
 
 use super::{
-    rewriting_rule, Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule,
+    Property, RelationWithRewritingRule, RelationWithRewritingRules, RewritingRule,
 };
 use crate::{
     display::{self, colors},
-    expr::{rewriting, Reduce},
     namer,
     relation::{Relation, Variant},
     visitor::Acceptor,
@@ -80,14 +79,14 @@ impl<'a> dot::Labeller<'a, Node<'a>, Edge<'a>> for RelationWithRewritingRules<'a
         }
     }
 
-    fn edge_label(&'a self, edge: &Edge<'a>) -> dot::LabelText<'a> {
+    fn edge_label(&'a self, _edge: &Edge<'a>) -> dot::LabelText<'a> {
         dot::LabelText::LabelStr("".into())
     }
 
     fn edge_style(&'a self, edge: &Edge<'a>) -> dot::Style {
         match edge {
-            Edge::RelationInput(r, i) => dot::Style::None,
-            Edge::RelationRewritingRule(r, rr) => dot::Style::Dotted,
+            Edge::RelationInput(_r, _i) => dot::Style::None,
+            Edge::RelationRewritingRule(_r, _rr) => dot::Style::Dotted,
         }
     }
 }
@@ -156,11 +155,10 @@ impl<'a> RelationWithRewritingRule<'a> {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
+    
 
     use super::*;
     use crate::{
-        ast,
         builder::With,
         display::Dot,
         io::{postgresql, Database},

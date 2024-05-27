@@ -13,7 +13,7 @@ use crate::{
     relation::{Table, Variant as _},
 };
 use std::{
-    env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
+    env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
 };
 
 use colored::Colorize;
@@ -204,7 +204,7 @@ impl DatabaseTrait for Database {
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
         let mut connection = self.pool.get()?;
-        let qq = table.create(PostgreSqlTranslator).to_string();
+        let _qq = table.create(PostgreSqlTranslator).to_string();
         Ok(connection.execute(&table.create(PostgreSqlTranslator).to_string(), &[])? as usize)
     }
 

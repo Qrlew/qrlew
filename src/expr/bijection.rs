@@ -1,4 +1,4 @@
-use super::{function, identifier, Column, Expr, Function};
+use super::{Column, Expr, Function};
 
 impl Expr {
     /// Reduce the expression modulo a bijection
@@ -17,7 +17,7 @@ impl Expr {
                     self
                 }
             }
-            expr => self,
+            _expr => self,
         }
     }
 

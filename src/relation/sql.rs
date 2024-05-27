@@ -1,18 +1,17 @@
 //! Methods to convert Relations to ast::Query
-use serde::de::value;
+
 
 use super::{
-    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set, SetOperator,
+    Join, Map, OrderBy, Reduce, Relation, Set, SetOperator,
     SetQuantifier, Table, Values, Variant as _, Visitor,
 };
 use crate::{
     ast,
-    data_type::{DataType, DataTyped},
     dialect_translation::{postgresql::PostgreSqlTranslator, RelationToQueryTranslator},
     expr::{identifier::Identifier, Expr},
     visitor::Acceptor,
 };
-use std::{collections::HashSet, convert::TryFrom, iter::Iterator, ops::Deref};
+use std::{collections::HashSet, iter::Iterator, ops::Deref};
 
 /// A simple Relation -> ast::Query conversion Visitor using CTE
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
