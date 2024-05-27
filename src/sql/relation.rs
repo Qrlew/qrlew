@@ -1461,7 +1461,7 @@ mod tests {
         assert_eq!(
             relation.data_type(),
             DataType::structured(vec![
-                ("field_fp0x", DataType::integer_interval(0, 30)),
+                ("field_hcgq", DataType::integer_interval(0, 30)),
                 ("my_count", DataType::integer_interval(0, 10)),
             ])
         );

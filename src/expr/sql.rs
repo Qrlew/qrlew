@@ -398,8 +398,7 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
             | expr::aggregate::Aggregate::Mean
             | expr::aggregate::Aggregate::Count
             | expr::aggregate::Aggregate::Sum 
-            | expr::aggregate::Aggregate::Std 
-            | expr::aggregate::Aggregate::Var => {
+            | expr::aggregate::Aggregate::Std => {
                 let func_args_list = ast::FunctionArgumentList {
                     duplicate_treatment: None,
                     args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
@@ -413,6 +412,21 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 null_treatment: None,
                 within_group: vec![],
                 })},
+            expr::aggregate::Aggregate::Var => {
+                let func_args_list = ast::FunctionArgumentList {
+                    duplicate_treatment: None,
+                    args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(argument))],
+                    clauses: vec![],
+                };
+                ast::Expr::Function(ast::Function {
+                name: ast::ObjectName(vec![ast::Ident::new(String::from("variance"))]),
+                args: ast::FunctionArguments::List(func_args_list),
+                over: None,
+                filter: None,
+                null_treatment: None,
+                within_group: vec![],
+                })
+            },
             expr::aggregate::Aggregate::MeanDistinct => {
                 let func_args_list = ast::FunctionArgumentList {
                     duplicate_treatment: Some(ast::DuplicateTreatment::Distinct),
