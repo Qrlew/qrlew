@@ -1179,7 +1179,7 @@ mod tests {
             .on_eq("d", "x")
             .and(Expr::lt(Expr::col("a"), Expr::col("x")))
             .build();
-        join.display_dot();
+        join.display_dot().unwrap();
         println!("Join = {join}");
         let query = &ast::Query::from(&join).to_string();
         println!(
@@ -1223,7 +1223,7 @@ mod tests {
             .left_names(vec!["a1", "b1"])
             //.on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c")), Expr::eq(Expr::col("b"), Expr::col("d"))])
             .build();
-        join.display_dot();
+        join.display_dot().unwrap();
     }
 
     #[test]

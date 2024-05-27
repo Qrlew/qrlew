@@ -1408,7 +1408,7 @@ mod tests {
             .with_group_by_column("item")
             .with_group_by_column("order_id")
             .build();
-        my_relation.display_dot();
+        my_relation.display_dot().unwrap();
 
         let renamed_relation = my_relation.clone().rename_fields(|n, _| {
             if n == "sum_price" {
@@ -1419,7 +1419,7 @@ mod tests {
                 "unknown".to_string()
             }
         });
-        renamed_relation.display_dot();
+        renamed_relation.display_dot().unwrap();
     }
 
     #[test]
@@ -1442,7 +1442,7 @@ mod tests {
         );
         println!("{}", filtering_expr);
         let filtered_relation = relation.filter(filtering_expr);
-        _ = filtered_relation.display_dot();
+        _ = filtered_relation.display_dot().unwrap();
         assert_eq!(
             filtered_relation
                 .schema()
@@ -1484,7 +1484,7 @@ mod tests {
             Expr::gt(Expr::col("a"), Expr::val(5.)),
             Expr::lt(Expr::col("b"), Expr::val(0.5)),
         ));
-        _ = filtered_relation.display_dot();
+        _ = filtered_relation.display_dot().unwrap();
         assert_eq!(
             filtered_relation.schema().field("a").unwrap().data_type(),
             DataType::float_interval(5., 10.)
@@ -1519,7 +1519,7 @@ mod tests {
             Expr::gt(Expr::col("a"), Expr::val(5.)),
             Expr::lt(Expr::col("sum_d"), Expr::val(15)),
         ));
-        _ = filtered_relation.display_dot();
+        _ = filtered_relation.display_dot().unwrap();
         assert_eq!(
             filtered_relation.schema().field("a").unwrap().data_type(),
             DataType::float_interval(5., 10.)
@@ -1742,7 +1742,7 @@ mod tests {
         // Without group by
         let unique_rel = table.unique(&["a", "b"]);
         println!("{}", unique_rel);
-        _ = unique_rel.display_dot();
+        _ = unique_rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1766,7 +1766,7 @@ mod tests {
         ];
         let rel = table.clone().ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
-        _ = rel.display_dot();
+        _ = rel.display_dot().unwrap();
 
         // With group by
         let grouping_exprs = vec![Expr::col("c")];
@@ -1776,7 +1776,7 @@ mod tests {
         ];
         let rel = table.ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
-        _ = rel.display_dot();
+        _ = rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1803,7 +1803,7 @@ mod tests {
             .clone()
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
-        _ = distinct_rel.display_dot();
+        _ = distinct_rel.display_dot().unwrap();
 
         // With group by
         let column = "a";
@@ -1816,7 +1816,7 @@ mod tests {
             .clone()
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
-        _ = distinct_rel.display_dot();
+        _ = distinct_rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1834,7 +1834,7 @@ mod tests {
         // table
         let rel = table.public_values_column("b").unwrap();
         let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
-        rel.display_dot();
+        rel.display_dot().unwrap();
         assert_eq!(rel, rel_values);
         assert!(table.public_values_column("a").is_err());
 
@@ -1846,7 +1846,7 @@ mod tests {
             .with(("exp_b", Expr::exp(Expr::col("b"))))
             .build();
         let rel = map.public_values_column("exp_b").unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
         assert!(map.public_values_column("exp_a").is_err());
     }
 
@@ -1863,7 +1863,7 @@ mod tests {
             )
             .build();
         let rel = table.public_values().unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
 
         let table: Relation = Relation::table()
             .name("table")
@@ -1894,7 +1894,7 @@ mod tests {
             .input(table)
             .build();
         let rel = map.public_values().unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
 
         // map
         let table: Relation = Relation::table()
@@ -1917,7 +1917,7 @@ mod tests {
             .input(table)
             .build();
         let rel = map.public_values().unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1943,7 +1943,7 @@ mod tests {
             .build();
 
         let joined_rel = table_1.clone().cross_join(table_2.clone()).unwrap();
-        joined_rel.display_dot();
+        joined_rel.display_dot().unwrap();
     }
 
     #[test]
@@ -2097,7 +2097,7 @@ mod tests {
             .group_by(expr!(2 * c))
             .build();
         let distinct_relation = relation.clone().distinct();
-        distinct_relation.display_dot();
+        distinct_relation.display_dot().unwrap();
         assert_eq!(distinct_relation.schema(), relation.schema());
         assert!(matches!(distinct_relation, Relation::Reduce(_)));
         if let Relation::Reduce(red) = distinct_relation {

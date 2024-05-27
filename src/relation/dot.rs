@@ -398,7 +398,7 @@ mod tests {
             .right(map_2.clone())
             .build();
         println!("join_2 = {}", join_2);
-        join_2.display_dot();
+        join_2.display_dot().unwrap();
     }
 
     #[test]
@@ -428,7 +428,7 @@ mod tests {
             ))
             .input(table.clone())
             .build();
-        map.display_dot();
+        map.display_dot().unwrap();
     }
 
     #[test]
@@ -454,7 +454,7 @@ mod tests {
             .left(left)
             .right(right)
             .build();
-        join.display_dot();
+        join.display_dot().unwrap();
     }
 
     #[test]
@@ -481,18 +481,18 @@ mod tests {
             .with_group_by_column("a")
             .with(Expr::sum(Expr::col("b")))
             .build();
-        reduce.display_dot();
+        reduce.display_dot().unwrap();
     }
 
     #[test]
     fn test_display_values() {
         let values: Relation = Relation::values().name("Float").values(vec![5.]).build();
-        values.display_dot();
+        values.display_dot().unwrap();
 
         let values: Relation = Relation::values()
             .name("List_of_floats")
             .values(vec![Value::float(10.), Value::float(4.0)])
             .build();
-        values.display_dot();
+        values.display_dot().unwrap();
     }
 }
