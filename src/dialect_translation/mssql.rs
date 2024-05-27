@@ -395,19 +395,16 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
 #[cfg(test)]
 #[cfg(feature = "mssql")]
 mod tests {
-    use sqlparser::dialect::GenericDialect;
-
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::{DataType, Value as _},
+        data_type::DataType,
         dialect_translation::RelationWithTranslator,
-        display::Dot,
         expr::Expr,
         io::{mssql, Database as _},
         namer,
-        relation::{schema::Schema, Relation, Variant as _},
-        sql::{parse, parse_expr, parse_with_dialect, relation::QueryWithRelations},
+        relation::{schema::Schema, Relation},
+        sql::parse,
     };
     use std::sync::Arc;
 

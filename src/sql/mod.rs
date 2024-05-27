@@ -105,8 +105,6 @@ pub use relation::{parse, parse_with_dialect};
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "sqlite")]
-    use crate::io::sqlite;
     use crate::{
         ast,
         builder::With,

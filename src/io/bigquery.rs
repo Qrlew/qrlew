@@ -833,17 +833,14 @@ pub fn test_database() -> Database {
 #[cfg(test)]
 mod tests {
 
-    use std::{collections::HashMap, fmt::format};
+    use std::collections::HashMap;
 
+    use super::*;
     use gcp_bigquery_client::{
         model::table_data_insert_all_request_rows::TableDataInsertAllRequestRows,
         table::ListOptions,
     };
     use serde_json::json;
-
-    use crate::dialect_translation::bigquery::BigQueryTranslator;
-
-    use super::*;
 
     #[tokio::test]
     async fn test_table_list() {
@@ -961,7 +958,7 @@ mod tests {
         let timestamp = 1703273535.453880;
         let seconds = timestamp as i64; // Whole seconds part
         let nanoseconds = ((timestamp - seconds as f64) * 1_000_000_000.0) as u32; // Fractional part in nanoseconds
-        let datetime = chrono::NaiveDateTime::from_timestamp_opt(seconds, nanoseconds);
+        let datetime = chrono::DateTime::from_timestamp(seconds, nanoseconds).unwrap();
         println!("Datetime: {:?}", datetime);
     }
 

@@ -583,7 +583,7 @@ mod tests {
 
     use crate::{
         relation::{Schema, TableBuilder},
-        DataType, Ready as _,
+        DataType,
     };
 
     use super::*;
