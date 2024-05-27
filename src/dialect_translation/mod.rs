@@ -154,7 +154,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                         named_window: vec![],
                         window_before_qualify: false,
                         value_table_mode: None,
-                        connect_by: None
+                        connect_by: None,
                     }))),
                     order_by,
                     limit,
@@ -174,12 +174,12 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     global: None,
                     if_not_exists: true,
                     transient: false,
-                    name: ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
+                    name: ast::ObjectName(self.identifier(&(table.path().clone().into()))),
                     columns: table
                         .schema()
                         .iter()
                         .map(|f| ast::ColumnDef {
-                            name: self.identifier( &(f.name().into()) )[0].clone(),
+                            name: self.identifier(&(f.name().into()))[0].clone(),
                             data_type: f.data_type().into(),
                             collation: None,
                             options: if let DataType::Optional(_) = f.data_type() {
@@ -222,9 +222,13 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 ast::Statement::Insert(ast::Insert {
                     or: None,
                     into: true,
-                    table_name: ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
+                    table_name: ast::ObjectName(self.identifier(&(table.path().clone().into()))),
                     table_alias: None,
-                    columns: table.schema().iter().map(|f| self.identifier( &(f.name().into()) )[0].clone()).collect(),
+                    columns: table
+                        .schema()
+                        .iter()
+                        .map(|f| self.identifier(&(f.name().into()))[0].clone())
+                        .collect(),
                     overwrite: false,
                     source: Some(Box::new(ast::Query {
                         with: None,
@@ -265,10 +269,10 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 query: ast::Query,
             ) -> ast::Cte {
                 ast::Cte {
-                    alias: ast::TableAlias {name, columns},
+                    alias: ast::TableAlias { name, columns },
                     query: Box::new(query),
                     from: None,
-                    materialized: None
+                    materialized: None,
                 }
             }
             fn join_projection(&self, join: &Join) -> Vec<ast::SelectItem> {
@@ -278,7 +282,10 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
 
             fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
-                value.iter().map(|r| ast::Ident::with_quote('"', r)).collect()
+                value
+                    .iter()
+                    .map(|r| ast::Ident::with_quote('"', r))
+                    .collect()
             }
 
             fn table_factor(&self, relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
@@ -784,12 +791,15 @@ pub trait QueryToRelationTranslator {
         match args {
             ast::FunctionArguments::None => Ok(vec![]),
             ast::FunctionArguments::Subquery(_) => Ok(vec![]),
-            ast::FunctionArguments::List(arg_list) => arg_list.args
+            ast::FunctionArguments::List(arg_list) => arg_list
+                .args
                 .iter()
                 .map(|func_arg| match func_arg {
-                    ast::FunctionArg::Named { name: _, arg, operator: _ } => {
-                        self.try_function_arg_expr(arg, context)
-                    }
+                    ast::FunctionArg::Named {
+                        name: _,
+                        arg,
+                        operator: _,
+                    } => self.try_function_arg_expr(arg, context),
                     ast::FunctionArg::Unnamed(arg) => self.try_function_arg_expr(arg, context),
                 })
                 .collect(),
@@ -826,7 +836,11 @@ fn function_builder(name: &str, exprs: Vec<ast::Expr>, distinct: bool) -> ast::E
         .collect();
     let function_name = name.to_uppercase();
     let name = ast::ObjectName(vec![ast::Ident::from(&function_name[..])]);
-    let ast_distinct = if distinct {Some(ast::DuplicateTreatment::Distinct)} else {None};
+    let ast_distinct = if distinct {
+        Some(ast::DuplicateTreatment::Distinct)
+    } else {
+        None
+    };
     let func_args_list = ast::FunctionArgumentList {
         duplicate_treatment: ast_distinct,
         args: function_args,
@@ -838,7 +852,7 @@ fn function_builder(name: &str, exprs: Vec<ast::Expr>, distinct: bool) -> ast::E
         over: None,
         filter: None,
         null_treatment: None,
-        within_group: vec![]
+        within_group: vec![],
     };
     ast::Expr::Function(function)
 }

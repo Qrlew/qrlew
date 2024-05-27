@@ -7,13 +7,13 @@
 //! - BigQuery using the ["bigquery"] feature.
 //!
 
+#[cfg(feature = "bigquery")]
+pub mod bigquery;
+#[cfg(feature = "mssql")]
+pub mod mssql;
 pub mod postgresql;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
-#[cfg(feature = "mssql")]
-pub mod mssql;
-#[cfg(feature = "bigquery")]
-pub mod bigquery;
 
 use crate::{
     builder::{Ready, With},

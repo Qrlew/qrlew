@@ -500,7 +500,7 @@ impl DatabaseTrait for Database {
                 json: map_as_json,
             });
         }
-        
+
         insert_query.add_rows(rows_for_bq.clone())?;
 
         rt.block_on(self.client.tabledata().insert_all(
@@ -878,14 +878,13 @@ mod tests {
             .ok();
         if let Some(tabs) = list_tabs {
             let tables_as_str: Vec<String> = tabs
-            .tables
-            .unwrap_or_default()
-            .into_iter()
-            .map(|t| t.table_reference.table_id)
-            .collect();
+                .tables
+                .unwrap_or_default()
+                .into_iter()
+                .map(|t| t.table_reference.table_id)
+                .collect();
             println!("{:?}", tables_as_str);
         }
-        
     }
 
     // #[tokio::test]

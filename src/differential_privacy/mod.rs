@@ -4,21 +4,22 @@
 //!
 
 pub mod aggregates;
+pub mod dp_event;
 pub mod dp_parameters;
 pub mod group_by;
-pub mod dp_event;
 
 use crate::{
     builder::With,
-    expr, privacy_unit_tracking::{self, privacy_unit, PupRelation},
+    expr,
+    privacy_unit_tracking::{self, privacy_unit, PupRelation},
     relation::{rewriting, Constraint, Reduce, Relation, Variant},
     Ready,
 };
 use std::{error, fmt, ops::Deref, result};
 
+pub use dp_event::DpEvent;
 /// Some exports
 pub use dp_parameters::DpParameters;
-pub use dp_event::DpEvent;
 
 use self::aggregates::DpAggregatesParameters;
 
@@ -83,10 +84,7 @@ impl From<DpRelation> for Relation {
 
 impl DpRelation {
     pub fn new(relation: Relation, dp_event: DpEvent) -> Self {
-        DpRelation {
-            relation,
-            dp_event,
-        }
+        DpRelation { relation, dp_event }
     }
 
     pub fn relation(&self) -> &Relation {
@@ -118,27 +116,26 @@ impl From<(Relation, DpEvent)> for DpRelation {
     }
 }
 
-
-
 impl Reduce {
     /// Rewrite a `Reduce` into DP:
     ///     - Protect the grouping keys
     ///     - Add noise on the aggregations
-    pub fn differentially_private(
-        self,
-        parameters: &DpParameters,
-    ) -> Result<DpRelation> {
+    pub fn differentially_private(self, parameters: &DpParameters) -> Result<DpRelation> {
         let mut dp_event = DpEvent::no_op();
         let max_size = self.size().max().unwrap().clone();
         let pup_input = PupRelation::try_from(self.input().clone())?;
-        let privacy_unit_unique = pup_input.schema()[pup_input.privacy_unit()].has_unique_or_primary_key_constraint();
+        let privacy_unit_unique =
+            pup_input.schema()[pup_input.privacy_unit()].has_unique_or_primary_key_constraint();
 
         // DP rewrite group by
         let reduce_with_dp_group_by = if self.group_by().is_empty() {
             self
         } else {
             let (dp_grouping_values, dp_event_group_by) = self
-                .differentially_private_group_by(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share)?
+                .differentially_private_group_by(
+                    parameters.epsilon * parameters.tau_thresholding_share,
+                    parameters.delta * parameters.tau_thresholding_share,
+                )?
                 .into();
             let input_relation_with_privacy_tracked_group_by = self
                 .input()
@@ -154,11 +151,16 @@ impl Reduce {
 
         // if the (epsilon_tau_thresholding, delta_tau_thresholding) budget has
         // not been spent, allocate it to the aggregations.
-        let aggregation_share = if dp_event.is_no_op() {1.} else {1.-parameters.tau_thresholding_share};
-        let aggregation_parameters = DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share)
-            .with_size(usize::try_from(max_size).unwrap())
-            .with_privacy_unit_unique(privacy_unit_unique);
-        
+        let aggregation_share = if dp_event.is_no_op() {
+            1.
+        } else {
+            1. - parameters.tau_thresholding_share
+        };
+        let aggregation_parameters =
+            DpAggregatesParameters::from_dp_parameters(parameters.clone(), aggregation_share)
+                .with_size(usize::try_from(max_size).unwrap())
+                .with_privacy_unit_unique(privacy_unit_unique);
+
         // DP rewrite aggregates
         let (dp_relation, dp_event_agg) = reduce_with_dp_group_by
             .differentially_private_aggregates(aggregation_parameters)?
@@ -178,8 +180,8 @@ mod tests {
         display::Dot,
         expr::{AggregateColumn, Expr},
         io::{postgresql, Database},
-        privacy_unit_tracking::{PrivacyUnit,PrivacyUnitTracking, Strategy, PupRelation},
-        relation::{Field, Map, Relation, Schema, Variant, Constraint},
+        privacy_unit_tracking::{PrivacyUnit, PrivacyUnitTracking, PupRelation, Strategy},
+        relation::{Constraint, Field, Map, Relation, Schema, Variant},
     };
     use std::{collections::HashSet, sync::Arc};
 
@@ -219,13 +221,17 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, dp_event) = reduce
-            .differentially_private(&parameters)
-            .unwrap()
-            .into();
+        let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
-        let mult: f64 = 2000.*DpAggregatesParameters::from_dp_parameters(parameters.clone(), 1.).privacy_unit_multiplicity();
-        assert!(matches!(dp_event, DpEvent::Gaussian { noise_multiplier: _ }));
+        let mult: f64 = 2000.
+            * DpAggregatesParameters::from_dp_parameters(parameters.clone(), 1.)
+                .privacy_unit_multiplicity();
+        assert!(matches!(
+            dp_event,
+            DpEvent::Gaussian {
+                noise_multiplier: _
+            }
+        ));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -241,13 +247,7 @@ mod tests {
             .clone();
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
-            vec![
-                (
-                    "table_1",
-                    vec![],
-                    PrivacyUnit::privacy_unit_row(),
-                ),
-            ],
+            vec![("table_1", vec![], PrivacyUnit::privacy_unit_row())],
             Strategy::Hard,
         ));
         let pup_table = privacy_unit_tracking
@@ -255,7 +255,7 @@ mod tests {
             .unwrap();
         let map = Map::new(
             "my_map".to_string(),
-            vec![("my_d".to_string(), expr!(d/100))],
+            vec![("my_d".to_string(), expr!(d / 100))],
             None,
             vec![],
             None,
@@ -265,7 +265,7 @@ mod tests {
         let pup_map = privacy_unit_tracking
             .map(
                 &map.clone().try_into().unwrap(),
-                PupRelation(Relation::from(pup_table))
+                PupRelation(Relation::from(pup_table)),
             )
             .unwrap();
         let reduce = Reduce::new(
@@ -277,13 +277,13 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, dp_event) = reduce
-            .differentially_private(&parameters)
-            .unwrap()
-            .into();
+        let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
         assert!(dp_event.is_no_op()); // private query is null beacause we have computed the sum of zeros
-        assert_eq!(dp_relation.data_type(), DataType::structured([("sum_d", DataType::float_value(0.))]));
+        assert_eq!(
+            dp_relation.data_type(),
+            DataType::structured([("sum_d", DataType::float_value(0.))])
+        );
 
         let query: &str = &ast::Query::from(&dp_relation).to_string();
         _ = database.query(query).unwrap();
@@ -338,12 +338,14 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, dp_event) = reduce
-            .differentially_private(&parameters)
-            .unwrap()
-            .into();
+        let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
-        assert!(matches!(dp_event, DpEvent::Gaussian { noise_multiplier: _ }));
+        assert!(matches!(
+            dp_event,
+            DpEvent::Gaussian {
+                noise_multiplier: _
+            }
+        ));
         assert!(dp_relation
             .data_type()
             .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
@@ -398,10 +400,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, dp_event) = reduce
-            .differentially_private(&parameters)
-            .unwrap()
-            .into();
+        let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
         assert!(matches!(dp_event, DpEvent::Composed { events: _ }));
         assert!(dp_relation
@@ -467,10 +466,7 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, dp_event) = reduce
-            .differentially_private(&parameters)
-            .unwrap()
-            .into();
+        let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
         assert!(matches!(dp_event, DpEvent::Composed { events: _ }));
         assert!(dp_relation.schema()[0]
@@ -655,21 +651,34 @@ mod tests {
         let relation = Relation::from(reduce.clone());
         relation.display_dot().unwrap();
 
-        let (dp_relation, dp_event) = reduce
-            .differentially_private(&parameters)
-            .unwrap()
-            .into();
+        let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
-            DpEvent::epsilon_delta(parameters.epsilon*parameters.tau_thresholding_share, parameters.delta*parameters.tau_thresholding_share)
-                .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(parameters.epsilon*(1.-parameters.tau_thresholding_share), parameters.delta*(1.-parameters.tau_thresholding_share), 10.))
+            DpEvent::epsilon_delta(
+                parameters.epsilon * parameters.tau_thresholding_share,
+                parameters.delta * parameters.tau_thresholding_share
+            )
+            .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(
+                parameters.epsilon * (1. - parameters.tau_thresholding_share),
+                parameters.delta * (1. - parameters.tau_thresholding_share),
+                10.
+            ))
         );
         let correct_schema: Schema = vec![
             ("sum_a", DataType::float_interval(0., 100.), None),
-            ("d", DataType::integer_interval(0, 10), Some(Constraint::Unique)),
-            ("max_d", DataType::integer_interval(0, 10), Some(Constraint::Unique)),
-        ].into_iter()
+            (
+                "d",
+                DataType::integer_interval(0, 10),
+                Some(Constraint::Unique),
+            ),
+            (
+                "max_d",
+                DataType::integer_interval(0, 10),
+                Some(Constraint::Unique),
+            ),
+        ]
+        .into_iter()
         .collect();
         assert_eq!(dp_relation.schema(), &correct_schema);
 

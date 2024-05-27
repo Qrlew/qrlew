@@ -1,10 +1,10 @@
 use super::Error;
 use crate::{
     builder::{Ready, With, WithIterator},
-    differential_privacy::{dp_event, DpRelation, DpEvent, Result},
+    differential_privacy::{dp_event, DpEvent, DpRelation, Result},
     expr::{aggregate, Expr},
     namer::{self, name_from_content},
-    privacy_unit_tracking::{PupRelation, PrivacyUnit},
+    privacy_unit_tracking::{PrivacyUnit, PupRelation},
     relation::{Join, Reduce, Relation, Variant as _},
 };
 
@@ -99,7 +99,8 @@ impl PupRelation {
     ///     - Using the propagated public values of the grouping columns when they exist
     ///     - Applying tau-thresholding mechanism with the (epsilon, delta) privacy parameters for t
     /// he columns that do not have public values
-    pub fn dp_values(self, epsilon: f64, delta: f64) -> Result<DpRelation> {// TODO this code is super-ugly rewrite it
+    pub fn dp_values(self, epsilon: f64, delta: f64) -> Result<DpRelation> {
+        // TODO this code is super-ugly rewrite it
         let public_columns: Vec<String> = self
             .schema()
             .iter()

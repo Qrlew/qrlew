@@ -7,8 +7,8 @@ use crate::{
     builder::{WithContext, WithoutContext},
     expr::{identifier::Identifier, Expr, Value},
     hierarchy::{Hierarchy, Path},
-    visitor::{self, Acceptor, Dependencies, Visited},
     namer,
+    visitor::{self, Acceptor, Dependencies, Visited},
 };
 use itertools::Itertools;
 use sqlparser::{
@@ -43,10 +43,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
         match self {
             ast::Expr::Identifier(_) => Dependencies::empty(),
             ast::Expr::CompoundIdentifier(_) => Dependencies::empty(),
-            ast::Expr::JsonAccess {
-              value,
-              path
-            } => Dependencies::from([value.as_ref()]),
+            ast::Expr::JsonAccess { value, path } => Dependencies::from([value.as_ref()]),
             ast::Expr::CompositeAccess { expr, key: _ } => Dependencies::from([expr.as_ref()]),
             ast::Expr::IsFalse(expr) => Dependencies::from([expr.as_ref()]),
             ast::Expr::IsNotFalse(expr) => Dependencies::from([expr.as_ref()]),
@@ -171,14 +168,18 @@ impl<'a> Acceptor<'a> for ast::Expr {
                 value: _,
             } => Dependencies::empty(),
             ast::Expr::MapAccess { column, keys } => Dependencies::from([column.as_ref()]),
-            ast::Expr::Function(function) => {
-                match &function.args {
-                    ast::FunctionArguments::None => Dependencies::empty(),
-                    ast::FunctionArguments::Subquery(_) => Dependencies::empty(),
-                    ast::FunctionArguments::List(list_args) => list_args.args
+            ast::Expr::Function(function) => match &function.args {
+                ast::FunctionArguments::None => Dependencies::empty(),
+                ast::FunctionArguments::Subquery(_) => Dependencies::empty(),
+                ast::FunctionArguments::List(list_args) => list_args
+                    .args
                     .iter()
                     .map(|arg| match arg {
-                        ast::FunctionArg::Named { name: _, arg, operator: _} => arg,
+                        ast::FunctionArg::Named {
+                            name: _,
+                            arg,
+                            operator: _,
+                        } => arg,
                         ast::FunctionArg::Unnamed(arg) => arg,
                     })
                     .filter_map(|arg| match arg {
@@ -186,8 +187,7 @@ impl<'a> Acceptor<'a> for ast::Expr {
                         _ => None,
                     })
                     .collect(),
-                }
-            }
+            },
             ast::Expr::Case {
                 operand,
                 conditions,
@@ -229,7 +229,13 @@ impl<'a> Acceptor<'a> for ast::Expr {
             } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
-            ast::Expr::Convert { expr, data_type, charset, target_before_value, styles } => todo!(),
+            ast::Expr::Convert {
+                expr,
+                data_type,
+                charset,
+                target_before_value,
+                styles,
+            } => todo!(),
             ast::Expr::Wildcard => todo!(),
             ast::Expr::QualifiedWildcard(_) => todo!(),
             ast::Expr::Dictionary(_) => Dependencies::empty(),
@@ -264,7 +270,7 @@ pub trait Visitor<'a, T: Clone> {
     fn substring(&self, expr: T, substring_from: Option<T>, substring_for: Option<T>) -> T;
     fn ceil(&self, expr: T, field: &'a ast::DateTimeField) -> T;
     fn floor(&self, expr: T, field: &'a ast::DateTimeField) -> T;
-    fn cast(&self, expr:T, data_type: &'a ast::DataType) -> T;
+    fn cast(&self, expr: T, data_type: &'a ast::DataType) -> T;
     fn extract(&self, field: &'a ast::DateTimeField, expr: T) -> T;
     fn like(&self, expr: T, pattern: T) -> T;
     fn ilike(&self, expr: T, pattern: T) -> T;
@@ -285,37 +291,34 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
         match acceptor {
             ast::Expr::Identifier(ident) => self.identifier(ident),
             ast::Expr::CompoundIdentifier(idents) => self.compound_identifier(idents),
-            ast::Expr::JsonAccess {
-                    value,
-                path
-            } => todo!(),
+            ast::Expr::JsonAccess { value, path } => todo!(),
             ast::Expr::CompositeAccess { expr, key } => todo!(),
             ast::Expr::IsFalse(expr) => self.is(
                 self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
-                Some(false)
+                Some(false),
             ),
             ast::Expr::IsNotFalse(expr) => self.unary_op(
                 &ast::UnaryOperator::Not,
                 self.is(
                     self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
-                    Some(false)
-                )
+                    Some(false),
+                ),
             ),
             ast::Expr::IsTrue(expr) => self.is(
                 self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
-                Some(true)
+                Some(true),
             ),
             ast::Expr::IsNotTrue(expr) => self.unary_op(
                 &ast::UnaryOperator::Not,
                 self.is(
                     self.cast(dependencies.get(expr).clone(), &ast::DataType::Boolean),
-                    Some(true)
-                )
+                    Some(true),
+                ),
             ),
             ast::Expr::IsNull(expr) => self.is(dependencies.get(expr).clone(), None),
             ast::Expr::IsNotNull(expr) => self.unary_op(
                 &ast::UnaryOperator::Not,
-                self.is(dependencies.get(expr).clone(), None)
+                self.is(dependencies.get(expr).clone(), None),
             ),
             ast::Expr::IsUnknown(_) => todo!(),
             ast::Expr::IsNotUnknown(_) => todo!(),
@@ -356,13 +359,13 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                     self.binary_op(
                         dependencies.get(expr).clone(),
                         &ast::BinaryOperator::GtEq,
-                        dependencies.get(low).clone()
+                        dependencies.get(low).clone(),
                     ),
                     &ast::BinaryOperator::And,
                     self.binary_op(
                         dependencies.get(expr).clone(),
                         &ast::BinaryOperator::LtEq,
-                        dependencies.get(high).clone()
+                        dependencies.get(high).clone(),
                     ),
                 );
                 if *negated {
@@ -387,14 +390,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 };
                 let x = self.like(
                     dependencies.get(expr).clone(),
-                    dependencies.get(pattern).clone()
+                    dependencies.get(pattern).clone(),
                 );
                 if *negated {
                     self.unary_op(&ast::UnaryOperator::Not, x)
                 } else {
                     x
                 }
-            },
+            }
             ast::Expr::ILike {
                 negated,
                 expr,
@@ -406,14 +409,14 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 };
                 let x = self.ilike(
                     dependencies.get(expr).clone(),
-                    dependencies.get(pattern).clone()
+                    dependencies.get(pattern).clone(),
                 );
                 if *negated {
                     self.unary_op(&ast::UnaryOperator::Not, x)
                 } else {
                     x
                 }
-            },
+            }
             ast::Expr::SimilarTo {
                 negated,
                 expr,
@@ -439,13 +442,15 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
                 expr,
                 data_type,
                 format: _,
-                kind: _
+                kind: _,
             } => self.cast(dependencies.get(expr).clone(), data_type),
             ast::Expr::AtTimeZone {
                 timestamp,
                 time_zone,
             } => todo!(),
-            ast::Expr::Extract { field, expr } => self.extract(field, dependencies.get(expr).clone()),
+            ast::Expr::Extract { field, expr } => {
+                self.extract(field, dependencies.get(expr).clone())
+            }
             ast::Expr::Ceil { expr, field } => self.ceil(dependencies.get(expr).clone(), field),
             ast::Expr::Floor { expr, field } => self.floor(dependencies.get(expr).clone(), field),
             ast::Expr::Position { expr, r#in } => self.position(
@@ -495,38 +500,40 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             ast::Expr::Value(value) => self.value(value),
             ast::Expr::TypedString { data_type, value } => todo!(),
             ast::Expr::MapAccess { column, keys } => todo!(),
-            ast::Expr::Function(function) => {
-                self.function(function, {
-                    let mut result = vec![];
-                    let function_args = match &function.args {
-                        ast::FunctionArguments::None => vec![],
-                        ast::FunctionArguments::Subquery(_) => vec![],
-                        ast::FunctionArguments::List(arg_list) => arg_list.args.iter().collect(),
-                    };
-                    for function_arg in function_args.iter() {
-                        result.push(match function_arg {
-                            ast::FunctionArg::Named { name, arg , operator} => FunctionArg::Named {
-                                name: name.clone(),
-                                arg: match arg {
-                                    ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
-                                    ast::FunctionArgExpr::QualifiedWildcard(idents) => {
-                                        self.qualified_wildcard(&idents.0)
-                                    }
-                                    ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                                },
-                            },
-                            ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
+            ast::Expr::Function(function) => self.function(function, {
+                let mut result = vec![];
+                let function_args = match &function.args {
+                    ast::FunctionArguments::None => vec![],
+                    ast::FunctionArguments::Subquery(_) => vec![],
+                    ast::FunctionArguments::List(arg_list) => arg_list.args.iter().collect(),
+                };
+                for function_arg in function_args.iter() {
+                    result.push(match function_arg {
+                        ast::FunctionArg::Named {
+                            name,
+                            arg,
+                            operator,
+                        } => FunctionArg::Named {
+                            name: name.clone(),
+                            arg: match arg {
                                 ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
                                 ast::FunctionArgExpr::QualifiedWildcard(idents) => {
                                     self.qualified_wildcard(&idents.0)
                                 }
                                 ast::FunctionArgExpr::Wildcard => self.wildcard(),
-                            }),
-                        });
-                    }
-                    result
-                })
-            }
+                            },
+                        },
+                        ast::FunctionArg::Unnamed(arg) => FunctionArg::Unnamed(match arg {
+                            ast::FunctionArgExpr::Expr(e) => dependencies.get(e).clone(),
+                            ast::FunctionArgExpr::QualifiedWildcard(idents) => {
+                                self.qualified_wildcard(&idents.0)
+                            }
+                            ast::FunctionArgExpr::Wildcard => self.wildcard(),
+                        }),
+                    });
+                }
+                result
+            }),
             ast::Expr::Case {
                 operand,
                 conditions,
@@ -567,7 +574,13 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, ast::Expr, T> for V {
             } => todo!(),
             ast::Expr::Struct { values, fields } => todo!(),
             ast::Expr::Named { expr, name } => todo!(),
-            ast::Expr::Convert { expr, data_type, charset, target_before_value, styles } => todo!(),
+            ast::Expr::Convert {
+                expr,
+                data_type,
+                charset,
+                target_before_value,
+                styles,
+            } => todo!(),
             ast::Expr::Wildcard => todo!(),
             ast::Expr::QualifiedWildcard(_) => todo!(),
             ast::Expr::Dictionary(_) => todo!(),
@@ -706,7 +719,11 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         format!(
             "CEIL ({}{})",
             expr,
-            if matches!(field, ast::DateTimeField::NoDateTime) {"".to_string()} else {format!(", {field}")}
+            if matches!(field, ast::DateTimeField::NoDateTime) {
+                "".to_string()
+            } else {
+                format!(", {field}")
+            }
         )
     }
 
@@ -714,7 +731,11 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
         format!(
             "FLOOR ({}{})",
             expr,
-            if matches!(field, ast::DateTimeField::NoDateTime) {"".to_string()} else {format!(", {field}")}
+            if matches!(field, ast::DateTimeField::NoDateTime) {
+                "".to_string()
+            } else {
+                format!(", {field}")
+            }
         )
     }
 
@@ -735,7 +756,13 @@ impl<'a> Visitor<'a, String> for DisplayVisitor {
     }
 
     fn is(&self, expr: String, value: Option<bool>) -> String {
-        format!("{} IS {}", expr, value.map(|b| b.to_string().to_uppercase()).unwrap_or("NULL".to_string()))
+        format!(
+            "{} IS {}",
+            expr,
+            value
+                .map(|b| b.to_string().to_uppercase())
+                .unwrap_or("NULL".to_string())
+        )
     }
 }
 
@@ -766,17 +793,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 
     fn identifier(&self, ident: &'a ast::Ident) -> Result<Expr> {
-        let column = self
-            .0
-            .get(&ident.cloned())
-            .cloned()
-            .unwrap_or_else(|| {
-                if let Some(_) = ident.quote_style {
-                    ident.value.clone().into()
-                } else {
-                    ident.value.to_lowercase().clone().into()
-                }
-            });
+        let column = self.0.get(&ident.cloned()).cloned().unwrap_or_else(|| {
+            if let Some(_) = ident.quote_style {
+                ident.value.clone().into()
+            } else {
+                ident.value.to_lowercase().clone().into()
+            }
+        });
         Ok(Expr::Column(column))
     }
 
@@ -913,7 +936,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 } else {
                     false
                 }
-            },
+            }
         };
         Ok(match function_name {
             // Math Functions
@@ -925,7 +948,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 if flat_args.len() == 1 {
                     Expr::log(flat_args[0].clone())
                 } else {
-                    Expr::divide(Expr::log(flat_args[1].clone()), Expr::log(flat_args[0].clone()))
+                    Expr::divide(
+                        Expr::log(flat_args[1].clone()),
+                        Expr::log(flat_args[0].clone()),
+                    )
                 }
             }
             "log2" => Expr::divide(Expr::log(Expr::val(2)), Expr::log(flat_args[0].clone())),
@@ -933,7 +959,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "abs" => Expr::abs(flat_args[0].clone()),
             "sin" => Expr::sin(flat_args[0].clone()),
             "cos" => Expr::cos(flat_args[0].clone()),
-            "tan" => Expr::divide(Expr::sin(flat_args[0].clone()), Expr::cos(flat_args[0].clone())),
+            "tan" => Expr::divide(
+                Expr::sin(flat_args[0].clone()),
+                Expr::cos(flat_args[0].clone()),
+            ),
             "sqrt" => Expr::sqrt(flat_args[0].clone()),
             "pow" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
             "power" => Expr::pow(flat_args[0].clone(), flat_args[1].clone()),
@@ -965,10 +994,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 } else {
                     Expr::val(0)
                 };
-                Expr::round(
-                    flat_args[0].clone(),
-                    precision,
-                )
+                Expr::round(flat_args[0].clone(), precision)
             }
             "trunc" | "truncate" => {
                 let precision = if flat_args.len() > 1 {
@@ -976,29 +1002,24 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 } else {
                     Expr::val(0)
                 };
-                Expr::trunc(
-                    flat_args[0].clone(),
-                    precision,
-                )
+                Expr::trunc(flat_args[0].clone(), precision)
             }
             "sign" => Expr::sign(flat_args[0].clone()),
             "random" | "rand" => Expr::random(namer::new_id("UNIFORM_SAMPLING")),
             "pi" => Expr::pi(),
             "degrees" => Expr::multiply(
                 flat_args[0].clone(),
-                Expr::divide(Expr::val(180.), Expr::pi())
+                Expr::divide(Expr::val(180.), Expr::pi()),
             ),
             "choose" => Expr::choose(
                 flat_args[0].clone(),
                 Expr::val(Value::list(
-                    flat_args.iter()
+                    flat_args
+                        .iter()
                         .skip(1)
-                        .map(|x|
-                            Value::try_from(x.clone())
-                            .map_err(|e| Error::other(e))
-                        )
-                        .collect::<Result<Vec<_>>>()?
-                ))
+                        .map(|x| Value::try_from(x.clone()).map_err(|e| Error::other(e)))
+                        .collect::<Result<Vec<_>>>()?,
+                )),
             ),
             // String functions
             "lower" => Expr::lower(flat_args[0].clone()),
@@ -1028,9 +1049,18 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 } else {
                     Expr::val(1)
                 };
-                Expr::regexp_extract(flat_args[0].clone(), flat_args[1].clone(), position, occurrence)
-            },
-            "regexp_replace" => Expr::regexp_replace(flat_args[0].clone(), flat_args[1].clone(), flat_args[2].clone()),
+                Expr::regexp_extract(
+                    flat_args[0].clone(),
+                    flat_args[1].clone(),
+                    position,
+                    occurrence,
+                )
+            }
+            "regexp_replace" => Expr::regexp_replace(
+                flat_args[0].clone(),
+                flat_args[1].clone(),
+                flat_args[2].clone(),
+            ),
             "newid" => Expr::newid(),
             "encode" => Expr::encode(flat_args[0].clone(), flat_args[1].clone()),
             "decode" => Expr::decode(flat_args[0].clone(), flat_args[1].clone()),
@@ -1042,7 +1072,11 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "dayname" => Expr::dayname(flat_args[0].clone()),
             "date_format" => Expr::date_format(flat_args[0].clone(), flat_args[1].clone()),
             "quarter" => Expr::quarter(flat_args[0].clone()),
-            "datetime_diff" => Expr::datetime_diff(flat_args[0].clone(), flat_args[1].clone(), flat_args[2].clone()),
+            "datetime_diff" => Expr::datetime_diff(
+                flat_args[0].clone(),
+                flat_args[1].clone(),
+                flat_args[2].clone(),
+            ),
             "date" => Expr::date(flat_args[0].clone()),
             "from_unixtime" => {
                 let format = if flat_args.len() > 1 {
@@ -1051,7 +1085,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                     Expr::val("%Y-%m-%d %H:%i:%S".to_string())
                 };
                 Expr::from_unixtime(flat_args[0].clone(), format)
-            },
+            }
             "unix_timestamp" => {
                 let arg = if flat_args.len() > 0 {
                     flat_args[0].clone()
@@ -1059,13 +1093,13 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                     Expr::current_timestamp()
                 };
                 Expr::unix_timestamp(arg)
-            },
+            }
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
             "count" if distinct => Expr::count_distinct(flat_args[0].clone()),
             "count" => Expr::count(flat_args[0].clone()),
-            "avg" if distinct  => Expr::mean_distinct(flat_args[0].clone()),
+            "avg" if distinct => Expr::mean_distinct(flat_args[0].clone()),
             "avg" => Expr::mean(flat_args[0].clone()),
             "sum" if distinct => Expr::sum_distinct(flat_args[0].clone()),
             "sum" => Expr::sum(flat_args[0].clone()),
@@ -1153,110 +1187,110 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 
     fn ceil(&self, expr: Result<Expr>, field: &'a ast::DateTimeField) -> Result<Expr> {
-        if !matches!(field, ast::DateTimeField::NoDateTime) {todo!()}
+        if !matches!(field, ast::DateTimeField::NoDateTime) {
+            todo!()
+        }
         Ok(Expr::ceil(expr.clone()?))
     }
 
     fn floor(&self, expr: Result<Expr>, field: &'a ast::DateTimeField) -> Result<Expr> {
-        if !matches!(field, ast::DateTimeField::NoDateTime) {todo!()}
+        if !matches!(field, ast::DateTimeField::NoDateTime) {
+            todo!()
+        }
         Ok(Expr::floor(expr.clone()?))
     }
 
     fn cast(&self, expr: Result<Expr>, data_type: &'a ast::DataType) -> Result<Expr> {
-        Ok(
-            match data_type {
-                //Text
-                ast::DataType::Character(_)
-                | ast::DataType::Char(_)
-                | ast::DataType::CharacterVarying(_)
-                |ast::DataType::CharVarying(_)
-                | ast::DataType::Varchar(_)
-                | ast::DataType::Nvarchar(_)
-                | ast::DataType::Uuid
-                | ast::DataType::CharacterLargeObject(_)
-                | ast::DataType::CharLargeObject(_)
-                | ast::DataType::Clob(_)
-                | ast::DataType::Text
-                | ast::DataType::String(_) => Expr::cast_as_text(expr.clone()?),
-                //Bytes
-                ast::DataType::Binary(_)
-                | ast::DataType::Varbinary(_)
-                | ast::DataType::Blob(_)
-                | ast::DataType::Bytes(_)
-                | ast::DataType::Bytea => todo!(),
-                //Float
-                ast::DataType::Numeric(_)
-                | ast::DataType::Decimal(_)
-                | ast::DataType::BigNumeric(_)
-                | ast::DataType::BigDecimal(_)
-                | ast::DataType::Dec(_)
-                | ast::DataType::Float(_)
-                | ast::DataType::Float4
-                | ast::DataType::Float64
-                | ast::DataType::Real
-                | ast::DataType::Float8
-                | ast::DataType::Double
-                | ast::DataType::DoublePrecision => Expr::cast_as_float(expr.clone()?),
-                // Integer
-                ast::DataType::TinyInt(_)
-                | ast::DataType::UnsignedTinyInt(_)
-                | ast::DataType::Int2(_)
-                | ast::DataType::UnsignedInt2(_)
-                | ast::DataType::SmallInt(_)
-                | ast::DataType::UnsignedSmallInt(_)
-                | ast::DataType::MediumInt(_)
-                | ast::DataType::UnsignedMediumInt(_)
-                | ast::DataType::Int(_)
-                | ast::DataType::Int4(_)
-                | ast::DataType::Int64
-                | ast::DataType::Integer(_)
-                | ast::DataType::UnsignedInt(_)
-                | ast::DataType::UnsignedInt4(_)
-                | ast::DataType::UnsignedInteger(_)
-                | ast::DataType::BigInt(_)
-                | ast::DataType::UnsignedBigInt(_)
-                | ast::DataType::Int8(_)
-                | ast::DataType::UnsignedInt8(_) => Expr::cast_as_integer(expr.clone()?),
-                // Boolean
-                ast::DataType::Bool
-                | ast::DataType::Boolean => Expr::cast_as_boolean(expr.clone()?),
-                // Date
-                ast::DataType::Date => Expr::cast_as_date(expr.clone()?),
-                // Time
-                ast::DataType::Time(_, _) => Expr::cast_as_time(expr.clone()?),
-                // DateTime
-                ast::DataType::Datetime(_)
-                | ast::DataType::Timestamp(_, _) => Expr::cast_as_date_time(expr.clone()?),
-                ast::DataType::Interval => todo!(),
-                ast::DataType::JSON => todo!(),
-                ast::DataType::Regclass => todo!(),
-                ast::DataType::Custom(_, _) => todo!(),
-                ast::DataType::Array(_) => todo!(),
-                ast::DataType::Enum(_) => todo!(),
-                ast::DataType::Set(_) => todo!(),
-                ast::DataType::Struct(_) => todo!(),
-                ast::DataType::JSONB => todo!(),
-                ast::DataType::Unspecified => todo!(),
+        Ok(match data_type {
+            //Text
+            ast::DataType::Character(_)
+            | ast::DataType::Char(_)
+            | ast::DataType::CharacterVarying(_)
+            | ast::DataType::CharVarying(_)
+            | ast::DataType::Varchar(_)
+            | ast::DataType::Nvarchar(_)
+            | ast::DataType::Uuid
+            | ast::DataType::CharacterLargeObject(_)
+            | ast::DataType::CharLargeObject(_)
+            | ast::DataType::Clob(_)
+            | ast::DataType::Text
+            | ast::DataType::String(_) => Expr::cast_as_text(expr.clone()?),
+            //Bytes
+            ast::DataType::Binary(_)
+            | ast::DataType::Varbinary(_)
+            | ast::DataType::Blob(_)
+            | ast::DataType::Bytes(_)
+            | ast::DataType::Bytea => todo!(),
+            //Float
+            ast::DataType::Numeric(_)
+            | ast::DataType::Decimal(_)
+            | ast::DataType::BigNumeric(_)
+            | ast::DataType::BigDecimal(_)
+            | ast::DataType::Dec(_)
+            | ast::DataType::Float(_)
+            | ast::DataType::Float4
+            | ast::DataType::Float64
+            | ast::DataType::Real
+            | ast::DataType::Float8
+            | ast::DataType::Double
+            | ast::DataType::DoublePrecision => Expr::cast_as_float(expr.clone()?),
+            // Integer
+            ast::DataType::TinyInt(_)
+            | ast::DataType::UnsignedTinyInt(_)
+            | ast::DataType::Int2(_)
+            | ast::DataType::UnsignedInt2(_)
+            | ast::DataType::SmallInt(_)
+            | ast::DataType::UnsignedSmallInt(_)
+            | ast::DataType::MediumInt(_)
+            | ast::DataType::UnsignedMediumInt(_)
+            | ast::DataType::Int(_)
+            | ast::DataType::Int4(_)
+            | ast::DataType::Int64
+            | ast::DataType::Integer(_)
+            | ast::DataType::UnsignedInt(_)
+            | ast::DataType::UnsignedInt4(_)
+            | ast::DataType::UnsignedInteger(_)
+            | ast::DataType::BigInt(_)
+            | ast::DataType::UnsignedBigInt(_)
+            | ast::DataType::Int8(_)
+            | ast::DataType::UnsignedInt8(_) => Expr::cast_as_integer(expr.clone()?),
+            // Boolean
+            ast::DataType::Bool | ast::DataType::Boolean => Expr::cast_as_boolean(expr.clone()?),
+            // Date
+            ast::DataType::Date => Expr::cast_as_date(expr.clone()?),
+            // Time
+            ast::DataType::Time(_, _) => Expr::cast_as_time(expr.clone()?),
+            // DateTime
+            ast::DataType::Datetime(_) | ast::DataType::Timestamp(_, _) => {
+                Expr::cast_as_date_time(expr.clone()?)
             }
-        )
+            ast::DataType::Interval => todo!(),
+            ast::DataType::JSON => todo!(),
+            ast::DataType::Regclass => todo!(),
+            ast::DataType::Custom(_, _) => todo!(),
+            ast::DataType::Array(_) => todo!(),
+            ast::DataType::Enum(_) => todo!(),
+            ast::DataType::Set(_) => todo!(),
+            ast::DataType::Struct(_) => todo!(),
+            ast::DataType::JSONB => todo!(),
+            ast::DataType::Unspecified => todo!(),
+        })
     }
 
     fn extract(&self, field: &'a ast::DateTimeField, expr: Result<Expr>) -> Result<Expr> {
-        Ok(
-            match field {
-                ast::DateTimeField::Year => Expr::extract_year(expr.clone()?),
-                ast::DateTimeField::Month => Expr::extract_month(expr.clone()?),
-                ast::DateTimeField::Week(_) => Expr::extract_week(expr.clone()?),
-                ast::DateTimeField::Day => Expr::extract_day(expr.clone()?),
-                ast::DateTimeField::Hour => Expr::extract_hour(expr.clone()?),
-                ast::DateTimeField::Minute => Expr::extract_minute(expr.clone()?),
-                ast::DateTimeField::Second => Expr::extract_second(expr.clone()?),
-                ast::DateTimeField::Dow => Expr::extract_dow(expr.clone()?),
-                ast::DateTimeField::Microsecond => Expr::extract_microsecond(expr.clone()?),
-                ast::DateTimeField::Millisecond => Expr::extract_millisecond(expr.clone()?),
-                _ => todo!(),
-            }
-        )
+        Ok(match field {
+            ast::DateTimeField::Year => Expr::extract_year(expr.clone()?),
+            ast::DateTimeField::Month => Expr::extract_month(expr.clone()?),
+            ast::DateTimeField::Week(_) => Expr::extract_week(expr.clone()?),
+            ast::DateTimeField::Day => Expr::extract_day(expr.clone()?),
+            ast::DateTimeField::Hour => Expr::extract_hour(expr.clone()?),
+            ast::DateTimeField::Minute => Expr::extract_minute(expr.clone()?),
+            ast::DateTimeField::Second => Expr::extract_second(expr.clone()?),
+            ast::DateTimeField::Dow => Expr::extract_dow(expr.clone()?),
+            ast::DateTimeField::Microsecond => Expr::extract_microsecond(expr.clone()?),
+            ast::DateTimeField::Millisecond => Expr::extract_millisecond(expr.clone()?),
+            _ => todo!(),
+        })
     }
 
     fn like(&self, expr: Result<Expr>, pattern: Result<Expr>) -> Result<Expr> {
@@ -1268,12 +1302,10 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
     }
 
     fn is(&self, expr: Result<Expr>, value: Option<bool>) -> Result<Expr> {
-        Ok(
-            match value {
-                Some(b) => Expr::is_bool(expr.clone()?, Expr::val(b)),
-                None => Expr::is_null(expr.clone()?),
-            }
-        )
+        Ok(match value {
+            Some(b) => Expr::is_bool(expr.clone()?, Expr::val(b)),
+            None => Expr::is_null(expr.clone()?),
+        })
     }
 }
 

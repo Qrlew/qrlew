@@ -5,8 +5,6 @@ use itertools::Itertools;
 use super::{implementation, Result};
 use crate::data_type::{value::Value, DataType};
 
-
-
 /// The list of operators
 /// inspired by: https://docs.rs/sqlparser/latest/sqlparser/ast/enum.BinaryOperator.html
 /// and mostly: https://docs.rs/polars/latest/polars/prelude/enum.AggExpr.html
@@ -32,7 +30,7 @@ pub enum Aggregate {
     Std,
     StdDistinct,
     Var,
-    VarDistinct
+    VarDistinct,
 }
 
 // TODO make sure f64::nan do not happen

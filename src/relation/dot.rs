@@ -406,7 +406,10 @@ mod tests {
         namer::reset();
         let schema: Schema = vec![
             ("a", DataType::float()),
-            ("b", DataType::text_values(&["A&B".into(), "C>D".into()]))].into_iter().collect();
+            ("b", DataType::text_values(&["A&B".into(), "C>D".into()])),
+        ]
+        .into_iter()
+        .collect();
         let table: Relation = Relation::table()
             .name("table")
             .schema(schema.clone())

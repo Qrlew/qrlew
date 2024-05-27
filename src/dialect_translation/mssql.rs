@@ -60,11 +60,11 @@ impl RelationToQueryTranslator for MsSqlTranslator {
     /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
     fn md5(&self, expr: &expr::Expr) -> ast::Expr {
         let ast_expr = self.expr(expr);
-    
+
         // Construct HASHBYTES('MD5', X)
         let md5_literal = ast::Expr::Value(ast::Value::SingleQuotedString("MD5".to_string()));
         let md5_literal_as_function_arg =
-        ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
+            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
         let ast_expr_as_function_arg =
             ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(ast_expr));
 
@@ -88,7 +88,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             data_type: Some(ast::DataType::Varchar(Some(ast::CharacterLength::Max))),
             charset: None,
             target_before_value: true,
-            styles: vec![ast::Expr::Value(ast::Value::Number("2".to_string(), false))]
+            styles: vec![ast::Expr::Value(ast::Value::Number("2".to_string(), false))],
         }
     }
 
@@ -103,7 +103,10 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         let ast_expr = self.expr(expr);
         ast::Expr::Cast {
             expr: Box::new(ast_expr),
-            data_type: ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {length: 255, unit:None })),
+            data_type: ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {
+                length: 255,
+                unit: None,
+            })),
             format: None,
             kind: ast::CastKind::Cast,
         }
@@ -190,7 +193,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
                 named_window: vec![],
                 window_before_qualify: false,
                 value_table_mode: None,
-                connect_by: None
+                connect_by: None,
             }))),
             order_by,
             limit: None,
@@ -210,12 +213,12 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             global: None,
             if_not_exists: false,
             transient: false,
-            name:  ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
+            name: ast::ObjectName(self.identifier(&(table.path().clone().into()))),
             columns: table
                 .schema()
                 .iter()
                 .map(|f| ast::ColumnDef {
-                    name: self.identifier( &(f.name().into()) )[0].clone(),
+                    name: self.identifier(&(f.name().into()))[0].clone(),
                     // Need to override some convertions
                     data_type: { translate_data_type(f.data_type()) },
                     collation: None,
@@ -301,7 +304,7 @@ impl QueryToRelationTranslator for MsSqlTranslator {
         } else {
             let is_first_arg_valid = is_varchar_valid(&args[0]);
             let is_last_arg_valid = is_literal_two_arg(&args[2]);
-            let extract_x_arg = extract_hashbyte_expression_if_valid(&args[1]); 
+            let extract_x_arg = extract_hashbyte_expression_if_valid(&args[1]);
             if is_first_arg_valid && is_last_arg_valid && extract_x_arg.is_some() {
                 let function_args = ast::FunctionArgumentList {
                     duplicate_treatment: None,
@@ -379,7 +382,10 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
 // method to override DataType -> ast::DataType
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
-        DataType::Text(_) => ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength { length: 255, unit: None})),
+        DataType::Text(_) => ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {
+            length: 255,
+            unit: None,
+        })),
         //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL,
         // SQLParser doesn't support the BIT DataType (mssql equivalent of bool)
         DataType::Optional(o) => translate_data_type(o.data_type().clone()),

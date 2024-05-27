@@ -1,8 +1,8 @@
 //! The splits with some improvements
 //! Each split has named Expr and anonymous exprs
 use super::{
-    aggregate, function, visitor::Acceptor, AggregateColumn, Column, Expr, Function,
-    Identifier, Value, Visitor,
+    aggregate, function, visitor::Acceptor, AggregateColumn, Column, Expr, Function, Identifier,
+    Value, Visitor,
 };
 use crate::{
     namer::{self, FIELD},
@@ -36,9 +36,11 @@ impl Split {
     }
 
     pub fn group_by(expr: Expr) -> Reduce {
-        if let Expr::Column(col) = expr {// If the expression is a column
+        if let Expr::Column(col) = expr {
+            // If the expression is a column
             Reduce::new(vec![], vec![col], None)
-        } else {// If not
+        } else {
+            // If not
             let name = namer::name_from_content(FIELD, &expr);
             let map = Map::new(vec![(name.clone(), expr)], None, vec![], None);
             Reduce::new(vec![], vec![name.into()], Some(map))
@@ -933,9 +935,9 @@ mod tests {
 
     #[test]
     fn test_split_map_reduce_map_group_by_expr() {
-        let split = Split::from(("b", expr!(2*count(1 + y))));
-        let split = split.and(Split::group_by(expr!(x-y)).into());
-        let split = split.and(Split::from(("a", expr!(x-y))));
+        let split = Split::from(("b", expr!(2 * count(1 + y))));
+        let split = split.and(Split::group_by(expr!(x - y)).into());
+        let split = split.and(Split::from(("a", expr!(x - y))));
         println!("split = {split}");
     }
 }

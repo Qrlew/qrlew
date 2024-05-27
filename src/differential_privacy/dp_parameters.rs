@@ -16,8 +16,20 @@ pub struct DpParameters {
 }
 
 impl DpParameters {
-    pub fn new(epsilon: f64, delta: f64, tau_thresholding_share: f64, privacy_unit_max_multiplicity: f64, privacy_unit_max_multiplicity_share: f64) -> DpParameters {
-        DpParameters { epsilon, delta, tau_thresholding_share, privacy_unit_max_multiplicity, privacy_unit_max_multiplicity_share }
+    pub fn new(
+        epsilon: f64,
+        delta: f64,
+        tau_thresholding_share: f64,
+        privacy_unit_max_multiplicity: f64,
+        privacy_unit_max_multiplicity_share: f64,
+    ) -> DpParameters {
+        DpParameters {
+            epsilon,
+            delta,
+            tau_thresholding_share,
+            privacy_unit_max_multiplicity,
+            privacy_unit_max_multiplicity_share,
+        }
     }
 
     pub fn from_epsilon_delta(epsilon: f64, delta: f64) -> DpParameters {
@@ -26,15 +38,30 @@ impl DpParameters {
     }
 
     pub fn with_tau_thresholding_share(self, tau_thresholding_share: f64) -> DpParameters {
-        DpParameters { tau_thresholding_share, ..self }
+        DpParameters {
+            tau_thresholding_share,
+            ..self
+        }
     }
 
-    pub fn with_privacy_unit_max_multiplicity(self, privacy_unit_max_multiplicity: f64) -> DpParameters {
-        DpParameters { privacy_unit_max_multiplicity, ..self }
+    pub fn with_privacy_unit_max_multiplicity(
+        self,
+        privacy_unit_max_multiplicity: f64,
+    ) -> DpParameters {
+        DpParameters {
+            privacy_unit_max_multiplicity,
+            ..self
+        }
     }
 
-    pub fn with_privacy_unit_max_multiplicity_share(self, privacy_unit_max_multiplicity_share: f64) -> DpParameters {
-        DpParameters { privacy_unit_max_multiplicity_share, ..self }
+    pub fn with_privacy_unit_max_multiplicity_share(
+        self,
+        privacy_unit_max_multiplicity_share: f64,
+    ) -> DpParameters {
+        DpParameters {
+            privacy_unit_max_multiplicity_share,
+            ..self
+        }
     }
 }
 

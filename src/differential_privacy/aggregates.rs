@@ -3,11 +3,13 @@ use crate::{
     data_type::DataTyped,
     differential_privacy::dp_event::DpEvent,
     differential_privacy::{dp_event, DpRelation, Error, Result},
-    expr::{aggregate::{self, Aggregate}, AggregateColumn, Expr, Column, Identifier},
+    expr::{
+        aggregate::{self, Aggregate},
+        AggregateColumn, Column, Expr, Identifier,
+    },
     privacy_unit_tracking::PupRelation,
     relation::{field::Field, Map, Reduce, Relation, Variant},
     DataType, Ready,
-
 };
 use std::{cmp, collections::HashMap, ops::Deref};
 
@@ -28,7 +30,14 @@ pub struct DpAggregatesParameters {
 }
 
 impl DpAggregatesParameters {
-    pub fn new(epsilon: f64, delta: f64, size: usize, privacy_unit_unique: bool, privacy_unit_max_multiplicity: f64, privacy_unit_max_multiplicity_share: f64) -> DpAggregatesParameters {
+    pub fn new(
+        epsilon: f64,
+        delta: f64,
+        size: usize,
+        privacy_unit_unique: bool,
+        privacy_unit_max_multiplicity: f64,
+        privacy_unit_max_multiplicity_share: f64,
+    ) -> DpAggregatesParameters {
         DpAggregatesParameters {
             epsilon,
             delta,
@@ -40,7 +49,14 @@ impl DpAggregatesParameters {
     }
 
     pub fn from_dp_parameters(dp_parameters: DpParameters, share: f64) -> DpAggregatesParameters {
-        DpAggregatesParameters::new(dp_parameters.epsilon*share, dp_parameters.delta*share, 1, false, dp_parameters.privacy_unit_max_multiplicity, dp_parameters.privacy_unit_max_multiplicity_share)
+        DpAggregatesParameters::new(
+            dp_parameters.epsilon * share,
+            dp_parameters.delta * share,
+            1,
+            false,
+            dp_parameters.privacy_unit_max_multiplicity,
+            dp_parameters.privacy_unit_max_multiplicity_share,
+        )
     }
 
     pub fn split(self, n: usize) -> DpAggregatesParameters {
@@ -59,7 +75,10 @@ impl DpAggregatesParameters {
     }
 
     pub fn with_privacy_unit_unique(self, unique_privacy_unit: bool) -> DpAggregatesParameters {
-        DpAggregatesParameters { privacy_unit_unique: unique_privacy_unit, ..self }
+        DpAggregatesParameters {
+            privacy_unit_unique: unique_privacy_unit,
+            ..self
+        }
     }
 
     /// Compute the multiplicity estimate to use for the computations
@@ -67,14 +86,16 @@ impl DpAggregatesParameters {
         if self.privacy_unit_unique {
             1.
         } else {
-            self.privacy_unit_max_multiplicity.min((self.size as f64)*self.privacy_unit_max_multiplicity_share).ceil()
+            self.privacy_unit_max_multiplicity
+                .min((self.size as f64) * self.privacy_unit_max_multiplicity_share)
+                .ceil()
         }
     }
 }
 
 impl Relation {
     fn gaussian_mechanisms(self, epsilon: f64, delta: f64, bounds: Vec<(&str, f64)>) -> DpRelation {
-        if epsilon>1. {
+        if epsilon > 1. {
             // Cf. Theorem A.1. in (Dwork, Roth et al. 2014)
             log::warn!("Warning, epsilon>1 the gaussian mechanism applied will not be exactly epsilon,delta-DP!")
         }
@@ -100,15 +121,12 @@ impl Relation {
                 .into();
             (
                 self.add_clipped_gaussian_noise(&noise_multipliers),
-                dp_event
+                dp_event,
             )
         } else {
             (self, DpEvent::no_op())
         };
-        DpRelation::new(
-            dp_relation,
-            dp_event,
-        )
+        DpRelation::new(dp_relation, dp_event)
     }
 }
 
@@ -126,8 +144,7 @@ impl PupRelation {
         if (parameters.epsilon == 0. || parameters.delta == 0.) && !named_sums.is_empty() {
             return Err(Error::BudgetError(format!(
                 "Not enough budget for the aggregations. Got: (espilon, delta) = ({}, {})",
-                parameters.epsilon,
-                parameters.delta,
+                parameters.epsilon, parameters.delta,
             )));
         }
         // let multiplicity_bound = parameters.clipping_quantile // TODO
@@ -142,7 +159,8 @@ impl PupRelation {
                         .absolute_upper_bound()
                         .unwrap_or(1.0)
                     // This may add a lot of noise depending on the parameters
-                    * parameters.privacy_unit_multiplicity()).clamp(f64::MIN, f64::MAX),
+                    * parameters.privacy_unit_multiplicity())
+                    .clamp(f64::MIN, f64::MAX),
                 )
             })
             .collect::<Vec<_>>();
@@ -173,13 +191,10 @@ impl PupRelation {
         let mut output_builder = Map::builder();
         let mut named_sums = vec![];
         let mut input_builder = Map::builder()
-            .with((
-                self.privacy_unit(),
-                Expr::col(self.privacy_unit())
-            ))
+            .with((self.privacy_unit(), Expr::col(self.privacy_unit())))
             .with((
                 self.privacy_unit_weight(),
-                Expr::col(self.privacy_unit_weight())
+                Expr::col(self.privacy_unit_weight()),
             ));
 
         let mut group_by_names = vec![];
@@ -202,20 +217,27 @@ impl PupRelation {
                 let square_col = format!("_SQUARE_{}", col_name);
                 let sum_square_col = format!("_SUM{}", square_col);
                 match aggregate.aggregate() {
-                    Aggregate::Min |
-                    Aggregate::Max |
-                    Aggregate::Median |
-                    Aggregate::First |
-                    Aggregate::Last |
-                    Aggregate::Quantile(_) |
-                    Aggregate::Quantiles(_) => {
+                    Aggregate::Min
+                    | Aggregate::Max
+                    | Aggregate::Median
+                    | Aggregate::First
+                    | Aggregate::Last
+                    | Aggregate::Quantile(_)
+                    | Aggregate::Quantiles(_) => {
                         assert!(group_by_names.contains(&col_name.as_str()));
                         output_b = output_b.with((name, Expr::col(col_name.as_str())))
-                    },
+                    }
                     aggregate::Aggregate::Mean => {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
-                            .with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
+                            .with((
+                                one_col.as_str(),
+                                Expr::case(
+                                    Expr::is_null(Expr::col(col_name.as_str())),
+                                    Expr::val(0.),
+                                    Expr::val(1.),
+                                ),
+                            ));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
                         output_b = output_b.with((
@@ -227,9 +249,17 @@ impl PupRelation {
                         ))
                     }
                     aggregate::Aggregate::Count => {
-                        input_b = input_b.with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
+                        input_b = input_b.with((
+                            one_col.as_str(),
+                            Expr::case(
+                                Expr::is_null(Expr::col(col_name.as_str())),
+                                Expr::val(0.),
+                                Expr::val(1.),
+                            ),
+                        ));
                         sums.push((count_col.clone(), one_col));
-                        output_b = output_b.with((name, Expr::cast_as_integer(Expr::col(count_col))));
+                        output_b =
+                            output_b.with((name, Expr::cast_as_integer(Expr::col(count_col))));
                     }
                     aggregate::Aggregate::Sum => {
                         input_b = input_b.with((col_name.as_str(), Expr::col(col_name.as_str())));
@@ -239,8 +269,18 @@ impl PupRelation {
                     aggregate::Aggregate::Std => {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
-                            .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
-                            .with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
+                            .with((
+                                square_col.as_str(),
+                                Expr::pow(Expr::col(col_name.as_str()), Expr::val(2)),
+                            ))
+                            .with((
+                                one_col.as_str(),
+                                Expr::case(
+                                    Expr::is_null(Expr::col(col_name.as_str())),
+                                    Expr::val(0.),
+                                    Expr::val(1.),
+                                ),
+                            ));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
                         sums.push((sum_square_col.clone(), square_col));
@@ -257,15 +297,25 @@ impl PupRelation {
                                         Expr::col(sum_col),
                                         Expr::greatest(Expr::val(1.), Expr::col(count_col)),
                                     ),
-                                )
-                            ))
+                                ),
+                            )),
                         ))
                     }
                     aggregate::Aggregate::Var => {
                         input_b = input_b
                             .with((col_name.as_str(), Expr::col(col_name.as_str())))
-                            .with((square_col.as_str(), Expr::pow(Expr::col(col_name.as_str()), Expr::val(2))))
-                            .with((one_col.as_str(), Expr::case(Expr::is_null(Expr::col(col_name.as_str())), Expr::val(0.), Expr::val(1.))));
+                            .with((
+                                square_col.as_str(),
+                                Expr::pow(Expr::col(col_name.as_str()), Expr::val(2)),
+                            ))
+                            .with((
+                                one_col.as_str(),
+                                Expr::case(
+                                    Expr::is_null(Expr::col(col_name.as_str())),
+                                    Expr::val(0.),
+                                    Expr::val(1.),
+                                ),
+                            ));
                         sums.push((count_col.clone(), one_col));
                         sums.push((sum_col.clone(), col_name));
                         sums.push((sum_square_col.clone(), square_col));
@@ -282,8 +332,8 @@ impl PupRelation {
                                         Expr::col(sum_col),
                                         Expr::greatest(Expr::val(1.), Expr::col(count_col)),
                                     ),
-                                )
-                            )
+                                ),
+                            ),
                         ))
                     }
                     _ => (),
@@ -304,9 +354,7 @@ impl PupRelation {
                 parameters,
             )?
             .into();
-        let dp_relation = output_builder
-            .input(dp_relation)
-            .build();
+        let dp_relation = output_builder.input(dp_relation).build();
         Ok(DpRelation::new(dp_relation, dp_event))
     }
 }
@@ -322,21 +370,26 @@ impl Reduce {
         let reduces = self.split_distinct_aggregates();
         let split_parameters = parameters.clone().split(reduces.len());
         // Rewrite into differential privacy each `Reduce` then join them.
-        let (relation, dp_event) = reduces.iter()
-            .map(|r| pup_input.clone().differentially_private_aggregates(
-                r.named_aggregates()
-                    .into_iter()
-                    .map(|(n, agg)| (n, agg.clone()))
-                    .collect(),
-                self.group_by(),
-                split_parameters.clone(),
-            ))
+        let (relation, dp_event) = reduces
+            .iter()
+            .map(|r| {
+                pup_input.clone().differentially_private_aggregates(
+                    r.named_aggregates()
+                        .into_iter()
+                        .map(|(n, agg)| (n, agg.clone()))
+                        .collect(),
+                    self.group_by(),
+                    split_parameters.clone(),
+                )
+            })
             .reduce(|acc, dp_rel| {
                 let acc = acc?;
                 let dp_rel = dp_rel?;
                 Ok(DpRelation::new(
-                    acc.relation().clone().natural_inner_join(dp_rel.relation().clone()),
-            acc.dp_event().clone().compose(dp_rel.dp_event().clone())
+                    acc.relation()
+                        .clone()
+                        .natural_inner_join(dp_rel.relation().clone()),
+                    acc.dp_event().clone().compose(dp_rel.dp_event().clone()),
                 ))
             })
             .unwrap()?
@@ -344,17 +397,21 @@ impl Reduce {
 
         let relation: Relation = Relation::map()
             .input(relation)
-            .with_iter(self.fields().into_iter().map(|f| (f.name(), Expr::col(f.name()))))
+            .with_iter(
+                self.fields()
+                    .into_iter()
+                    .map(|f| (f.name(), Expr::col(f.name()))),
+            )
             .build();
         Ok((relation, dp_event).into())
     }
-
 
     /// Returns a Vec of rewritten `Reduce` whose each item corresponds to a specific `DISTINCT` clause
     /// (e.g.: SUM(DISTINCT a) or COUNT(DISTINCT a) have the same `DISTINCT` clause). The original `Reduce``
     /// has been rewritten with `GROUP BY`s for each `DISTINCT` clause.
     fn split_distinct_aggregates(&self) -> Vec<Reduce> {
-        let mut distinct_map: HashMap<Option<Column>, Vec<(String, AggregateColumn)>> = HashMap::new();
+        let mut distinct_map: HashMap<Option<Column>, Vec<(String, AggregateColumn)>> =
+            HashMap::new();
         let mut first_aggs: Vec<(String, AggregateColumn)> = vec![];
         for (agg, f) in self.aggregate().iter().zip(self.fields()) {
             match agg.aggregate() {
@@ -362,9 +419,15 @@ impl Reduce {
                 | aggregate::Aggregate::SumDistinct
                 | aggregate::Aggregate::MeanDistinct
                 | aggregate::Aggregate::VarDistinct
-                | aggregate::Aggregate::StdDistinct => distinct_map.entry(Some(agg.column().clone())).or_insert(Vec::new()).push((f.name().to_string(), agg.clone())),
+                | aggregate::Aggregate::StdDistinct => distinct_map
+                    .entry(Some(agg.column().clone()))
+                    .or_insert(Vec::new())
+                    .push((f.name().to_string(), agg.clone())),
                 aggregate::Aggregate::First => first_aggs.push((f.name().to_string(), agg.clone())),
-                _ => distinct_map.entry(None).or_insert(Vec::new()).push((f.name().to_string(), agg.clone())),
+                _ => distinct_map
+                    .entry(None)
+                    .or_insert(Vec::new())
+                    .push((f.name().to_string(), agg.clone())),
             }
         }
 
@@ -373,11 +436,17 @@ impl Reduce {
         } else {
             first_aggs.extend(
                 self.group_by()
-                .into_iter()
-                .map(|x| (x.to_string(), AggregateColumn::new(aggregate::Aggregate::First, x.clone())))
-                .collect::<Vec<_>>()
+                    .into_iter()
+                    .map(|x| {
+                        (
+                            x.to_string(),
+                            AggregateColumn::new(aggregate::Aggregate::First, x.clone()),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
             );
-            distinct_map.into_iter()
+            distinct_map
+                .into_iter()
                 .map(|(identifier, mut aggs)| {
                     aggs.extend(first_aggs.clone());
                     self.rewrite_distinct(identifier, aggs)
@@ -401,21 +470,29 @@ impl Reduce {
     /// Example 2 :
     /// (SELECT sum(DISTINCT col1), count(*) FROM table GROUP BY a, None, ("my_count", count(*)))
     /// --> SELECT a AS a, count(*) AS my_count FROM table GROUP BY a
-    fn rewrite_distinct(&self, identifier: Option<Identifier>, aggs: Vec<(String, AggregateColumn)>) -> Reduce {
-        let builder = Relation::reduce()
-            .input(self.input().clone());
+    fn rewrite_distinct(
+        &self,
+        identifier: Option<Identifier>,
+        aggs: Vec<(String, AggregateColumn)>,
+    ) -> Reduce {
+        let builder = Relation::reduce().input(self.input().clone());
         if let Some(identifier) = identifier {
-            let mut group_by = self.group_by()
+            let mut group_by = self
+                .group_by()
                 .into_iter()
                 .map(|c| c.clone())
                 .collect::<Vec<_>>();
             group_by.push(identifier);
 
-            let first_aggs = group_by.clone()
-                .into_iter()
-                .map(|c| (c.to_string(), AggregateColumn::new(aggregate::Aggregate::First, c)));
+            let first_aggs = group_by.clone().into_iter().map(|c| {
+                (
+                    c.to_string(),
+                    AggregateColumn::new(aggregate::Aggregate::First, c),
+                )
+            });
 
-            let group_by = group_by.into_iter()
+            let group_by = group_by
+                .into_iter()
                 .map(|c| Expr::from(c.clone()))
                 .collect::<Vec<_>>();
 
@@ -424,19 +501,18 @@ impl Reduce {
                 .with_iter(first_aggs)
                 .build();
 
-            let aggs = aggs.into_iter()
-                .map(|(s, agg)| {
-                    let new_agg = match agg.aggregate() {
-                        aggregate::Aggregate::MeanDistinct => aggregate::Aggregate::Mean,
-                        aggregate::Aggregate::CountDistinct => aggregate::Aggregate::Count,
-                        aggregate::Aggregate::SumDistinct => aggregate::Aggregate::Sum,
-                        aggregate::Aggregate::StdDistinct => aggregate::Aggregate::Std,
-                        aggregate::Aggregate::VarDistinct => aggregate::Aggregate::Var,
-                        aggregate::Aggregate::First => aggregate::Aggregate::First,
-                        _ => todo!(),
-                    };
-                    (s, AggregateColumn::new(new_agg, agg.column().clone()))
-                });
+            let aggs = aggs.into_iter().map(|(s, agg)| {
+                let new_agg = match agg.aggregate() {
+                    aggregate::Aggregate::MeanDistinct => aggregate::Aggregate::Mean,
+                    aggregate::Aggregate::CountDistinct => aggregate::Aggregate::Count,
+                    aggregate::Aggregate::SumDistinct => aggregate::Aggregate::Sum,
+                    aggregate::Aggregate::StdDistinct => aggregate::Aggregate::Std,
+                    aggregate::Aggregate::VarDistinct => aggregate::Aggregate::Var,
+                    aggregate::Aggregate::First => aggregate::Aggregate::First,
+                    _ => todo!(),
+                };
+                (s, AggregateColumn::new(new_agg, agg.column().clone()))
+            });
             Relation::reduce()
                 .input(reduce)
                 .group_by_iter(self.group_by().to_vec())
@@ -444,9 +520,9 @@ impl Reduce {
                 .build()
         } else {
             builder
-            .group_by_iter(self.group_by().clone().to_vec())
-            .with_iter(aggs)
-            .build()
+                .group_by_iter(self.group_by().clone().to_vec())
+                .with_iter(aggs)
+                .build()
         }
     }
 }
@@ -460,13 +536,13 @@ mod tests {
         data_type::Variant,
         display::Dot,
         io::{postgresql, Database},
+        privacy_unit_tracking::PrivacyUnit,
         privacy_unit_tracking::{PrivacyUnitTracking, Strategy},
+        relation::{Constraint, Schema, Variant as _},
         sql::parse,
         Relation,
-        relation::{Constraint, Schema, Variant as _},
-        privacy_unit_tracking::PrivacyUnit
     };
-    use std::{sync::Arc, ops::Deref};
+    use std::{ops::Deref, sync::Arc};
 
     #[test]
     fn test_table_with_noise() {
@@ -494,7 +570,10 @@ mod tests {
     fn test_differentially_private_sums_no_group_by() {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-3),
+            1.,
+        );
         // privacy tracking of the inputs
         let table = relations
             .get(&["item_table".to_string()])
@@ -554,7 +633,7 @@ mod tests {
             .unwrap();
         let map = Map::new(
             "my_map".to_string(),
-            vec![("my_d".to_string(), expr!(d/100))],
+            vec![("my_d".to_string(), expr!(d / 100))],
             None,
             vec![],
             None,
@@ -564,7 +643,7 @@ mod tests {
         let pup_map = privacy_unit_tracking
             .map(
                 &map.clone().try_into().unwrap(),
-                PupRelation(Relation::from(pup_table))
+                PupRelation(Relation::from(pup_table)),
             )
             .unwrap();
         let reduce = Reduce::new(
@@ -598,7 +677,10 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-3),
+            1.,
+        );
         // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
@@ -662,7 +744,10 @@ mod tests {
             )
             .size(100)
             .build();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-3),
+            1.,
+        );
 
         // GROUP BY and the aggregate input the same column
         let reduce: Reduce = Relation::reduce()
@@ -700,7 +785,10 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-3),
+            1.,
+        );
 
         // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -762,7 +850,10 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-3),
+            1.,
+        );
 
         // privacy tracking of the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((
@@ -862,7 +953,10 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-3),
+            1.,
+        );
         let privacy_unit_tracking = PrivacyUnitTracking::from((
             &relations,
             vec![
@@ -884,9 +978,15 @@ mod tests {
             "my_reduce".to_string(),
             vec![
                 ("count_price".to_string(), AggregateColumn::count("price")),
-                ("count_distinct_price".to_string(), AggregateColumn::count_distinct("price")),
+                (
+                    "count_distinct_price".to_string(),
+                    AggregateColumn::count_distinct("price"),
+                ),
                 ("sum_price".to_string(), AggregateColumn::sum("price")),
-                ("sum_distinct_price".to_string(), AggregateColumn::sum_distinct("price")),
+                (
+                    "sum_distinct_price".to_string(),
+                    AggregateColumn::sum_distinct("price"),
+                ),
                 ("item".to_string(), AggregateColumn::first("item")),
             ],
             vec!["item".into()],
@@ -921,9 +1021,15 @@ mod tests {
             "my_reduce".to_string(),
             vec![
                 ("count_price".to_string(), AggregateColumn::count("price")),
-                ("count_distinct_price".to_string(), AggregateColumn::count_distinct("price")),
+                (
+                    "count_distinct_price".to_string(),
+                    AggregateColumn::count_distinct("price"),
+                ),
                 ("sum_price".to_string(), AggregateColumn::sum("price")),
-                ("sum_distinct_price".to_string(), AggregateColumn::sum_distinct("price")),
+                (
+                    "sum_distinct_price".to_string(),
+                    AggregateColumn::sum_distinct("price"),
+                ),
             ],
             vec![],
             pup_table.deref().clone().into(),
@@ -971,24 +1077,22 @@ mod tests {
 
         // No distinct + no group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .build();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 1);
         assert_eq!(
             reduces[0].data_type(),
-            DataType::structured([
-                ("sum_a", DataType::float_interval(-2000., 2000.))
-            ])
+            DataType::structured([("sum_a", DataType::float_interval(-2000., 2000.))])
         );
 
         // No distinct + group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .group_by(expr!(b))
-        .build();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .group_by(expr!(b))
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 1);
         assert_eq!(
@@ -1001,25 +1105,23 @@ mod tests {
 
         // simple distinct
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .build();
+            .input(table.clone())
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 1);
         Relation::from(reduces[0].clone()).display_dot().unwrap();
         assert_eq!(
             reduces[0].data_type(),
-            DataType::structured([
-                ("sum_distinct_a", DataType::float_interval(-2000., 2000.))
-            ])
+            DataType::structured([("sum_distinct_a", DataType::float_interval(-2000., 2000.))])
         );
 
         // simple distinct with group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .group_by(expr!(b))
-        .build();
+            .input(table.clone())
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .group_by(expr!(b))
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 1);
         Relation::from(reduces[0].clone()).display_dot().unwrap();
@@ -1033,10 +1135,10 @@ mod tests {
 
         // simple distinct with group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .with_group_by_column("b")
-        .build();
+            .input(table.clone())
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .with_group_by_column("b")
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 1);
         Relation::from(reduces[0].clone()).display_dot().unwrap();
@@ -1050,12 +1152,12 @@ mod tests {
 
         // multi distinct + no group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .with(("count_b", AggregateColumn::count("b")))
-        .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
-        .build();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .with(("count_b", AggregateColumn::count("b")))
+            .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 3);
         Relation::from(reduces[0].clone()).display_dot().unwrap();
@@ -1064,14 +1166,14 @@ mod tests {
 
         // multi distinct + group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .with(("count_b", AggregateColumn::count("b")))
-        .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
-        .with(("my_c", AggregateColumn::first("c")))
-        .group_by(expr!(c))
-        .build();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .with(("count_b", AggregateColumn::count("b")))
+            .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
+            .with(("my_c", AggregateColumn::first("c")))
+            .group_by(expr!(c))
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 3);
         Relation::from(reduces[0].clone()).display_dot().unwrap();
@@ -1080,10 +1182,10 @@ mod tests {
 
         // reduce without any aggregation
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with_group_by_column("a")
-        .with_group_by_column("c")
-        .build();
+            .input(table.clone())
+            .with_group_by_column("a")
+            .with_group_by_column("c")
+            .build();
         let reduces = reduce.split_distinct_aggregates();
         assert_eq!(reduces.len(), 1);
     }
@@ -1104,14 +1206,19 @@ mod tests {
             .schema(schema.clone())
             .size(1000)
             .build();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-5), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-5),
+            1.,
+        );
 
         // No distinct + no group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .build();
-        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .build();
+        let dp_relation = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap();
         assert_eq!(
             dp_relation.dp_event(),
             &DpEvent::gaussian_from_epsilon_delta_sensitivity(
@@ -1122,18 +1229,18 @@ mod tests {
         );
         assert_eq!(
             dp_relation.relation().data_type(),
-            DataType::structured([
-                ("sum_a", DataType::float_interval(-2000., 2000.))
-            ])
+            DataType::structured([("sum_a", DataType::float_interval(-2000., 2000.))])
         );
 
         // No distinct + group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .group_by(expr!(b))
-        .build();
-        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .group_by(expr!(b))
+            .build();
+        let dp_relation = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap();
         assert_eq!(
             dp_relation.dp_event(),
             &DpEvent::gaussian_from_epsilon_delta_sensitivity(
@@ -1144,17 +1251,17 @@ mod tests {
         );
         assert_eq!(
             dp_relation.relation().data_type(),
-            DataType::structured([
-                ("sum_a", DataType::float_interval(-2000., 2000.))
-            ])
+            DataType::structured([("sum_a", DataType::float_interval(-2000., 2000.))])
         );
 
         // simple distinct
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .build();
-        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
+            .input(table.clone())
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .build();
+        let dp_relation = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap();
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.dp_event(),
@@ -1166,18 +1273,18 @@ mod tests {
         );
         assert_eq!(
             dp_relation.relation().data_type(),
-            DataType::structured([
-                ("sum_distinct_a", DataType::float_interval(-2000., 2000.))
-            ])
+            DataType::structured([("sum_distinct_a", DataType::float_interval(-2000., 2000.))])
         );
 
         // simple distinct with group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .with_group_by_column("b")
-        .build();
-        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
+            .input(table.clone())
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .with_group_by_column("b")
+            .build();
+        let dp_relation = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap();
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.dp_event(),
@@ -1197,16 +1304,18 @@ mod tests {
 
         // multi distinct + no group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .with(("count_b", AggregateColumn::count("b")))
-        .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
-        .with(("avg_distinct_b", AggregateColumn::mean_distinct("b")))
-        .with(("var_distinct_b", AggregateColumn::var_distinct("b")))
-        .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
-        .build();
-        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .with(("count_b", AggregateColumn::count("b")))
+            .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
+            .with(("avg_distinct_b", AggregateColumn::mean_distinct("b")))
+            .with(("var_distinct_b", AggregateColumn::var_distinct("b")))
+            .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
+            .build();
+        let dp_relation = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap();
         dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1217,24 +1326,29 @@ mod tests {
                 ("count_distinct_b", DataType::integer_interval(0, 1000)),
                 ("avg_distinct_b", DataType::float_interval(0., 10000.)),
                 ("var_distinct_b", DataType::float_interval(0., 100000.)),
-                ("std_distinct_b", DataType::float_interval(0., 316.22776601683796)),
+                (
+                    "std_distinct_b",
+                    DataType::float_interval(0., 316.22776601683796)
+                ),
             ])
         );
 
         // multi distinct + group by
         let reduce: Reduce = Relation::reduce()
-        .input(table.clone())
-        .with(("sum_a", AggregateColumn::sum("a")))
-        .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
-        .with(("count_b", AggregateColumn::count("b")))
-        .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
-        .with(("my_c", AggregateColumn::first("c")))
-        .with(("avg_distinct_b", AggregateColumn::mean_distinct("b")))
-        .with(("var_distinct_b", AggregateColumn::var_distinct("b")))
-        .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
-        .group_by(expr!(c))
-        .build();
-        let dp_relation = reduce.differentially_private_aggregates(parameters.clone()).unwrap();
+            .input(table.clone())
+            .with(("sum_a", AggregateColumn::sum("a")))
+            .with(("sum_distinct_a", AggregateColumn::sum_distinct("a")))
+            .with(("count_b", AggregateColumn::count("b")))
+            .with(("count_distinct_b", AggregateColumn::count_distinct("b")))
+            .with(("my_c", AggregateColumn::first("c")))
+            .with(("avg_distinct_b", AggregateColumn::mean_distinct("b")))
+            .with(("var_distinct_b", AggregateColumn::var_distinct("b")))
+            .with(("std_distinct_b", AggregateColumn::std_distinct("b")))
+            .group_by(expr!(c))
+            .build();
+        let dp_relation = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap();
         dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1246,7 +1360,10 @@ mod tests {
                 ("my_c", DataType::float_interval(10., 20.)),
                 ("avg_distinct_b", DataType::float_interval(0., 10000.)),
                 ("var_distinct_b", DataType::float_interval(0., 100000.)),
-                ("std_distinct_b", DataType::float_interval(0., 316.22776601683796)),
+                (
+                    "std_distinct_b",
+                    DataType::float_interval(0., 316.22776601683796)
+                ),
             ])
         );
     }
@@ -1272,7 +1389,10 @@ mod tests {
             )
             .size(100)
             .build();
-        let parameters = DpAggregatesParameters::from_dp_parameters(DpParameters::from_epsilon_delta(1., 1e-3), 1.);
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1., 1e-3),
+            1.,
+        );
         // GROUP BY and the aggregate input the same column
         let reduce: Reduce = Relation::reduce()
             .name("reduce_relation")
@@ -1281,9 +1401,9 @@ mod tests {
             .input(table.clone())
             .build();
         let (dp_relation, dp_event) = reduce
-        .differentially_private_aggregates(parameters.clone())
-        .unwrap()
-        .into();
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap()
+            .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
@@ -1297,10 +1417,9 @@ mod tests {
             dp_relation.data_type(),
             DataType::structured([
                 ("sum_a", DataType::float_interval(0., 1000.)),
-                ("a", DataType::integer_range(1..=10)
-            )])
+                ("a", DataType::integer_range(1..=10))
+            ])
         );
-
 
         let reduce: Reduce = Relation::reduce()
             .name("reduce_relation")
@@ -1309,9 +1428,9 @@ mod tests {
             .input(table.clone())
             .build();
         let (dp_relation, dp_event) = reduce
-        .differentially_private_aggregates(parameters.clone())
-        .unwrap()
-        .into();
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap()
+            .into();
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,

@@ -205,12 +205,12 @@ impl Join {
     /// To mimic the behavior of USING(col) and NATURAL JOIN in SQL we create
     /// a map where join columns identified by `vec` are coalesced.
     ///     vec: vector of string identifying input columns present in both _LEFT_
-    ///         and _RIGHT_ relation of the join. 
+    ///         and _RIGHT_ relation of the join.
     ///     columns: is the Hierarchy mapping input names in the JOIN to name field
-    /// 
+    ///
     /// It returns a:
     ///     - Map build on top the Join with coalesced column along with
-    ///         the other fields of the join and 
+    ///         the other fields of the join and
     ///     - coalesced columns mapping (name in join -> name in map)
     pub fn remove_duplicates_and_coalesce(
         self,
@@ -218,36 +218,34 @@ impl Join {
         columns: &Hierarchy<Identifier>,
     ) -> (Relation, Hierarchy<Identifier>) {
         let mut coalesced_cols: Vec<(Identifier, Identifier)> = vec![];
-        let coalesced = self
-            .field_inputs()
-            .filter_map(|(_, input_id)| {
-                let col = input_id.as_ref().last().unwrap();
-                if input_id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
-                    let left_col = columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap();
-                    let right_col = columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap();
-                    coalesced_cols.push((left_col.as_str().into(), col[..].into()));
-                    coalesced_cols.push((right_col.as_str().into(), col[..].into()));
-                    Some((
-                        col.clone(),
-                        Expr::coalesce(
-                            Expr::col(left_col),
-                            Expr::col(right_col),
-                        ),
-                    ))
-                } else {
-                    None
-                }
-            });
+        let coalesced = self.field_inputs().filter_map(|(_, input_id)| {
+            let col = input_id.as_ref().last().unwrap();
+            if input_id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
+                let left_col = columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap();
+                let right_col = columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap();
+                coalesced_cols.push((left_col.as_str().into(), col[..].into()));
+                coalesced_cols.push((right_col.as_str().into(), col[..].into()));
+                Some((
+                    col.clone(),
+                    Expr::coalesce(Expr::col(left_col), Expr::col(right_col)),
+                ))
+            } else {
+                None
+            }
+        });
         let coalesced_with_others = coalesced
             .chain(self.field_inputs().filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
                 (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
             }))
             .collect::<Vec<_>>();
-        (Relation::map()
-            .input(Relation::from(self))
-            .with_iter(coalesced_with_others)
-            .build(), coalesced_cols.into_iter().collect())
+        (
+            Relation::map()
+                .input(Relation::from(self))
+                .with_iter(coalesced_with_others)
+                .build(),
+            coalesced_cols.into_iter().collect(),
+        )
     }
 }
 
@@ -474,7 +472,12 @@ impl Relation {
     /// - The original fields from the current relation.
     /// - Rescaled columns, where each rescaled column is a product of the original column (specified by the second element of the corresponding tuple in `values`)
     ///   and its scaling factor output by `scale_factors` Relation
-    pub fn scale(self, entities: &str, named_values: &[(&str, &str)], scale_factors: Relation) -> Self {
+    pub fn scale(
+        self,
+        entities: &str,
+        named_values: &[(&str, &str)],
+        scale_factors: Relation,
+    ) -> Self {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
             .left_outer(Expr::val(true))

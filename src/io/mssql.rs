@@ -361,7 +361,7 @@ impl DatabaseTrait for Database {
             for value in &values {
                 insert_query = insert_query.bind(value);
             }
-            
+
             rt.block_on(async_execute(insert_query, &self.pool))?;
         }
         Ok(())

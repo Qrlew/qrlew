@@ -5,7 +5,8 @@ use crate::{
         value::{self, Value},
         DataTyped,
     },
-    relation::{Table, Variant as _}, dialect_translation::sqlite::SQLiteTranslator,
+    dialect_translation::sqlite::SQLiteTranslator,
+    relation::{Table, Variant as _},
 };
 use rand::{rngs::StdRng, SeedableRng};
 use rusqlite::{
@@ -60,13 +61,17 @@ impl DatabaseTrait for Database {
     }
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
-        Ok(self.connection.execute(&table.create(SQLiteTranslator).to_string(), ())?)
+        Ok(self
+            .connection
+            .execute(&table.create(SQLiteTranslator).to_string(), ())?)
     }
 
     fn insert_data(&mut self, table: &Table) -> Result<()> {
         let mut rng = StdRng::seed_from_u64(DATA_GENERATION_SEED);
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
-        let mut statement = self.connection.prepare(&table.insert("?", SQLiteTranslator).to_string())?;
+        let mut statement = self
+            .connection
+            .prepare(&table.insert("?", SQLiteTranslator).to_string())?;
         for _ in 0..size {
             let structured: value::Struct =
                 table.schema().data_type().generate(&mut rng).try_into()?;

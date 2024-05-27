@@ -3,7 +3,7 @@ use std::{hash::Hash, sync::Arc};
 use itertools::Itertools;
 
 use super::{
-    Error, Result, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Schema, Set, SetOperator,
+    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set, SetOperator,
     SetQuantifier, Table, Values, Variant,
 };
 use crate::{

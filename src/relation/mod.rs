@@ -12,7 +12,12 @@ pub mod schema;
 pub mod sql;
 
 use std::{
-    cmp, collections::HashSet, error, fmt, hash, ops::{Deref, Index}, result, sync::Arc
+    cmp,
+    collections::HashSet,
+    error, fmt, hash,
+    ops::{Deref, Index},
+    result,
+    sync::Arc,
 };
 
 use colored::Colorize;
@@ -700,7 +705,11 @@ impl JoinOperator {
     }
 
     // A utility function
-    fn expr_has_unique_constraint(expr: &Expr, left_schema: &Schema, right_schema: &Schema) -> (bool, bool) {
+    fn expr_has_unique_constraint(
+        expr: &Expr,
+        left_schema: &Schema,
+        right_schema: &Schema,
+    ) -> (bool, bool) {
         match expr {
             Expr::Function(f) => match f.function() {
                 function::Function::Eq => {
@@ -749,12 +758,20 @@ impl JoinOperator {
                     (left, right)
                 }
                 function::Function::And => {
-                    let arg_0 = JoinOperator::expr_has_unique_constraint(&f.arguments()[0], left_schema, right_schema);
-                    let arg_1 = JoinOperator::expr_has_unique_constraint(&f.arguments()[1], left_schema, right_schema);
+                    let arg_0 = JoinOperator::expr_has_unique_constraint(
+                        &f.arguments()[0],
+                        left_schema,
+                        right_schema,
+                    );
+                    let arg_1 = JoinOperator::expr_has_unique_constraint(
+                        &f.arguments()[1],
+                        left_schema,
+                        right_schema,
+                    );
                     (arg_0.0 || arg_1.0, arg_0.1 || arg_1.1)
                 }
                 _ => (false, false),
-            }
+            },
             _ => (false, false),
         }
     }
@@ -764,7 +781,9 @@ impl JoinOperator {
             JoinOperator::Inner(e)
             | JoinOperator::LeftOuter(e)
             | JoinOperator::RightOuter(e)
-            | JoinOperator::FullOuter(e) => JoinOperator::expr_has_unique_constraint(e, left_schema, right_schema),
+            | JoinOperator::FullOuter(e) => {
+                JoinOperator::expr_has_unique_constraint(e, left_schema, right_schema)
+            }
             _ => (false, false),
         }
     }
@@ -1277,8 +1296,17 @@ impl Values {
             .data_type()
             .try_into()
             .unwrap();
-        let unique = values.iter().collect::<HashSet<_>>().len()==values.iter().collect::<Vec<_>>().len();
-        Schema::from_field(Field::new(name.to_string(), list.data_type().clone(), if unique {Some(Constraint::Unique)} else {None}))
+        let unique =
+            values.iter().collect::<HashSet<_>>().len() == values.iter().collect::<Vec<_>>().len();
+        Schema::from_field(Field::new(
+            name.to_string(),
+            list.data_type().clone(),
+            if unique {
+                Some(Constraint::Unique)
+            } else {
+                None
+            },
+        ))
     }
 
     pub fn builder() -> ValuesBuilder {

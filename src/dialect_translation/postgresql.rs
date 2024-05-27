@@ -9,7 +9,9 @@ use crate::{
     Relation,
 };
 
-use super::{function_builder, RelationWithTranslator, QueryToRelationTranslator, RelationToQueryTranslator};
+use super::{
+    function_builder, QueryToRelationTranslator, RelationToQueryTranslator, RelationWithTranslator,
+};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
 use crate::sql::{Error, Result};
@@ -105,7 +107,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::{Ready, With}, data_type::{DataType, Value as _}, display::Dot, expr::Expr, io::{postgresql, Database as _}, namer, relation::{schema::Schema, Relation, TableBuilder}, sql::{parse, relation::QueryWithRelations}
+        builder::{Ready, With},
+        data_type::{DataType, Value as _},
+        display::Dot,
+        expr::Expr,
+        io::{postgresql, Database as _},
+        namer,
+        relation::{schema::Schema, Relation, TableBuilder},
+        sql::{parse, relation::QueryWithRelations},
     };
     use std::sync::Arc;
 
@@ -156,7 +165,8 @@ mod tests {
     fn test_table_special() -> Result<()> {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let query_str = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" "#;
+        let query_str =
+            r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" "#;
         let translator = PostgreSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);
