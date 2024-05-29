@@ -7,8 +7,7 @@ pub mod colors;
 pub mod dot;
 
 use crate::{
-    builder::{WithContext, WithoutContext},
-    data_type::DataTyped,
+    builder::WithContext,
     namer,
     rewriting::{RelationWithRewritingRule, RelationWithRewritingRules},
     DataType, Expr, Relation, Value,
@@ -17,7 +16,6 @@ use std::{
     fs::File,
     io::{Result, Write},
     process::Command,
-    sync::Arc,
 };
 
 pub trait Dot {
@@ -39,18 +37,19 @@ const HTML_STYLE: &str = r##"<style>
 }
 </style>
 "##;
-const HTML_DARK_STYLE: &str = r##"<style>
-#graph {
-    background-color: #2b303a;
-    height: 100%;
-    width: 100%;
-}
-#graph svg {
-    height: 100%;
-    width: 100%;
-}
-</style>
-"##;
+// not used
+// const HTML_DARK_STYLE: &str = r##"<style>
+// #graph {
+//     background-color: #2b303a;
+//     height: 100%;
+//     width: 100%;
+// }
+// #graph svg {
+//     height: 100%;
+//     width: 100%;
+// }
+// </style>
+// "##;
 const HTML_BODY: &str = r##"<body>
 <script src="https://d3js.org/d3.v5.min.js"></script>
 <script src="https://unpkg.com/@hpcc-js/wasm@0.3.11/dist/index.min.js"></script>
@@ -183,12 +182,15 @@ pub mod macos {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::DataType,
+        data_type::{DataType, DataTyped as _},
         expr::Expr,
         relation::{schema::Schema, Relation},
+        WithoutContext as _,
     };
 
     #[test]

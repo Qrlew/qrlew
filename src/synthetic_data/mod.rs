@@ -1,10 +1,10 @@
 use crate::{
-    builder::{Ready, With, WithIterator},
-    expr::{AggregateColumn, Expr, Identifier},
+    builder::Ready,
+    expr::Identifier,
     hierarchy::Hierarchy,
-    relation::{Join, Map, Reduce, Relation, Table, Values, Variant as _},
+    relation::{Relation, Table, Variant as _},
 };
-use std::{error, fmt, ops::Deref, result, sync::Arc};
+use std::{error, fmt, ops::Deref, result};
 
 pub const SYNTHETIC_PREFIX: &str = "_SYNTHETIC_";
 

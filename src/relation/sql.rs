@@ -1,18 +1,16 @@
 //! Methods to convert Relations to ast::Query
-use serde::de::value;
 
 use super::{
-    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Set, SetOperator,
-    SetQuantifier, Table, Values, Variant as _, Visitor,
+    Join, Map, OrderBy, Reduce, Relation, Set, SetOperator, SetQuantifier, Table, Values,
+    Variant as _, Visitor,
 };
 use crate::{
     ast,
-    data_type::{DataType, DataTyped},
     dialect_translation::{postgresql::PostgreSqlTranslator, RelationToQueryTranslator},
     expr::{identifier::Identifier, Expr},
     visitor::Acceptor,
 };
-use std::{collections::HashSet, convert::TryFrom, iter::Iterator, ops::Deref};
+use std::{collections::HashSet, iter::Iterator, ops::Deref};
 
 /// A simple Relation -> ast::Query conversion Visitor using CTE
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -147,10 +145,10 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
         // Add input query to CTEs
         input_ctes.push(
             self.translator.cte(
-                self.translator.identifier( &(map.name().into()) )[0].clone(),
+                self.translator.identifier(&(map.name().into()))[0].clone(),
                 map.schema()
                     .iter()
-                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
+                    .map(|field| self.translator.identifier(&(field.name().into()))[0].clone())
                     .collect(),
                 self.translator.query(
                     vec![],
@@ -160,7 +158,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                         .zip(map.schema.clone())
                         .map(|(expr, field)| ast::SelectItem::ExprWithAlias {
                             expr: self.translator.expr(&expr),
-                            alias: self.translator.identifier( &(field.name().into()) )[0].clone(),
+                            alias: self.translator.identifier(&(field.name().into()))[0].clone(),
                         })
                         .collect(),
                     table_with_joins(
@@ -210,11 +208,11 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
         // Add input query to CTEs
         input_ctes.push(
             self.translator.cte(
-                self.translator.identifier( &(reduce.name().into()) )[0].clone(),
+                self.translator.identifier(&(reduce.name().into()))[0].clone(),
                 reduce
                     .schema()
                     .iter()
-                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
+                    .map(|field| self.translator.identifier(&(field.name().into()))[0].clone())
                     .collect(),
                 self.translator.query(
                     vec![],
@@ -225,7 +223,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                         .zip(reduce.schema.clone())
                         .map(|(aggregate, field)| ast::SelectItem::ExprWithAlias {
                             expr: self.translator.expr(aggregate.deref()),
-                            alias: self.translator.identifier( &(field.name().into()) )[0].clone(),
+                            alias: self.translator.identifier(&(field.name().into()))[0].clone(),
                         })
                         .collect(),
                     table_with_joins(
@@ -280,10 +278,10 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
         // Add input query to CTEs
         input_ctes.push(
             self.translator.cte(
-                self.translator.identifier( &(join.name().into()) )[0].clone(),
+                self.translator.identifier(&(join.name().into()))[0].clone(),
                 join.schema()
                     .iter()
-                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
+                    .map(|field| self.translator.identifier(&(field.name().into()))[0].clone())
                     .collect(),
                 self.translator.query(
                     vec![],
@@ -341,7 +339,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                 set.name().into(),
                 set.schema()
                     .iter()
-                    .map(|field| self.translator.identifier( &(field.name().into()) )[0].clone())
+                    .map(|field| self.translator.identifier(&(field.name().into()))[0].clone())
                     .collect(),
                 set_operation(
                     vec![],
@@ -397,11 +395,10 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
             None,
             None,
         );
-        let value_name = self.translator.identifier( &(values.name().into()) )[0].clone();
-        let input_ctes =
-            vec![self
-                .translator
-                .cte(value_name.clone(), vec![value_name], cte_query)];
+        let value_name = self.translator.identifier(&(values.name().into()))[0].clone();
+        let input_ctes = vec![self
+            .translator
+            .cte(value_name.clone(), vec![value_name], cte_query)];
         self.translator.query(
             input_ctes,
             all(),

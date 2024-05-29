@@ -100,7 +100,7 @@ pub enum Function {
     Ilike,
     Choose,
     IsNull,
-    IsBool
+    IsBool,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -308,11 +308,12 @@ impl Function {
             | Function::Choose
             | Function::Like
             | Function::Ilike
-            | Function::IsBool => {
-                Arity::Nary(2)
-            }
+            | Function::IsBool => Arity::Nary(2),
             // Ternary Function
-            Function::Case | Function::SubstrWithSize | Function::RegexpReplace | Function::DatetimeDiff => Arity::Nary(3),
+            Function::Case
+            | Function::SubstrWithSize
+            | Function::RegexpReplace
+            | Function::DatetimeDiff => Arity::Nary(3),
             // Quaternary Function
             Function::RegexpExtract => Arity::Nary(4),
             // Nary Function
@@ -348,8 +349,7 @@ impl Function {
     pub fn is_unique(self) -> bool {
         match self {
             // Unary Operators
-            Function::Random(_)
-            | Function::Newid => true,
+            Function::Random(_) | Function::Newid => true,
             _ => false,
         }
     }

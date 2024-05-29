@@ -326,14 +326,14 @@ impl<'a, F: Fn(&Table) -> RelationWithWeight> Visitor<'a, RelationWithWeight>
 
     fn set(
         &self,
-        set: &'a Set,
-        left: RelationWithWeight,
-        right: RelationWithWeight,
+        _set: &'a Set,
+        _left: RelationWithWeight,
+        _right: RelationWithWeight,
     ) -> RelationWithWeight {
         todo!()
     }
 
-    fn values(&self, values: &'a Values) -> RelationWithWeight {
+    fn values(&self, _values: &'a Values) -> RelationWithWeight {
         todo!()
     }
 }
@@ -415,7 +415,7 @@ impl<'a, F: Fn(&Table) -> Relation> Visitor<'a, Relation> for TableSamplerVisito
             .build()
     }
 
-    fn set(&self, set: &'a Set, left: Relation, right: Relation) -> Relation {
+    fn set(&self, _set: &'a Set, _left: Relation, _right: Relation) -> Relation {
         todo!()
     }
 
@@ -529,6 +529,7 @@ impl Relation {
     }
 }
 
+#[cfg(feature = "tested_sampling_adjustment")]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -541,12 +542,11 @@ mod tests {
     };
 
     use colored::Colorize;
-    use itertools::Itertools;
+    use itertools::Itertools as _;
 
-    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_uniform_poisson_sampling() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let proba = 0.1;
         let relations = database.relations();
         let relation = Relation::try_from(
@@ -598,7 +598,7 @@ mod tests {
         let exprs: Vec<(&str, Expr)> = join
             .schema()
             .iter()
-            .map(|f| (f.name().clone(), Expr::col(f.name())))
+            .map(|f| (f.name(), Expr::col(f.name())))
             .collect();
 
         let final_map: Relation = Relation::map()
@@ -614,10 +614,9 @@ mod tests {
         final_map.display_dot().unwrap();
     }
 
-    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_differenciated_poisson_sampling() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let tables_and_proba: Vec<(Vec<String>, f64)> = vec![
             (vec!["order_table".to_string()], 0.1),
             (vec!["item_table".to_string()], 0.5),
@@ -671,7 +670,7 @@ mod tests {
         let exprs: Vec<(&str, Expr)> = join
             .schema()
             .iter()
-            .map(|f| (f.name().clone(), Expr::col(f.name())))
+            .map(|f| (f.name(), Expr::col(f.name())))
             .collect();
 
         let final_map: Relation = Relation::map()
@@ -687,10 +686,9 @@ mod tests {
         final_map.display_dot().unwrap();
     }
 
-    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_sampling_without_replacements() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let proba = 0.1;
         let relations = database.relations();
         namer::reset();
@@ -743,7 +741,7 @@ mod tests {
         let exprs: Vec<(&str, Expr)> = join
             .schema()
             .iter()
-            .map(|f| (f.name().clone(), Expr::col(f.name())))
+            .map(|f| (f.name(), Expr::col(f.name())))
             .collect();
 
         let final_map: Relation = Relation::map()
@@ -759,7 +757,6 @@ mod tests {
         final_map.display_dot().unwrap();
     }
 
-    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_table_with_weight() {
         let mut database = postgresql::test_database();
@@ -801,7 +798,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_map_with_weight() {
         let mut database = postgresql::test_database();
@@ -841,7 +837,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_reduce_with_weight() {
         let mut database = postgresql::test_database();
@@ -891,7 +886,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_join_with_weight() {
         let mut database = postgresql::test_database();
@@ -1032,7 +1026,7 @@ mod tests {
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_simple_reduce() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let query = "SELECT COUNT(order_id), SUM(price), AVG(price) FROM item_table";
@@ -1047,7 +1041,7 @@ mod tests {
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_join_reduce() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let query = "SELECT COUNT(id), SUM(price), AVG(price) FROM order_table JOIN item_table ON id=order_id";
@@ -1062,7 +1056,7 @@ mod tests {
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_reduce() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let query = "
@@ -1094,7 +1088,7 @@ mod tests {
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_join_reduce() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         // bug with USING (col)
@@ -1115,7 +1109,7 @@ mod tests {
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_join_reduce_reduce() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         // 2 reduce after the join
@@ -1144,7 +1138,7 @@ mod tests {
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_reduce_reduce() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let weight: f64 = 2.0;
@@ -1182,7 +1176,7 @@ mod tests {
     #[cfg(feature = "tested_sampling_adjustment")]
     #[test]
     fn test_adjustment_reduce_reduce_join_reduce() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations: Hierarchy<Arc<Relation>> = database.relations();
 
         let weight: f64 = 2.0;

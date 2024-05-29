@@ -12,9 +12,7 @@ use crate::{
     namer,
     relation::{Table, Variant as _},
 };
-use std::{
-    env, fmt, ops::Deref, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time,
-};
+use std::{env, fmt, process::Command, str::FromStr, sync::Arc, sync::Mutex, thread, time};
 
 use colored::Colorize;
 use postgres::{
@@ -51,9 +49,9 @@ pub static POSTGRES_POOL: Mutex<Option<Pool<PostgresConnectionManager<NoTls>>>> 
 pub static POSTGRES_CONTAINER: Mutex<bool> = Mutex::new(false);
 
 impl Database {
-    fn db() -> String {
-        env::var("POSTGRES_DB").unwrap_or(DB.into())
-    }
+    // fn db() -> String {
+    //     env::var("POSTGRES_DB").unwrap_or(DB.into())
+    // }
 
     fn port() -> usize {
         match env::var("POSTGRES_PORT") {
@@ -204,7 +202,7 @@ impl DatabaseTrait for Database {
 
     fn create_table(&mut self, table: &Table) -> Result<usize> {
         let mut connection = self.pool.get()?;
-        let qq = table.create(PostgreSqlTranslator).to_string();
+        let _qq = table.create(PostgreSqlTranslator).to_string();
         Ok(connection.execute(&table.create(PostgreSqlTranslator).to_string(), &[])? as usize)
     }
 

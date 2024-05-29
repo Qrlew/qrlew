@@ -1,16 +1,3 @@
-use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
-    cmp, collections::{self, HashSet},
-    convert::{Infallible, TryFrom, TryInto},
-    error, fmt,
-    hash::Hasher,
-    ops::Deref,
-    result,
-    sync::{Arc, Mutex},
-};
-use itertools::Itertools;
-use chrono::{Datelike, Timelike};
 use super::{
     super::data_type,
     injection,
@@ -18,6 +5,20 @@ use super::{
     product::{self, IntervalProduct, IntervalsProduct, Term, Unit},
     value::{self, Value, Variant as _},
     DataType, DataTyped, Integer, List, Variant,
+};
+use chrono::{Datelike, Timelike};
+use itertools::Itertools;
+use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
+    cmp,
+    collections::{self, HashSet},
+    convert::{Infallible, TryFrom, TryInto},
+    error, fmt,
+    hash::Hasher,
+    ops::Deref,
+    result,
+    sync::{Arc, Mutex},
 };
 
 use crate::{
@@ -707,7 +708,7 @@ impl<F: Function> Function for Optional<F> {
                 .map(|dt| DataType::optional(dt)),
             set => self.0.super_image(&set),
         }
-        .or_else(|err| Ok(self.co_domain()))
+        .or_else(|_err| Ok(self.co_domain()))
     }
 
     fn value(&self, arg: &Value) -> Result<Value> {
@@ -718,7 +719,7 @@ impl<F: Function> Function for Optional<F> {
             },
             arg => self.0.value(arg),
         }
-        .or_else(|err| Ok(Value::none()))
+        .or_else(|_err| Ok(Value::none()))
     }
 }
 
@@ -1155,72 +1156,54 @@ Conversion function
 /// Builds the cast operator
 pub fn cast(into: DataType) -> impl Function {
     match into {
-        DataType::Text(t) if t == data_type::Text::full() => {
-            Polymorphic::default()
-                .with(
-                Pointwise::univariate(
-                    DataType::Any,
-                    DataType::text(),
-                    |v| v.to_string().into()
-                    )
-                )
-        }
-        DataType::Float(f) if f == data_type::Float::full() => {
-            Polymorphic::from((
-                PartitionnedMonotonic::univariate(
-                    data_type::Integer::default(),
-                    |v| v as f64
-                ),
-                Pointwise::univariate(
-                    DataType::text(),
-                    DataType::float(),
-                    |v| v.to_string().parse::<f64>().unwrap().into()
-                )
-            ))
-        }
-        DataType::Integer(i) if i == data_type::Integer::full() => {
-            Polymorphic::from((
-                PartitionnedMonotonic::univariate(
-                    data_type::Float::default(),
-                    |v| v.round() as i64
-                ),
-                Pointwise::univariate(
-                    DataType::text(),
-                    DataType::integer(),
-                    |v| v.to_string().parse::<i64>().unwrap().into()
-                )
-            ))
-        }
-        DataType::Boolean(b) if b == data_type::Boolean::full() => {
-            Polymorphic::default()
-                .with(
-                Pointwise::univariate(
-                    DataType::text(),
-                    DataType::boolean(),
-                    |v| {
-                        let true_list = vec![
-                            "t".to_string(), "tr".to_string(), "tru".to_string(), "true".to_string(),
-                            "y".to_string(), "ye".to_string(), "yes".to_string(),
-                            "on".to_string(),
-                            "1".to_string()
-                        ];
-                        let false_list = vec![
-                            "f".to_string(), "fa".to_string(), "fal".to_string(), "fals".to_string(), "false".to_string(),
-                            "n".to_string(), "no".to_string(),
-                            "off".to_string(),
-                            "0".to_string()
-                        ];
-                        if true_list.contains(&v.to_string().to_lowercase()) {
-                            true.into()
-                        } else if false_list.contains(&v.to_string().to_lowercase()) {
-                            false.into()
-                        } else {
-                            panic!()
-                        }
-                    }
-                )
-            )
-        }
+        DataType::Text(t) if t == data_type::Text::full() => Polymorphic::default().with(
+            Pointwise::univariate(DataType::Any, DataType::text(), |v| v.to_string().into()),
+        ),
+        DataType::Float(f) if f == data_type::Float::full() => Polymorphic::from((
+            PartitionnedMonotonic::univariate(data_type::Integer::default(), |v| v as f64),
+            Pointwise::univariate(DataType::text(), DataType::float(), |v| {
+                v.to_string().parse::<f64>().unwrap().into()
+            }),
+        )),
+        DataType::Integer(i) if i == data_type::Integer::full() => Polymorphic::from((
+            PartitionnedMonotonic::univariate(data_type::Float::default(), |v| v.round() as i64),
+            Pointwise::univariate(DataType::text(), DataType::integer(), |v| {
+                v.to_string().parse::<i64>().unwrap().into()
+            }),
+        )),
+        DataType::Boolean(b) if b == data_type::Boolean::full() => Polymorphic::default().with(
+            Pointwise::univariate(DataType::text(), DataType::boolean(), |v| {
+                let true_list = vec![
+                    "t".to_string(),
+                    "tr".to_string(),
+                    "tru".to_string(),
+                    "true".to_string(),
+                    "y".to_string(),
+                    "ye".to_string(),
+                    "yes".to_string(),
+                    "on".to_string(),
+                    "1".to_string(),
+                ];
+                let false_list = vec![
+                    "f".to_string(),
+                    "fa".to_string(),
+                    "fal".to_string(),
+                    "fals".to_string(),
+                    "false".to_string(),
+                    "n".to_string(),
+                    "no".to_string(),
+                    "off".to_string(),
+                    "0".to_string(),
+                ];
+                if true_list.contains(&v.to_string().to_lowercase()) {
+                    true.into()
+                } else if false_list.contains(&v.to_string().to_lowercase()) {
+                    false.into()
+                } else {
+                    panic!()
+                }
+            }),
+        ),
         _ => todo!(),
     }
 }
@@ -1444,11 +1427,11 @@ pub fn md5() -> impl Function {
     )
 }
 
-pub fn random<R: rand::Rng + Send + 'static>(mut rng: Mutex<R>) -> impl Function {
+pub fn random<R: rand::Rng + Send + 'static>(rng: Mutex<R>) -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::float_interval(0., 1.),
-        Arc::new(Mutex::new(RefCell::new(move |v| {
+        Arc::new(Mutex::new(RefCell::new(move |_v| {
             rng.lock().unwrap().borrow_mut().gen::<f64>().into()
         }))),
     )
@@ -1722,70 +1705,56 @@ pub fn cos() -> impl Function {
 
 pub fn least() -> impl Function {
     Polymorphic::default()
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Integer::default(), data_type::Integer::default()),
-                |x, y| x.min(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Float::default(), data_type::Float::default()),
-                |x, y| x.min(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Time::default(), data_type::Time::default()),
-                |x, y| x.min(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Date::default(), data_type::Date::default()),
-                |x, y| x.min(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::DateTime::default(), data_type::DateTime::default()),
-                |x, y| x.min(y),
-            )
-        )
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Integer::default(), data_type::Integer::default()),
+            |x, y| x.min(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Float::default(), data_type::Float::default()),
+            |x, y| x.min(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Time::default(), data_type::Time::default()),
+            |x, y| x.min(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Date::default(), data_type::Date::default()),
+            |x, y| x.min(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (
+                data_type::DateTime::default(),
+                data_type::DateTime::default(),
+            ),
+            |x, y| x.min(y),
+        ))
 }
 
 pub fn greatest() -> impl Function {
     Polymorphic::default()
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Integer::default(), data_type::Integer::default()),
-                |x, y| x.max(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Float::default(), data_type::Float::default()),
-                |x, y| x.max(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Time::default(), data_type::Time::default()),
-                |x, y| x.max(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::Date::default(), data_type::Date::default()),
-                |x, y| x.max(y),
-            )
-        )
-        .with(
-            PartitionnedMonotonic::bivariate(
-                (data_type::DateTime::default(), data_type::DateTime::default()),
-                |x, y| x.max(y),
-            )
-        )
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Integer::default(), data_type::Integer::default()),
+            |x, y| x.max(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Float::default(), data_type::Float::default()),
+            |x, y| x.max(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Time::default(), data_type::Time::default()),
+            |x, y| x.max(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Date::default(), data_type::Date::default()),
+            |x, y| x.max(y),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
+            (
+                data_type::DateTime::default(),
+                data_type::DateTime::default(),
+            ),
+            |x, y| x.max(y),
+        ))
 }
 
 // String functions
@@ -1828,25 +1797,34 @@ pub fn regexp_contains() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::boolean(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
 /// Regexp extract
 pub fn regexp_extract() -> impl Function {
     Unimplemented::new(
-        DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::integer(), DataType::integer()]),
+        DataType::structured_from_data_types([
+            DataType::text(),
+            DataType::text(),
+            DataType::integer(),
+            DataType::integer(),
+        ]),
         DataType::optional(DataType::text()),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
 /// Regexp replace
 pub fn regexp_replace() -> impl Function {
     Unimplemented::new(
-        DataType::structured_from_data_types([DataType::text(), DataType::text(), DataType::text()]),
+        DataType::structured_from_data_types([
+            DataType::text(),
+            DataType::text(),
+            DataType::text(),
+        ]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1855,7 +1833,7 @@ pub fn newid() -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1864,7 +1842,7 @@ pub fn encode() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1873,7 +1851,7 @@ pub fn decode() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::text(), DataType::text()]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1882,7 +1860,7 @@ pub fn unhex() -> impl Function {
     Unimplemented::new(
         DataType::text(),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1890,7 +1868,7 @@ pub fn like() -> impl Function {
     Unimplemented::new(
         DataType::text(),
         DataType::boolean(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1898,33 +1876,33 @@ pub fn ilike() -> impl Function {
     Unimplemented::new(
         DataType::text(),
         DataType::boolean(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
 pub fn is_null() -> impl Function {
-    Pointwise::univariate(
-        DataType::Any,
-        DataType::boolean(),
-        |v| if let Value::Optional(o) = v {
+    Pointwise::univariate(DataType::Any, DataType::boolean(), |v| {
+        if let Value::Optional(o) = v {
             o.is_none()
         } else {
             false
-        }.into()
-    )
+        }
+        .into()
+    })
 }
 
 pub fn is_bool() -> impl Function {
     Pointwise::bivariate(
         (DataType::optional(DataType::boolean()), DataType::boolean()),
         data_type::Boolean::default(),
-        |a, b| if let Value::Optional(o) = a {
-            o.as_ref()
-                .map(|x| *x.deref() == b)
-                .unwrap_or(false)
-        } else {
-            a == b
-        }.into()
+        |a, b| {
+            if let Value::Optional(o) = a {
+                o.as_ref().map(|x| *x.deref() == b).unwrap_or(false)
+            } else {
+                a == b
+            }
+            .into()
+        },
     )
 }
 
@@ -1933,7 +1911,7 @@ pub fn current_date() -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::date(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1941,7 +1919,7 @@ pub fn current_time() -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::time(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -1949,17 +1927,15 @@ pub fn current_timestamp() -> impl Function {
     Unimplemented::new(
         DataType::unit(),
         DataType::date_time(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
 pub fn extract_year() -> impl Function {
     Polymorphic::from((
-        Pointwise::univariate(
-            data_type::Date::default(),
-            DataType::integer_min(0),
-            |a| (a.year() as i64).into(),
-        ),
+        Pointwise::univariate(data_type::Date::default(), DataType::integer_min(0), |a| {
+            (a.year() as i64).into()
+        }),
         Pointwise::univariate(
             data_type::DateTime::default(),
             DataType::integer_min(0),
@@ -2107,29 +2083,53 @@ pub fn dayname() -> impl Function {
     Polymorphic::from((
         Pointwise::univariate(
             data_type::Date::default(),
-            DataType::text_values(["Monday".to_string(), "Tuesday".to_string(), "Wednesday".to_string(), "Thursday".to_string(), "Friday".to_string(), "Saturday".to_string(), "Sunday".to_string()]),
-            |a| (match a.weekday(){
-                chrono::Weekday::Mon => "Monday",
-                chrono::Weekday::Tue => "Tuesday",
-                chrono::Weekday::Wed => "Wednesday",
-                chrono::Weekday::Thu => "Thursday",
-                chrono::Weekday::Fri => "Friday",
-                chrono::Weekday::Sat => "Saturday",
-                chrono::Weekday::Sun => "Sunday",
-            }).to_string().into(),
+            DataType::text_values([
+                "Monday".to_string(),
+                "Tuesday".to_string(),
+                "Wednesday".to_string(),
+                "Thursday".to_string(),
+                "Friday".to_string(),
+                "Saturday".to_string(),
+                "Sunday".to_string(),
+            ]),
+            |a| {
+                (match a.weekday() {
+                    chrono::Weekday::Mon => "Monday",
+                    chrono::Weekday::Tue => "Tuesday",
+                    chrono::Weekday::Wed => "Wednesday",
+                    chrono::Weekday::Thu => "Thursday",
+                    chrono::Weekday::Fri => "Friday",
+                    chrono::Weekday::Sat => "Saturday",
+                    chrono::Weekday::Sun => "Sunday",
+                })
+                .to_string()
+                .into()
+            },
         ),
         Pointwise::univariate(
             data_type::DateTime::default(),
-            DataType::text_values(["Monday".to_string(), "Tuesday".to_string(), "Wednesday".to_string(), "Thursday".to_string(), "Friday".to_string(), "Saturday".to_string(), "Sunday".to_string()]),
-            |a| (match a.weekday(){
-                chrono::Weekday::Mon => "Monday",
-                chrono::Weekday::Tue => "Tuesday",
-                chrono::Weekday::Wed => "Wednesday",
-                chrono::Weekday::Thu => "Thursday",
-                chrono::Weekday::Fri => "Friday",
-                chrono::Weekday::Sat => "Saturday",
-                chrono::Weekday::Sun => "Sunday",
-            }).to_string().into(),
+            DataType::text_values([
+                "Monday".to_string(),
+                "Tuesday".to_string(),
+                "Wednesday".to_string(),
+                "Thursday".to_string(),
+                "Friday".to_string(),
+                "Saturday".to_string(),
+                "Sunday".to_string(),
+            ]),
+            |a| {
+                (match a.weekday() {
+                    chrono::Weekday::Mon => "Monday",
+                    chrono::Weekday::Tue => "Tuesday",
+                    chrono::Weekday::Wed => "Wednesday",
+                    chrono::Weekday::Thu => "Thursday",
+                    chrono::Weekday::Fri => "Friday",
+                    chrono::Weekday::Sat => "Saturday",
+                    chrono::Weekday::Sun => "Sunday",
+                })
+                .to_string()
+                .into()
+            },
         ),
     ))
 }
@@ -2139,7 +2139,7 @@ pub fn from_unixtime() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([DataType::integer(), DataType::text()]),
         DataType::sum([DataType::date(), DataType::date_time()]),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -2148,7 +2148,7 @@ pub fn unix_timestamp() -> impl Function {
     Unimplemented::new(
         DataType::sum([DataType::date(), DataType::date_time()]),
         DataType::integer(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -2157,10 +2157,10 @@ pub fn date_format() -> impl Function {
     Unimplemented::new(
         DataType::structured_from_data_types([
             DataType::sum([DataType::date(), DataType::date_time(), DataType::text()]),
-            DataType::text()
+            DataType::text(),
         ]),
         DataType::text(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -2170,22 +2170,28 @@ pub fn quarter() -> impl Function {
         Pointwise::univariate(
             data_type::Date::default(),
             DataType::integer_interval(1, 4),
-            |a| match a.month() {
-                1..=3 => 1,
-                4..=6 => 2,
-                7..=9 => 3,
-                _ => 4,
-            }.into()
+            |a| {
+                match a.month() {
+                    1..=3 => 1,
+                    4..=6 => 2,
+                    7..=9 => 3,
+                    _ => 4,
+                }
+                .into()
+            },
         ),
         Pointwise::univariate(
             data_type::DateTime::default(),
             DataType::integer_interval(1, 4),
-            |a| match a.month() {
-                1..=3 => 1,
-                4..=6 => 2,
-                7..=9 => 3,
-                _ => 4,
-            }.into()
+            |a| {
+                match a.month() {
+                    1..=3 => 1,
+                    4..=6 => 2,
+                    7..=9 => 3,
+                    _ => 4,
+                }
+                .into()
+            },
         ),
     ))
 }
@@ -2197,10 +2203,10 @@ pub fn datetime_diff() -> impl Function {
         DataType::structured_from_data_types([
             DataType::sum([DataType::date(), DataType::date_time(), DataType::text()]),
             DataType::sum([DataType::date(), DataType::date_time(), DataType::text()]),
-            DataType::text()
+            DataType::text(),
         ]),
         DataType::integer(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -2224,7 +2230,7 @@ pub fn cast_as_date() -> impl Function {
     Unimplemented::new(
         DataType::sum([DataType::text(), DataType::date_time()]),
         DataType::date(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -2232,7 +2238,7 @@ pub fn cast_as_datetime() -> impl Function {
     Unimplemented::new(
         DataType::sum([DataType::text(), DataType::date()]),
         DataType::date(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -2240,7 +2246,7 @@ pub fn cast_as_time() -> impl Function {
     Unimplemented::new(
         DataType::sum([DataType::text(), DataType::date_time()]),
         DataType::date_time(),
-        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!())))
+        Arc::new(Mutex::new(RefCell::new(|_| unimplemented!()))),
     )
 }
 
@@ -2265,18 +2271,12 @@ pub fn coalesce() -> impl Function {
 
 // Ceil function
 pub fn ceil() -> impl Function {
-    PartitionnedMonotonic::univariate(
-        data_type::Float::default(),
-        |a| a.ceil(),
-    )
+    PartitionnedMonotonic::univariate(data_type::Float::default(), |a| a.ceil())
 }
 
 // Floor function
 pub fn floor() -> impl Function {
-    PartitionnedMonotonic::univariate(
-        data_type::Float::default(),
-        |a| a.floor(),
-    )
+    PartitionnedMonotonic::univariate(data_type::Float::default(), |a| a.floor())
 }
 
 // Round function
@@ -2288,7 +2288,7 @@ pub fn round() -> impl Function {
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
             (a * multiplier).round() / multiplier
-        }
+        },
     )
 }
 
@@ -2301,33 +2301,44 @@ pub fn trunc() -> impl Function {
         |a, b| {
             let multiplier = 10.0_f64.powi(b as i32);
             (a * multiplier).trunc() / multiplier
-        }
+        },
     )
 }
 
 // Sign function
 pub fn sign() -> impl Function {
-    PartitionnedMonotonic::univariate(
-        data_type::Float::default(),
-        |a| if a == 0. {0} else if a < 0. {-1} else {1}
-    )
+    PartitionnedMonotonic::univariate(data_type::Float::default(), |a| {
+        if a == 0. {
+            0
+        } else if a < 0. {
+            -1
+        } else {
+            1
+        }
+    })
 }
 
 pub fn choose() -> impl Function {
     Pointwise::new(
-        DataType::structured_from_data_types([DataType::integer(), DataType::list(DataType::Any, 1, i64::MAX as usize)]),
+        DataType::structured_from_data_types([
+            DataType::integer(),
+            DataType::list(DataType::Any, 1, i64::MAX as usize),
+        ]),
         DataType::optional(DataType::Any),
         Arc::new(|v| {
             if let Value::Struct(s) = v {
-                if let (Value::Integer(i),Value::List(l))  = (s[0].as_ref(), s[1].as_ref()) {
-                    Ok(value::Optional::new(l.get(*i.deref() as usize).map(|v| Arc::new(v.clone()))).into())
+                if let (Value::Integer(i), Value::List(l)) = (s[0].as_ref(), s[1].as_ref()) {
+                    Ok(value::Optional::new(
+                        l.get(*i.deref() as usize).map(|v| Arc::new(v.clone())),
+                    )
+                    .into())
                 } else {
-                    return Err(Error::other("Argument out of range"))
+                    return Err(Error::other("Argument out of range"));
                 }
             } else {
                 Err(Error::other("Argument out of range"))
             }
-        })
+        }),
     )
 }
 
@@ -2389,9 +2400,13 @@ pub fn mean_distinct() -> impl Function {
     Aggregate::from(
         data_type::Float::full(),
         |values| {
-            let (count, sum) = values.into_iter().collect::<HashSet<_>>().into_iter().fold((0.0, 0.0), |(count, sum), value| {
-                (count + 1.0, sum + f64::from(value))
-            });
+            let (count, sum) = values
+                .into_iter()
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .fold((0.0, 0.0), |(count, sum), value| {
+                    (count + 1.0, sum + f64::from(value))
+                });
             (sum / count).into()
         },
         |(intervals, _size)| Ok(intervals.into_interval()),
@@ -2433,7 +2448,7 @@ pub fn count_distinct() -> impl Function {
         // Any implementation
         Aggregate::from(
             DataType::Any,
-            |values| (values.iter().cloned().collect::<HashSet<_>>().len()as i64).into(),
+            |values| (values.iter().cloned().collect::<HashSet<_>>().len() as i64).into(),
             |(_dt, size)| Ok(data_type::Integer::from_interval(1, *size.max().unwrap())),
         ),
         // Optional implementation
@@ -2557,7 +2572,16 @@ pub fn sum_distinct() -> impl Function {
         // Integer implementation
         Aggregate::from(
             data_type::Integer::full(),
-            |values| values.iter().cloned().collect::<HashSet<_>>().into_iter().map(|f| *f).sum::<i64>().into(),
+            |values| {
+                values
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .map(|f| *f)
+                    .sum::<i64>()
+                    .into()
+            },
             |(intervals, size)| {
                 Ok(data_type::Integer::try_from(multiply().super_image(
                     &DataType::structured_from_data_types([intervals.into(), size.into()]),
@@ -2567,7 +2591,16 @@ pub fn sum_distinct() -> impl Function {
         // Float implementation
         Aggregate::from(
             data_type::Float::full(),
-            |values| values.iter().cloned().collect::<HashSet<_>>().into_iter().map(|f| *f).sum::<f64>().into(),
+            |values| {
+                values
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .map(|f| *f)
+                    .sum::<f64>()
+                    .into()
+            },
             |(intervals, size)| {
                 Ok(data_type::Float::try_from(multiply().super_image(
                     &DataType::structured_from_data_types([intervals.into(), size.into()]),
@@ -2614,19 +2647,17 @@ pub fn std_distinct() -> impl Function {
     Aggregate::from(
         data_type::Float::full(),
         |values| {
-            let (count, sum, sum_2) =
-                values
-                    .into_iter()
-                    .collect::<HashSet<_>>()
-                    .into_iter()
-                    .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
-                        let value: f64 = value.into();
-                        (
-                            count + 1.0,
-                            sum + f64::from(value),
-                            sum_2 + (f64::from(value) * f64::from(value)),
-                        )
-                    });
+            let (count, sum, sum_2) = values.into_iter().collect::<HashSet<_>>().into_iter().fold(
+                (0.0, 0.0, 0.0),
+                |(count, sum, sum_2), value| {
+                    let value: f64 = value.into();
+                    (
+                        count + 1.0,
+                        sum + f64::from(value),
+                        sum_2 + (f64::from(value) * f64::from(value)),
+                    )
+                },
+            );
             ((sum_2 - sum * sum / count) / (count - 1.)).sqrt().into()
         },
         |(intervals, _size)| match (intervals.min(), intervals.max()) {
@@ -2671,19 +2702,17 @@ pub fn var_distinct() -> impl Function {
     Aggregate::from(
         data_type::Float::full(),
         |values| {
-            let (count, sum, sum_2) =
-                values
-                    .into_iter()
-                    .collect::<HashSet<_>>()
-                    .into_iter()
-                    .fold((0.0, 0.0, 0.0), |(count, sum, sum_2), value| {
-                        let value: f64 = value.into();
-                        (
-                            count + 1.0,
-                            sum + f64::from(value),
-                            sum_2 + (f64::from(value) * f64::from(value)),
-                        )
-                    });
+            let (count, sum, sum_2) = values.into_iter().collect::<HashSet<_>>().into_iter().fold(
+                (0.0, 0.0, 0.0),
+                |(count, sum, sum_2), value| {
+                    let value: f64 = value.into();
+                    (
+                        count + 1.0,
+                        sum + f64::from(value),
+                        sum_2 + (f64::from(value) * f64::from(value)),
+                    )
+                },
+            );
             ((sum_2 - sum * sum / count) / (count - 1.)).into()
         },
         |(intervals, _size)| match (intervals.min(), intervals.max()) {
@@ -2702,7 +2731,7 @@ mod tests {
         super::{value::Value, Struct},
         *,
     };
-    use chrono::{self, NaiveDate, NaiveDateTime, NaiveTime};
+    use chrono::{self, DateTime, NaiveDate, NaiveTime};
 
     #[test]
     fn test_argument_conversion() {
@@ -3126,7 +3155,7 @@ mod tests {
         assert_eq!(
             optional_greatest
                 .super_image(&DataType::optional(
-                    (DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.))
+                    DataType::float_interval(0., 1.) & DataType::float_interval(-5., 2.)
                 ))
                 .unwrap(),
             optional_greatest
@@ -3812,12 +3841,16 @@ mod tests {
         // im(struct{0: float(-∞, 10], 1: int[2 100]}) = float(-∞, 10]
         let set: DataType = DataType::structured_from_data_types([
             DataType::date_time_interval(
-                NaiveDateTime::from_timestamp_opt(1662921288, 0).unwrap(),
-                NaiveDateTime::from_timestamp_opt(1862921288, 111110).unwrap()
+                DateTime::from_timestamp(1662921288, 0).unwrap().naive_utc(),
+                DateTime::from_timestamp(1862921288, 111110)
+                    .unwrap()
+                    .naive_utc(),
             ),
             DataType::date_time_interval(
-                NaiveDateTime::from_timestamp_opt(1362921288, 0).unwrap(),
-                NaiveDateTime::from_timestamp_opt(2062921288, 111110).unwrap()
+                DateTime::from_timestamp(1362921288, 0).unwrap().naive_utc(),
+                DateTime::from_timestamp(2062921288, 111110)
+                    .unwrap()
+                    .naive_utc(),
             ),
         ]);
         let im = fun.super_image(&set).unwrap();
@@ -3825,8 +3858,10 @@ mod tests {
         assert_eq!(
             im,
             DataType::date_time_interval(
-                NaiveDateTime::from_timestamp_opt(1662921288, 0).unwrap(),
-                NaiveDateTime::from_timestamp_opt(2062921288, 111110).unwrap()
+                DateTime::from_timestamp(1662921288, 0).unwrap().naive_utc(),
+                DateTime::from_timestamp(2062921288, 111110)
+                    .unwrap()
+                    .naive_utc()
             ),
         );
     }
@@ -4228,8 +4263,12 @@ mod tests {
         println!("data_type = {}", fun.data_type());
 
         let set = DataType::from(Struct::from_data_types(&[
-            DataType::text_values(["foo@example.com".to_string(), "bar@example.org".to_string(), "www.example.net".to_string()]),
-            DataType::text_value(r"@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+".to_string())
+            DataType::text_values([
+                "foo@example.com".to_string(),
+                "bar@example.org".to_string(),
+                "www.example.net".to_string(),
+            ]),
+            DataType::text_value(r"@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+".to_string()),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4249,7 +4288,7 @@ mod tests {
             DataType::text_value("Hello Helloo and Hellooo".to_string()),
             DataType::text_value("H?ello+".to_string()),
             DataType::integer_value(3),
-            DataType::integer_value(1)
+            DataType::integer_value(1),
         ]));
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4287,15 +4326,21 @@ mod tests {
 
         let set = DataType::date_values([
             NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-            NaiveDate::from_ymd_opt(2023, 12, 31).unwrap()
+            NaiveDate::from_ymd_opt(2023, 12, 31).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_value(2023));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 8).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4311,15 +4356,21 @@ mod tests {
 
         let set = DataType::date_values([
             NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-            NaiveDate::from_ymd_opt(2023, 12, 31).unwrap()
+            NaiveDate::from_ymd_opt(2023, 12, 31).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([1, 12]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 8).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4335,15 +4386,21 @@ mod tests {
 
         let set = DataType::date_values([
             NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap()
+            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_value(1));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4359,15 +4416,21 @@ mod tests {
 
         let set = DataType::date_values([
             NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap()
+            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([0, 5]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4383,15 +4446,21 @@ mod tests {
 
         let set = DataType::date_values([
             NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap()
+            NaiveDate::from_ymd_opt(2023, 12, 01).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([48, 52]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4407,15 +4476,21 @@ mod tests {
 
         let set = DataType::time_values([
             NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
-            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap()
+            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([10, 11]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(6, 15, 1)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4431,15 +4506,21 @@ mod tests {
 
         let set = DataType::time_values([
             NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
-            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap()
+            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([12, 57]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(6, 15, 1)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4455,15 +4536,21 @@ mod tests {
 
         let set = DataType::time_values([
             NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
-            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap()
+            NaiveTime::from_hms_milli_opt(11, 57, 58, 59).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([13, 58]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(6, 15, 1)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4479,15 +4566,21 @@ mod tests {
 
         let set = DataType::time_values([
             NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
-            NaiveTime::from_hms_milli_opt(11, 57, 59, 999).unwrap()
+            NaiveTime::from_hms_milli_opt(11, 57, 59, 999).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([13014000, 59999000]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(6, 15, 1)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4503,15 +4596,21 @@ mod tests {
 
         let set = DataType::time_values([
             NaiveTime::from_hms_milli_opt(10, 12, 13, 14).unwrap(),
-            NaiveTime::from_hms_milli_opt(11, 57, 59, 999).unwrap()
+            NaiveTime::from_hms_milli_opt(11, 57, 59, 999).unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::float_values([13014.000, 59999.000]));
 
         let set = DataType::date_time_values([
-            NaiveDate::from_ymd_opt(2016, 7, 18).unwrap().and_hms_opt(9, 10, 11).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(6, 15, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2016, 7, 18)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(6, 15, 1)
+                .unwrap(),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4527,15 +4626,16 @@ mod tests {
         println!("co_domain = {}", fun.co_domain());
         println!("data_type = {}", fun.data_type());
 
-        let set = DataType::date_value(
-            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-        );
+        let set = DataType::date_value(NaiveDate::from_ymd_opt(2023, 01, 01).unwrap());
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::text_value("Sunday".to_string()));
 
         let set = DataType::date_time_value(
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         );
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4551,15 +4651,16 @@ mod tests {
         println!("co_domain = {}", fun.co_domain());
         println!("data_type = {}", fun.data_type());
 
-        let set = DataType::date_value(
-            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-        );
+        let set = DataType::date_value(NaiveDate::from_ymd_opt(2023, 01, 01).unwrap());
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_value(1));
 
         let set = DataType::date_time_value(
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         );
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4575,15 +4676,16 @@ mod tests {
         println!("co_domain = {}", fun.co_domain());
         println!("data_type = {}", fun.data_type());
 
-        let set = DataType::date_value(
-            NaiveDate::from_ymd_opt(2023, 01, 01).unwrap(),
-        );
+        let set = DataType::date_value(NaiveDate::from_ymd_opt(2023, 01, 01).unwrap());
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::date_value(NaiveDate::from_ymd_opt(2023, 01, 01).unwrap()));
 
         let set = DataType::date_time_value(
-            NaiveDate::from_ymd_opt(2026, 7, 8).unwrap().and_hms_opt(9, 15, 11).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
         );
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
@@ -4601,20 +4703,29 @@ mod tests {
 
         let set = DataType::structured_from_data_types([
             DataType::integer_value(2),
-            DataType::list(DataType::text_values(
-                ["a".to_string(), "b".to_string(), "c".to_string()]
-            ), 1, 3)
+            DataType::list(
+                DataType::text_values(["a".to_string(), "b".to_string(), "c".to_string()]),
+                1,
+                3,
+            ),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::optional(DataType::Any));
         let arg = Value::structured_from_values([
             2.into(),
-            Value::list(["a".to_string(), "b".to_string(), "c".to_string()].into_iter().map(|s| Value::from(s)))
+            Value::list(
+                ["a".to_string(), "b".to_string(), "c".to_string()]
+                    .into_iter()
+                    .map(|s| Value::from(s)),
+            ),
         ]);
         let val = fun.value(&arg).unwrap();
         println!("val({}) = {}", arg, val);
-        assert_eq!(val, Value::Optional(value::Optional::new(Some(Arc::new("c".to_string().into())))));
+        assert_eq!(
+            val,
+            Value::Optional(value::Optional::new(Some(Arc::new("c".to_string().into()))))
+        );
     }
 
     #[test]
@@ -4654,22 +4765,18 @@ mod tests {
         // True
         let set = DataType::structured_from_data_types([
             DataType::boolean(),
-            DataType::boolean_value(true)
+            DataType::boolean_value(true),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::boolean());
 
-        let arg = Value::structured_from_values([
-            Value::from(true), Value::from(true)
-        ]);
+        let arg = Value::structured_from_values([Value::from(true), Value::from(true)]);
         let val = fun.value(&arg).unwrap();
         println!("val({}) = {}", arg, val);
         assert_eq!(val, true.into());
 
-        let arg = Value::structured_from_values([
-            Value::from(true), Value::from(false)
-        ]);
+        let arg = Value::structured_from_values([Value::from(true), Value::from(false)]);
         let val = fun.value(&arg).unwrap();
         println!("val({}) = {}", arg, val);
         assert_eq!(val, false.into());
@@ -4677,26 +4784,20 @@ mod tests {
         // False
         let set = DataType::structured_from_data_types([
             DataType::boolean(),
-            DataType::boolean_value(false)
+            DataType::boolean_value(false),
         ]);
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::boolean());
 
-        let arg = Value::structured_from_values([
-            Value::from(false), Value::from(false)
-        ]);
+        let arg = Value::structured_from_values([Value::from(false), Value::from(false)]);
         let val = fun.value(&arg).unwrap();
         println!("val({}) = {}", arg, val);
         assert_eq!(val, true.into());
 
-        let arg = Value::structured_from_values([
-            Value::from(false), Value::from(true)
-        ]);
+        let arg = Value::structured_from_values([Value::from(false), Value::from(true)]);
         let val = fun.value(&arg).unwrap();
         println!("val({}) = {}", arg, val);
         assert_eq!(val, false.into());
     }
-
-
 }

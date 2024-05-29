@@ -1,7 +1,4 @@
-use crate::{
-    expr::{Expr, Variant as _},
-    namer,
-};
+use crate::{expr::Expr, namer};
 use std::f64::consts::PI;
 
 impl Expr {
@@ -31,8 +28,8 @@ impl Expr {
 mod tests {
     use super::*;
     use crate::{
-        builder::{With, WithoutContext},
-        data_type::{function::Function as _, value::Value, DataType},
+        builder::WithoutContext,
+        data_type::{function::Function as _, value::Value},
         display::Dot,
     };
 

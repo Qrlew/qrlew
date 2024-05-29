@@ -5,11 +5,10 @@ use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, function::Function, DataType, DataTyped, Variant as _},
-    display::Dot,
     expr::{self, aggregate, Aggregate, Expr, Identifier, Value},
     hierarchy::Hierarchy,
     io,
-    namer::{self, name_from_content},
+    namer::{self},
     relation::{self, LEFT_INPUT_NAME, RIGHT_INPUT_NAME},
 };
 use std::{
@@ -205,12 +204,12 @@ impl Join {
     /// To mimic the behavior of USING(col) and NATURAL JOIN in SQL we create
     /// a map where join columns identified by `vec` are coalesced.
     ///     vec: vector of string identifying input columns present in both _LEFT_
-    ///         and _RIGHT_ relation of the join. 
+    ///         and _RIGHT_ relation of the join.
     ///     columns: is the Hierarchy mapping input names in the JOIN to name field
-    /// 
+    ///
     /// It returns a:
     ///     - Map build on top the Join with coalesced column along with
-    ///         the other fields of the join and 
+    ///         the other fields of the join and
     ///     - coalesced columns mapping (name in join -> name in map)
     pub fn remove_duplicates_and_coalesce(
         self,
@@ -218,36 +217,34 @@ impl Join {
         columns: &Hierarchy<Identifier>,
     ) -> (Relation, Hierarchy<Identifier>) {
         let mut coalesced_cols: Vec<(Identifier, Identifier)> = vec![];
-        let coalesced = self
-            .field_inputs()
-            .filter_map(|(_, input_id)| {
-                let col = input_id.as_ref().last().unwrap();
-                if input_id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
-                    let left_col = columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap();
-                    let right_col = columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap();
-                    coalesced_cols.push((left_col.as_str().into(), col[..].into()));
-                    coalesced_cols.push((right_col.as_str().into(), col[..].into()));
-                    Some((
-                        col.clone(),
-                        Expr::coalesce(
-                            Expr::col(left_col),
-                            Expr::col(right_col),
-                        ),
-                    ))
-                } else {
-                    None
-                }
-            });
+        let coalesced = self.field_inputs().filter_map(|(_, input_id)| {
+            let col = input_id.as_ref().last().unwrap();
+            if input_id.as_ref().first().unwrap().as_str() == LEFT_INPUT_NAME && vec.contains(col) {
+                let left_col = columns[[LEFT_INPUT_NAME, col]].as_ref().last().unwrap();
+                let right_col = columns[[RIGHT_INPUT_NAME, col]].as_ref().last().unwrap();
+                coalesced_cols.push((left_col.as_str().into(), col[..].into()));
+                coalesced_cols.push((right_col.as_str().into(), col[..].into()));
+                Some((
+                    col.clone(),
+                    Expr::coalesce(Expr::col(left_col), Expr::col(right_col)),
+                ))
+            } else {
+                None
+            }
+        });
         let coalesced_with_others = coalesced
             .chain(self.field_inputs().filter_map(|(name, id)| {
                 let col = id.as_ref().last().unwrap();
                 (!vec.contains(col)).then_some((name.clone(), Expr::col(name)))
             }))
             .collect::<Vec<_>>();
-        (Relation::map()
-            .input(Relation::from(self))
-            .with_iter(coalesced_with_others)
-            .build(), coalesced_cols.into_iter().collect())
+        (
+            Relation::map()
+                .input(Relation::from(self))
+                .with_iter(coalesced_with_others)
+                .build(),
+            coalesced_cols.into_iter().collect(),
+        )
     }
 }
 
@@ -432,7 +429,7 @@ impl Relation {
     /// Compute L2 norms of the vectors formed by the group values for each entities
     pub fn l2_norms(self, entities: &str, groups: &[&str], values: &[&str]) -> Self {
         let mut entities_groups = vec![entities];
-        entities_groups.extend(groups.clone());
+        entities_groups.extend(groups);
         let names = values
             .iter()
             .map(|v| format!("_NORM_{}", v))
@@ -474,7 +471,12 @@ impl Relation {
     /// - The original fields from the current relation.
     /// - Rescaled columns, where each rescaled column is a product of the original column (specified by the second element of the corresponding tuple in `values`)
     ///   and its scaling factor output by `scale_factors` Relation
-    pub fn scale(self, entities: &str, named_values: &[(&str, &str)], scale_factors: Relation) -> Self {
+    pub fn scale(
+        self,
+        entities: &str,
+        named_values: &[(&str, &str)],
+        scale_factors: Relation,
+    ) -> Self {
         // Join the two relations on the entity column
         let join: Relation = Relation::join()
             .left_outer(Expr::val(true))
@@ -899,7 +901,7 @@ mod tests {
     use super::*;
     use crate::{
         ast,
-        data_type::{value::List, DataType, DataTyped},
+        data_type::{DataType, DataTyped},
         display::Dot,
         expr::AggregateColumn,
         io::{postgresql, Database},
@@ -958,21 +960,21 @@ mod tests {
         assert!(relation.schema()[0].name() != "peid");
     }
 
-    fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {
-        let mut sorted_results: Vec<Vec<String>> = vec![];
-        for row in results {
-            let mut str_row = vec![];
-            for i in 0..size {
-                str_row.push(match row[i].to_string().parse::<f64>() {
-                    Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
-                    Err(_) => row[i].to_string(),
-                })
-            }
-            sorted_results.push(str_row)
-        }
-        sorted_results.sort();
-        sorted_results
-    }
+    // fn refacto_results(results: Vec<List>, size: usize) -> Vec<Vec<String>> {
+    //     let mut sorted_results: Vec<Vec<String>> = vec![];
+    //     for row in results {
+    //         let mut str_row = vec![];
+    //         for i in 0..size {
+    //             str_row.push(match row[i].to_string().parse::<f64>() {
+    //                 Ok(f) => ((f * 1000.).round() / 1000.).to_string(),
+    //                 Err(_) => row[i].to_string(),
+    //             })
+    //         }
+    //         sorted_results.push(str_row)
+    //     }
+    //     sorted_results.sort();
+    //     sorted_results
+    // }
 
     #[test]
     fn test_sums_by_group() {
@@ -1055,12 +1057,12 @@ mod tests {
         }
 
         // group by and aggregates have the same argument
-        let mut relation = relations
+        let relation = relations
             .get(&["user_table".into()])
             .unwrap()
             .as_ref()
             .clone();
-        relation = relation.l1_norms("id", &vec!["age"], &vec!["age"]);
+        relation.l1_norms("id", &vec!["age"], &vec!["age"]);
     }
 
     #[test]
@@ -1406,7 +1408,7 @@ mod tests {
             .with_group_by_column("item")
             .with_group_by_column("order_id")
             .build();
-        my_relation.display_dot();
+        my_relation.display_dot().unwrap();
 
         let renamed_relation = my_relation.clone().rename_fields(|n, _| {
             if n == "sum_price" {
@@ -1417,7 +1419,7 @@ mod tests {
                 "unknown".to_string()
             }
         });
-        renamed_relation.display_dot();
+        renamed_relation.display_dot().unwrap();
     }
 
     #[test]
@@ -1440,7 +1442,7 @@ mod tests {
         );
         println!("{}", filtering_expr);
         let filtered_relation = relation.filter(filtering_expr);
-        _ = filtered_relation.display_dot();
+        _ = filtered_relation.display_dot().unwrap();
         assert_eq!(
             filtered_relation
                 .schema()
@@ -1482,7 +1484,7 @@ mod tests {
             Expr::gt(Expr::col("a"), Expr::val(5.)),
             Expr::lt(Expr::col("b"), Expr::val(0.5)),
         ));
-        _ = filtered_relation.display_dot();
+        _ = filtered_relation.display_dot().unwrap();
         assert_eq!(
             filtered_relation.schema().field("a").unwrap().data_type(),
             DataType::float_interval(5., 10.)
@@ -1517,7 +1519,7 @@ mod tests {
             Expr::gt(Expr::col("a"), Expr::val(5.)),
             Expr::lt(Expr::col("sum_d"), Expr::val(15)),
         ));
-        _ = filtered_relation.display_dot();
+        _ = filtered_relation.display_dot().unwrap();
         assert_eq!(
             filtered_relation.schema().field("a").unwrap().data_type(),
             DataType::float_interval(5., 10.)
@@ -1534,7 +1536,7 @@ mod tests {
 
     #[test]
     fn test_poisson_sampling() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
 
         let proba = 0.5;
@@ -1643,7 +1645,7 @@ mod tests {
     #[ignore] // Too fragile
     #[test]
     fn test_sampling_query() {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         let relations = database.relations();
 
         // relation with reduce
@@ -1740,7 +1742,7 @@ mod tests {
         // Without group by
         let unique_rel = table.unique(&["a", "b"]);
         println!("{}", unique_rel);
-        _ = unique_rel.display_dot();
+        _ = unique_rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1764,7 +1766,7 @@ mod tests {
         ];
         let rel = table.clone().ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
-        _ = rel.display_dot();
+        _ = rel.display_dot().unwrap();
 
         // With group by
         let grouping_exprs = vec![Expr::col("c")];
@@ -1774,7 +1776,7 @@ mod tests {
         ];
         let rel = table.ordered_reduce(grouping_exprs, aggregates);
         println!("{}", rel);
-        _ = rel.display_dot();
+        _ = rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1801,7 +1803,7 @@ mod tests {
             .clone()
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
-        _ = distinct_rel.display_dot();
+        _ = distinct_rel.display_dot().unwrap();
 
         // With group by
         let column = "a";
@@ -1814,7 +1816,7 @@ mod tests {
             .clone()
             .distinct_aggregates(column, group_by, aggregates);
         println!("{}", distinct_rel);
-        _ = distinct_rel.display_dot();
+        _ = distinct_rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1832,7 +1834,7 @@ mod tests {
         // table
         let rel = table.public_values_column("b").unwrap();
         let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
-        rel.display_dot();
+        rel.display_dot().unwrap();
         assert_eq!(rel, rel_values);
         assert!(table.public_values_column("a").is_err());
 
@@ -1844,7 +1846,7 @@ mod tests {
             .with(("exp_b", Expr::exp(Expr::col("b"))))
             .build();
         let rel = map.public_values_column("exp_b").unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
         assert!(map.public_values_column("exp_a").is_err());
     }
 
@@ -1861,7 +1863,7 @@ mod tests {
             )
             .build();
         let rel = table.public_values().unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
 
         let table: Relation = Relation::table()
             .name("table")
@@ -1892,7 +1894,7 @@ mod tests {
             .input(table)
             .build();
         let rel = map.public_values().unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
 
         // map
         let table: Relation = Relation::table()
@@ -1915,7 +1917,7 @@ mod tests {
             .input(table)
             .build();
         let rel = map.public_values().unwrap();
-        rel.display_dot();
+        rel.display_dot().unwrap();
     }
 
     #[test]
@@ -1941,7 +1943,7 @@ mod tests {
             .build();
 
         let joined_rel = table_1.clone().cross_join(table_2.clone()).unwrap();
-        joined_rel.display_dot();
+        joined_rel.display_dot().unwrap();
     }
 
     #[test]
@@ -2095,7 +2097,7 @@ mod tests {
             .group_by(expr!(2 * c))
             .build();
         let distinct_relation = relation.clone().distinct();
-        distinct_relation.display_dot();
+        distinct_relation.display_dot().unwrap();
         assert_eq!(distinct_relation.schema(), relation.schema());
         assert!(matches!(distinct_relation, Relation::Reduce(_)));
         if let Relation::Reduce(red) = distinct_relation {

@@ -2,27 +2,22 @@
 //! A specific Dialect is a struct holding:
 //!     - a method to provide a sqlparser::Dialect for the parsing
 //!     - methods varying from dialect to dialect regarding the conversion from AST to Expr+Relation and vice-versa
-use std::{iter::once, ops::Deref};
 
-use sqlparser::{
-    ast,
-    dialect::{BigQueryDialect, Dialect, PostgreSqlDialect},
-};
+use sqlparser::{ast, dialect::Dialect};
 
-use crate::{
-    data_type::function::cast,
-    expr::{self, Function},
-    relation::{self, sql::FromRelationVisitor},
-    visitor::Acceptor,
-    WithContext, WithoutContext,
-};
 use crate::{
     data_type::DataTyped,
     expr::Identifier,
     hierarchy::Hierarchy,
     relation::{Join, JoinOperator, Table, Variant},
-    sql::{self, parse, parse_with_dialect, Error, Result},
+    sql::Result,
     DataType, Relation,
+};
+use crate::{
+    expr::{self, Function},
+    relation::sql::FromRelationVisitor,
+    visitor::Acceptor,
+    WithoutContext,
 };
 
 use paste::paste;
@@ -154,7 +149,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                         named_window: vec![],
                         window_before_qualify: false,
                         value_table_mode: None,
-                        connect_by: None
+                        connect_by: None,
                     }))),
                     order_by,
                     limit,
@@ -174,12 +169,12 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     global: None,
                     if_not_exists: true,
                     transient: false,
-                    name: ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
+                    name: ast::ObjectName(self.identifier(&(table.path().clone().into()))),
                     columns: table
                         .schema()
                         .iter()
                         .map(|f| ast::ColumnDef {
-                            name: self.identifier( &(f.name().into()) )[0].clone(),
+                            name: self.identifier(&(f.name().into()))[0].clone(),
                             data_type: f.data_type().into(),
                             collation: None,
                             options: if let DataType::Optional(_) = f.data_type() {
@@ -222,9 +217,13 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 ast::Statement::Insert(ast::Insert {
                     or: None,
                     into: true,
-                    table_name: ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
+                    table_name: ast::ObjectName(self.identifier(&(table.path().clone().into()))),
                     table_alias: None,
-                    columns: table.schema().iter().map(|f| self.identifier( &(f.name().into()) )[0].clone()).collect(),
+                    columns: table
+                        .schema()
+                        .iter()
+                        .map(|f| self.identifier(&(f.name().into()))[0].clone())
+                        .collect(),
                     overwrite: false,
                     source: Some(Box::new(ast::Query {
                         with: None,
@@ -265,20 +264,23 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 query: ast::Query,
             ) -> ast::Cte {
                 ast::Cte {
-                    alias: ast::TableAlias {name, columns},
+                    alias: ast::TableAlias { name, columns },
                     query: Box::new(query),
                     from: None,
-                    materialized: None
+                    materialized: None,
                 }
             }
-            fn join_projection(&self, join: &Join) -> Vec<ast::SelectItem> {
+            fn join_projection(&self, _join: &Join) -> Vec<ast::SelectItem> {
                 vec![ast::SelectItem::Wildcard(
                     ast::WildcardAdditionalOptions::default(),
                 )]
             }
 
             fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
-                value.iter().map(|r| ast::Ident::with_quote('"', r)).collect()
+                value
+                    .iter()
+                    .map(|r| ast::Ident::with_quote('"', r))
+                    .collect()
             }
 
             fn table_factor(&self, relation: &Relation, alias: Option<&str>) -> ast::TableFactor {
@@ -713,21 +715,6 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
 
 relation_to_query_tranlator_trait_constructor!();
 
-/// Constructors for creating functions that convert AST functions with
-/// a single args to annequivalent sarus functions
-macro_rules! try_unary_function_constructor {
-    ($( $enum:ident ),*) => {
-        paste! {
-            $(
-                fn [<try_ $enum:snake>](&self, arg: &ast::Function, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
-                    let converted = self.try_function_args(vec![arg.clone()], context)?;
-                    Ok(expr::Expr::[<$enum:snake>](converted[0]))
-                }
-            )*
-        }
-    }
-}
-
 /// Build Sarus Relation from dialect specific AST
 pub trait QueryToRelationTranslator {
     type D: Dialect;
@@ -782,12 +769,12 @@ pub trait QueryToRelationTranslator {
         context: &Hierarchy<Identifier>,
     ) -> Result<Vec<expr::Expr>> {
         match args {
-            ast::FunctionArguments::None
-            | ast::FunctionArguments::Subquery(_) => Ok(vec![]),
-            ast::FunctionArguments::List(arg_list) => arg_list.args
+            ast::FunctionArguments::None | ast::FunctionArguments::Subquery(_) => Ok(vec![]),
+            ast::FunctionArguments::List(arg_list) => arg_list
+                .args
                 .iter()
                 .map(|func_arg| match func_arg {
-                    ast::FunctionArg::Named {arg, .. } | ast::FunctionArg::Unnamed(arg) => {
+                    ast::FunctionArg::Named { arg, .. } | ast::FunctionArg::Unnamed(arg) => {
                         self.try_function_arg_expr(arg, context)
                     }
                 })
@@ -802,7 +789,7 @@ pub trait QueryToRelationTranslator {
     ) -> Result<expr::Expr> {
         match func_arg_expr {
             ast::FunctionArgExpr::Expr(e) => self.try_expr(e, context),
-            ast::FunctionArgExpr::QualifiedWildcard(o) => todo!(),
+            ast::FunctionArgExpr::QualifiedWildcard(_o) => todo!(),
             ast::FunctionArgExpr::Wildcard => todo!(),
         }
     }
@@ -825,7 +812,11 @@ fn function_builder(name: &str, exprs: Vec<ast::Expr>, distinct: bool) -> ast::E
         .collect();
     let function_name = name.to_uppercase();
     let name = ast::ObjectName(vec![ast::Ident::from(&function_name[..])]);
-    let ast_distinct = if distinct {Some(ast::DuplicateTreatment::Distinct)} else {None};
+    let ast_distinct = if distinct {
+        Some(ast::DuplicateTreatment::Distinct)
+    } else {
+        None
+    };
     let func_args_list = ast::FunctionArgumentList {
         duplicate_treatment: ast_distinct,
         args: function_args,
@@ -837,7 +828,7 @@ fn function_builder(name: &str, exprs: Vec<ast::Expr>, distinct: bool) -> ast::E
         over: None,
         filter: None,
         null_treatment: None,
-        within_group: vec![]
+        within_group: vec![],
     };
     ast::Expr::Function(function)
 }

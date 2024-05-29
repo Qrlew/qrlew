@@ -4,7 +4,6 @@ use std::{fmt, io, string};
 
 use super::{aggregate, function, Column, Error, Expr, Value, Visitor};
 use crate::{
-    builder::{WithContext as _, WithoutContext as _},
     data_type::{DataType, DataTyped},
     display::{self, colors},
     namer,
@@ -103,11 +102,11 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
             Expr::Value(val) => {
                 println!("{}", &val.to_string());
                 format!(
-                "<b>{}</b><br/>{}",
-                dot::escape_html(&val.to_string()),
-                &node.1
-            )
-            },
+                    "<b>{}</b><br/>{}",
+                    dot::escape_html(&val.to_string()),
+                    &node.1
+                )
+            }
             Expr::Function(fun) => {
                 format!(
                     "<b>{}</b><br/>{}",
@@ -203,6 +202,7 @@ mod tests {
         data_type::DataType,
         display::Dot,
         relation::{schema::Schema, Relation},
+        WithoutContext as _,
     };
     use std::sync::Arc;
 
@@ -275,9 +275,9 @@ mod tests {
             ("c", Value::float(3.)),
             ("d", Value::integer(4)),
         ]);
-        &expr! { a*b+d }.with(val.clone()).display_dot().unwrap();
-        &expr! { d+a*b }.with(val.clone()).display_dot().unwrap();
-        &expr! { (a*b+d) }.with(val).display_dot().unwrap();
+        let _ = &expr! { a*b+d }.with(val.clone()).display_dot().unwrap();
+        let _ = &expr! { d+a*b }.with(val.clone()).display_dot().unwrap();
+        let _ = &expr! { (a*b+d) }.with(val).display_dot().unwrap();
     }
 
     #[test]

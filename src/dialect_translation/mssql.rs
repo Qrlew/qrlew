@@ -1,15 +1,14 @@
 use crate::{
     data_type::{DataType, DataTyped as _},
-    expr::{self, Function as _},
+    expr::{self},
     hierarchy::Hierarchy,
-    relation::{sql::FromRelationVisitor, Relation, Table, Variant as _},
-    visitor::Acceptor,
+    relation::{Table, Variant as _},
     WithoutContext,
 };
 
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator, Result};
 use sqlparser::{
-    ast::{self, CharacterLength},
+    ast::{self},
     dialect::MsSqlDialect,
 };
 #[derive(Clone, Copy)]
@@ -60,11 +59,11 @@ impl RelationToQueryTranslator for MsSqlTranslator {
     /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
     fn md5(&self, expr: &expr::Expr) -> ast::Expr {
         let ast_expr = self.expr(expr);
-    
+
         // Construct HASHBYTES('MD5', X)
         let md5_literal = ast::Expr::Value(ast::Value::SingleQuotedString("MD5".to_string()));
         let md5_literal_as_function_arg =
-        ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
+            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
         let ast_expr_as_function_arg =
             ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(ast_expr));
 
@@ -88,7 +87,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             data_type: Some(ast::DataType::Varchar(Some(ast::CharacterLength::Max))),
             charset: None,
             target_before_value: true,
-            styles: vec![ast::Expr::Value(ast::Value::Number("2".to_string(), false))]
+            styles: vec![ast::Expr::Value(ast::Value::Number("2".to_string(), false))],
         }
     }
 
@@ -103,7 +102,10 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         let ast_expr = self.expr(expr);
         ast::Expr::Cast {
             expr: Box::new(ast_expr),
-            data_type: ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {length: 255, unit:None })),
+            data_type: ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {
+                length: 255,
+                unit: None,
+            })),
             format: None,
             kind: ast::CastKind::Cast,
         }
@@ -190,7 +192,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
                 named_window: vec![],
                 window_before_qualify: false,
                 value_table_mode: None,
-                connect_by: None
+                connect_by: None,
             }))),
             order_by,
             limit: None,
@@ -210,12 +212,12 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             global: None,
             if_not_exists: false,
             transient: false,
-            name:  ast::ObjectName(self.identifier( &(table.path().clone().into()) )),
+            name: ast::ObjectName(self.identifier(&(table.path().clone().into()))),
             columns: table
                 .schema()
                 .iter()
                 .map(|f| ast::ColumnDef {
-                    name: self.identifier( &(f.name().into()) )[0].clone(),
+                    name: self.identifier(&(f.name().into()))[0].clone(),
                     // Need to override some convertions
                     data_type: { translate_data_type(f.data_type()) },
                     collation: None,
@@ -290,8 +292,7 @@ impl QueryToRelationTranslator for MsSqlTranslator {
     ) -> Result<expr::Expr> {
         // need to check func.args:
         let args = match &func.args {
-            ast::FunctionArguments::None
-            | ast::FunctionArguments::Subquery(_) => vec![],
+            ast::FunctionArguments::None | ast::FunctionArguments::Subquery(_) => vec![],
             ast::FunctionArguments::List(l) => l.args.iter().collect(),
         };
         // We expect 2 args
@@ -301,7 +302,7 @@ impl QueryToRelationTranslator for MsSqlTranslator {
         } else {
             let is_first_arg_valid = is_varchar_valid(&args[0]);
             let is_last_arg_valid = is_literal_two_arg(&args[2]);
-            let extract_x_arg = extract_hashbyte_expression_if_valid(&args[1]); 
+            let extract_x_arg = extract_hashbyte_expression_if_valid(&args[1]);
             if is_first_arg_valid && is_last_arg_valid && extract_x_arg.is_some() {
                 let function_args = ast::FunctionArgumentList {
                     duplicate_treatment: None,
@@ -359,8 +360,9 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
             ast::FunctionArgExpr::Expr(e) => match e {
                 ast::Expr::Function(f) => {
                     let arg_vec = match &f.args {
-                        ast::FunctionArguments::None
-                        | ast::FunctionArguments::Subquery(_) => vec![],
+                        ast::FunctionArguments::None | ast::FunctionArguments::Subquery(_) => {
+                            vec![]
+                        }
                         ast::FunctionArguments::List(func_args) => func_args.args.iter().collect(),
                     };
                     if (f.name == expected_f_name) && (arg_vec[0] == &expected_first_arg) {
@@ -379,7 +381,10 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
 // method to override DataType -> ast::DataType
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
-        DataType::Text(_) => ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength { length: 255, unit: None})),
+        DataType::Text(_) => ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {
+            length: 255,
+            unit: None,
+        })),
         //DataType::Boolean(_) => Boolean should be displayed as BIT for MSSQL,
         // SQLParser doesn't support the BIT DataType (mssql equivalent of bool)
         DataType::Optional(o) => translate_data_type(o.data_type().clone()),
@@ -390,19 +395,16 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
 #[cfg(test)]
 #[cfg(feature = "mssql")]
 mod tests {
-    use sqlparser::dialect::GenericDialect;
-
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::{DataType, Value as _},
+        data_type::DataType,
         dialect_translation::RelationWithTranslator,
-        display::Dot,
         expr::Expr,
         io::{mssql, Database as _},
         namer,
-        relation::{schema::Schema, Relation, Variant as _},
-        sql::{parse, parse_expr, parse_with_dialect, relation::QueryWithRelations},
+        relation::{schema::Schema, Relation},
+        sql::parse,
     };
     use std::sync::Arc;
 

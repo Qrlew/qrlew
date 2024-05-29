@@ -109,10 +109,10 @@ impl Bound for chrono::NaiveTime {
         "time".to_string()
     }
     fn min() -> Self {
-        chrono::NaiveTime::from_num_seconds_from_midnight(0, 0)
+        chrono::NaiveTime::from_num_seconds_from_midnight_opt(0, 0).unwrap()
     }
     fn max() -> Self {
-        chrono::NaiveTime::from_num_seconds_from_midnight(86399, 1_999_999_999)
+        chrono::NaiveTime::from_num_seconds_from_midnight_opt(86399, 1_999_999_999).unwrap()
     }
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         hash::Hash::hash(self, state)
@@ -1135,12 +1135,12 @@ mod tests {
         }
         let dates: Intervals<NaiveDate> = [
             [
-                NaiveDate::from_ymd(2022, 12, 1),
-                NaiveDate::from_ymd(2022, 12, 25),
+                NaiveDate::from_ymd_opt(2022, 12, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2022, 12, 25).unwrap(),
             ],
             [
-                NaiveDate::from_ymd(1980, 12, 1),
-                NaiveDate::from_ymd(1980, 12, 25),
+                NaiveDate::from_ymd_opt(1980, 12, 1).unwrap(),
+                NaiveDate::from_ymd_opt(1980, 12, 25).unwrap(),
             ],
         ]
         .into_iter()

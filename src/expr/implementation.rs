@@ -54,7 +54,27 @@ macro_rules! function_implementations {
 // Nary: Concat
 function_implementations!(
     [Pi, Newid, CurrentDate, CurrentTime, CurrentTimestamp],
-    [Opposite, Not, Exp, Ln, Log, Abs, Sin, Cos, Sqrt, Md5, Ceil, Floor, Sign, Unhex, Dayname, Quarter, Date, UnixTimestamp, IsNull],
+    [
+        Opposite,
+        Not,
+        Exp,
+        Ln,
+        Log,
+        Abs,
+        Sin,
+        Cos,
+        Sqrt,
+        Md5,
+        Ceil,
+        Floor,
+        Sign,
+        Unhex,
+        Dayname,
+        Quarter,
+        Date,
+        UnixTimestamp,
+        IsNull
+    ],
     [
         Plus,
         Minus,
@@ -114,11 +134,13 @@ function_implementations!(
             Function::CastAsInteger => Arc::new(Optional::new(function::cast(DataType::integer()))),
             Function::CastAsFloat => Arc::new(Optional::new(function::cast(DataType::float()))),
             Function::CastAsBoolean => Arc::new(Optional::new(function::cast(DataType::boolean()))),
-            Function::CastAsDateTime => Arc::new(Optional::new(function::cast(DataType::date_time()))),
+            Function::CastAsDateTime => {
+                Arc::new(Optional::new(function::cast(DataType::date_time())))
+            }
             Function::CastAsDate => Arc::new(Optional::new(function::cast(DataType::date()))),
             Function::CastAsTime => Arc::new(Optional::new(function::cast(DataType::time()))),
             Function::Concat(n) => Arc::new(function::concat(n)),
-            Function::Random(n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
+            Function::Random(_n) => Arc::new(function::random(Mutex::new(OsRng))), //TODO change this initialization
             Function::Coalesce => Arc::new(function::coalesce()),
             _ => unreachable!(),
         }
@@ -152,7 +174,26 @@ macro_rules! aggregate_implementations {
 }
 
 aggregate_implementations!(
-    [Min, Max, Median, NUnique, First, Last, Mean, List, Count, Sum, AggGroups, Std, Var,  MeanDistinct, CountDistinct, SumDistinct, StdDistinct, VarDistinct],
+    [
+        Min,
+        Max,
+        Median,
+        NUnique,
+        First,
+        Last,
+        Mean,
+        List,
+        Count,
+        Sum,
+        AggGroups,
+        Std,
+        Var,
+        MeanDistinct,
+        CountDistinct,
+        SumDistinct,
+        StdDistinct,
+        VarDistinct
+    ],
     x,
     {
         match x {

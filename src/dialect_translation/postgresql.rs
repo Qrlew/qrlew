@@ -1,18 +1,8 @@
-use std::sync::Arc;
+use crate::expr;
 
-use crate::{
-    expr,
-    hierarchy::Hierarchy,
-    relation::sql::FromRelationVisitor,
-    sql::{parse_with_dialect, query_names::IntoQueryNamesVisitor},
-    visitor::Acceptor,
-    Relation,
-};
-
-use super::{function_builder, RelationWithTranslator, QueryToRelationTranslator, RelationToQueryTranslator};
+use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
-use crate::sql::{Error, Result};
 #[derive(Clone, Copy)]
 pub struct PostgreSqlTranslator;
 
@@ -101,19 +91,25 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 
 #[cfg(test)]
 mod tests {
-    use sqlparser::dialect;
 
     use super::*;
+    use crate::sql::Result;
     use crate::{
-        builder::{Ready, With}, data_type::{DataType, Value as _}, display::Dot, expr::Expr, io::{postgresql, Database as _}, namer, relation::{schema::Schema, Relation, TableBuilder}, sql::{parse, relation::QueryWithRelations}
+        builder::Ready,
+        data_type::DataType,
+        dialect_translation::RelationWithTranslator,
+        hierarchy::Hierarchy,
+        io::{postgresql, Database as _},
+        relation::{schema::Schema, Relation},
+        sql::{parse_with_dialect, relation::QueryWithRelations},
     };
     use std::sync::Arc;
 
-    fn assert_same_query_str(query_1: &str, query_2: &str) {
-        let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
-        let b_no_whitespace: String = query_2.chars().filter(|c| !c.is_whitespace()).collect();
-        assert_eq!(a_no_whitespace, b_no_whitespace);
-    }
+    // fn assert_same_query_str(query_1: &str, query_2: &str) {
+    //     let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
+    //     let b_no_whitespace: String = query_2.chars().filter(|c| !c.is_whitespace()).collect();
+    //     assert_eq!(a_no_whitespace, b_no_whitespace);
+    // }
 
     #[test]
     fn test_query() -> Result<()> {
@@ -156,7 +152,8 @@ mod tests {
     fn test_table_special() -> Result<()> {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let query_str = r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" "#;
+        let query_str =
+            r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE" ORDER BY "Id" "#;
         let translator = PostgreSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);

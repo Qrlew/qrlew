@@ -7,13 +7,13 @@
 //! - BigQuery using the ["bigquery"] feature.
 //!
 
+#[cfg(feature = "bigquery")]
+pub mod bigquery;
+#[cfg(feature = "mssql")]
+pub mod mssql;
 pub mod postgresql;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
-#[cfg(feature = "mssql")]
-pub mod mssql;
-#[cfg(feature = "bigquery")]
-pub mod bigquery;
 
 use crate::{
     builder::{Ready, With},
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_relation_hierarchy() -> Result<()> {
-        let mut database = postgresql::test_database();
+        let database = postgresql::test_database();
         println!("{}", database.relations());
         Ok(())
     }

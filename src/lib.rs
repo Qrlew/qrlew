@@ -21,6 +21,7 @@ pub mod setup;
 pub mod expr;
 pub mod builder;
 pub mod debug;
+pub mod dialect_translation;
 pub mod differential_privacy;
 pub mod display;
 pub mod encoder;
@@ -35,7 +36,6 @@ pub mod sql;
 pub mod synthetic_data;
 pub mod types;
 pub mod visitor;
-pub mod dialect_translation;
 
 pub use builder::{Ready, With, WithContext, WithIterator, WithoutContext};
 pub use data_type::{value::Value, DataType};

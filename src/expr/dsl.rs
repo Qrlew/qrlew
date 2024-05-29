@@ -3,6 +3,7 @@
 // https://veykril.github.io/tlborm/introduction.html
 // https://stackoverflow.com/questions/36721733/is-there-a-way-to-pattern-match-infix-operations-with-precedence-in-rust-macros
 // Macro DSL for exprs
+#![allow(unused)]
 macro_rules! expr {
     // Process functions
     (@expf [$($f:tt)*][$([$($x:tt)*])*]) => {$($f)*($(expr!(@exp+ $($x)*)),*)};

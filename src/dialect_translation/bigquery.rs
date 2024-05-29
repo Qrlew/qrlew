@@ -6,14 +6,15 @@ use crate::{
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::BigQueryDialect};
 
-
-
 #[derive(Clone, Copy)]
 pub struct BigQueryTranslator;
 
 impl RelationToQueryTranslator for BigQueryTranslator {
     fn identifier(&self, value: &expr::Identifier) -> Vec<ast::Ident> {
-        value.iter().map(|r| ast::Ident::with_quote('`', r)).collect()
+        value
+            .iter()
+            .map(|r| ast::Ident::with_quote('`', r))
+            .collect()
     }
 
     fn cte(&self, name: ast::Ident, _columns: Vec<ast::Ident>, query: ast::Query) -> ast::Cte {
@@ -24,7 +25,7 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             },
             query: Box::new(query),
             from: None,
-            materialized: None
+            materialized: None,
         }
     }
     fn first(&self, expr: &expr::Expr) -> ast::Expr {
@@ -46,7 +47,7 @@ impl RelationToQueryTranslator for BigQueryTranslator {
         function_builder("STDDEV", vec![arg], false)
     }
     /// Converting LOG to LOG10
-    fn log(&self,expr: &expr::Expr) -> ast::Expr {
+    fn log(&self, expr: &expr::Expr) -> ast::Expr {
         let arg = self.expr(expr);
         function_builder("LOG10", vec![arg], false)
     }
@@ -112,11 +113,11 @@ mod tests {
     use super::*;
     use crate::{
         builder::{Ready, With},
-        data_type::{DataType, Value as _},
+        data_type::DataType,
         dialect_translation::RelationWithTranslator,
         expr::Expr,
         namer,
-        relation::{schema::Schema, Relation, Variant as _},
+        relation::{schema::Schema, Relation},
     };
     use std::sync::Arc;
 

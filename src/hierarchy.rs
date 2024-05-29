@@ -8,9 +8,9 @@ use core::fmt;
 use itertools::Itertools;
 use std::{
     collections::BTreeMap,
+    error,
     iter::Extend,
     ops::{Deref, DerefMut, Index},
-    error,
     result,
 };
 
@@ -284,7 +284,9 @@ where
 
     fn index(&self, index: P) -> &Self::Output {
         let path = index.path();
-        self.get(&path).ok_or_else(|| Error::invalid_path(path.join("."))).unwrap()
+        self.get(&path)
+            .ok_or_else(|| Error::invalid_path(path.join(".")))
+            .unwrap()
     }
 }
 

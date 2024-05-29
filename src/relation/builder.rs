@@ -3,13 +3,12 @@ use std::{hash::Hash, sync::Arc};
 use itertools::Itertools;
 
 use super::{
-    Error, Result, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Schema, Set, SetOperator,
+    Error, Join, JoinOperator, Map, OrderBy, Reduce, Relation, Result, Schema, Set, SetOperator,
     SetQuantifier, Table, Values, Variant,
 };
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{Integer, Value},
-    display::Dot,
     expr::{self, AggregateColumn, Expr, Identifier, Split},
     hierarchy::Hierarchy,
     namer::{self, FIELD, JOIN, MAP, REDUCE, SET},
@@ -141,7 +140,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
-    pub fn filter_iter(mut self, iter: Vec<Expr>) -> Self {
+    pub fn filter_iter(self, iter: Vec<Expr>) -> Self {
         let filter = iter
             .into_iter()
             .fold(Expr::val(true), |f, x| Expr::and(f, x));
@@ -153,7 +152,7 @@ impl<RequireInput> MapBuilder<RequireInput> {
         self
     }
 
-    pub fn order_by_iter(mut self, iter: Vec<(Expr, bool)>) -> Self {
+    pub fn order_by_iter(self, iter: Vec<(Expr, bool)>) -> Self {
         iter.into_iter().fold(self, |w, (x, b)| w.order_by(x, b))
     }
 
@@ -1064,7 +1063,7 @@ impl Ready<Values> for ValuesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{data_type::DataTyped, display::Dot, expr::aggregate::Aggregate, DataType};
+    use crate::{data_type::DataTyped, display::Dot, DataType};
 
     #[test]
     fn test_map_building() {
@@ -1180,7 +1179,7 @@ mod tests {
             .on_eq("d", "x")
             .and(Expr::lt(Expr::col("a"), Expr::col("x")))
             .build();
-        join.display_dot();
+        join.display_dot().unwrap();
         println!("Join = {join}");
         let query = &ast::Query::from(&join).to_string();
         println!(
@@ -1224,7 +1223,7 @@ mod tests {
             .left_names(vec!["a1", "b1"])
             //.on_iter(vec![Expr::eq(Expr::col("a"), Expr::col("c")), Expr::eq(Expr::col("b"), Expr::col("d"))])
             .build();
-        join.display_dot();
+        join.display_dot().unwrap();
     }
 
     #[test]
