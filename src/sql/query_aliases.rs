@@ -2,7 +2,7 @@
 
 use crate::{
     ast,
-    sql::{visitor::Visitor, query_names},
+    sql::{query_names, visitor::Visitor},
     visitor::Visited,
 };
 use colored::Colorize;
@@ -14,10 +14,11 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-
 /// A mapping between an ObjectName in a Query and the column aliases for that query referred by the Name (when available).
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct QueryAliases<'a>(BTreeMap<(&'a ast::Query, ast::ObjectName), Option<&'a Vec<ast::Ident>>>);
+pub struct QueryAliases<'a>(
+    BTreeMap<(&'a ast::Query, ast::ObjectName), Option<&'a Vec<ast::Ident>>>,
+);
 
 impl<'a> QueryAliases<'a> {
     /// Build a new QueryAliases object
@@ -69,7 +70,6 @@ impl<'a> IntoIterator for QueryAliases<'a> {
     }
 }
 
-
 impl<'a> fmt::Display for QueryAliases<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -100,7 +100,6 @@ impl<'a> fmt::Display for QueryAliases<'a> {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct IntoQueryAliasesVisitor;
 
-
 impl<'a> Visitor<'a, QueryAliases<'a>> for IntoQueryAliasesVisitor {
     fn query(
         &self,
@@ -129,7 +128,6 @@ impl<'a> Visitor<'a, QueryAliases<'a>> for IntoQueryAliasesVisitor {
         query_aliases
     }
 }
-
 
 #[cfg(test)]
 mod tests {

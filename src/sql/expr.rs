@@ -1109,6 +1109,8 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 };
                 Expr::unix_timestamp(arg)
             }
+            "greatest" => Expr::greatest(flat_args[0].clone(), flat_args[1].clone()),
+            "least" => Expr::least(flat_args[0].clone(), flat_args[1].clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),
@@ -1122,9 +1124,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "variance" => Expr::var(flat_args[0].clone()),
             "stddev" if distinct => Expr::std_distinct(flat_args[0].clone()),
             "stddev" => Expr::std(flat_args[0].clone()),
-            "greatest" => Expr::greatest(flat_args[0].clone(), flat_args[1].clone()),
-            "least" => Expr::least(flat_args[0].clone(), flat_args[1].clone()),
-            _ => {println!("Function '{}' is not yet supported", function_name); todo!()},
+            _ => todo!(),
         })
     }
 

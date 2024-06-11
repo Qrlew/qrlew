@@ -4,8 +4,8 @@
 //!
 
 pub mod expr;
-pub mod query_names;
 pub mod query_aliases;
+pub mod query_names;
 pub mod reader;
 pub mod relation;
 pub mod visitor;
@@ -276,7 +276,6 @@ mod tests {
         let relation = Relation::try_from(qwr).unwrap();
         relation.display_dot().unwrap();
     }
-
 
     #[test]
     fn test_parsing_simple_cte_query_with_column_aliases() {
