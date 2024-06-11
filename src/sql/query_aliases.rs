@@ -1,4 +1,4 @@
-//! Data structures and visitor to collect object names and the queries they refer to.
+//! Data structures and visitor to collect object names and the query aliases they refer to.
 
 use crate::{
     ast,
@@ -15,6 +15,7 @@ use std::{
 };
 
 /// A mapping between an ObjectName in a Query and the column aliases for that query referred by the Name (when available).
+/// It is used to correctly associate aliases to queries in CTEs with column aliases (e.g. WITH tab (a, b, c) AS (SELECT...)).
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct QueryAliases<'a>(
     BTreeMap<(&'a ast::Query, ast::ObjectName), Option<&'a Vec<ast::Ident>>>,
@@ -36,7 +37,7 @@ impl<'a> QueryAliases<'a> {
         self
     }
 
-    /// Return all the names and referred queries in a query
+    /// Return all the names and referred aliases in a query
     pub fn name_referred(
         &self,
         query: &'a ast::Query,
