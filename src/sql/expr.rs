@@ -1109,6 +1109,8 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
                 };
                 Expr::unix_timestamp(arg)
             }
+            "greatest" => Expr::greatest(flat_args[0].clone(), flat_args[1].clone()),
+            "least" => Expr::least(flat_args[0].clone(), flat_args[1].clone()),
             // Aggregates
             "min" => Expr::min(flat_args[0].clone()),
             "max" => Expr::max(flat_args[0].clone()),

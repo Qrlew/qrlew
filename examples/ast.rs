@@ -83,7 +83,7 @@ fn build_ast() -> Result<(), &'static str> {
         },
         query: Box::new(query.clone()),
         from: None,
-        materialized: None
+        materialized: None,
     };
     println!("{}", cte);
     let cte = Cte {
@@ -93,7 +93,7 @@ fn build_ast() -> Result<(), &'static str> {
         },
         query: Box::new(query),
         from: Some(Ident::new("fro")),
-        materialized: None
+        materialized: None,
     };
     println!("{}", cte);
 

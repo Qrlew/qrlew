@@ -281,6 +281,17 @@ mod tests {
                 .iter()
                 .map(ToString::to_string)
                 .join("\n");
+
+            // Test re-parsing
+            let re_parsed = parse(dp_query.as_str()).unwrap();
+            let relation = Relation::try_from(re_parsed.with(&relations)).unwrap();
+            let query = ast::Query::from(&relation).to_string();
+            _ = database
+                .query(query.as_str())
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n");
         }
     }
 

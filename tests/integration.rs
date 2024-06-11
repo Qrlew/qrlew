@@ -10,13 +10,11 @@ use qrlew::io::mssql;
 use qrlew::io::sqlite;
 use qrlew::{
     ast,
-    dialect_translation::{
-        RelationToQueryTranslator, RelationWithTranslator
-    },
+    dialect_translation::{RelationToQueryTranslator, RelationWithTranslator},
     expr,
     io::{postgresql, Database},
     relation::Variant as _,
-    sql::{parse},
+    sql::parse,
     Relation, With,
 };
 
