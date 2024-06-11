@@ -134,13 +134,18 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 .map(|(name, referred)| (name.clone(), visited.get(referred).clone().unwrap())),
         );
 
-        let aliases =
-            Hierarchy::from_iter(query_aliases.name_referred(query).map(|(name, referred)| {
-                (
-                    relations.get(&name.clone().path()).unwrap().name(),
-                    referred.clone(),
-                )
-            }));
+        let aliases = Hierarchy::from_iter(query_names.name_referred(query).filter_map(
+            |(name, referred)| {
+                if let Some(alias) = query_aliases.get(referred) {
+                    Some((
+                        relations.get(&name.clone().path()).unwrap().name(),
+                        alias.unwrap().clone(),
+                    ))
+                } else {
+                    None
+                }
+            },
+        ));
         VisitedQueryRelations {
             relations,
             visited,
