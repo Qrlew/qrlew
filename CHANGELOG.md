@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ## [0.9.19] - 2024-05-23
-### Fixed
-- Fix parsing of CTEs with column alias
+### Added
+- parsing of CTEs with column alias
 
 ## [0.9.18] - 2024-05-23
 ### Added

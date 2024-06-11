@@ -98,7 +98,6 @@ impl From<ast::SetQuantifier> for SetQuantifier {
 // This is RelationWithColumns from_xxx method
 
 /// A struct to hold Relations with column mapping in the FROM
-#[derive(Clone)]
 struct RelationWithColumns(Arc<Relation>, Hierarchy<Identifier>);
 
 impl RelationWithColumns {
@@ -876,13 +875,14 @@ impl<'a> TryFrom<QueryWithRelations<'a>> for Relation {
         let query_names = query.accept(IntoQueryNamesVisitor);
         let query_aliases = query.accept(IntoQueryAliasesVisitor);
         // Visit for conversion
-        let visitor = TryIntoRelationVisitor::new(
-            relations,
-            query_names,
-            query_aliases,
-            PostgreSqlTranslator,
-        );
-        query.accept(visitor).map(|r| r.as_ref().clone())
+        query
+            .accept(TryIntoRelationVisitor::new(
+                relations,
+                query_names,
+                query_aliases,
+                PostgreSqlTranslator,
+            ))
+            .map(|r| r.as_ref().clone())
     }
 }
 

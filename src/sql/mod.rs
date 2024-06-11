@@ -122,11 +122,11 @@ mod tests {
             println!("schema {} = {}", tab, tab.schema());
         }
         for query in [
-            // "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
-            // "
-            // WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
-            // t2 AS (SELECT * FROM table_2)
-            // SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2 GROUP BY t2.y, t1.a",
+            "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
+            "
+            WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
+            t2 AS (SELECT * FROM table_2)
+            SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2 GROUP BY t2.y, t1.a",
             "
             WITH t1 AS (SELECT a, d FROM table_1),
             t2 AS (SELECT * FROM table_2)
