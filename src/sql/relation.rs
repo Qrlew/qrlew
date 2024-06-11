@@ -172,7 +172,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     .clone()
                     .map(|a| a.name.cloned())
                     .unwrap_or(name.cloned());
-
                 let field_to_alias: Hierarchy<String> =
                     if let Some(aliases) = aliases.get(&[relation.name().to_string()]) {
                         relation
