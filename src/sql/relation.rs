@@ -3,38 +3,19 @@
 //! Example: `Expr::try_from(sql_parser_statement)`
 
 use super::{
-    query_names::{IntoQueryNamesVisitor, QueryNames},
-    visitor::Visitor,
-    Error, Result,
+    query_aliases::QueryAliases, query_names::{IntoQueryNamesVisitor, QueryNames}, visitor::Visitor, Error, Result
 };
 use crate::{
-    ast,
-    builder::{Ready, With, WithIterator, WithoutContext},
-    dialect::{Dialect, GenericDialect},
-    dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator},
-    expr::{Expr, Identifier, Reduce, Split},
-    hierarchy::{Hierarchy, Path},
-    namer::{self, FIELD},
-    parser::Parser,
-    relation::{
+    ast, builder::{Ready, With, WithIterator, WithoutContext}, dialect::{Dialect, GenericDialect}, dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator}, expr::{Expr, Identifier, Reduce, Split}, hierarchy::{Hierarchy, Path}, namer::{self, FIELD}, parser::Parser, relation::{
         Join, JoinOperator, MapBuilder, Relation, SetOperator, SetQuantifier, Variant as _,
         WithInput, LEFT_INPUT_NAME, RIGHT_INPUT_NAME,
-    },
-    tokenizer::Tokenizer,
-    types::And,
-    visitor::{Acceptor, Dependencies, Visited},
+    }, sql::query_aliases::IntoQueryAliasesVisitor, tokenizer::Tokenizer, types::And, visitor::{Acceptor, Dependencies, Visited}
 };
 
 use itertools::Itertools;
 use std::{
-    convert::TryFrom,
-    iter::{once, Iterator},
-    ops::Deref,
-    result,
-    str::FromStr,
-    sync::Arc,
+    convert::TryFrom, iter::{once, Iterator}, ops::Deref, result, str::FromStr, sync::Arc
 };
-
 /*
 Before we visit queries to build Relations we must collect the namespaces of all subqueries to map the right names to the right Relations.
 This is done in the query_names module.
@@ -47,6 +28,7 @@ This is done in the query_names module.
 struct TryIntoRelationVisitor<'a, T: QueryToRelationTranslator + Copy + Clone> {
     relations: &'a Hierarchy<Arc<Relation>>,
     query_names: QueryNames<'a>,
+    query_aliases: QueryAliases<'a>,
     translator: T,
 }
 
@@ -54,11 +36,13 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryIntoRelationVisitor<'a,
     fn new(
         relations: &'a Hierarchy<Arc<Relation>>,
         query_names: QueryNames<'a>,
+        query_aliases: QueryAliases<'a>,
         translator: T,
     ) -> Self {
         TryIntoRelationVisitor {
             relations,
             query_names,
+            query_aliases,
             translator,
         }
     }
@@ -94,6 +78,7 @@ impl From<ast::SetQuantifier> for SetQuantifier {
 // This is RelationWithColumns from_xxx method
 
 /// A struct to hold Relations with column mapping in the FROM
+#[derive(Clone)]
 struct RelationWithColumns(Arc<Relation>, Hierarchy<Identifier>);
 
 impl RelationWithColumns {
@@ -107,6 +92,7 @@ struct VisitedQueryRelations<'a, T: QueryToRelationTranslator + Copy + Clone> {
     relations: Hierarchy<Arc<Relation>>,
     visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
     translator: T,
+    aliases: Hierarchy<Vec<ast::Ident>>,
 }
 
 impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, T> {
@@ -118,18 +104,23 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let TryIntoRelationVisitor {
             relations,
             query_names,
+            query_aliases,
             translator,
         } = try_into_relation_visitor;
         let mut relations: Hierarchy<Arc<Relation>> = (*relations).clone();
+
         relations.extend(
             query_names
                 .name_referred(query)
                 .map(|(name, referred)| (name.clone(), visited.get(referred).clone().unwrap())),
         );
+
+        let aliases = Hierarchy::from_iter(query_aliases.name_referred(query).map(|(name, referred)|(relations.get(&name.clone().path()).unwrap().name(), referred.clone())));
         VisitedQueryRelations {
             relations,
             visited,
             translator: *translator,
+            aliases: aliases
         }
     }
 
@@ -142,6 +133,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             relations,
             visited,
             translator: _,
+            aliases,
         } = self;
         // Process the table_factor
 
@@ -155,6 +147,17 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     .clone()
                     .map(|a| a.name.cloned())
                     .unwrap_or(name.cloned());
+
+                let field_to_alias: Hierarchy<String> = if let Some(aliases) = aliases.get(&[relation.name().to_string()]) {
+                    relation
+                    .schema()
+                    .iter()
+                    .zip(aliases.iter())
+                    .map(|(col_name, alias)|([col_name.name().to_string()], lower_case_unquoted_ident(alias)) )
+                    .collect()
+                } else {
+                    Hierarchy::empty()
+                };
                 let columns: Hierarchy<Identifier> = relation
                     .schema()
                     .iter()
@@ -162,7 +165,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         (
                             name.cloned()
                                 .into_iter()
-                                .chain(once(f.name().to_string()))
+                                .chain(once(field_to_alias.get(&[f.name().to_string()]).cloned().unwrap_or(f.name().to_string())))
                                 .collect_vec(),
                             [f.name()].into(),
                         )
@@ -178,6 +181,16 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                     .clone()
                     .map(|a| a.name.cloned())
                     .unwrap_or(relation.name().cloned());
+                let field_to_alias: Hierarchy<String> = if let Some(aliases) = aliases.get(&[relation.name().to_string()]) {
+                    relation
+                    .schema()
+                    .iter()
+                    .zip(aliases.iter())
+                    .map(|(col_name, alias)|([col_name.name().to_string()], lower_case_unquoted_ident(alias)) )
+                    .collect()
+                } else {
+                    Hierarchy::empty()
+                };
                 let columns: Hierarchy<Identifier> = relation
                     .schema()
                     .iter()
@@ -185,7 +198,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         (
                             name.cloned()
                                 .into_iter()
-                                .chain(once(f.name().to_string()))
+                                .chain(once(field_to_alias.get(&[f.name().to_string()]).cloned().unwrap_or(f.name().to_string())))
                                 .collect_vec(),
                             [f.name()].into(),
                         )
@@ -316,7 +329,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             .left(left_relation)
             .right(right_relation)
             .build();
-
         let join_columns: Hierarchy<Identifier> =
             join.field_inputs().map(|(f, i)| (i, f.into())).collect();
 
@@ -372,7 +384,9 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // Then the JOIN if needed
         let result = table_with_joins.joins.iter().fold(
             self.try_from_table_factor(&table_with_joins.relation),
-            |left, ast_join| self.try_from_join(left?, &ast_join),
+            |left, ast_join| {
+                self.try_from_join(left?, &ast_join)
+            },
         );
         result
     }
@@ -559,6 +573,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 builder.input(from).build()
             }
         };
+        
         if let Some(h) = having {
             relation = Relation::map()
                 .with_iter(
@@ -633,6 +648,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         }
 
         let RelationWithColumns(from, columns) = self.try_from_tables_with_joins(from)?;
+        
         let RelationWithColumns(relation, columns) = self
             .try_from_select_items_selection_and_group_by(
                 &columns.filter_map(|i| Some(i.split_last().ok()?.0)),
@@ -643,6 +659,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 having,
                 distinct,
             )?;
+
         Ok(RelationWithColumns::new(relation, columns))
     }
 
@@ -744,6 +761,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> Visitor<'a, Result<Arc<Rel
         let TryIntoRelationVisitor {
             relations: _,
             query_names,
+            query_aliases:_,
             translator: _,
         } = self;
         let mut dependencies = acceptor.dependencies();
@@ -766,7 +784,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> Visitor<'a, Result<Arc<Rel
         query: &'a ast::Query,
         visited: Visited<'a, ast::Query, Result<Arc<Relation>>>,
     ) -> Result<Arc<Relation>> {
-        // Pull relations accessible from this query
         let visited_query_relations = VisitedQueryRelations::new(self, query, visited);
         // Retrieve a relation before ORDER BY and LIMIT
         let relation = visited_query_relations.try_from_query(query)?;
@@ -811,13 +828,16 @@ impl<'a> TryFrom<QueryWithRelations<'a>> for Relation {
         let QueryWithRelations(query, relations) = value;
         // Visit the query to get query names
         let query_names = query.accept(IntoQueryNamesVisitor);
+        let query_aliases = query.accept(IntoQueryAliasesVisitor);
         // Visit for conversion
+        let visitor = TryIntoRelationVisitor::new(
+            relations,
+            query_names,
+            query_aliases,
+            PostgreSqlTranslator,
+        );
         query
-            .accept(TryIntoRelationVisitor::new(
-                relations,
-                query_names,
-                PostgreSqlTranslator,
-            ))
+            .accept(visitor)
             .map(|r| r.as_ref().clone())
     }
 }
@@ -832,11 +852,13 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelation
         let (QueryWithRelations(query, relations), translator) = value;
         // Visit the query to get query names
         let query_names = query.accept(IntoQueryNamesVisitor);
+        let query_aliases = query.accept(IntoQueryAliasesVisitor);
         // Visit for conversion
         query
             .accept(TryIntoRelationVisitor::new(
                 relations,
                 query_names,
+                query_aliases,
                 translator,
             ))
             .map(|r| r.as_ref().clone())

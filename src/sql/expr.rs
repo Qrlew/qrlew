@@ -1122,7 +1122,9 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
             "variance" => Expr::var(flat_args[0].clone()),
             "stddev" if distinct => Expr::std_distinct(flat_args[0].clone()),
             "stddev" => Expr::std(flat_args[0].clone()),
-            _ => todo!(),
+            "greatest" => Expr::greatest(flat_args[0].clone(), flat_args[1].clone()),
+            "least" => Expr::least(flat_args[0].clone(), flat_args[1].clone()),
+            _ => {println!("Function '{}' is not yet supported", function_name); todo!()},
         })
     }
 

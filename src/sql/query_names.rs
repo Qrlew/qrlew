@@ -100,7 +100,7 @@ impl<'a> fmt::Display for QueryNames<'a> {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct IntoQueryNamesVisitor;
 
-fn names_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::ObjectName> {
+pub(super) fn names_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::ObjectName> {
     match set_expr {
         ast::SetExpr::Select(select) => select
             .from
