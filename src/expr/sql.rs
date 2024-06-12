@@ -583,7 +583,7 @@ impl From<&Expr> for ast::Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sql::parse_expr;
+    use crate::{hierarchy::Hierarchy, sql::parse_expr, WithoutContext};
     use std::convert::TryFrom;
 
     #[test]
@@ -1488,4 +1488,28 @@ mod tests {
         println!("ast::expr = {gen_expr}");
         assert_eq!(gen_expr, ast_expr);
     }
+
+    #[test]
+    fn test_expr_from_value() {
+        let ast_expr: ast::Expr = parse_expr("True").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+
+        let ast_expr: ast::Expr = parse_expr("1").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+
+        let ast_expr: ast::Expr = parse_expr("Null").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+
+        let ast_expr: ast::Expr = parse_expr(" 'some_string' ").unwrap();
+        println!("\nast::expr = {ast_expr}");
+        let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
+        println!("expr = {}", expr);
+    }
+
 }
