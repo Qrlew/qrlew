@@ -327,6 +327,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
 
             fn expr(&self, expr: &expr::Expr) -> ast::Expr {
+                println!("DEBUG: EXPR {}", expr);
                 match expr {
                     expr::Expr::Column(ident) => self.column(ident),
                     expr::Expr::Value(value) => self.value(value),
@@ -346,6 +347,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
 
             fn value(&self, value: &expr::Value) -> ast::Expr {
+                println!("DEBUG: VAL {}", value);
                 match value {
                     expr::Value::Unit(_) => ast::Expr::Value(ast::Value::Null),
                     expr::Value::Boolean(b) => ast::Expr::Value(ast::Value::Boolean(**b)),
@@ -362,7 +364,10 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     expr::Value::Bytes(_) => todo!(),
                     expr::Value::Struct(_) => todo!(),
                     expr::Value::Union(_) => todo!(),
-                    expr::Value::Optional(_) => todo!(),
+                    expr::Value::Optional(optional_val) =>  match optional_val.as_deref() {
+                        Some(arg) => self.value(arg),
+                        None => ast::Expr::Value(ast::Value::Null),
+                    },
                     expr::Value::List(l) => ast::Expr::Tuple(
                         l.to_vec()
                             .iter()
