@@ -327,7 +327,6 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
 
             fn expr(&self, expr: &expr::Expr) -> ast::Expr {
-                println!("DEBUG: EXPR {}", expr);
                 match expr {
                     expr::Expr::Column(ident) => self.column(ident),
                     expr::Expr::Value(value) => self.value(value),
@@ -347,7 +346,6 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
 
             fn value(&self, value: &expr::Value) -> ast::Expr {
-                println!("DEBUG: VAL {}", value);
                 match value {
                     expr::Value::Unit(_) => ast::Expr::Value(ast::Value::Null),
                     expr::Value::Boolean(b) => ast::Expr::Value(ast::Value::Boolean(**b)),

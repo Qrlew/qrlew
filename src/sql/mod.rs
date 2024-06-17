@@ -105,6 +105,8 @@ pub use relation::{parse, parse_with_dialect};
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
+
     use super::*;
     use crate::{
         ast,
@@ -296,5 +298,34 @@ mod tests {
         let qwr = query.with(&binding);
         let relation = Relation::try_from(qwr).unwrap();
         relation.display_dot().unwrap();
+    }
+
+    #[test]
+    fn test_parsing_many_times() {
+        let mut database = postgresql::test_database();
+        let query: &str = r#"
+        SELECT * FROM table_1 t1 JOIN table_2 t2 ON t1.d = t2.x
+        "#;
+        let mut query = parse(query).unwrap();
+        println!("QUERY: {}", query);
+        let binding = database.relations();
+        
+        for i in 0..5 {
+            let qwr = query.with(&binding);
+            let relation = Relation::try_from(qwr).unwrap();
+            relation.display_dot().unwrap();
+            let query_str: &str = &ast::Query::from(&relation).to_string();
+            println!("\n{}\n", query_str);
+
+            _ = &database
+                .query(query_str)
+                .unwrap()
+                .iter()
+                .map(ToString::to_string)
+                .join("\n");
+
+            query = parse(query_str).unwrap();
+        }
+
     }
 }
