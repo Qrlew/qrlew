@@ -58,6 +58,20 @@ macro_rules! unary_function_ast_constructor {
     }
 }
 
+/// Constructors for creating trait functions with default implementations for generating AST extract expressions
+macro_rules! extract_ast_expression_constructor {
+    ($( $enum:ident ),*) => {
+        paste! {
+            $(
+                fn [<extract_ $enum:snake>](&self, expr: &expr::Expr) -> ast::Expr {
+                    let ast_expr = self.expr(expr);
+                    extract_builder(ast_expr, ast::DateTimeField::$enum)
+                }
+            )*
+        }
+    }
+}
+
 /// Constructors for creating trait functions with default implementations for generating AST nary function expressions
 macro_rules! nary_function_ast_constructor {
     ($( $enum:ident ),*) => {
@@ -558,17 +572,6 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 CastAsTime,
                 Sign,
                 Unhex,
-                ExtractEpoch,
-                ExtractYear,
-                ExtractMonth,
-                ExtractDay,
-                ExtractHour,
-                ExtractMinute,
-                ExtractSecond,
-                ExtractMicrosecond,
-                ExtractMillisecond,
-                ExtractDow,
-                ExtractWeek,
                 Dayname,
                 UnixTimestamp,
                 Quarter,
@@ -611,6 +614,24 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 DatetimeDiff,
                 Concat
             );
+
+            extract_ast_expression_constructor!(
+                Epoch,
+                Year,
+                Month,
+                Day,
+                Dow,
+                Hour,
+                Minute,
+                Second,
+                Microsecond,
+                Millisecond
+            );
+
+            fn extract_week(&self, expr: &expr::Expr)-> ast::Expr {
+                let ast_expr=self.expr(expr);
+                extract_builder(ast_expr, ast::DateTimeField::Week(None))
+            }
 
             fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
                 let ast_expr = self.expr(expr);
@@ -874,6 +895,10 @@ fn unary_op_builder(op: ast::UnaryOperator, expr: ast::Expr) -> ast::Expr {
         expr: Box::new(ast::Expr::Nested(Box::new(expr))),
     }
 }
+
+fn extract_builder(expr: ast::Expr, datetime_field: ast::DateTimeField) -> ast::Expr {
+    ast::Expr::Extract { field: datetime_field, expr: Box::new(expr) }
+} 
 
 pub struct RelationWithTranslator<'a, T: RelationToQueryTranslator>(pub &'a Relation, pub T);
 

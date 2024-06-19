@@ -190,4 +190,25 @@ mod tests {
             .map(ToString::to_string);
         Ok(())
     }
+
+    #[test]
+    fn test_extract() -> Result<()> {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let query_str = r#"SELECT extract(EPOCH FROM c) as my_epoch, extract(YEAR FROM c) as my_year, extract(WEEK FROM c) as my_week, extract(DOW FROM c) as my_dow FROM table_1"#;
+        let translator = PostgreSqlTranslator;
+        let query = parse_with_dialect(query_str, translator.dialect())?;
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+        println!("\n {} \n", relation);
+        let rel_with_traslator = RelationWithTranslator(&relation, translator);
+        let translated = ast::Query::from(rel_with_traslator);
+        print!("{}", translated);
+        _ = database
+            .query(translated.to_string().as_str())
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+        Ok(())
+    }
 }
