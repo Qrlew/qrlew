@@ -1944,6 +1944,17 @@ pub fn extract_year() -> impl Function {
     ))
 }
 
+pub fn extract_epoch() -> impl Function {
+    Polymorphic::from((
+        Pointwise::univariate(data_type::DateTime::default(), DataType::integer(), |a| {
+            (a.and_utc().timestamp() as i64).into()
+        }),
+        Pointwise::univariate(data_type::Duration::default(), DataType::integer(), |a| {
+            (a.num_seconds()).into()
+        }),
+    ))
+}
+
 pub fn extract_month() -> impl Function {
     Polymorphic::from((
         Pointwise::univariate(
@@ -2449,7 +2460,8 @@ pub fn count_distinct() -> impl Function {
         Aggregate::from(
             DataType::Any,
             |values| (values.iter().cloned().collect::<HashSet<_>>().len() as i64).into(),
-            |(_dt, size)| Ok(data_type::Integer::from_interval(1, *size.max().unwrap())),
+            |(_dt, size)| Ok(size), // count(distinct x) can be 0
+                                    //Ok(data_type::Integer::from_interval(1, *size.max().unwrap()))},
         ),
         // Optional implementation
         Aggregate::from(
@@ -4316,6 +4328,37 @@ mod tests {
 
     #[test]
     fn test_extract() {
+        // epoch
+        println!("\nTest extract_epoch");
+        let fun = extract_epoch();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+        println!("data_type = {}", fun.data_type());
+
+        let set = DataType::date_time_values([
+            NaiveDate::from_ymd_opt(2016, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 10, 11)
+                .unwrap(),
+            NaiveDate::from_ymd_opt(2026, 7, 8)
+                .unwrap()
+                .and_hms_opt(9, 15, 11)
+                .unwrap(),
+        ]);
+
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([1467969011, 1783502111]));
+
+        let set = DataType::duration_values([
+            chrono::Duration::hours(24),
+            chrono::Duration::seconds(100),
+        ]);
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([86400, 100]));
+
         // year
         println!("\nTest extract_year");
         let fun = extract_year();

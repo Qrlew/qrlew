@@ -174,8 +174,7 @@ mod tests {
     fn test_relation_to_query_with_null_field() -> Result<()> {
         let mut database = postgresql::test_database();
         let relations = database.relations();
-        let query_str =
-            r#"SELECT CASE WHEN (1) > (2) THEN 1 ELSE NULL END AS "_PRIVACY_UNIT_", a AS a FROM table_1"#;
+        let query_str = r#"SELECT CASE WHEN (1) > (2) THEN 1 ELSE NULL END AS "_PRIVACY_UNIT_", a AS a FROM table_1"#;
         let translator = PostgreSqlTranslator;
         let query = parse_with_dialect(query_str, translator.dialect())?;
         let query_with_relation = QueryWithRelations::new(&query, &relations);

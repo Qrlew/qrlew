@@ -135,10 +135,15 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         function_builder("CEILING", vec![arg], false)
     }
 
-    // fn from_extract_epoch(&self, expr: &expr::Expr) -> ast::Expr {
-    //     //EXTRACT(EPOCH FROM col1) is not supported yet
-    //     todo!()
-    // }
+    fn extract_epoch(&self, expr: &expr::Expr) -> ast::Expr {
+        let arg = self.expr(expr);
+        let second = ast::Expr::Identifier(ast::Ident {
+            value: "SECOND".to_string(),
+            quote_style: None,
+        });
+        let unix = ast::Expr::Value(ast::Value::SingleQuotedString("19700101".to_string()));
+        function_builder("DATEDIFF", vec![second, unix, arg], false)
+    }
 
     // used during onboarding in order to have datetime with a proper format.
     // This is not needed when we will remove the cast in string of the datetime

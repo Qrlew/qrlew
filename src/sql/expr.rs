@@ -1296,6 +1296,7 @@ impl<'a> Visitor<'a, Result<Expr>> for TryIntoExprVisitor<'a> {
 
     fn extract(&self, field: &'a ast::DateTimeField, expr: Result<Expr>) -> Result<Expr> {
         Ok(match field {
+            ast::DateTimeField::Epoch => Expr::extract_epoch(expr.clone()?),
             ast::DateTimeField::Year => Expr::extract_year(expr.clone()?),
             ast::DateTimeField::Month => Expr::extract_month(expr.clone()?),
             ast::DateTimeField::Week(_) => Expr::extract_week(expr.clone()?),
@@ -1443,8 +1444,7 @@ mod tests {
         println!("\nast::expr = {ast_expr}");
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
-        
-        
+
         assert_eq!(
             ast::Expr::from(&expr).to_string(),
             String::from(

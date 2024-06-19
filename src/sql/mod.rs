@@ -105,6 +105,8 @@ pub use relation::{parse, parse_with_dialect};
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use itertools::Itertools;
 
     use super::*;
@@ -112,8 +114,10 @@ mod tests {
         ast,
         builder::With,
         display::Dot,
+        hierarchy::Hierarchy,
         io::{postgresql, Database},
         relation::{Relation, Variant as _},
+        DataType, Ready as _,
     };
 
     #[test]
@@ -301,6 +305,42 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_queries_on_inf_sized_table() {
+        let table: Arc<Relation> = Arc::new(
+            crate::relation::TableBuilder::new()
+                .path(["table_1"])
+                .name("table_1")
+                .size(9223372036854775807)
+                .schema(
+                    crate::relation::Schema::empty()
+                        .with(("a", DataType::float_interval(0., 10.)))
+                        .with(("b", DataType::optional(DataType::float_interval(-1., 1.))))
+                        .with((
+                            "c",
+                            DataType::date_interval(
+                                chrono::NaiveDate::from_ymd_opt(1980, 12, 06).unwrap(),
+                                chrono::NaiveDate::from_ymd_opt(2023, 12, 06).unwrap(),
+                            ),
+                        ))
+                        .with(("d", DataType::integer_interval(0, 10)))
+                        .with(("sarus_privacy_unit", DataType::optional(DataType::id()))),
+                )
+                .build(),
+        );
+        let relations: Hierarchy<Arc<Relation>> = Hierarchy::from([(vec!["table_1"], table)]);
+
+        let query_str: &str = r#"
+        SELECT 0.1 * COUNT(DISTINCT sarus_privacy_unit) FROM table_1
+        "#;
+
+        let query = parse(query_str).unwrap();
+        println!("QUERY: {}", query);
+        let qwr = query.with(&relations);
+        let relation = Relation::try_from(qwr).unwrap();
+        relation.display_dot().unwrap()
+    }
+
+    #[test]
     fn test_parsing_many_times() {
         let mut database = postgresql::test_database();
         let query: &str = r#"
@@ -309,8 +349,8 @@ mod tests {
         let mut query = parse(query).unwrap();
         println!("QUERY: {}", query);
         let binding = database.relations();
-        
-        for i in 0..5 {
+
+        for _i in 0..5 {
             let qwr = query.with(&binding);
             let relation = Relation::try_from(qwr).unwrap();
             relation.display_dot().unwrap();
@@ -326,6 +366,5 @@ mod tests {
 
             query = parse(query_str).unwrap();
         }
-
     }
 }

@@ -337,6 +337,10 @@ impl<'a> expr::Visitor<'a, ast::Expr> for FromExprVisitor {
                 null_treatment: None,
                 within_group: vec![],
             }),
+            expr::function::Function::ExtractEpoch => ast::Expr::Extract {
+                field: ast::DateTimeField::Epoch,
+                expr: arguments[0].clone().into(),
+            },
             expr::function::Function::ExtractYear => ast::Expr::Extract {
                 field: ast::DateTimeField::Year,
                 expr: arguments[0].clone().into(),
@@ -1209,6 +1213,15 @@ mod tests {
 
     #[test]
     fn test_extract() {
+        // EXTRACT(EPOCH FROM col1)
+        let str_expr = "extract(epoch from col1)";
+        let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
+        let expr = Expr::try_from(&ast_expr).unwrap();
+        println!("expr = {}", expr);
+        let gen_expr = ast::Expr::from(&expr);
+        println!("ast::expr = {gen_expr}");
+        assert_eq!(gen_expr, ast_expr);
+
         // EXTRACT(YEAR FROM col1)
         let str_expr = "extract(year from col1)";
         let ast_expr: ast::Expr = parse_expr(str_expr).unwrap();
@@ -1511,5 +1524,4 @@ mod tests {
         let expr = Expr::try_from(ast_expr.with(&Hierarchy::empty())).unwrap();
         println!("expr = {}", expr);
     }
-
 }

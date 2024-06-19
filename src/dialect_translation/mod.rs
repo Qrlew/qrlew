@@ -362,7 +362,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                     expr::Value::Bytes(_) => todo!(),
                     expr::Value::Struct(_) => todo!(),
                     expr::Value::Union(_) => todo!(),
-                    expr::Value::Optional(optional_val) =>  match optional_val.as_deref() {
+                    expr::Value::Optional(optional_val) => match optional_val.as_deref() {
                         Some(arg) => self.value(arg),
                         None => ast::Expr::Value(ast::Value::Null),
                     },
@@ -438,6 +438,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                         CastAsTime,
                         Sign,
                         Unhex,
+                        ExtractEpoch,
                         ExtractYear,
                         ExtractMonth,
                         ExtractDay,
@@ -557,6 +558,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 CastAsTime,
                 Sign,
                 Unhex,
+                ExtractEpoch,
                 ExtractYear,
                 ExtractMonth,
                 ExtractDay,
