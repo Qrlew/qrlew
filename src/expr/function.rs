@@ -76,6 +76,7 @@ pub enum Function {
     CurrentDate,
     CurrentTime,
     CurrentTimestamp,
+    ExtractEpoch,
     ExtractYear,
     ExtractMonth,
     ExtractDay,
@@ -173,6 +174,7 @@ impl Function {
             | Function::CastAsTime
             | Function::Sign
             | Function::Unhex
+            | Function::ExtractEpoch
             | Function::ExtractYear
             | Function::ExtractMonth
             | Function::ExtractDay
@@ -276,6 +278,7 @@ impl Function {
             | Function::Floor
             | Function::Sign
             | Function::Unhex
+            | Function::ExtractEpoch
             | Function::ExtractYear
             | Function::ExtractMonth
             | Function::ExtractDay
@@ -431,6 +434,7 @@ impl fmt::Display for Function {
             Function::CastAsTime => "cast_as_time",
             Function::Sign => "sign",
             Function::Unhex => "unhex",
+            Function::ExtractEpoch => "extract_epoch",
             Function::ExtractYear => "extract_year",
             Function::ExtractMonth => "extract_month",
             Function::ExtractDay => "extract_day",

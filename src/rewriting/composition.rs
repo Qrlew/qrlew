@@ -261,6 +261,10 @@ mod tests {
             ("b", DataType::float_interval(-2., 2.)),
             ("c", DataType::float()),
             ("d", DataType::float_interval(0., 1.)),
+            ("e", DataType::float()),
+            ("f", DataType::float_interval(-2., 2.)),
+            ("g", DataType::float()),
+            ("h", DataType::float_interval(0., 1.)),
         ]
         .into_iter()
         .collect();

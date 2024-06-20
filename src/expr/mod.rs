@@ -317,6 +317,7 @@ impl_unary_function_constructors!(
     Floor,
     Sign,
     Unhex,
+    ExtractEpoch,
     ExtractYear,
     ExtractMonth,
     ExtractDay,

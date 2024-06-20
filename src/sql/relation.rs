@@ -503,7 +503,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         .iter()
                         .map(|(p, i)| (i.deref(), p.last().unwrap().clone()))
                         .collect();
-
                     for field in from.schema().iter() {
                         let field_name = field.name().to_string();
                         let alias = new_aliases
@@ -539,7 +538,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         let (named_expr_from_select, new_columns) =
             self.try_named_expr_columns_from_select_items(columns, select_items, &from)?;
         named_exprs.extend(named_expr_from_select.into_iter());
-
         // Prepare the GROUP BY
         let group_by = match group_by {
             ast::GroupByExpr::All => todo!(),
@@ -548,6 +546,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 .map(|e| self.translator.try_expr(e, columns))
                 .collect::<Result<Vec<Expr>>>()?,
         };
+
         // If the GROUP BY contains aliases, then replace them by the corresponding expression in `named_exprs`.
         // Note that we mimic postgres behavior and support only GROUP BY alias column (no other expressions containing aliases are allowed)
         // The aliases cannot be used in HAVING
@@ -564,6 +563,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                 _ => x,
             })
             .collect::<Vec<_>>();
+
         // Add the having in named_exprs
         let having = if let Some(expr) = having {
             let having_name = namer::name_from_content(FIELD, &expr);
@@ -644,6 +644,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         }
         // preserve old columns while composing with new ones
         let columns = &columns.clone().with(columns.and_then(new_columns));
+
         Ok(RelationWithColumns::new(
             Arc::new(relation),
             columns.clone(),

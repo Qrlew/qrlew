@@ -109,6 +109,7 @@ function_implementations!(
         RegexpContains,
         Encode,
         Decode,
+        ExtractEpoch,
         ExtractYear,
         ExtractMonth,
         ExtractDay,
