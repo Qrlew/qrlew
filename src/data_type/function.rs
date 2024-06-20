@@ -2460,8 +2460,7 @@ pub fn count_distinct() -> impl Function {
         Aggregate::from(
             DataType::Any,
             |values| (values.iter().cloned().collect::<HashSet<_>>().len() as i64).into(),
-            |(_dt, size)| Ok(size), // count(distinct x) can be 0
-                                    //Ok(data_type::Integer::from_interval(1, *size.max().unwrap()))},
+            |(_dt, size)| Ok(size),
         ),
         // Optional implementation
         Aggregate::from(

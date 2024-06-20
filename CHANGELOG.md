@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.9.20] - 2024-06-20
+### Added
+- support for extract_epoch function
+- support for NULL and Boolean values in the SELECT when parsing a query 
+
+### Changed
+- Polymorphic properties of count(distinct ) are set as those of count
+
 ## [0.9.19] - 2024-05-23
 ### Added
 - parsing of CTEs with column alias
