@@ -628,8 +628,8 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 Millisecond
             );
 
-            fn extract_week(&self, expr: &expr::Expr)-> ast::Expr {
-                let ast_expr=self.expr(expr);
+            fn extract_week(&self, expr: &expr::Expr) -> ast::Expr {
+                let ast_expr = self.expr(expr);
                 extract_builder(ast_expr, ast::DateTimeField::Week(None))
             }
 
@@ -897,8 +897,11 @@ fn unary_op_builder(op: ast::UnaryOperator, expr: ast::Expr) -> ast::Expr {
 }
 
 fn extract_builder(expr: ast::Expr, datetime_field: ast::DateTimeField) -> ast::Expr {
-    ast::Expr::Extract { field: datetime_field, expr: Box::new(expr) }
-} 
+    ast::Expr::Extract {
+        field: datetime_field,
+        expr: Box::new(expr),
+    }
+}
 
 pub struct RelationWithTranslator<'a, T: RelationToQueryTranslator>(pub &'a Relation, pub T);
 

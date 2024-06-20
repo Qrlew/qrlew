@@ -1945,14 +1945,17 @@ pub fn extract_year() -> impl Function {
 }
 
 pub fn extract_epoch() -> impl Function {
-    Polymorphic::from((
-        Pointwise::univariate(data_type::DateTime::default(), DataType::integer(), |a| {
-            (a.and_utc().timestamp() as i64).into()
-        }),
-        Pointwise::univariate(data_type::Duration::default(), DataType::integer(), |a| {
-            (a.num_seconds()).into()
-        }),
-    ))
+    Polymorphic::default()
+        .with(PartitionnedMonotonic::univariate(
+            data_type::DateTime::default(),
+            |a| {
+                (a.and_utc().timestamp() as i64).clamp(<i64 as Bound>::min(), <i64 as Bound>::max())
+            },
+        ))
+        .with(PartitionnedMonotonic::univariate(
+            data_type::Duration::default(),
+            |a| (a.num_seconds()).clamp(<i64 as Bound>::min(), <i64 as Bound>::max()),
+        ))
 }
 
 pub fn extract_month() -> impl Function {
