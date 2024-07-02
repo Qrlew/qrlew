@@ -324,44 +324,4 @@ mod tests {
         // assert_eq!(double_diamond.iter_with(DisplayVisitor).count(), 4);
         println!("The half diamond")
     }
-
-    // #[test]
-    // fn test_concurrent_state_mutation() {
-    //     let semi_diamond = build_semi_diamond();
-    //     let visitor = DisplayVisitor;
-    //     let mut handles = vec![];
-
-    //     for _ in 0..3 {
-    //         let handle = thread::spawn(move || {
-    //             let mut state = state.lock().unwrap();
-    //             match *state {
-    //                 State::Push => {
-    //                     println!("State is Push");
-    //                     *state = State::Visit;
-    //                 }
-    //                 State::Visit => {
-    //                     println!("State is Visit");
-    //                     *state = State::Accept("some_value".to_string());
-    //                 }
-    //                 State::Accept(ref val) => {
-    //                     println!("State is Accept with value: {}", val);
-    //                     *state = State::Push;
-    //                 }
-    //             }
-    //         });
-    //         handles.push(handle);
-    //     }
-
-    //     for handle in handles {
-    //         handle.join().unwrap();
-    //     }
-
-    //     // Assert the final state if needed
-    //     let final_state = state.lock().unwrap();
-    //     match *final_state {
-    //         State::Push => println!("Final state is Push"),
-    //         State::Visit => println!("Final state is Visit"),
-    //         State::Accept(ref val) => println!("Final state is Accept with value: {}", val),
-    //     }
-    // }
 }
