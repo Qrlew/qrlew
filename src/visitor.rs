@@ -327,11 +327,11 @@ mod tests {
 
     // #[test]
     // fn test_concurrent_state_mutation() {
-    //     let state = Arc::new(State::Push);
+    //     let semi_diamond = build_semi_diamond();
+    //     let visitor = DisplayVisitor;
     //     let mut handles = vec![];
 
-    //     for _ in 0..10 {
-    //         let state = Arc::clone(&state);
+    //     for _ in 0..3 {
     //         let handle = thread::spawn(move || {
     //             let mut state = state.lock().unwrap();
     //             match *state {

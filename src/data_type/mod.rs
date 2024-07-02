@@ -3282,7 +3282,7 @@ impl DataType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, thread};
 
     #[test]
     fn test_null() {
@@ -4191,6 +4191,44 @@ mod tests {
         let fld: DataType = fl.clone().into();
         let l = il.into_data_type(&fld).unwrap();
         println!("l = {l}");
+    }
+
+    #[test]
+    fn test_list_bis() {
+        let il = DataType::List(List::from_data_type_size(
+            DataType::optional( DataType::optional(DataType::Any)),
+            Integer::from_interval(0, 9223372036854775807),
+        ));
+        println!("{:?}", il);
+        let fl = il.flatten_optional();
+        println!("fl = {fl}");
+        // println!("il <= fl = {}", il.is_subset_of(&fl));
+        // let fld: DataType = fl.clone().into();
+        // let l = il.into_data_type(&fld).unwrap();
+        // println!("l = {l}");
+    }
+
+    #[test]
+    fn test_concurrency_list() {
+        let il = DataType::List(List::from_data_type_size(
+            DataType::optional( DataType::optional(DataType::Any)),
+            Integer::from_interval(0, 9223372036854775807),
+        ));
+        let mut handles = vec![];
+
+        for _ in 0..1000 {
+            let i = il.clone();
+            let handle = thread::spawn(move || {
+                i.flatten_optional();
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        let fl = il.flatten_optional();
+        println!("fl = {fl}");
     }
 
     // Test round trip
