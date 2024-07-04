@@ -2585,9 +2585,27 @@ impl Variant for DataType {
                         left.into_data_type(&right)
                             .map_or(false, |left| left.is_subset_of(&right))
                     }
-                    (DataType::Struct(s), DataType::Union(o)) => {
-                        let left = DataType::Struct(s.clone());
-                        let right = DataType::Union(o.clone());
+                    (DataType::Boolean(s), DataType::Float(o)) => {
+                        let left = DataType::Boolean(s.clone());
+                        let right = DataType::Float(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Float(s), DataType::Boolean(o)) => {
+                        let left = DataType::Float(s.clone());
+                        let right = DataType::Boolean(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Boolean(s), DataType::Integer(o)) => {
+                        let left = DataType::Boolean(s.clone());
+                        let right = DataType::Integer(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Integer(s), DataType::Boolean(o)) => {
+                        let left = DataType::Integer(s.clone());
+                        let right = DataType::Boolean(o.clone());
                         left.into_data_type(&right)
                             .map_or(false, |left| left.is_subset_of(&right))
                     }
@@ -2603,15 +2621,9 @@ impl Variant for DataType {
                         left.into_data_type(&right)
                             .map_or(false, |left| left.is_subset_of(&right))
                     }
-                    (DataType::Boolean(s), DataType::Float(o)) => {
-                        let left = DataType::Boolean(s.clone());
-                        let right = DataType::Float(o.clone());
-                        left.into_data_type(&right)
-                            .map_or(false, |left| left.is_subset_of(&right))
-                    }
-                    (DataType::Float(s), DataType::Boolean(o)) => {
-                        let left = DataType::Float(s.clone());
-                        let right = DataType::Boolean(o.clone());
+                    (DataType::Struct(s), DataType::Union(o)) => {
+                        let left = DataType::Struct(s.clone());
+                        let right = DataType::Union(o.clone());
                         left.into_data_type(&right)
                             .map_or(false, |left| left.is_subset_of(&right))
                     }
