@@ -3267,7 +3267,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
 }
 
 /// Implement a LiftOptionalVisitor
-pub struct FlattenOptionalVisitor;
+struct FlattenOptionalVisitor;
 
 impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
     fn structured(&self, fields: Vec<(String, (bool, DataType))>) -> (bool, DataType) {
@@ -3323,8 +3323,7 @@ impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
 impl DataType {
     /// Return a type with non-optional subtypes, it may be optional if one of the
     pub fn flatten_optional(&self) -> DataType {
-        let visitor = FlattenOptionalVisitor;
-        let (is_optional, flat) = self.accept(visitor);
+        let (is_optional, flat) = self.accept(FlattenOptionalVisitor);
         if is_optional {
             DataType::optional(flat)
         } else {
@@ -3481,7 +3480,6 @@ mod tests {
     #[test]
     fn test_inequalities() {
         let empty_interval = DataType::from(Intervals::<f64>::empty());
-        println!("{:?}", empty_interval);
         assert!(empty_interval <= DataType::text());
         println!(
             "{} <= {} is {}",
