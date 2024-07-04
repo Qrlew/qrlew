@@ -1503,7 +1503,7 @@ impl Index<usize> for Union {
 }
 
 /// Optional variant
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct Optional {
     data_type: Arc<DataType>,
 }
@@ -1535,13 +1535,6 @@ impl From<Arc<DataType>> for Optional {
 impl From<DataType> for Optional {
     fn from(data_type: DataType) -> Self {
         Optional::from_data_type(data_type)
-    }
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl hash::Hash for Optional {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.data_type.hash(state);
     }
 }
 
@@ -2558,10 +2551,78 @@ impl Variant for DataType {
                     (DataType::Bytes(_), DataType::Bytes(_)) => true,
                     (_, DataType::Any) => true,
                     (DataType::Any, _) => false,
-                    (s, o) => s
+                    (s, DataType::Text(o)) => {
+                        let o = DataType::Text(o.clone());
+                        s.clone()
+                            .into_data_type(&o)
+                            .map_or(false, |s| s.is_subset_of(&o))
+                    }
+                    (s, DataType::Null) => s
                         .clone()
-                        .into_data_type(o)
-                        .map_or(false, |s| s.is_subset_of(o)),
+                        .into_data_type(&DataType::Null)
+                        .map_or(false, |s| s.is_subset_of(&DataType::Null)),
+                    (DataType::Float(s), DataType::Integer(o)) => {
+                        let left = DataType::Float(s.clone());
+                        let right = DataType::Integer(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Integer(s), DataType::Float(o)) => {
+                        let left = DataType::Integer(s.clone());
+                        let right = DataType::Float(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Boolean(s), DataType::Float(o)) => {
+                        let left = DataType::Boolean(s.clone());
+                        let right = DataType::Float(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Float(s), DataType::Boolean(o)) => {
+                        let left = DataType::Float(s.clone());
+                        let right = DataType::Boolean(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Boolean(s), DataType::Integer(o)) => {
+                        let left = DataType::Boolean(s.clone());
+                        let right = DataType::Integer(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Integer(s), DataType::Boolean(o)) => {
+                        let left = DataType::Integer(s.clone());
+                        let right = DataType::Boolean(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Date(s), DataType::DateTime(o)) => {
+                        let left = DataType::Date(s.clone());
+                        let right = DataType::DateTime(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::DateTime(s), DataType::Date(o)) => {
+                        let left = DataType::DateTime(s.clone());
+                        let right = DataType::Date(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (s, DataType::Union(o)) => {
+                        let right = DataType::Union(o.clone());
+                        s.clone()
+                            .into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (s, DataType::Optional(o)) => {
+                        let right = DataType::Optional(o.clone());
+                        s.clone()
+                            .into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    // let's try to be conservative. For any other combination return false
+                    _ => false,
                 }
             }
         )
