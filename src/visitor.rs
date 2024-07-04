@@ -149,10 +149,10 @@ pub trait Acceptor<'a>: 'a + Sized + Debug + Eq + Hash {
         for (_a, s) in Iterator::new(visitor, self) {
             state = s
         }
-        if let State::Accept(output) = state {
-            output.clone()
-        } else {
-            panic!()
+        match state {
+            State::Push => panic!("Found a `Push` state for Acceptor: {:?}. This should not be possible at this point.", self),
+            State::Visit => panic!("Found a `Visit` state for Acceptor: {:?}. This should not be possible at this point.", self),
+            State::Accept(output) => output.clone(),
         }
     }
 
