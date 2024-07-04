@@ -2561,12 +2561,6 @@ impl Variant for DataType {
                         .clone()
                         .into_data_type(&DataType::Null)
                         .map_or(false, |s| s.is_subset_of(&DataType::Null)),
-                    (s, DataType::Optional(o)) => {
-                        let o = DataType::Optional(o.clone());
-                        s.clone()
-                            .into_data_type(&o)
-                            .map_or(false, |s| s.is_subset_of(&o))
-                    }
                     (DataType::Float(s), DataType::Integer(o)) => {
                         let left = DataType::Float(s.clone());
                         let right = DataType::Integer(o.clone());
@@ -2617,6 +2611,12 @@ impl Variant for DataType {
                     }
                     (s, DataType::Union(o)) => {
                         let right = DataType::Union(o.clone());
+                        s.clone()
+                            .into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (s, DataType::Optional(o)) => {
+                        let right = DataType::Optional(o.clone());
                         s.clone()
                             .into_data_type(&right)
                             .map_or(false, |left| left.is_subset_of(&right))
