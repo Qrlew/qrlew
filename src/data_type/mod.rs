@@ -2615,16 +2615,10 @@ impl Variant for DataType {
                         left.into_data_type(&right)
                             .map_or(false, |left| left.is_subset_of(&right))
                     }
-                    (DataType::Struct(s), DataType::Union(o)) => {
-                        let left = DataType::Struct(s.clone());
+                    (s, DataType::Union(o)) => {
                         let right = DataType::Union(o.clone());
-                        left.into_data_type(&right)
-                            .map_or(false, |left| left.is_subset_of(&right))
-                    }
-                    (DataType::List(s), DataType::Union(o)) => {
-                        let left = DataType::List(s.clone());
-                        let right = DataType::Union(o.clone());
-                        left.into_data_type(&right)
+                        s.clone()
+                            .into_data_type(&right)
                             .map_or(false, |left| left.is_subset_of(&right))
                     }
                     // let's try to be conservative. For any other combination return false
