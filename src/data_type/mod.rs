@@ -2634,7 +2634,7 @@ impl Variant for DataType {
                             .map_or(false, |left| left.is_subset_of(&right))
                     }
                     // let's try to be conservative. For any other combination return false
-                    (_, _) => false,
+                    _ => false,
                 }
             }
         )
