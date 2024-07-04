@@ -1478,10 +1478,10 @@ pub fn gt() -> impl Function {
 
 pub fn lt() -> impl Function {
     Polymorphic::default()
-    .with(PartitionnedMonotonic::bivariate(
-        (data_type::Integer::default(), data_type::Integer::default()),
-        |a, b| (a < b),
-    ))
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Integer::default(), data_type::Integer::default()),
+            |a, b| (a < b),
+        ))
         .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
             |a, b| (a < b),
@@ -1965,7 +1965,8 @@ pub fn extract_epoch() -> impl Function {
         .with(PartitionnedMonotonic::univariate(
             data_type::Date::default(),
             |a| {
-                (a.and_hms_opt(0,0,0).unwrap().and_utc().timestamp() as i64).clamp(<i64 as Bound>::min(), <i64 as Bound>::max())
+                (a.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as i64)
+                    .clamp(<i64 as Bound>::min(), <i64 as Bound>::max())
             },
         ))
         .with(PartitionnedMonotonic::univariate(
@@ -2837,7 +2838,7 @@ mod tests {
         println!("co_domain = {}", fun.co_domain());
 
         let set = DataType::from(Struct::from_data_types([
-            DataType::from(data_type::Integer::from_interval(1, 100000) ),
+            DataType::from(data_type::Integer::from_interval(1, 100000)),
             DataType::from(data_type::Integer::from_interval(1, 100000)),
         ]));
 
@@ -3411,7 +3412,6 @@ mod tests {
         );
         assert!(set.is_subset_of(&sum().domain()));
     }
-
 
     #[test]
     fn test_case() {

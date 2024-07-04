@@ -150,8 +150,8 @@ pub trait Acceptor<'a>: 'a + Sized + Debug + Eq + Hash {
             state = s
         }
         match state {
-            State::Push => {println!("ACCEPTOR: {:?}", self); panic!("FOUND A PUSH STATE. THIS SHOULD BE NOT POSSIBLE")},
-            State::Visit => {println!("ACCEPTOR: {:?}", self); panic!("FOUND A VISIT STATE. THIS SHOULD BE NOT POSSIBLE")},
+            State::Push => panic!("Found a PUSH state for Acceptor: {:?}. This should not be possible at this point.", self),
+            State::Visit => panic!("Found a Visit state for Acceptor: {:?}. This should not be possible at this point.", self),
             State::Accept(output) => output.clone(),
         }
     }

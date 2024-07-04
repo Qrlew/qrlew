@@ -854,7 +854,9 @@ impl Struct {
         Struct::default().and(data_type)
     }
     /// Create from a slice of datatypes
-    pub fn from_data_types<T: Clone + Into<DataType>, A: AsRef<[T]>>(data_types: A) -> Struct {
+    pub fn from_data_types<T: Clone + fmt::Debug + Into<DataType>, A: AsRef<[T]>>(
+        data_types: A,
+    ) -> Struct {
         data_types
             .as_ref()
             .iter()
@@ -1006,7 +1008,9 @@ impl<S: Into<String>, T: Into<Arc<DataType>>> From<(S, T)> for Struct {
     }
 }
 
-impl<S: Clone + Into<String>, T: Clone + Into<Arc<DataType>>> From<&[(S, T)]> for Struct {
+impl<S: Clone + Into<String>, T: Clone + fmt::Debug + Into<Arc<DataType>>> From<&[(S, T)]>
+    for Struct
+{
     fn from(values: &[(S, T)]) -> Self {
         Struct::new(
             values
@@ -1342,7 +1346,9 @@ impl<S: Into<String>, T: Into<Arc<DataType>>> From<(S, T)> for Union {
     }
 }
 
-impl<S: Clone + Into<String>, T: Clone + Into<Arc<DataType>>> From<&[(S, T)]> for Union {
+impl<S: Clone + Into<String>, T: Clone + fmt::Debug + Into<Arc<DataType>>> From<&[(S, T)]>
+    for Union
+{
     fn from(values: &[(S, T)]) -> Self {
         Union::new(
             values
@@ -1503,7 +1509,7 @@ impl Index<usize> for Union {
 }
 
 /// Optional variant
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct Optional {
     data_type: Arc<DataType>,
 }
@@ -1535,13 +1541,6 @@ impl From<Arc<DataType>> for Optional {
 impl From<DataType> for Optional {
     fn from(data_type: DataType) -> Self {
         Optional::from_data_type(data_type)
-    }
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl hash::Hash for Optional {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.data_type.hash(state);
     }
 }
 
@@ -2558,10 +2557,72 @@ impl Variant for DataType {
                     (DataType::Bytes(_), DataType::Bytes(_)) => true,
                     (_, DataType::Any) => true,
                     (DataType::Any, _) => false,
-                    (s, o) => s
+                    (s, DataType::Text(o)) => {
+                        let o = DataType::Text(o.clone());
+                        s.clone()
+                            .into_data_type(&o)
+                            .map_or(false, |s| s.is_subset_of(&o))
+                    }
+                    (s, DataType::Null) => s
                         .clone()
-                        .into_data_type(o)
-                        .map_or(false, |s| s.is_subset_of(o)),
+                        .into_data_type(&DataType::Null)
+                        .map_or(false, |s| s.is_subset_of(&DataType::Null)),
+                    (s, DataType::Optional(o)) => {
+                        let o = DataType::Optional(o.clone());
+                        s.clone()
+                            .into_data_type(&o)
+                            .map_or(false, |s| s.is_subset_of(&o))
+                    }
+                    (DataType::Float(s), DataType::Integer(o)) => {
+                        let left = DataType::Float(s.clone());
+                        let right = DataType::Integer(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Integer(s), DataType::Float(o)) => {
+                        let left = DataType::Integer(s.clone());
+                        let right = DataType::Float(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Struct(s), DataType::Union(o)) => {
+                        let left = DataType::Struct(s.clone());
+                        let right = DataType::Union(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Date(s), DataType::DateTime(o)) => {
+                        let left = DataType::Date(s.clone());
+                        let right = DataType::DateTime(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::DateTime(s), DataType::Date(o)) => {
+                        let left = DataType::DateTime(s.clone());
+                        let right = DataType::Date(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Boolean(s), DataType::Float(o)) => {
+                        let left = DataType::Boolean(s.clone());
+                        let right = DataType::Float(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Float(s), DataType::Boolean(o)) => {
+                        let left = DataType::Float(s.clone());
+                        let right = DataType::Boolean(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::List(s), DataType::Union(o)) => {
+                        let left = DataType::List(s.clone());
+                        let right = DataType::Union(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    // let's try to be conservative. For any other combination return false
+                    (_, _) => false,
                 }
             }
         )
@@ -2902,7 +2963,7 @@ impl DataType {
 
     pub fn structured<
         S: Clone + Into<String>,
-        T: Clone + Into<Arc<DataType>>,
+        T: Clone + fmt::Debug + Into<Arc<DataType>>,
         F: AsRef<[(S, T)]>,
     >(
         fields: F,
@@ -3158,7 +3219,7 @@ impl<'a> Acceptor<'a> for DataType {
 // Visitors
 
 /// A Visitor for the type Expr
-pub trait Visitor<'a, T: Clone> {
+pub trait Visitor<'a, T: Clone + fmt::Debug> {
     // Composed types
     fn structured(&self, fields: Vec<(String, T)>) -> T;
     fn union(&self, fields: Vec<(String, T)>) -> T;
@@ -3171,7 +3232,7 @@ pub trait Visitor<'a, T: Clone> {
 }
 
 /// Implement a specific visitor to dispatch the dependencies more easily
-impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
+impl<'a, T: Clone + fmt::Debug, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
     fn visit(&self, acceptor: &'a DataType, dependencies: visitor::Visited<'a, DataType, T>) -> T {
         match acceptor {
             DataType::Struct(s) => self.structured(
@@ -3200,7 +3261,7 @@ impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
 }
 
 /// Implement a LiftOptionalVisitor
-struct FlattenOptionalVisitor;
+pub struct FlattenOptionalVisitor;
 
 impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
     fn structured(&self, fields: Vec<(String, (bool, DataType))>) -> (bool, DataType) {
@@ -3256,7 +3317,8 @@ impl<'a> Visitor<'a, (bool, DataType)> for FlattenOptionalVisitor {
 impl DataType {
     /// Return a type with non-optional subtypes, it may be optional if one of the
     pub fn flatten_optional(&self) -> DataType {
-        let (is_optional, flat) = self.accept(FlattenOptionalVisitor);
+        let visitor = FlattenOptionalVisitor;
+        let (is_optional, flat) = self.accept(visitor);
         if is_optional {
             DataType::optional(flat)
         } else {
@@ -3282,7 +3344,7 @@ impl DataType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{convert::TryFrom, thread};
+    use std::convert::TryFrom;
 
     #[test]
     fn test_null() {
@@ -3413,6 +3475,7 @@ mod tests {
     #[test]
     fn test_inequalities() {
         let empty_interval = DataType::from(Intervals::<f64>::empty());
+        println!("{:?}", empty_interval);
         assert!(empty_interval <= DataType::text());
         println!(
             "{} <= {} is {}",
@@ -4191,44 +4254,6 @@ mod tests {
         let fld: DataType = fl.clone().into();
         let l = il.into_data_type(&fld).unwrap();
         println!("l = {l}");
-    }
-
-    #[test]
-    fn test_list_bis() {
-        let il = DataType::List(List::from_data_type_size(
-            DataType::optional( DataType::optional(DataType::Any)),
-            Integer::from_interval(0, 9223372036854775807),
-        ));
-        println!("{:?}", il);
-        let fl = il.flatten_optional();
-        println!("fl = {fl}");
-        // println!("il <= fl = {}", il.is_subset_of(&fl));
-        // let fld: DataType = fl.clone().into();
-        // let l = il.into_data_type(&fld).unwrap();
-        // println!("l = {l}");
-    }
-
-    #[test]
-    fn test_concurrency_list() {
-        let il = DataType::List(List::from_data_type_size(
-            DataType::optional( DataType::optional(DataType::Any)),
-            Integer::from_interval(0, 9223372036854775807),
-        ));
-        let mut handles = vec![];
-
-        for _ in 0..1000 {
-            let i = il.clone();
-            let handle = thread::spawn(move || {
-                i.flatten_optional();
-            });
-            handles.push(handle);
-        }
-
-        for handle in handles {
-            handle.join().unwrap();
-        }
-        let fl = il.flatten_optional();
-        println!("fl = {fl}");
     }
 
     // Test round trip
