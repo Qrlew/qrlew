@@ -854,9 +854,7 @@ impl Struct {
         Struct::default().and(data_type)
     }
     /// Create from a slice of datatypes
-    pub fn from_data_types<T: Clone + fmt::Debug + Into<DataType>, A: AsRef<[T]>>(
-        data_types: A,
-    ) -> Struct {
+    pub fn from_data_types<T: Clone + Into<DataType>, A: AsRef<[T]>>(data_types: A) -> Struct {
         data_types
             .as_ref()
             .iter()
@@ -1008,9 +1006,7 @@ impl<S: Into<String>, T: Into<Arc<DataType>>> From<(S, T)> for Struct {
     }
 }
 
-impl<S: Clone + Into<String>, T: Clone + fmt::Debug + Into<Arc<DataType>>> From<&[(S, T)]>
-    for Struct
-{
+impl<S: Clone + Into<String>, T: Clone + Into<Arc<DataType>>> From<&[(S, T)]> for Struct {
     fn from(values: &[(S, T)]) -> Self {
         Struct::new(
             values
@@ -1346,9 +1342,7 @@ impl<S: Into<String>, T: Into<Arc<DataType>>> From<(S, T)> for Union {
     }
 }
 
-impl<S: Clone + Into<String>, T: Clone + fmt::Debug + Into<Arc<DataType>>> From<&[(S, T)]>
-    for Union
-{
+impl<S: Clone + Into<String>, T: Clone + Into<Arc<DataType>>> From<&[(S, T)]> for Union {
     fn from(values: &[(S, T)]) -> Self {
         Union::new(
             values
@@ -2975,7 +2969,7 @@ impl DataType {
 
     pub fn structured<
         S: Clone + Into<String>,
-        T: Clone + fmt::Debug + Into<Arc<DataType>>,
+        T: Clone + Into<Arc<DataType>>,
         F: AsRef<[(S, T)]>,
     >(
         fields: F,
@@ -3231,7 +3225,7 @@ impl<'a> Acceptor<'a> for DataType {
 // Visitors
 
 /// A Visitor for the type Expr
-pub trait Visitor<'a, T: Clone + fmt::Debug> {
+pub trait Visitor<'a, T: Clone> {
     // Composed types
     fn structured(&self, fields: Vec<(String, T)>) -> T;
     fn union(&self, fields: Vec<(String, T)>) -> T;
@@ -3244,7 +3238,7 @@ pub trait Visitor<'a, T: Clone + fmt::Debug> {
 }
 
 /// Implement a specific visitor to dispatch the dependencies more easily
-impl<'a, T: Clone + fmt::Debug, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
+impl<'a, T: Clone, V: Visitor<'a, T>> visitor::Visitor<'a, DataType, T> for V {
     fn visit(&self, acceptor: &'a DataType, dependencies: visitor::Visited<'a, DataType, T>) -> T {
         match acceptor {
             DataType::Struct(s) => self.structured(
