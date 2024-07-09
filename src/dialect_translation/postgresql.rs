@@ -97,6 +97,7 @@ mod tests {
         sql::{parse_with_dialect, relation::QueryWithRelations},
     };
     use std::sync::Arc;
+    use std::fs;
 
     // fn assert_same_query_str(query_1: &str, query_2: &str) {
     //     let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
@@ -231,6 +232,32 @@ mod tests {
         println!("FROM RELATION \n {} \n", translated);
         _ = database
             .query(translated.to_string().as_str())
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_complex_case_query() -> Result<()> {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        // Specify the path to the file
+        let path = "src/dialect_translation/complex_case_query.txt";
+
+        // Read the file contents into a string
+        let query_str = fs::read_to_string(path).unwrap();
+        let translator = PostgreSqlTranslator;
+        let query = parse_with_dialect(&query_str[..], translator.dialect())?;
+        println!("Parsed Query: \n{}", query);
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+        let rel_with_traslator = RelationWithTranslator(&relation, translator);
+        let rewritten = ast::Query::from(rel_with_traslator);
+        println!("Rewritten Query: \n{}", rewritten);
+        _ = database
+            .query(rewritten.to_string().as_str())
             .unwrap()
             .iter()
             .map(ToString::to_string);
