@@ -1,5 +1,3 @@
-use crate::expr;
-
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::PostgreSqlDialect};
 
@@ -7,36 +5,32 @@ use sqlparser::{ast, dialect::PostgreSqlDialect};
 pub struct PostgreSqlTranslator;
 
 impl RelationToQueryTranslator for PostgreSqlTranslator {
-    fn first(&self, expr: &expr::Expr) -> ast::Expr {
-        self.expr(expr)
+    fn first(&self, expr: ast::Expr) -> ast::Expr {
+        expr
     }
 
-    fn mean(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("AVG", vec![arg], false)
+    fn mean(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("AVG", vec![expr], false)
     }
 
-    fn var(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("VARIANCE", vec![arg], false)
+    fn var(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("VARIANCE", vec![expr], false)
     }
 
-    fn std(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("STDDEV", vec![arg], false)
+    fn std(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("STDDEV", vec![expr], false)
     }
 
-    fn trunc(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn trunc(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         // TRUNC in postgres has a problem:
         // In TRUNC(double_precision_number, precision) if precision is specified it fails
         // If it is not specified it passes considering precision = 0.
         // SELECT TRUNC(CAST (0.12 AS DOUBLE PRECISION), 0) fails
         // SELECT TRUNC(CAST (0.12 AS DOUBLE PRECISION)) passes.
         // Here we check precision, if it is 0 we remove it (such that the precision is implicit).
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
         let func_args_list = ast::FunctionArgumentList {
             duplicate_treatment: None,
-            args: ast_exprs
+            args: exprs
                 .into_iter()
                 .filter_map(|e| {
                     (e != ast::Expr::Value(ast::Value::Number("0".to_string(), false)))
@@ -55,13 +49,12 @@ impl RelationToQueryTranslator for PostgreSqlTranslator {
         })
     }
 
-    fn round(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn round(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         // Same as TRUNC
         // what if I wanted to do round(0, 0)
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
         let func_args_list = ast::FunctionArgumentList {
             duplicate_treatment: None,
-            args: ast_exprs
+            args: exprs
                 .into_iter()
                 .filter_map(|e| {
                     (e != ast::Expr::Value(ast::Value::Number("0".to_string(), false)))
@@ -204,6 +197,38 @@ mod tests {
         let rel_with_traslator = RelationWithTranslator(&relation, translator);
         let translated = ast::Query::from(rel_with_traslator);
         print!("{}", translated);
+        _ = database
+            .query(translated.to_string().as_str())
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+        Ok(())
+    }
+
+    #[test]
+    fn test_flatten_case() -> Result<()> {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let query_str = r#"
+        SELECT
+            CASE
+                WHEN (a BETWEEN 0.0 AND 0.2) THEN 0.0
+                WHEN (a BETWEEN 0.2 AND 0.4) THEN 0.2
+                WHEN (a BETWEEN 0.4 AND 0.6) THEN 0.4
+                WHEN (a BETWEEN 0.6 AND 0.8) THEN 0.6
+                WHEN (a BETWEEN 0.8 AND 1.0) THEN 0.8
+                ELSE 1.0
+            END AS my_case
+        FROM table_1
+        "#;
+        let translator = PostgreSqlTranslator;
+        let query = parse_with_dialect(query_str, translator.dialect())?;
+        println!("Query: \n{}", query);
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+        let rel_with_traslator = RelationWithTranslator(&relation, translator);
+        let translated = ast::Query::from(rel_with_traslator);
+        println!("FROM RELATION \n {} \n", translated);
         _ = database
             .query(translated.to_string().as_str())
             .unwrap()
