@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.22] - 2024-07-9
+### Changed
+- When translating relations to queries transform all nested CASE expressions into a single CASE
+
 ## [0.9.21] - 2024-06-27
 ### Changed
 - Add integer domains to few boolean functions to reduce timing of fun.super_image
