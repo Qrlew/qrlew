@@ -284,11 +284,16 @@ mod tests {
         let rel_with_traslator = RelationWithTranslator(&relation, translator);
         let rewritten = ast::Query::from(rel_with_traslator);
         println!("Rewritten Query: \n{}", rewritten);
+        // execute
         _ = database
             .query(rewritten.to_string().as_str())
             .unwrap()
             .iter()
             .map(ToString::to_string);
+
+        // Try rebuilding the relation
+        let query_with_relation = QueryWithRelations::new(&rewritten, &relations);
+        let _relation = Relation::try_from((query_with_relation, translator))?;
         Ok(())
     }
 }

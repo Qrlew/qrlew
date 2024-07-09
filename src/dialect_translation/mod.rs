@@ -114,7 +114,7 @@ macro_rules! function_match_constructor {
 
                 // expand arms for nary
                 $(
-                    expr::function::Function::$nary => $self.[<$nary:snake>]($args.clone()),
+                    expr::function::Function::$nary => $self.[<$nary:snake>]($args),
                 )*
                 _ => $default
             }
