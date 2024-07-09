@@ -58,8 +58,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         let md5_literal = ast::Expr::Value(ast::Value::SingleQuotedString("MD5".to_string()));
         let md5_literal_as_function_arg =
             ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
-        let ast_expr_as_function_arg =
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr));
+        let ast_expr_as_function_arg = ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr));
 
         let func_args_list = ast::FunctionArgumentList {
             duplicate_treatment: None,

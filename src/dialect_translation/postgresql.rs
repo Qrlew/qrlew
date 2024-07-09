@@ -96,8 +96,8 @@ mod tests {
         relation::{schema::Schema, Relation},
         sql::{parse_with_dialect, relation::QueryWithRelations},
     };
-    use std::sync::Arc;
     use std::fs;
+    use std::sync::Arc;
 
     // fn assert_same_query_str(query_1: &str, query_2: &str) {
     //     let a_no_whitespace: String = query_1.chars().filter(|c| !c.is_whitespace()).collect();
@@ -266,7 +266,6 @@ mod tests {
             .map(ToString::to_string);
         Ok(())
     }
-
 
     #[test]
     fn test_complex_case_query() -> Result<()> {

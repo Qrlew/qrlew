@@ -6,7 +6,12 @@
 use sqlparser::{ast, dialect::Dialect};
 
 use crate::{
-    data_type::DataTyped, expr::Identifier, hierarchy::Hierarchy, relation::{Join, JoinOperator, Table, Variant}, sql::Result, DataType, Relation
+    data_type::DataTyped,
+    expr::Identifier,
+    hierarchy::Hierarchy,
+    relation::{Join, JoinOperator, Table, Variant},
+    sql::Result,
+    DataType, Relation,
 };
 use crate::{
     expr::{self},
@@ -333,7 +338,7 @@ macro_rules! relation_to_query_translator_trait_constructor {
             }
 
             fn expr(&self, expr: &expr::Expr) -> ast::Expr {
-                expr.accept(ExprToAstVisitor {translator: self} )
+                expr.accept(ExprToAstVisitor { translator: self })
             }
 
             fn column(&self, ident: &expr::Column) -> ast::Expr {
@@ -383,7 +388,11 @@ macro_rules! relation_to_query_translator_trait_constructor {
                 }
             }
 
-            fn function(&self, function: &expr::function::Function, arguments: Vec<ast::Expr>) -> ast::Expr {
+            fn function(
+                &self,
+                function: &expr::function::Function,
+                arguments: Vec<ast::Expr>,
+            ) -> ast::Expr {
                 function_match_constructor!(
                     self,
                     arguments,
@@ -502,7 +511,11 @@ macro_rules! relation_to_query_translator_trait_constructor {
                 )
             }
 
-            fn aggregate(&self, aggregate: &expr::aggregate::Aggregate, argument: ast::Expr) -> ast::Expr {
+            fn aggregate(
+                &self,
+                aggregate: &expr::aggregate::Aggregate,
+                argument: ast::Expr,
+            ) -> ast::Expr {
                 match aggregate {
                     expr::aggregate::Aggregate::Min => self.min(argument),
                     expr::aggregate::Aggregate::Max => self.max(argument),
@@ -630,7 +643,7 @@ macro_rules! relation_to_query_translator_trait_constructor {
                 cast_builder(expr, ast::DataType::Datetime(None))
             }
             fn case(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
-                assert!(exprs.len()==3);
+                assert!(exprs.len() == 3);
                 let mut when = vec![exprs[0].clone()];
                 let mut then = vec![exprs[1].clone()];
 
@@ -644,8 +657,8 @@ macro_rules! relation_to_query_translator_trait_constructor {
                         when.extend(conditions.clone());
                         then.extend(results.clone());
                         else_result.clone()
-                    },
-                    s => Some(Box::new(s.clone()))
+                    }
+                    s => Some(Box::new(s.clone())),
                 };
                 case_builder(when, then, _else)
             }
@@ -808,7 +821,11 @@ impl<T: RelationToQueryTranslator + ?Sized> RelationToQueryTranslator for &T {
         (**self).value(value)
     }
 
-    fn function(&self, function: &expr::function::Function, arguments: Vec<ast::Expr>) -> ast::Expr {
+    fn function(
+        &self,
+        function: &expr::function::Function,
+        arguments: Vec<ast::Expr>,
+    ) -> ast::Expr {
         (**self).function(function, arguments)
     }
 
@@ -817,9 +834,8 @@ impl<T: RelationToQueryTranslator + ?Sized> RelationToQueryTranslator for &T {
     }
 }
 
-
 struct ExprToAstVisitor<T> {
-    translator: T
+    translator: T,
 }
 
 impl<'a, T: RelationToQueryTranslator> expr::Visitor<'a, ast::Expr> for ExprToAstVisitor<T> {
@@ -831,11 +847,19 @@ impl<'a, T: RelationToQueryTranslator> expr::Visitor<'a, ast::Expr> for ExprToAs
         self.translator.value(value)
     }
 
-    fn function(&self, function: &'a expr::function::Function, arguments: Vec<ast::Expr>) -> ast::Expr {
+    fn function(
+        &self,
+        function: &'a expr::function::Function,
+        arguments: Vec<ast::Expr>,
+    ) -> ast::Expr {
         self.translator.function(function, arguments)
     }
 
-    fn aggregate(&self, aggregate: &'a expr::aggregate::Aggregate, argument: ast::Expr) -> ast::Expr {
+    fn aggregate(
+        &self,
+        aggregate: &'a expr::aggregate::Aggregate,
+        argument: ast::Expr,
+    ) -> ast::Expr {
         self.translator.aggregate(aggregate, argument)
     }
 
@@ -887,7 +911,11 @@ fn cast_builder(expr: ast::Expr, as_type: ast::DataType) -> ast::Expr {
 }
 
 // AST CASE expression builder
-fn case_builder(when: Vec<ast::Expr>, then: Vec<ast::Expr>, _else: Option<Box<ast::Expr>>) -> ast::Expr {
+fn case_builder(
+    when: Vec<ast::Expr>,
+    then: Vec<ast::Expr>,
+    _else: Option<Box<ast::Expr>>,
+) -> ast::Expr {
     ast::Expr::Case {
         operand: None,
         conditions: when,
