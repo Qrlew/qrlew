@@ -238,6 +238,35 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_flatten_case_with_operand() -> Result<()> {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+        let query_str = r#"
+        SELECT
+            CASE z
+                WHEN 'Foo' THEN 0.0
+                WHEN 'Bar' THEN 0.2
+                ELSE 10.0
+            END AS my_case
+        FROM table_2
+        "#;
+        let translator = PostgreSqlTranslator;
+        let query = parse_with_dialect(query_str, translator.dialect())?;
+        println!("Query: \n{}", query);
+        let query_with_relation = QueryWithRelations::new(&query, &relations);
+        let relation = Relation::try_from((query_with_relation, translator))?;
+        let rel_with_traslator = RelationWithTranslator(&relation, translator);
+        let translated = ast::Query::from(rel_with_traslator);
+        println!("FROM RELATION \n {} \n", translated);
+        _ = database
+            .query(translated.to_string().as_str())
+            .unwrap()
+            .iter()
+            .map(ToString::to_string);
+        Ok(())
+    }
+
 
     #[test]
     fn test_complex_case_query() -> Result<()> {
