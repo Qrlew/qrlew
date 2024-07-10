@@ -28,52 +28,44 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             materialized: None,
         }
     }
-    fn first(&self, expr: &expr::Expr) -> ast::Expr {
-        ast::Expr::from(expr)
+    fn first(&self, expr: ast::Expr) -> ast::Expr {
+        expr
     }
 
-    fn mean(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("AVG", vec![arg], false)
+    fn mean(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("AVG", vec![expr], false)
     }
 
-    fn var(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("VARIANCE", vec![arg], false)
+    fn var(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("VARIANCE", vec![expr], false)
     }
 
-    fn std(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("STDDEV", vec![arg], false)
+    fn std(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("STDDEV", vec![expr], false)
     }
     /// Converting LOG to LOG10
-    fn log(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("LOG10", vec![arg], false)
+    fn log(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("LOG10", vec![expr], false)
     }
-    fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
-        let ast_expr = self.expr(expr);
+    fn cast_as_text(&self, expr: ast::Expr) -> ast::Expr {
         ast::Expr::Cast {
-            expr: Box::new(ast_expr),
+            expr: Box::new(expr),
             data_type: ast::DataType::String(None),
             format: None,
             kind: ast::CastKind::Cast,
         }
     }
-    fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn substr(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 2);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        function_builder("SUBSTR", ast_exprs, false)
+        function_builder("SUBSTR", exprs, false)
     }
-    fn substr_with_size(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn substr_with_size(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 3);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-        function_builder("SUBSTR", ast_exprs, false)
+        function_builder("SUBSTR", exprs, false)
     }
     /// Converting MD5(X) to TO_HEX(MD5(X))
-    fn md5(&self, expr: &expr::Expr) -> ast::Expr {
-        let ast_expr = self.expr(expr);
-        let md5_function = function_builder("MD5", vec![ast_expr], false);
+    fn md5(&self, expr: ast::Expr) -> ast::Expr {
+        let md5_function = function_builder("MD5", vec![expr], false);
         function_builder("TO_HEX", vec![md5_function], false)
     }
     fn random(&self) -> ast::Expr {

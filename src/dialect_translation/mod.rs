@@ -14,7 +14,7 @@ use crate::{
     DataType, Relation,
 };
 use crate::{
-    expr::{self, Function},
+    expr::{self},
     relation::sql::FromRelationVisitor,
     visitor::Acceptor,
     WithoutContext,
@@ -49,9 +49,8 @@ macro_rules! unary_function_ast_constructor {
     ($( $enum:ident ),*) => {
         paste! {
             $(
-                fn [<$enum:snake>](&self, expr: &expr::Expr) -> ast::Expr {
-                    let ast_expr = self.expr(expr);
-                    function_builder(stringify!([<$enum:snake:upper>]), vec![ast_expr], false)
+                fn [<$enum:snake>](&self, expr: ast::Expr) -> ast::Expr {
+                    function_builder(stringify!([<$enum:snake:upper>]), vec![expr], false)
                 }
             )*
         }
@@ -63,9 +62,8 @@ macro_rules! extract_ast_expression_constructor {
     ($( $enum:ident ),*) => {
         paste! {
             $(
-                fn [<extract_ $enum:snake>](&self, expr: &expr::Expr) -> ast::Expr {
-                    let ast_expr = self.expr(expr);
-                    extract_builder(ast_expr, ast::DateTimeField::$enum)
+                fn [<extract_ $enum:snake>](&self, expr: ast::Expr) -> ast::Expr {
+                    extract_builder(expr, ast::DateTimeField::$enum)
                 }
             )*
         }
@@ -77,9 +75,8 @@ macro_rules! nary_function_ast_constructor {
     ($( $enum:ident ),*) => {
         paste! {
             $(
-                fn [<$enum:snake>](&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-                    let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
-                    function_builder(stringify!([<$enum:snake:upper>]), ast_exprs, false)
+                fn [<$enum:snake>](&self, exprs: Vec<ast::Expr>) -> ast::Expr {
+                    function_builder(stringify!([<$enum:snake:upper>]), exprs, false)
                 }
             )*
         }
@@ -102,7 +99,7 @@ macro_rules! function_match_constructor {
             match $func {
                 // expand arms for binary_op
                 $(
-                    expr::function::Function::$binary_op => binary_op_builder($self.expr($args[0]), ast::BinaryOperator::$binary_op, $self.expr($args[1])),
+                    expr::function::Function::$binary_op => binary_op_builder($args[0].clone(), ast::BinaryOperator::$binary_op, $args[1].clone()),
                 )*
 
                 // expand arms for nullray
@@ -112,7 +109,7 @@ macro_rules! function_match_constructor {
 
                 // expand arms for unary
                 $(
-                    expr::function::Function::$unary => $self.[<$unary:snake>]($args[0]),
+                    expr::function::Function::$unary => $self.[<$unary:snake>]($args[0].clone()),
                 )*
 
                 // expand arms for nary
@@ -126,10 +123,10 @@ macro_rules! function_match_constructor {
 }
 
 /// Trait constructor for building dialect dependent AST parts with default implementations.
-/// We use macros to reduce code repetition in generating functions to convert each Epression variant.
-macro_rules! relation_to_query_tranlator_trait_constructor {
+/// We use macros to reduce code repetition in generating functions to convert each Expression variant.
+macro_rules! relation_to_query_translator_trait_constructor {
     () => {
-        pub trait RelationToQueryTranslator {
+        pub trait RelationToQueryTranslator: Sized {
             fn query(
                 &self,
                 with: Vec<ast::Cte>,
@@ -341,17 +338,11 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
             }
 
             fn expr(&self, expr: &expr::Expr) -> ast::Expr {
-                match expr {
-                    expr::Expr::Column(ident) => self.column(ident),
-                    expr::Expr::Value(value) => self.value(value),
-                    expr::Expr::Function(func) => self.function(func),
-                    expr::Expr::Aggregate(agg) => self.aggregate(agg),
-                    expr::Expr::Struct(_) => todo!(),
-                }
+                expr.accept(ExprToAstVisitor { translator: self })
             }
 
-            fn column(&self, ident: &expr::Identifier) -> ast::Expr {
-                let ast_iden = self.identifier(ident);
+            fn column(&self, ident: &expr::Column) -> ast::Expr {
+                let ast_iden = self.identifier(ident.into());
                 if ast_iden.len() > 1 {
                     ast::Expr::CompoundIdentifier(ast_iden)
                 } else {
@@ -397,14 +388,15 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 }
             }
 
-            fn function(&self, func: &Function) -> ast::Expr {
-                let binding = func.arguments();
-                let args: Vec<&expr::Expr> = binding.iter().collect();
-
+            fn function(
+                &self,
+                function: &expr::function::Function,
+                arguments: Vec<ast::Expr>,
+            ) -> ast::Expr {
                 function_match_constructor!(
                     self,
-                    args,
-                    func.function(),
+                    arguments,
+                    function,
                     //binary op functions match
                     (
                         Plus,
@@ -496,15 +488,15 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                         RegexpReplace,
                         DatetimeDiff
                     ),
-                    match func.function() {
+                    match function {
                         expr::function::Function::Opposite =>
-                            unary_op_builder(ast::UnaryOperator::Minus, self.expr(args[0])),
+                            unary_op_builder(ast::UnaryOperator::Minus, arguments[0].clone()),
                         expr::function::Function::Not =>
-                            unary_op_builder(ast::UnaryOperator::Not, self.expr(args[0])),
+                            unary_op_builder(ast::UnaryOperator::Not, arguments[0].clone()),
                         expr::function::Function::InList => {
-                            if let ast::Expr::Tuple(t) = self.expr(args[1]) {
+                            if let ast::Expr::Tuple(t) = arguments[1].clone() {
                                 ast::Expr::InList {
-                                    expr: Box::new(self.expr(args[0])),
+                                    expr: Box::new(arguments[0].clone()),
                                     list: t.clone(),
                                     negated: false,
                                 }
@@ -513,35 +505,38 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                             }
                         }
                         expr::function::Function::Random(_) => self.random(),
-                        expr::function::Function::Concat(_) => self.concat(args),
+                        expr::function::Function::Concat(_) => self.concat(arguments),
                         _ => todo!(),
                     }
                 )
             }
 
-            fn aggregate(&self, agg: &expr::Aggregate) -> ast::Expr {
-                let arg = agg.argument();
-                match agg.aggregate() {
-                    expr::aggregate::Aggregate::Min => self.min(arg),
-                    expr::aggregate::Aggregate::Max => self.max(arg),
-                    expr::aggregate::Aggregate::Median => self.median(arg),
-                    expr::aggregate::Aggregate::NUnique => self.n_unique(arg),
-                    expr::aggregate::Aggregate::First => self.first(arg),
-                    expr::aggregate::Aggregate::Last => self.last(arg),
-                    expr::aggregate::Aggregate::Mean => self.mean(arg),
-                    expr::aggregate::Aggregate::List => self.list(arg),
-                    expr::aggregate::Aggregate::Count => self.count(arg),
-                    expr::aggregate::Aggregate::Quantile(_) => self.quantile(arg),
-                    expr::aggregate::Aggregate::Quantiles(_) => self.quantiles(arg),
-                    expr::aggregate::Aggregate::Sum => self.sum(arg),
-                    expr::aggregate::Aggregate::AggGroups => self.agg_groups(arg),
-                    expr::aggregate::Aggregate::Std => self.std(arg),
-                    expr::aggregate::Aggregate::Var => self.var(arg),
-                    expr::aggregate::Aggregate::MeanDistinct => self.mean_distinct(arg),
-                    expr::aggregate::Aggregate::CountDistinct => self.count_distinct(arg),
-                    expr::aggregate::Aggregate::SumDistinct => self.sum_distinct(arg),
-                    expr::aggregate::Aggregate::StdDistinct => self.std_distinct(arg),
-                    expr::aggregate::Aggregate::VarDistinct => self.var_distinct(arg),
+            fn aggregate(
+                &self,
+                aggregate: &expr::aggregate::Aggregate,
+                argument: ast::Expr,
+            ) -> ast::Expr {
+                match aggregate {
+                    expr::aggregate::Aggregate::Min => self.min(argument),
+                    expr::aggregate::Aggregate::Max => self.max(argument),
+                    expr::aggregate::Aggregate::Median => self.median(argument),
+                    expr::aggregate::Aggregate::NUnique => self.n_unique(argument),
+                    expr::aggregate::Aggregate::First => self.first(argument),
+                    expr::aggregate::Aggregate::Last => self.last(argument),
+                    expr::aggregate::Aggregate::Mean => self.mean(argument),
+                    expr::aggregate::Aggregate::List => self.list(argument),
+                    expr::aggregate::Aggregate::Count => self.count(argument),
+                    expr::aggregate::Aggregate::Quantile(_) => self.quantile(argument),
+                    expr::aggregate::Aggregate::Quantiles(_) => self.quantiles(argument),
+                    expr::aggregate::Aggregate::Sum => self.sum(argument),
+                    expr::aggregate::Aggregate::AggGroups => self.agg_groups(argument),
+                    expr::aggregate::Aggregate::Std => self.std(argument),
+                    expr::aggregate::Aggregate::Var => self.var(argument),
+                    expr::aggregate::Aggregate::MeanDistinct => self.mean_distinct(argument),
+                    expr::aggregate::Aggregate::CountDistinct => self.count_distinct(argument),
+                    expr::aggregate::Aggregate::SumDistinct => self.sum_distinct(argument),
+                    expr::aggregate::Aggregate::StdDistinct => self.std_distinct(argument),
+                    expr::aggregate::Aggregate::VarDistinct => self.var_distinct(argument),
                 }
             }
 
@@ -628,110 +623,103 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
                 Millisecond
             );
 
-            fn extract_week(&self, expr: &expr::Expr) -> ast::Expr {
-                let ast_expr = self.expr(expr);
-                extract_builder(ast_expr, ast::DateTimeField::Week(None))
+            fn extract_week(&self, expr: ast::Expr) -> ast::Expr {
+                extract_builder(expr, ast::DateTimeField::Week(None))
             }
 
-            fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
-                let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Text)
+            fn cast_as_text(&self, expr: ast::Expr) -> ast::Expr {
+                cast_builder(expr, ast::DataType::Text)
             }
-            fn cast_as_float(&self, expr: &expr::Expr) -> ast::Expr {
-                let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Float(None))
+            fn cast_as_float(&self, expr: ast::Expr) -> ast::Expr {
+                cast_builder(expr, ast::DataType::Float(None))
             }
-            fn cast_as_integer(&self, expr: &expr::Expr) -> ast::Expr {
-                let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Integer(None))
+            fn cast_as_integer(&self, expr: ast::Expr) -> ast::Expr {
+                cast_builder(expr, ast::DataType::Integer(None))
             }
-            fn cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
-                let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Boolean)
+            fn cast_as_boolean(&self, expr: ast::Expr) -> ast::Expr {
+                cast_builder(expr, ast::DataType::Boolean)
             }
-            fn cast_as_date_time(&self, expr: &expr::Expr) -> ast::Expr {
-                let ast_expr = self.expr(expr);
-                cast_builder(ast_expr, ast::DataType::Datetime(None))
+            fn cast_as_date_time(&self, expr: ast::Expr) -> ast::Expr {
+                cast_builder(expr, ast::DataType::Datetime(None))
             }
-            fn case(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
-                let ast_exprs: Vec<ast::Expr> =
-                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
-                case_builder(ast_exprs)
+            fn case(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
+                assert!(exprs.len() == 3);
+                let mut when = vec![exprs[0].clone()];
+                let mut then = vec![exprs[1].clone()];
+
+                let _else = match &exprs[2] {
+                    ast::Expr::Case {
+                        conditions,
+                        results,
+                        else_result,
+                        ..
+                    } => {
+                        when.extend(conditions.clone());
+                        then.extend(results.clone());
+                        else_result.clone()
+                    }
+                    s => Some(Box::new(s.clone())),
+                };
+                case_builder(when, then, _else)
             }
-            fn count_distinct(&self, expr: &expr::Expr) -> ast::Expr {
-                let arg = self.expr(expr);
-                function_builder("COUNT", vec![arg], true)
+            fn count_distinct(&self, expr: ast::Expr) -> ast::Expr {
+                function_builder("COUNT", vec![expr], true)
             }
-            fn sum_distinct(&self, expr: &expr::Expr) -> ast::Expr {
-                let arg = self.expr(expr);
-                function_builder("SUM", vec![arg], true)
+            fn sum_distinct(&self, expr: ast::Expr) -> ast::Expr {
+                function_builder("SUM", vec![expr], true)
             }
-            fn mean_distinct(&self, expr: &expr::Expr) -> ast::Expr {
-                let arg = self.expr(expr);
-                function_builder("AVG", vec![arg], true)
+            fn mean_distinct(&self, expr: ast::Expr) -> ast::Expr {
+                function_builder("AVG", vec![expr], true)
             }
-            fn std_distinct(&self, expr: &expr::Expr) -> ast::Expr {
-                let arg = self.expr(expr);
-                function_builder("STDDEV", vec![arg], true)
+            fn std_distinct(&self, expr: ast::Expr) -> ast::Expr {
+                function_builder("STDDEV", vec![expr], true)
             }
-            fn var_distinct(&self, expr: &expr::Expr) -> ast::Expr {
-                let arg = self.expr(expr);
-                function_builder("VARIANCE", vec![arg], true)
+            fn var_distinct(&self, expr: ast::Expr) -> ast::Expr {
+                function_builder("VARIANCE", vec![expr], true)
             }
-            fn position(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+            fn position(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 2);
-                let ast_exprs: Vec<ast::Expr> =
-                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Position {
-                    expr: Box::new(ast_exprs[0].clone()),
-                    r#in: Box::new(ast_exprs[1].clone()),
+                    expr: Box::new(exprs[0].clone()),
+                    r#in: Box::new(exprs[1].clone()),
                 }
             }
-            fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+            fn substr(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 2);
-                let ast_exprs: Vec<ast::Expr> =
-                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Substring {
-                    expr: Box::new(ast_exprs[0].clone()),
-                    substring_from: Some(Box::new(ast_exprs[1].clone())),
+                    expr: Box::new(exprs[0].clone()),
+                    substring_from: Some(Box::new(exprs[1].clone())),
                     substring_for: None,
                     special: false,
                 }
             }
-            fn substr_with_size(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+            fn substr_with_size(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 3);
-                let ast_exprs: Vec<ast::Expr> =
-                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Substring {
-                    expr: Box::new(ast_exprs[0].clone()),
-                    substring_from: Some(Box::new(ast_exprs[1].clone())),
-                    substring_for: Some(Box::new(ast_exprs[2].clone())),
+                    expr: Box::new(exprs[0].clone()),
+                    substring_from: Some(Box::new(exprs[1].clone())),
+                    substring_for: Some(Box::new(exprs[2].clone())),
                     special: false,
                 }
             }
-            fn is_null(&self, expr: &expr::Expr) -> ast::Expr {
-                let ast_expr: ast::Expr = self.expr(expr);
-                ast::Expr::IsNull(Box::new(ast_expr))
+            fn is_null(&self, expr: ast::Expr) -> ast::Expr {
+                ast::Expr::IsNull(Box::new(expr))
             }
-            fn ilike(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+            fn ilike(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 2);
-                let ast_exprs: Vec<ast::Expr> =
-                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::ILike {
                     negated: false,
-                    expr: Box::new(ast_exprs[0].clone()),
-                    pattern: Box::new(ast_exprs[1].clone()),
+                    expr: Box::new(exprs[0].clone()),
+                    pattern: Box::new(exprs[1].clone()),
                     escape_char: None,
                 }
             }
-            fn like(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+            fn like(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
                 assert!(exprs.len() == 2);
-                let ast_exprs: Vec<ast::Expr> =
-                    exprs.into_iter().map(|expr| self.expr(expr)).collect();
                 ast::Expr::Like {
                     negated: false,
-                    expr: Box::new(ast_exprs[0].clone()),
-                    pattern: Box::new(ast_exprs[1].clone()),
+                    expr: Box::new(exprs[0].clone()),
+                    pattern: Box::new(exprs[1].clone()),
                     escape_char: None,
                 }
             }
@@ -739,7 +727,7 @@ macro_rules! relation_to_query_tranlator_trait_constructor {
     };
 }
 
-relation_to_query_tranlator_trait_constructor!();
+relation_to_query_translator_trait_constructor!();
 
 /// Build Sarus Relation from dialect specific AST
 pub trait QueryToRelationTranslator {
@@ -820,12 +808,42 @@ pub trait QueryToRelationTranslator {
         }
     }
 }
-//     };
-// }
-
-// into_ralation_tranlator_trait_constructor!();
 
 // Helpers
+
+struct ExprToAstVisitor<T> {
+    translator: T,
+}
+
+impl<'a, T: RelationToQueryTranslator> expr::Visitor<'a, ast::Expr> for ExprToAstVisitor<&'a T> {
+    fn column(&self, column: &'a expr::Column) -> ast::Expr {
+        self.translator.column(column)
+    }
+
+    fn value(&self, value: &'a expr::Value) -> ast::Expr {
+        self.translator.value(value)
+    }
+
+    fn function(
+        &self,
+        function: &'a expr::function::Function,
+        arguments: Vec<ast::Expr>,
+    ) -> ast::Expr {
+        self.translator.function(function, arguments)
+    }
+
+    fn aggregate(
+        &self,
+        aggregate: &'a expr::aggregate::Aggregate,
+        argument: ast::Expr,
+    ) -> ast::Expr {
+        self.translator.aggregate(aggregate, argument)
+    }
+
+    fn structured(&self, _fields: Vec<(Identifier, ast::Expr)>) -> ast::Expr {
+        todo!()
+    }
+}
 
 // AST Function expression builder
 fn function_builder(name: &str, exprs: Vec<ast::Expr>, distinct: bool) -> ast::Expr {
@@ -870,12 +888,16 @@ fn cast_builder(expr: ast::Expr, as_type: ast::DataType) -> ast::Expr {
 }
 
 // AST CASE expression builder
-fn case_builder(exprs: Vec<ast::Expr>) -> ast::Expr {
+fn case_builder(
+    when: Vec<ast::Expr>,
+    then: Vec<ast::Expr>,
+    _else: Option<Box<ast::Expr>>,
+) -> ast::Expr {
     ast::Expr::Case {
         operand: None,
-        conditions: vec![exprs[0].clone()],
-        results: vec![exprs[1].clone()],
-        else_result: exprs.get(2).map(|e| Box::new(e.clone())),
+        conditions: when,
+        results: then,
+        else_result: _else,
     }
 }
 

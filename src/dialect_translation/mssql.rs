@@ -24,29 +24,25 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             .collect()
     }
 
-    fn first(&self, expr: &expr::Expr) -> ast::Expr {
-        ast::Expr::from(expr)
+    fn first(&self, expr: ast::Expr) -> ast::Expr {
+        expr
     }
 
-    fn mean(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("AVG", vec![arg], false)
+    fn mean(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("AVG", vec![expr], false)
     }
 
-    fn std(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("STDEV", vec![arg], false)
+    fn std(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("STDEV", vec![expr], false)
     }
 
     /// Converting LN to LOG
-    fn ln(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("LOG", vec![arg], false)
+    fn ln(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("LOG", vec![expr], false)
     }
     /// Converting LOG to LOG10
-    fn log(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("LOG10", vec![arg], false)
+    fn log(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("LOG10", vec![expr], false)
     }
 
     /// Converting RANDOM to RAND(CHECKSUM(NEWID()))
@@ -57,15 +53,12 @@ impl RelationToQueryTranslator for MsSqlTranslator {
     }
 
     /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
-    fn md5(&self, expr: &expr::Expr) -> ast::Expr {
-        let ast_expr = self.expr(expr);
-
+    fn md5(&self, expr: ast::Expr) -> ast::Expr {
         // Construct HASHBYTES('MD5', X)
         let md5_literal = ast::Expr::Value(ast::Value::SingleQuotedString("MD5".to_string()));
         let md5_literal_as_function_arg =
             ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
-        let ast_expr_as_function_arg =
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(ast_expr));
+        let ast_expr_as_function_arg = ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr));
 
         let func_args_list = ast::FunctionArgumentList {
             duplicate_treatment: None,
@@ -91,17 +84,15 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         }
     }
 
-    fn cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
+    fn cast_as_boolean(&self, expr: ast::Expr) -> ast::Expr {
         // It should be CAST(expr AS BIT) but BIT is not a valid ast::DataType
         // So we cast it to INT
-        let casted_to_integer = expr::Expr::cast_as_integer(expr.clone());
-        ast::Expr::from(&casted_to_integer)
+        self.cast_as_integer(expr)
     }
 
-    fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
-        let ast_expr = self.expr(expr);
+    fn cast_as_text(&self, expr: ast::Expr) -> ast::Expr {
         ast::Expr::Cast {
-            expr: Box::new(ast_expr),
+            expr: Box::new(expr),
             data_type: ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {
                 length: 255,
                 unit: None,
@@ -110,39 +101,34 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             kind: ast::CastKind::Cast,
         }
     }
-    fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn substr(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 3);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
         ast::Expr::Substring {
-            expr: Box::new(ast_exprs[0].clone()),
-            substring_from: Some(Box::new(ast_exprs[1].clone())),
-            substring_for: Some(Box::new(ast_exprs[2].clone())),
+            expr: Box::new(exprs[0].clone()),
+            substring_from: Some(Box::new(exprs[1].clone())),
+            substring_for: Some(Box::new(exprs[2].clone())),
             special: true,
         }
     }
-    fn substr_with_size(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn substr_with_size(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 3);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
         ast::Expr::Substring {
-            expr: Box::new(ast_exprs[0].clone()),
-            substring_from: Some(Box::new(ast_exprs[1].clone())),
-            substring_for: Some(Box::new(ast_exprs[2].clone())),
+            expr: Box::new(exprs[0].clone()),
+            substring_from: Some(Box::new(exprs[1].clone())),
+            substring_for: Some(Box::new(exprs[2].clone())),
             special: true,
         }
     }
-    fn ceil(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("CEILING", vec![arg], false)
+    fn ceil(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("CEILING", vec![expr], false)
     }
-
-    fn extract_epoch(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
+    fn extract_epoch(&self, expr: ast::Expr) -> ast::Expr {
         let second = ast::Expr::Identifier(ast::Ident {
             value: "SECOND".to_string(),
             quote_style: None,
         });
         let unix = ast::Expr::Value(ast::Value::SingleQuotedString("19700101".to_string()));
-        function_builder("DATEDIFF", vec![second, unix, arg], false)
+        function_builder("DATEDIFF", vec![second, unix, expr], false)
     }
 
     // used during onboarding in order to have datetime with a proper format.
