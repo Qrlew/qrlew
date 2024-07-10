@@ -126,7 +126,7 @@ macro_rules! function_match_constructor {
 /// We use macros to reduce code repetition in generating functions to convert each Expression variant.
 macro_rules! relation_to_query_translator_trait_constructor {
     () => {
-        pub trait RelationToQueryTranslator {
+        pub trait RelationToQueryTranslator: Sized {
             fn query(
                 &self,
                 with: Vec<ast::Cte>,
@@ -811,34 +811,11 @@ pub trait QueryToRelationTranslator {
 
 // Helpers
 
-// Implement RelationToQueryTranslator for references
-impl<T: RelationToQueryTranslator + ?Sized> RelationToQueryTranslator for &T {
-    fn column(&self, column: &expr::Column) -> ast::Expr {
-        (**self).column(column)
-    }
-
-    fn value(&self, value: &expr::Value) -> ast::Expr {
-        (**self).value(value)
-    }
-
-    fn function(
-        &self,
-        function: &expr::function::Function,
-        arguments: Vec<ast::Expr>,
-    ) -> ast::Expr {
-        (**self).function(function, arguments)
-    }
-
-    fn aggregate(&self, aggregate: &expr::aggregate::Aggregate, argument: ast::Expr) -> ast::Expr {
-        (**self).aggregate(aggregate, argument)
-    }
+struct ExprToAstVisitor<'a, T> {
+    translator: &'a T,
 }
 
-struct ExprToAstVisitor<T> {
-    translator: T,
-}
-
-impl<'a, T: RelationToQueryTranslator> expr::Visitor<'a, ast::Expr> for ExprToAstVisitor<T> {
+impl<'a, T: RelationToQueryTranslator> expr::Visitor<'a, ast::Expr> for ExprToAstVisitor<'a, T> {
     fn column(&self, column: &'a expr::Column) -> ast::Expr {
         self.translator.column(column)
     }
