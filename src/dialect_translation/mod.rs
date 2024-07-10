@@ -811,11 +811,11 @@ pub trait QueryToRelationTranslator {
 
 // Helpers
 
-struct ExprToAstVisitor<'a, T> {
-    translator: &'a T,
+struct ExprToAstVisitor<T> {
+    translator: T,
 }
 
-impl<'a, T: RelationToQueryTranslator> expr::Visitor<'a, ast::Expr> for ExprToAstVisitor<'a, T> {
+impl<'a, T: RelationToQueryTranslator> expr::Visitor<'a, ast::Expr> for ExprToAstVisitor<&'a T> {
     fn column(&self, column: &'a expr::Column) -> ast::Expr {
         self.translator.column(column)
     }
