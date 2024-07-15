@@ -101,7 +101,7 @@ impl Relation {
         }
         let number_of_agg = bounds.len() as f64;
         let (dp_relation, dp_event) = if number_of_agg > 0. {
-            let noise_multipliers = bounds
+            let gaussian_noises = bounds
                 .into_iter()
                 .map(|(name, bound)| {
                     (
@@ -114,15 +114,18 @@ impl Relation {
                     )
                 })
                 .collect::<Vec<_>>();
-            let dp_event = noise_multipliers
+            let dp_event = gaussian_noises
                 .iter()
-                .map(|(_, n)| DpEvent::gaussian(*n))
+                .map(|(_, n)| {
+                    if n > &0.0 {
+                        DpEvent::gaussian_from_epsilon_delta(epsilon, delta)
+                    } else {
+                        DpEvent::no_op()
+                    }
+                })
                 .collect::<Vec<_>>()
                 .into();
-            (
-                self.add_clipped_gaussian_noise(&noise_multipliers),
-                dp_event,
-            )
+            (self.add_clipped_gaussian_noise(&gaussian_noises), dp_event)
         } else {
             (self, DpEvent::no_op())
         };
@@ -660,7 +663,7 @@ mod tests {
             .unwrap();
         dp_relation.display_dot().unwrap();
         matches!(dp_relation.schema()[0].data_type(), DataType::Float(_));
-        assert!(dp_relation.dp_event().is_no_op()); // private query is null beacause we have computed the sum of zeros
+        assert!(dp_relation.dp_event().is_no_op()); // private query is null because we have computed the sum of zeros
 
         let query: &str = &ast::Query::from(&relation).to_string();
         println!("{query}");
@@ -1220,11 +1223,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             dp_relation.dp_event(),
-            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                2.
-            )
+            &DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
         );
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1242,11 +1241,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             dp_relation.dp_event(),
-            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                2.
-            )
+            &DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
         );
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1264,11 +1259,7 @@ mod tests {
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.dp_event(),
-            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                2.
-            )
+            &DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
         );
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1287,11 +1278,7 @@ mod tests {
         //dp_relation.relation().display_dot().unwrap();
         assert_eq!(
             dp_relation.dp_event(),
-            &DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                2.
-            )
+            &DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
         );
         assert_eq!(
             dp_relation.relation().data_type(),
@@ -1406,11 +1393,7 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
-            DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                10.
-            )
+            DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
         );
         assert_eq!(
             dp_relation.data_type(),
@@ -1433,15 +1416,85 @@ mod tests {
         dp_relation.display_dot().unwrap();
         assert_eq!(
             dp_event,
-            DpEvent::gaussian_from_epsilon_delta_sensitivity(
-                parameters.epsilon,
-                parameters.delta,
-                10.
-            )
+            DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
         );
         assert_eq!(
             dp_relation.data_type(),
             DataType::structured([("sum_a", DataType::float_interval(0., 1000.)),])
+        );
+    }
+
+    #[test]
+    fn test_gaussian_dp_event_independent_from_bounds() {
+        let parameters = DpAggregatesParameters::from_dp_parameters(
+            DpParameters::from_epsilon_delta(1.0, 1e-3),
+            1.,
+        );
+
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_interval(-1.0, 1.0)))
+                    .with((
+                        PrivacyUnit::privacy_unit(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        PrivacyUnit::privacy_unit_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
+                    .build(),
+            )
+            .size(100)
+            .build();
+
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .input(table.clone())
+            .build();
+        let (dp_relation, dp_event) = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            dp_event,
+            DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
+        );
+
+        let table: Relation = Relation::table()
+            .name("table")
+            .schema(
+                Schema::builder()
+                    .with(("a", DataType::float_interval(-100.0, 100.0)))
+                    .with((
+                        PrivacyUnit::privacy_unit(),
+                        DataType::integer_range(1..=100),
+                    ))
+                    .with((
+                        PrivacyUnit::privacy_unit_weight(),
+                        DataType::float_interval(0., 1.),
+                    ))
+                    .build(),
+            )
+            .size(100)
+            .build();
+
+        let reduce: Reduce = Relation::reduce()
+            .name("reduce_relation")
+            .with(("sum_a".to_string(), AggregateColumn::sum("a")))
+            .input(table.clone())
+            .build();
+        let (dp_relation, dp_event) = reduce
+            .differentially_private_aggregates(parameters.clone())
+            .unwrap()
+            .into();
+        dp_relation.display_dot().unwrap();
+        assert_eq!(
+            dp_event,
+            DpEvent::gaussian_from_epsilon_delta(parameters.epsilon, parameters.delta,)
         );
     }
 }

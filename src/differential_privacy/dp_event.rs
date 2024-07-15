@@ -120,13 +120,9 @@ impl DpEvent {
         }
     }
 
-    pub fn gaussian_from_epsilon_delta_sensitivity(
-        epsilon: f64,
-        delta: f64,
-        sensitivity: f64,
-    ) -> Self {
+    pub fn gaussian_from_epsilon_delta(epsilon: f64, delta: f64) -> Self {
         DpEvent::Gaussian {
-            noise_multiplier: gaussian_noise(epsilon, delta, sensitivity),
+            noise_multiplier: gaussian_noise_multiplier(epsilon, delta),
         }
     }
 }
@@ -165,7 +161,12 @@ impl From<Vec<DpEvent>> for DpEvent {
 
 pub fn gaussian_noise(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
     // it can be inf so we clamp the results between 0 and f64::MAX
-    ((2. * (1.25_f64 / delta).ln()).sqrt() * sensitivity / epsilon).clamp(0.0, f64::MAX)
+    (gaussian_noise_multiplier(epsilon, delta) * sensitivity).clamp(0.0, f64::MAX)
+}
+
+pub fn gaussian_noise_multiplier(epsilon: f64, delta: f64) -> f64 {
+    // it can be inf so we clamp the results between 0 and f64::MAX
+    ((2. * (1.25_f64 / delta).ln()).sqrt() / epsilon).clamp(0.0, f64::MAX)
 }
 
 pub fn gaussian_tau(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {

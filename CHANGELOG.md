@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.23] - 2024-07-9
+### Fixed
+- fixing noise multiplier of the gaussian dp event which should be independent from the sensitivity.
+
 ## [0.9.22] - 2024-07-9
 ### Changed
 - When translating relations to queries transform all nested CASE expressions into a single CASE
