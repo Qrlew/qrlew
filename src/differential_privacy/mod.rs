@@ -659,10 +659,9 @@ mod tests {
                 parameters.epsilon * parameters.tau_thresholding_share,
                 parameters.delta * parameters.tau_thresholding_share
             )
-            .compose(DpEvent::gaussian_from_epsilon_delta_sensitivity(
+            .compose(DpEvent::gaussian_from_epsilon_delta(
                 parameters.epsilon * (1. - parameters.tau_thresholding_share),
                 parameters.delta * (1. - parameters.tau_thresholding_share),
-                10.
             ))
         );
         let correct_schema: Schema = vec![
