@@ -60,6 +60,15 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             kind: ast::CastKind::Cast,
         }
     }
+    fn cast_as_float(&self,expr: &expr::Expr) -> ast::Expr {
+        let ast_expr = self.expr(expr);
+        ast::Expr::Cast {
+            expr: Box::new(ast_expr),
+            data_type: ast::DataType::Float64,
+            format: None,
+            kind: ast::CastKind::Cast,
+        }
+    }
     fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
         assert!(exprs.len() == 2);
         let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
