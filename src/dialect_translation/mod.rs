@@ -28,7 +28,8 @@ pub mod mssql;
 pub mod mysql;
 pub mod postgresql;
 pub mod sqlite;
-pub mod redshift;
+pub mod redshiftsql;
+pub mod databricks;
 
 // TODO: Add translatio errors
 

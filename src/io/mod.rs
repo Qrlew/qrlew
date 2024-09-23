@@ -14,6 +14,8 @@ pub mod mssql;
 pub mod postgresql;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
+#[cfg(feature = "mysql")]
+pub mod mysql;
 
 use crate::{
     builder::{Ready, With},
