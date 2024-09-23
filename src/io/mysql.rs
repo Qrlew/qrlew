@@ -4,22 +4,17 @@
 use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 use crate::{
     data_type::{
-        generator::Generator,
-        value::{self, Value},
-        DataTyped,
+        self, generator::Generator, value::{self, Value}, DataTyped
     },
     dialect_translation::mysql::MySqlTranslator,
     namer,
     relation::{Table, Variant as _},
 };
 use std::{
-    env, fmt,
-    process::Command,
-    str::FromStr,
-    sync::{Arc, Mutex},
-    thread, time,
+    env, fmt, ops::Deref as _, process::Command, str::FromStr, sync::{Arc, Mutex}, thread, time
 };
 
+use chrono::{Datelike, Timelike as _};
 use colored::Colorize;
 use mysql::{
     prelude::*,
@@ -73,19 +68,19 @@ impl Database {
     /// Try to build a pool from an existing DB
     /// A MySQL instance must exist
     /// `docker run --name qrlew-test -p 3306:3306 -e MYSQL_ROOT_PASSWORD=qrlew_test -d mysql`
-    fn build_pool_from_existing() -> Result<Pool<MysqlConnectionManager>> {
+    fn build_pool_from_existing() -> Result<Pool<MySqlConnectionManager>> {
         let opts = OptsBuilder::new()
             .ip_or_hostname(Some("localhost"))
             .tcp_port(Database::port() as u16)
             .user(Some(&Database::user()))
             .pass(Some(&Database::password()))
             .db_name(Some(DB));
-        let manager = MysqlConnectionManager::new(Opts::from(opts));
+        let manager = MySqlConnectionManager::new(OptsBuilder::from(opts));
         Ok(r2d2::Pool::builder().max_size(10).build(manager)?)
     }
 
     /// Try to build a pool from a DB in a container
-    fn build_pool_from_container(name: String) -> Result<Pool<MysqlConnectionManager>> {
+    fn build_pool_from_container(name: String) -> Result<Pool<MySqlConnectionManager>> {
         let mut mysql_container = MYSQL_CONTAINER.lock().unwrap();
         if !*mysql_container {
             // A new container will be started
@@ -144,8 +139,14 @@ impl Database {
                 .user(Some(&Database::user()))
                 .pass(Some(&Database::password()))
                 .db_name(Some(DB));
-            let manager = MysqlConnectionManager::new(Opts::from(opts));
-            Ok(r2d2::Pool::builder().max_size(10).build(manager)?)
+            let manager = MySqlConnectionManager::new(OptsBuilder::from(opts));
+            let pool = r2d2::Pool::builder().max_size(10).build(manager)?;
+
+            // Ensure database exists
+            let mut conn = pool.get()?;
+            conn.query_drop(format!("CREATE DATABASE IF NOT EXISTS `{}`", DB))?;
+
+            Ok(pool)
         } else {
             Database::build_pool_from_existing()
         }
@@ -234,7 +235,7 @@ impl DatabaseTrait for Database {
     fn query(&mut self, query: &str) -> Result<Vec<value::List>> {
         let mut conn = self.pool.get()?;
         let result: Vec<mysql::Row> = conn.query(query)?;
-        let rows = result
+        let rows: Result<Vec<value::List>> = result
             .into_iter()
             .map(|row| {
                 let values: Result<Vec<Value>> = row
@@ -242,10 +243,10 @@ impl DatabaseTrait for Database {
                     .into_iter()
                     .map(|v| Value::try_from(v))
                     .collect();
-                value::List::from_iter(values?)
+                Ok(value::List::from_iter(values?))
             })
             .collect();
-        Ok(rows)
+        Ok(rows?)
     }
 }
 
@@ -267,11 +268,11 @@ impl TryFrom<Value> for MySqlValue {
 
     fn try_from(value: Value) -> Result<Self> {
         match value {
-            Value::Boolean(b) => Ok(MySqlValue::from(b.as_bool())),
-            Value::Integer(i) => Ok(MySqlValue::from(i.as_i64())),
-            Value::Float(f) => Ok(MySqlValue::from(f.as_f64())),
-            Value::Text(t) => Ok(MySqlValue::from(t.as_str())),
-            Value::Optional(o) => o
+            Value::Boolean(b) => Ok(MySqlValue::from(b.deref())),
+            Value::Integer(i) => Ok(MySqlValue::from(i.deref())),
+            Value::Float(f) => Ok(MySqlValue::from(f.deref())),
+            Value::Text(t) => Ok(MySqlValue::from(t.deref())),
+            Value::Optional(o) => o.as_ref()
                 .map(|v| MySqlValue::try_from((**v).clone()))
                 .transpose()
                 .map(|o| o.unwrap_or(MySqlValue::NULL)),
@@ -292,16 +293,20 @@ impl TryFrom<Value> for MySqlValue {
                 t.second() as u8,
                 0,
             )),
-            Value::DateTime(dt) => Ok(MySqlValue::Date(
-                dt.year() as u16,
-                dt.month() as u8,
-                dt.day() as u8,
-                dt.hour() as u8,
-                dt.minute() as u8,
-                dt.second() as u8,
-                0,
-            )),
-            Value::Id(i) => Ok(MySqlValue::from(i.as_i64())),
+            Value::DateTime(dt) => {
+                let dt_naive = dt.deref();
+                let date = dt_naive.date();
+                let time = dt_naive.time();
+                Ok(MySqlValue::Date(
+                    date.year() as u16,
+                    date.month() as u8,
+                    date.day() as u8,
+                    time.hour() as u8,
+                    time.minute() as u8,
+                    time.second() as u8,
+                    0,
+            ))},
+            Value::Id(i) => Ok(MySqlValue::from(i.deref())),
             _ => Err(Error::other(value)),
         }
     }
@@ -312,15 +317,15 @@ impl TryFrom<MySqlValue> for Value {
 
     fn try_from(value: MySqlValue) -> Result<Self> {
         match value {
-            MySqlValue::NULL => Ok(Value::Optional(None)),
+            MySqlValue::NULL => Ok(Value::Optional(data_type::value::Optional::new(None))),
             MySqlValue::Int(i) => Ok(Value::Integer(i.into())),
             MySqlValue::UInt(u) => Ok(Value::Integer((u as i64).into())),
             MySqlValue::Float(f) => Ok(Value::Float((f as f64).into())),
             MySqlValue::Double(d) => Ok(Value::Float(d.into())),
-            MySqlValue::Bytes(bytes) => {
-                let s = String::from_utf8(bytes)?;
-                Ok(Value::Text(s.into()))
-            }
+            // MySqlValue::Bytes(bytes) => {
+            //     let s = String::from_utf8(bytes)?;
+            //     Ok(Value::Text(s.into()))
+            // }
             MySqlValue::Date(year, month, day, hour, min, sec, _) => {
                 let dt = chrono::NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32)
                     .ok_or_else(|| Error::other("Invalid date"))?;
@@ -335,7 +340,7 @@ impl TryFrom<MySqlValue> for Value {
                 }
             }
             MySqlValue::Time(neg, days, hours, mins, secs, _) => {
-                let total_secs = (((((days * 24) + hours) * 60 + mins) * 60 + secs) as i64)
+                let total_secs = (((((days * 24) + u32::from(hours)) * 60 + u32::from(mins)) * 60 + u32::from(secs)) as i64)
                     * if neg { -1 } else { 1 };
                 let time = chrono::NaiveTime::from_num_seconds_from_midnight_opt(
                     total_secs.abs() as u32,
