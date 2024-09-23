@@ -28,6 +28,7 @@ pub mod mssql;
 pub mod mysql;
 pub mod postgresql;
 pub mod sqlite;
+pub mod redshift;
 
 // TODO: Add translatio errors
 

@@ -55,6 +55,14 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             kind: ast::CastKind::Cast,
         }
     }
+    fn cast_as_float(&self,expr:ast::Expr) -> ast::Expr {
+        ast::Expr::Cast {
+            expr: Box::new(expr),
+            data_type: ast::DataType::Float64,
+            format: None,
+            kind: ast::CastKind::Cast,
+        }
+    }
     fn substr(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 2);
         function_builder("SUBSTR", exprs, false)
@@ -88,6 +96,17 @@ impl RelationToQueryTranslator for BigQueryTranslator {
                 alias: field.name().into(),
             })
             .collect()
+    }
+    /// It converts EXTRACT(epoch FROM column) into
+    /// UNIX_SECONDS(CAST(col AS TIMESTAMP))
+    fn extract_epoch(&self, expr:ast::Expr) -> ast::Expr {
+        let cast = ast::Expr::Cast {
+            expr: Box::new(expr),
+            data_type: ast::DataType::Timestamp(None, ast::TimezoneInfo::None),
+            format: None,
+            kind: ast::CastKind::Cast,
+        };
+        function_builder("UNIX_SECONDS", vec![cast], false)
     }
 }
 

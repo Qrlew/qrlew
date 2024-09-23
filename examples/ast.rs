@@ -110,32 +110,32 @@ fn print_ast(query: &str) -> Result<(), &'static str> {
 fn main() -> Result<(), &'static str> {
     build_ast()?;
 
-    // Print an AST with a subquery
-    // print_ast("select * from (select count(a) as c from sch.tbl)");
+    // // Print an AST with a subquery
+    // // print_ast("select * from (select count(a) as c from sch.tbl)");
 
-    // Print an AST with a JOIN
-    print_ast("select * from sch.tbl1 LEFT OUTER JOIN sch.tbl2 ON tbl1.id = tbl2.id LIMIT 100")?;
+    // // Print an AST with a JOIN
+    // print_ast("select * from sch.tbl1 LEFT OUTER JOIN sch.tbl2 ON tbl1.id = tbl2.id LIMIT 100")?;
 
-    // Print an AST with CTEs
-    // print_ast("WITH cte_tbl AS (select a, b FROM sch.tbl1) select * from cte_tbl");
+    // // Print an AST with CTEs
+    // // print_ast("WITH cte_tbl AS (select a, b FROM sch.tbl1) select * from cte_tbl");
 
-    // Print an AST with Insert
-    print_ast("INSERT INTO person (name, data) VALUES (?1, ?2)")?;
+    // // Print an AST with Insert
+    // print_ast("INSERT INTO person (name, data) VALUES (?1, ?2)")?;
 
-    // Print a UNION
-    print_ast("SELECT * FROM table_1 10 UNION SELECT * FROM table_2")?;
+    // // Print a UNION
+    // print_ast("SELECT * FROM table_1 10 UNION SELECT * FROM table_2")?;
 
-    // Print an expression with nesting
-    print_ast("SELECT (a+b)*(c+d) FROM table_1")?;
+    // // Print an expression with nesting
+    // print_ast("SELECT (a+b)*(c+d) FROM table_1")?;
 
-    // Print an AST with Values
-    print_ast("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (possible_values);")?;
+    // // Print an AST with Values
+    // print_ast("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (possible_values);")?;
 
-    // Print an AST with Values
-    print_ast("(VALUES (1), (2), (3)) AS t1")?;
+    // // Print an AST with Values
+    // print_ast("(VALUES (1), (2), (3)) AS t1")?;
 
     // Print an AST with count(*)
-    print_ast("SELECT COUNT(*) FROM table_1")?;
+    print_ast(r#"SELECT NOT ("field_vzkb" IS NULL) FROM table_1"#)?;
 
     Ok(())
 }

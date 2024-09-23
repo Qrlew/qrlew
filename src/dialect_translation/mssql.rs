@@ -1,5 +1,5 @@
 use crate::{
-    data_type::{DataType, DataTyped as _},
+    data_type::{function, DataType, DataTyped as _},
     expr::{self},
     hierarchy::Hierarchy,
     relation::{Table, Variant as _},
@@ -50,6 +50,10 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         let new_id = function_builder("NEWID", vec![], false);
         let check_sum = function_builder("CHECKSUM", vec![new_id], false);
         function_builder("RAND", vec![check_sum], false)
+    }
+
+    fn char_length(&self, expr:ast::Expr) -> ast::Expr {
+        function_builder("LEN", vec![expr], false)
     }
 
     /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
@@ -131,15 +135,21 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         function_builder("DATEDIFF", vec![second, unix, expr], false)
     }
 
+    fn concat(&self, exprs:Vec<ast::Expr>) -> ast::Expr {
+        let literal = ast::Expr::Value(ast::Value::SingleQuotedString("".to_string()));
+        let expanded_exprs: Vec<_> = exprs
+            .iter()
+            .cloned()  
+            .chain(std::iter::once(literal))
+            .collect();
+        function_builder("CONCAT", expanded_exprs, false)
+    }
     // used during onboarding in order to have datetime with a proper format.
     // This is not needed when we will remove the cast in string of the datetime
     // during the onboarding
     // CAST(col AS VARCHAR/TEXT) -> CONVERT(VARCHAR, col, 126)
 
     // TODO: some functions are not supported yet.
-    // EXTRACT(epoch FROM column) -> DATEDIFF(SECOND, '19700101', column)
-    // Concat(a, b) has to take at least 2 args, it can take empty string as well.
-    // onboarding, charset query: SELECT DISTINCT REGEXP_SPLIT_TO_TABLE(anon_2.name ,'') AS "regexp_split" ...
     // onboarding, sampling, remove WHERE RAND().
     // onboarding CAST(col AS Boolean) -> CAST(col AS BIT)
     // onboarding Literal True/Fale -> 1/0.
@@ -161,6 +171,10 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             percent: false,
             quantity: Some(ast::TopQuantity::Expr(e)),
         });
+
+        let translated_projection: Vec<ast::SelectItem> = projection.iter().map(case_from_not).collect();
+        let translated_selection: Option<ast::Expr> = selection.and_then(none_from_where_random).and_then(boolean_expr_from_identifier);
+
         ast::Query {
             with: (!with.is_empty()).then_some(ast::With {
                 recursive: false,
@@ -169,11 +183,11 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             body: Box::new(ast::SetExpr::Select(Box::new(ast::Select {
                 distinct: None,
                 top,
-                projection,
+                projection: translated_projection,
                 into: None,
                 from: vec![from],
                 lateral_views: vec![],
-                selection,
+                selection: translated_selection,
                 group_by,
                 cluster_by: vec![],
                 distribute_by: vec![],
@@ -369,6 +383,78 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
     }
 }
 
+// It converts a `NOT (col IS NULL)` in the SELECT items into a CASE expression
+fn case_from_not(select_item: &ast::SelectItem) -> ast::SelectItem {
+    match select_item {
+        ast::SelectItem::ExprWithAlias { expr, alias } => ast::SelectItem::ExprWithAlias { expr: case_from_not_expr(expr), alias: alias.clone() },
+        ast::SelectItem::UnnamedExpr(expr) => ast::SelectItem::UnnamedExpr(case_from_not_expr(expr)),
+        _ =>  select_item.clone()
+    }
+}
+
+fn case_from_not_expr(expr: &ast::Expr) -> ast::Expr {
+    match expr {
+        ast::Expr::UnaryOp { op, expr } => case_from_not_unary_op(op, expr),
+        _ => expr.clone()
+    }
+}
+
+fn case_from_not_unary_op(op: &ast::UnaryOperator, expr: &Box<ast::Expr>) -> ast::Expr {
+    match op {
+        ast::UnaryOperator::Not => {
+            // NOT( some_bool_expr ) -> CASE WHEN some_bool_expr THEN 0 ELSE 1
+            let when_expr = vec![expr.as_ref().clone()];
+            let then_expr  = vec![ast::Expr::Value(ast::Value::Number("0".to_string(), false))];
+            let else_expr = Box::new(ast::Expr::Value(ast::Value::Number("1".to_string(), false)));
+            ast::Expr::Case {
+                operand: None,
+                conditions: when_expr,
+                results: then_expr,
+                else_result: Some(else_expr),
+            }
+        },
+        _ => ast::Expr::UnaryOp {op: op.clone(), expr: expr.clone()}
+    }
+}
+
+// WHERE expretion modifications:
+
+/// Often sampling queries uses WHERE RAND(CHECKSUM(NEWID())) < x but in mssql
+/// this doesn't associate a random value for each row.
+/// Use ruther this approach to sample:
+/// https://www.sqlservercentral.com/forums/topic/whats-the-best-way-to-get-a-sample-set-of-a-big-table-without-primary-key#post-1948778 
+/// Careful!! If RAND function is found the WHERE will be set to None.
+fn none_from_where_random(expr: ast::Expr) -> Option<ast::Expr> {
+    if has_rand_func(&expr) {
+        None
+    } else {
+        Some(expr)
+    }
+}
+
+// It checks recursively if the Expr is RAND function.
+fn has_rand_func(expr: &ast::Expr) -> bool {
+    match expr {
+        ast::Expr::Function(func) => {
+            let ast::Function {name, ..} = func;
+            let rand_func_name = ast::ObjectName(vec![ast::Ident::from("RAND")]);
+            &rand_func_name == name
+        },
+        ast::Expr::BinaryOp { left , .. } => has_rand_func(left.as_ref()),
+        ast::Expr::Nested(expr) => has_rand_func(expr.as_ref()),
+        _ => false
+    }
+}
+
+// In Mssql WHERE col is not accepted.
+// This function converts WHERE col -> WHERE col=1
+fn boolean_expr_from_identifier(expr: ast::Expr) -> Option<ast::Expr> {
+    match expr {
+        ast::Expr::Identifier(_) => Some(ast::Expr::BinaryOp { left: Box::new(expr), op: ast::BinaryOperator::Eq, right: Box::new(ast::Expr::Value(ast::Value::Number("1".to_string(), false))) }),
+        _ => Some(expr)
+    }
+}
+
 // method to override DataType -> ast::DataType
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
@@ -388,14 +474,7 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
 mod tests {
     use super::*;
     use crate::{
-        builder::{Ready, With},
-        data_type::DataType,
-        dialect_translation::RelationWithTranslator,
-        expr::Expr,
-        io::{mssql, Database as _},
-        namer,
-        relation::{schema::Schema, Relation},
-        sql::parse,
+        builder::{Ready, With}, data_type::DataType, dialect_translation::RelationWithTranslator, display::Dot, expr::Expr, io::{mssql, Database as _}, namer, relation::{schema::Schema, Relation}, sql::parse
     };
     use std::sync::Arc;
 
@@ -413,6 +492,34 @@ mod tests {
         println!("{}", translated_query);
 
         let _ = database.query(translated_query).unwrap();
+    }
+
+    #[test]
+    fn test_not() {
+        // let mut database = mssql::test_database();
+        let schema: Schema = vec![("a", DataType::optional(DataType::float()))].into_iter().collect();
+        let table: Arc<Relation> = Arc::new(
+            Relation::table()
+                .name("table_2")
+                .schema(schema.clone())
+                .size(100)
+                .build(),
+        );
+
+        let relations = Hierarchy::from([(vec!["table_2"], table)]);
+
+        let query = "WITH new_tab AS (SELECT NOT (a IS NULL) AS col FROM table_2) SELECT * FROM new_tab WHERE RANDOM()) < (0.9) ";
+        // let query = "SELECT DISTINCT a FROM table_2 LIMIT 10";
+
+        let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
+        relation.display_dot().unwrap();
+
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
+        let translated_query = ast::Query::from(rel_with_traslator);
+        println!("{:?}", translated_query);
+        println!("\n{}\n", translated_query);
+
+        // let _ = database.query(translated_query).unwrap();
     }
 
     #[test]
