@@ -18,12 +18,11 @@ use chrono::{Datelike, Timelike as _};
 use colored::Colorize;
 use mysql::{
     prelude::*,
-    Opts, OptsBuilder, Value as MySqlValue,
+    OptsBuilder, Value as MySqlValue,
 };
 use rand::{rngs::StdRng, SeedableRng};
 use r2d2::Pool;
 use r2d2_mysql::MySqlConnectionManager;
-use rust_decimal::{prelude::ToPrimitive, Decimal};
 
 const DB: &str = "qrlew_mysql_test";
 const PORT: usize = 3306;

@@ -1,6 +1,6 @@
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use sqlparser::{ast, dialect::MySqlDialect};
-use crate::{data_type::DataTyped as _, expr::{self}, relation::{JoinOperator, Table, Variant as _}, DataType};
+use crate::{data_type::DataTyped as _, expr::{self}, relation::{Table, Variant as _}, DataType};
 
 
 #[derive(Clone, Copy)]
@@ -123,6 +123,33 @@ impl RelationToQueryTranslator for MySqlTranslator {
             cluster_by: None,
             options: None,
         }
+    }
+    fn random(&self) -> ast::Expr {
+        function_builder("RAND", vec![], false)
+    }
+    /// Converting LOG to LOG10
+    fn log(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("LOG10", vec![expr], false)
+    }
+    fn cast_as_text(&self, expr: ast::Expr) -> ast::Expr {
+        ast::Expr::Cast {
+            expr: Box::new(expr),
+            data_type: ast::DataType::Char(None),
+            format: None,
+            kind: ast::CastKind::Cast,
+        }
+    }
+    fn extract_epoch(&self,expr:ast::Expr) -> ast::Expr {
+        function_builder("UNIX_TIMESTAMP", vec![expr], false)
+    }
+    /// For mysql CAST(expr AS INTEGER) should be converted to
+    /// CAST(expr AS SIGNED [INTEGER]) which produces a BigInt value.
+    /// CONVERT can be also used as CONVERT(expr, SIGNED)
+    /// however st::DataType doesn't support SIGNED [INTEGER].
+    /// We fix it by creating a function CONVERT(expr, SIGNED).
+    fn cast_as_integer(&self,expr:ast::Expr) -> ast::Expr {
+        let signed = ast::Expr::Identifier(ast::Ident{value: "SIGNED".to_string(), quote_style: None});
+        function_builder("CONVERT", vec![expr, signed], false)
     }
 }
 

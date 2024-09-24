@@ -156,6 +156,13 @@ const QUERIES: &[&str] = &[
 #[cfg(feature = "sqlite")]
 const SQLITE_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
 
+#[cfg(feature = "mysql")]
+const MYSQL_QUERIES: &[&str] = &[
+    "SELECT CAST(d AS INTEGER) FROM table_1",
+    "SELECT EXTRACT(EPOCH FROM c) FROM table_1",
+    "SELECT CAST(d AS TEXT) FROM table_1",
+];
+
 #[cfg(feature = "sqlite")]
 #[test]
 fn test_on_sqlite() {
@@ -421,7 +428,7 @@ fn test_on_mysql() {
         println!("schema {} = {}", tab, tab.schema());
     }
     
-    for &query in QUERIES.iter() {
+    for &query in MYSQL_QUERIES.iter().chain(QUERIES) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, MySqlTranslator);
     }
