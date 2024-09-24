@@ -11,7 +11,7 @@ use crate::{
     relation::{Table, Variant as _},
 };
 use std::{
-    env, fmt, ops::Deref as _, process::Command, str::FromStr, sync::{Arc, Mutex}, thread, time
+    env, fmt, ops::Deref as _, process::Command, str::FromStr, string::FromUtf8Error, sync::{Arc, Mutex}, thread, time
 };
 
 use chrono::{Datelike, Timelike as _};
@@ -34,6 +34,12 @@ const PASSWORD: &str = "qrlew_test";
 impl From<mysql::Error> for Error {
     fn from(err: mysql::Error) -> Self {
         Error::Other(err.to_string())
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(value: FromUtf8Error) -> Self {
+        Error::Other(value.to_string())
     }
 }
 
@@ -218,7 +224,6 @@ impl DatabaseTrait for Database {
         let size = Database::MAX_SIZE.min(table.size().generate(&mut rng) as usize);
         let mut conn = self.pool.get()?;
         let query = table.insert("?", MySqlTranslator).to_string();
-
         for _ in 0..size {
             let structured: value::Struct =
                 table.schema().data_type().generate(&mut rng).try_into()?;
@@ -322,10 +327,10 @@ impl TryFrom<MySqlValue> for Value {
             MySqlValue::UInt(u) => Ok(Value::Integer((u as i64).into())),
             MySqlValue::Float(f) => Ok(Value::Float((f as f64).into())),
             MySqlValue::Double(d) => Ok(Value::Float(d.into())),
-            // MySqlValue::Bytes(bytes) => {
-            //     let s = String::from_utf8(bytes)?;
-            //     Ok(Value::Text(s.into()))
-            // }
+            MySqlValue::Bytes(bytes) => {
+                let s = String::from_utf8(bytes)?;
+                Ok(Value::Text(s.into()))
+            }
             MySqlValue::Date(year, month, day, hour, min, sec, _) => {
                 let dt = chrono::NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32)
                     .ok_or_else(|| Error::other("Invalid date"))?;
@@ -349,7 +354,7 @@ impl TryFrom<MySqlValue> for Value {
                 .ok_or_else(|| Error::other("Invalid time"))?;
                 Ok(Value::Time(time.into()))
             }
-            _ => Err(Error::other("Unsupported MySQL value type")),
+            _ => Err(Error::other(format!("Unsupported MySQL value type: {:?}", value))),
         }
     }
 }
