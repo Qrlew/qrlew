@@ -360,9 +360,7 @@ macro_rules! relation_to_query_translator_trait_constructor {
                         ast::Expr::Value(ast::Value::Number(format!("{}", **i), false))
                     }
                     expr::Value::Enum(_) => todo!(),
-                    expr::Value::Float(f) => {
-                        ast::Expr::Value(ast::Value::Number(format!("{}", **f), false))
-                    }
+                    expr::Value::Float(f) => {self.format_float_value(**f)},
                     expr::Value::Text(t) => {
                         ast::Expr::Value(ast::Value::SingleQuotedString(format!("{}", **t)))
                     }
@@ -388,6 +386,10 @@ macro_rules! relation_to_query_translator_trait_constructor {
                     expr::Value::Id(_) => todo!(),
                     expr::Value::Function(_) => todo!(),
                 }
+            }
+
+            fn format_float_value(&self, value: f64) -> ast::Expr {
+                ast::Expr::Value(ast::Value::Number(format!("{}", value), false))
             }
 
             fn function(
