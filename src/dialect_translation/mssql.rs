@@ -1,5 +1,5 @@
 use crate::{
-    data_type::{function, DataType, DataTyped as _},
+    data_type::{DataType, DataTyped as _},
     expr::{self},
     hierarchy::Hierarchy,
     relation::{Table, Variant as _},
@@ -144,15 +144,6 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             .collect();
         function_builder("CONCAT", expanded_exprs, false)
     }
-    // used during onboarding in order to have datetime with a proper format.
-    // This is not needed when we will remove the cast in string of the datetime
-    // during the onboarding
-    // CAST(col AS VARCHAR/TEXT) -> CONVERT(VARCHAR, col, 126)
-
-    // TODO: some functions are not supported yet.
-    // onboarding, sampling, remove WHERE RAND().
-    // onboarding CAST(col AS Boolean) -> CAST(col AS BIT)
-    // onboarding Literal True/Fale -> 1/0.
 
     /// MSSQL queries don't support LIMIT but TOP in the SELECT statement instated
     fn query(
@@ -276,7 +267,7 @@ impl QueryToRelationTranslator for MsSqlTranslator {
         context: &Hierarchy<expr::Identifier>,
     ) -> Result<expr::Expr> {
         let function_name: &str = &func.name.0.iter().next().unwrap().value.to_lowercase()[..];
-
+        println!("{}", function_name);
         match function_name {
             "log" => self.try_ln(func, context),
             "log10" => self.try_log(func, context),
@@ -477,6 +468,21 @@ mod tests {
         builder::{Ready, With}, data_type::DataType, dialect_translation::RelationWithTranslator, display::Dot, expr::Expr, io::{mssql, Database as _}, namer, relation::{schema::Schema, Relation}, sql::parse
     };
     use std::sync::Arc;
+
+    #[test]
+    fn test_coalesce() {
+        let mut database = mssql::test_database();
+        let relations = database.relations();
+
+        let query = "SELECT COALESCE(a, NULL) FROM table_1 LIMIT 30";
+
+        let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
+        relation.display_dot().unwrap();
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
+        let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
+        println!("{}", translated_query);
+        let _ = database.query(translated_query).unwrap();
+    }
 
     #[test]
     fn test_limit() {

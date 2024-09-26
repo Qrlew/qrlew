@@ -11,7 +11,7 @@ use crate::{
     relation::{Table, Variant as _},
 };
 use std::{
-    env, fmt, ops::Deref as _, process::Command, str::FromStr, string::FromUtf8Error, sync::{Arc, Mutex}, thread, time
+    env, fmt, ops::Deref as _, process::Command, str::FromStr, string::FromUtf8Error, sync::{Mutex}, thread, time
 };
 
 use chrono::{Datelike, Timelike as _};
@@ -149,8 +149,7 @@ impl Database {
 
             // Ensure database exists
             let mut conn = pool.get()?;
-            conn.query_drop(format!("CREATE DATABASE IF NOT EXISTS `{}`", DB))?;
-
+            conn.query_drop(format!("CREATE DATABASE IF NOT EXISTS `{}`;", DB))?;
             Ok(pool)
         } else {
             Database::build_pool_from_existing()
@@ -353,7 +352,6 @@ impl TryFrom<MySqlValue> for Value {
                 .ok_or_else(|| Error::other("Invalid time"))?;
                 Ok(Value::Time(time.into()))
             }
-            _ => Err(Error::other(format!("Unsupported MySQL value type: {:?}", value))),
         }
     }
 }

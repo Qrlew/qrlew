@@ -739,6 +739,13 @@ pub trait QueryToRelationTranslator {
 
     fn dialect(&self) -> Self::D;
 
+    fn try_identifier(&self, ident: &ast::Ident) -> Result<expr::Identifier> {
+        if let Some(quote_style) = ident.quote_style {
+            assert!(self.dialect().is_delimited_identifier_start(quote_style));
+        }
+        Ok(expr::Identifier::from(ident))
+    }
+
     // It converts ast Expressions to sarus expressions
     fn try_expr(&self, expr: &ast::Expr, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
         match expr {

@@ -1,5 +1,8 @@
+use crate::expr;
+
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
-use sqlparser::{ast, dialect::PostgreSqlDialect};
+use sqlparser::{ast, dialect::{Dialect, PostgreSqlDialect}};
+use crate::sql::{Result, Error};
 
 #[derive(Clone, Copy)]
 pub struct PostgreSqlTranslator;
@@ -79,6 +82,16 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 
     fn dialect(&self) -> Self::D {
         PostgreSqlDialect {}
+    }
+
+    fn try_identifier(&self, ident: &ast::Ident) -> Result<expr::Identifier> {
+        if let Some(quote_style) = ident.quote_style {
+            let identifier_quote_style = self.dialect().identifier_quote_style("");
+            if identifier_quote_style != Some(quote_style) {
+                return Err(Error::Other(format!("Wrong quoting of {} Identifier", ident )))
+            }; 
+        }
+        Ok(expr::Identifier::from(ident))
     }
 }
 

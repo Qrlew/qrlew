@@ -97,6 +97,12 @@ impl From<crate::relation::Error> for Error {
     }
 }
 
+impl From<crate::expr::Error> for Error {
+    fn from(err: crate::expr::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
 pub type Result<T> = result::Result<T, Error>;
 
 // Import a few functions

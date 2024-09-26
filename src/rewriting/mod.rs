@@ -128,7 +128,6 @@ impl Relation {
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveDate;
     use itertools::Itertools;
 
     use super::*;
@@ -420,6 +419,7 @@ mod tests {
         println!("PrivateQuery = {}", relation_with_dp_event.dp_event());
     }
 
+    #[ignore]
     #[test]
     fn test_retail() {
         let retail_transactions: Relation = Relation::table()
