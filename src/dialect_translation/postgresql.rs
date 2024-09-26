@@ -1,8 +1,11 @@
 use crate::expr;
 
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
-use sqlparser::{ast, dialect::{Dialect, PostgreSqlDialect}};
-use crate::sql::{Result, Error};
+use crate::sql::{Error, Result};
+use sqlparser::{
+    ast,
+    dialect::{Dialect, PostgreSqlDialect},
+};
 
 #[derive(Clone, Copy)]
 pub struct PostgreSqlTranslator;
@@ -88,8 +91,11 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
         if let Some(quote_style) = ident.quote_style {
             let identifier_quote_style = self.dialect().identifier_quote_style("");
             if identifier_quote_style != Some(quote_style) {
-                return Err(Error::Other(format!("Wrong quoting of {} Identifier", ident )))
-            }; 
+                return Err(Error::Other(format!(
+                    "Wrong quoting of {} Identifier",
+                    ident
+                )));
+            };
         }
         Ok(expr::Identifier::from(ident))
     }

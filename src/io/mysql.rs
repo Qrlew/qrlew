@@ -4,25 +4,26 @@
 use super::{Database as DatabaseTrait, Error, Result, DATA_GENERATION_SEED};
 use crate::{
     data_type::{
-        self, generator::Generator, value::{self, Value}, DataTyped
+        self,
+        generator::Generator,
+        value::{self, Value},
+        DataTyped,
     },
     dialect_translation::mysql::MySqlTranslator,
     namer,
     relation::{Table, Variant as _},
 };
 use std::{
-    env, fmt, ops::Deref as _, process::Command, str::FromStr, string::FromUtf8Error, sync::{Mutex}, thread, time
+    env, fmt, ops::Deref as _, process::Command, str::FromStr, string::FromUtf8Error, sync::Mutex,
+    thread, time,
 };
 
 use chrono::{Datelike, Timelike as _};
 use colored::Colorize;
-use mysql::{
-    prelude::*,
-    OptsBuilder, Value as MySqlValue,
-};
-use rand::{rngs::StdRng, SeedableRng};
+use mysql::{prelude::*, OptsBuilder, Value as MySqlValue};
 use r2d2::Pool;
 use r2d2_mysql::MySqlConnectionManager;
+use rand::{rngs::StdRng, SeedableRng};
 
 const DB: &str = "qrlew_mysql_test";
 const PORT: usize = 3306;
@@ -275,7 +276,8 @@ impl TryFrom<Value> for MySqlValue {
             Value::Integer(i) => Ok(MySqlValue::from(i.deref())),
             Value::Float(f) => Ok(MySqlValue::from(f.deref())),
             Value::Text(t) => Ok(MySqlValue::from(t.deref())),
-            Value::Optional(o) => o.as_ref()
+            Value::Optional(o) => o
+                .as_ref()
                 .map(|v| MySqlValue::try_from((**v).clone()))
                 .transpose()
                 .map(|o| o.unwrap_or(MySqlValue::NULL)),
@@ -308,7 +310,8 @@ impl TryFrom<Value> for MySqlValue {
                     time.minute() as u8,
                     time.second() as u8,
                     0,
-            ))},
+                ))
+            }
             Value::Id(i) => Ok(MySqlValue::from(i.deref())),
             _ => Err(Error::other(value)),
         }
@@ -337,13 +340,12 @@ impl TryFrom<MySqlValue> for Value {
                 } else {
                     let time = chrono::NaiveTime::from_hms_opt(hour as u32, min as u32, sec as u32)
                         .ok_or_else(|| Error::other("Invalid time"))?;
-                    Ok(Value::DateTime(
-                        chrono::NaiveDateTime::new(dt, time).into(),
-                    ))
+                    Ok(Value::DateTime(chrono::NaiveDateTime::new(dt, time).into()))
                 }
             }
             MySqlValue::Time(neg, days, hours, mins, secs, _) => {
-                let total_secs = (((((days * 24) + u32::from(hours)) * 60 + u32::from(mins)) * 60 + u32::from(secs)) as i64)
+                let total_secs = (((((days * 24) + u32::from(hours)) * 60 + u32::from(mins)) * 60
+                    + u32::from(secs)) as i64)
                     * if neg { -1 } else { 1 };
                 let time = chrono::NaiveTime::from_num_seconds_from_midnight_opt(
                     total_secs.abs() as u32,

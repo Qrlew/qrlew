@@ -428,7 +428,10 @@ mod tests {
                 vec![
                     ("household_id", DataType::integer()),
                     ("store_id", DataType::integer()),
-                    ("basket_id", DataType::integer_interval(31198459904, 31950110720) ),
+                    (
+                        "basket_id",
+                        DataType::integer_interval(31198459904, 31950110720),
+                    ),
                     ("product_id", DataType::integer()),
                     ("quantity", DataType::integer()),
                     ("sales_value", DataType::float()),
@@ -6731,27 +6734,27 @@ FROM
             "#,
             // "SELECT CASE WHEN (CAST(basket_id AS FLOAT) BETWEEN 31198459904 AND 31950110720) THEN 31198459904 END AS binned FROM retail_transactions"
             // r#"
-            // WITH anon_7 AS 
-            // (SELECT "retail_transactions"."basket_id" AS basket_id_1 
-            // FROM "retail_transactions"), 
-            // anon_5 AS 
-            // (SELECT CASE WHEN (anon_6.basket_id_1 BETWEEN 31198459904 AND 31950110720) THEN 31198459904 END AS binned 
-            // FROM (SELECT anon_7.basket_id_1 AS basket_id_1 
-            // FROM anon_7) AS anon_6), 
-            // anon_4 AS 
-            // (SELECT anon_5.binned AS binned 
-            // FROM anon_5), 
-            // anon_3 AS 
-            // (SELECT anon_4.binned AS binned, count(anon_4.binned) - 196.21693235849753 * log(1 - 2 * abs(random() - 0.5)) * sign(random() - 0.5) AS count_ 
-            // FROM anon_4 GROUP BY anon_4.binned), 
-            // anon_2 AS 
-            // (SELECT min(anon_3.binned) AS min_value 
-            // FROM anon_3 
-            // WHERE anon_3.count_ >= 4066.2556565246705), 
-            // anon_1 AS 
-            // (SELECT greatest(anon_2.min_value, 31198459904) AS min_value 
+            // WITH anon_7 AS
+            // (SELECT "retail_transactions"."basket_id" AS basket_id_1
+            // FROM "retail_transactions"),
+            // anon_5 AS
+            // (SELECT CASE WHEN (anon_6.basket_id_1 BETWEEN 31198459904 AND 31950110720) THEN 31198459904 END AS binned
+            // FROM (SELECT anon_7.basket_id_1 AS basket_id_1
+            // FROM anon_7) AS anon_6),
+            // anon_4 AS
+            // (SELECT anon_5.binned AS binned
+            // FROM anon_5),
+            // anon_3 AS
+            // (SELECT anon_4.binned AS binned, count(anon_4.binned) - 196.21693235849753 * log(1 - 2 * abs(random() - 0.5)) * sign(random() - 0.5) AS count_
+            // FROM anon_4 GROUP BY anon_4.binned),
+            // anon_2 AS
+            // (SELECT min(anon_3.binned) AS min_value
+            // FROM anon_3
+            // WHERE anon_3.count_ >= 4066.2556565246705),
+            // anon_1 AS
+            // (SELECT greatest(anon_2.min_value, 31198459904) AS min_value
             // FROM anon_2)
-            // SELECT '"retail_transactions"."basket_id"', 'min', anon_1.min_value 
+            // SELECT '"retail_transactions"."basket_id"', 'min', anon_1.min_value
             // FROM anon_1
             // "#,
             //r#"WITH "join_2fwl" ("field_ap9y", "field_fx4w", "field_gn0a", "field_kmqc", "field_dpbc", "field_hiol", "field_ut0n", "field_qcec", "field_z5g4", "field_2618", "field_n60z", "field_nx5j", "field_x7is", "field_t3fd", "field_15_v", "field_yrwo", "field_5yhm", "field_ggew", "field_ls8b") AS (SELECT * FROM "retail_transactions" AS "_LEFT_" JOIN "retail_demographics" AS "_RIGHT_" ON ("_LEFT_"."household_id") = ("_RIGHT_"."household_id")), "map_veta" ("field_ap9y", "store_id", "basket_id", "product_id", "quantity", "sales_value", "retail_disc", "coupon_disc", "coupon_match_disc", "week", "transaction_timestamp", "field_nx5j", "age", "income", "home_ownership", "marital_status", "household_size", "household_comp", "kids_count") AS (SELECT "field_ap9y" AS "field_ap9y", "field_fx4w" AS "store_id", "field_gn0a" AS "basket_id", "field_kmqc" AS "product_id", "field_dpbc" AS "quantity", "field_hiol" AS "sales_value", "field_ut0n" AS "retail_disc", "field_qcec" AS "coupon_disc", "field_z5g4" AS "coupon_match_disc", "field_2618" AS "week", "field_n60z" AS "transaction_timestamp", "field_nx5j" AS "field_nx5j", "field_x7is" AS "age", "field_t3fd" AS "income", "field_15_v" AS "home_ownership", "field_yrwo" AS "marital_status", "field_5yhm" AS "household_size", "field_ggew" AS "household_comp", "field_ls8b" AS "kids_count" FROM "join_2fwl"), "map_0q_a" ("household_id", "store_id", "basket_id", "product_id", "quantity", "sales_value", "retail_disc", "coupon_disc", "coupon_match_disc", "week", "transaction_timestamp", "household_id_1") AS (SELECT "field_ap9y" AS "household_id", "store_id" AS "store_id", "basket_id" AS "basket_id", "product_id" AS "product_id", "quantity" AS "quantity", "sales_value" AS "sales_value", "retail_disc" AS "retail_disc", "coupon_disc" AS "coupon_disc", "coupon_match_disc" AS "coupon_match_disc", "week" AS "week", "transaction_timestamp" AS "transaction_timestamp", "field_nx5j" AS "household_id_1" FROM "map_veta"), "map_ujyl" ("household_id", "store_id", "basket_id", "product_id", "quantity", "sales_value", "retail_disc", "coupon_disc", "coupon_match_disc", "week", "transaction_timestamp", "sarus_is_public", "sarus_privacy_unit", "sarus_weights") AS (SELECT "household_id" AS "household_id", "store_id" AS "store_id", "basket_id" AS "basket_id", "product_id" AS "product_id", "quantity" AS "quantity", "sales_value" AS "sales_value", "retail_disc" AS "retail_disc", "coupon_disc" AS "coupon_disc", "coupon_match_disc" AS "coupon_match_disc", "week" AS "week", "transaction_timestamp" AS "transaction_timestamp", 0 AS "sarus_is_public", CASE WHEN "household_id" IS NULL THEN NULL ELSE MD5(CONCAT(MD5(CONCAT('4e71a9747b840a5fc1476b8a63ef4530f631e3a8c861565b92a7338b94f236bc', MD5(CAST("household_id" AS TEXT)))))) END AS "sarus_privacy_unit", 1 AS "sarus_weights" FROM "map_0q_a"), "map_ri9m" ("store_id_1") AS (SELECT "store_id" AS "store_id_1" FROM "map_ujyl"), "map_tkb3" ("store_id_1") AS (SELECT "store_id_1" AS "store_id_1" FROM "map_ri9m"), "map_jydp" ("binned") AS (SELECT CASE WHEN (("store_id_1") >= (27)) AND (("store_id_1") <= (32)) THEN 27 WHEN (("store_id_1") >= (32)) AND (("store_id_1") <= (64)) THEN 32 WHEN (("store_id_1") >= (64)) AND (("store_id_1") <= (128)) THEN 64 WHEN (("store_id_1") >= (128)) AND (("store_id_1") <= (256)) THEN 128 WHEN (("store_id_1") >= (256)) AND (("store_id_1") <= (512)) THEN 256 WHEN (("store_id_1") >= (512)) AND (("store_id_1") <= (1024)) THEN 512 WHEN (("store_id_1") >= (1024)) AND (("store_id_1") <= (2048)) THEN 1024 WHEN (("store_id_1") >= (2048)) AND (("store_id_1") <= (4096)) THEN 2048 WHEN (("store_id_1") >= (4096)) AND (("store_id_1") <= (8192)) THEN 4096 WHEN (("store_id_1") >= (8192)) AND (("store_id_1") <= (16384)) THEN 8192 WHEN (("store_id_1") >= (16384)) AND (("store_id_1") <= (32768)) THEN 16384 WHEN (("store_id_1") >= (32768)) AND (("store_id_1") <= (33923)) THEN 32768 ELSE NULL END AS "binned" FROM "map_tkb3"), "map_t55y" ("binned") AS (SELECT "binned" AS "binned" FROM "map_jydp"), "map_aji4" ("field_epaa") AS (SELECT "binned" AS "field_epaa" FROM "map_t55y"), "map_bruo" ("field_s6a9") AS (SELECT "field_epaa" AS "field_s6a9" FROM "map_aji4"), "reduce_ccnf" ("field_s6a9", "field_kw5m") AS (SELECT "field_s6a9" AS "field_s6a9", COUNT("field_s6a9") AS "field_kw5m" FROM "map_bruo" GROUP BY "field_s6a9"), "map_9rjv" ("field_epaa", "field_15zm") AS (SELECT "field_s6a9" AS "field_epaa", "field_kw5m" AS "field_15zm" FROM "reduce_ccnf"), "map_1k0m" ("binned", "count_") AS (SELECT "field_epaa" AS "binned", ("field_15zm") - (((196.21693235849753) * (LOG((1) - ((2) * (ABS((RANDOM()) - (0.5))))))) * (SIGN((RANDOM()) - (0.5)))) AS "count_" FROM "map_9rjv"), "map_58ls" ("field_epaa") AS (SELECT "binned" AS "field_epaa" FROM "map_1k0m" WHERE ("count_") >= (4553.836394758849)), "map_mfax" ("field_s6a9") AS (SELECT "field_epaa" AS "field_s6a9" FROM "map_58ls"), "reduce_8uaa" ("field_ojnh") AS (SELECT MAX("field_s6a9") AS "field_ojnh" FROM "map_mfax"), "map_up98" ("max_value") AS (SELECT (2) * ("field_ojnh") AS "max_value" FROM "reduce_8uaa"), "map_pndb" ("max_value") AS (SELECT LEAST("max_value", 33923) AS "max_value" FROM "map_up98"), "map_naat" ("field_k6ag", "field_r_rl", "max_value") AS (SELECT '"retail_transactions"."store_id"' AS "field_k6ag", 'max' AS "field_r_rl", "max_value" AS "max_value" FROM "map_pndb"), "map_j5bj" ("field_k6ag", "field_r_rl", "max_value") AS (SELECT "field_k6ag" AS "field_k6ag", "field_r_rl" AS "field_r_rl", "max_value" AS "max_value" FROM "map_naat") SELECT * FROM "map_j5bj" "#,
@@ -6778,7 +6781,7 @@ FROM
             let relation = Relation::try_from(query.with(&relations)).unwrap();
             relation.display_dot().unwrap();
             let qq = ast::Query::from(&relation);
-            println!("QUERY: \n{}\n",qq);
+            println!("QUERY: \n{}\n", qq);
             let dp_relation = relation
                 .rewrite_with_differential_privacy(
                     &relations,

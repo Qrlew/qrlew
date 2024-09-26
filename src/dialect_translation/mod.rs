@@ -23,13 +23,13 @@ use crate::{
 use paste::paste;
 
 pub mod bigquery;
+pub mod databricks;
 pub mod hive;
 pub mod mssql;
 pub mod mysql;
 pub mod postgresql;
-pub mod sqlite;
 pub mod redshiftsql;
-pub mod databricks;
+pub mod sqlite;
 
 // TODO: Add translatio errors
 
@@ -360,7 +360,7 @@ macro_rules! relation_to_query_translator_trait_constructor {
                         ast::Expr::Value(ast::Value::Number(format!("{}", **i), false))
                     }
                     expr::Value::Enum(_) => todo!(),
-                    expr::Value::Float(f) => {self.format_float_value(**f)},
+                    expr::Value::Float(f) => self.format_float_value(**f),
                     expr::Value::Text(t) => {
                         ast::Expr::Value(ast::Value::SingleQuotedString(format!("{}", **t)))
                     }

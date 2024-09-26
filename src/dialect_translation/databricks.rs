@@ -3,7 +3,6 @@ use sqlparser::{ast, dialect::DatabricksDialect};
 
 use crate::expr::{self};
 
-
 #[derive(Clone, Copy)]
 pub struct DatabricksTranslator;
 
@@ -31,12 +30,12 @@ impl RelationToQueryTranslator for DatabricksTranslator {
             kind: ast::CastKind::Cast,
         }
     }
-    fn cast_as_float(&self, expr:ast::Expr) -> ast::Expr {
+    fn cast_as_float(&self, expr: ast::Expr) -> ast::Expr {
         function_builder("FLOAT", vec![expr], false)
     }
     /// It converts EXTRACT(epoch FROM column) into
     /// UNIX_TIMESTAMP(col)
-    fn extract_epoch(&self,expr:ast::Expr) -> ast::Expr {
+    fn extract_epoch(&self, expr: ast::Expr) -> ast::Expr {
         function_builder("UNIX_TIMESTAMP", vec![expr], false)
     }
 
@@ -52,7 +51,6 @@ impl RelationToQueryTranslator for DatabricksTranslator {
         ast::Expr::Value(ast::Value::Number(formatted, false))
     }
 }
-
 
 impl QueryToRelationTranslator for DatabricksTranslator {
     type D = DatabricksDialect;

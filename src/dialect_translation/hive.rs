@@ -1,7 +1,6 @@
-
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
-use sqlparser::{ast, dialect::HiveDialect};
 use crate::expr::{self};
+use sqlparser::{ast, dialect::HiveDialect};
 
 #[derive(Clone, Copy)]
 pub struct HiveTranslator;
@@ -46,7 +45,7 @@ impl RelationToQueryTranslator for HiveTranslator {
             kind: ast::CastKind::Cast,
         }
     }
-    fn extract_epoch(&self,expr:ast::Expr) -> ast::Expr {
+    fn extract_epoch(&self, expr: ast::Expr) -> ast::Expr {
         function_builder("UNIX_TIMESTAMP", vec![expr], false)
     }
     /// For mysql CAST(expr AS INTEGER) should be converted to
@@ -54,12 +53,14 @@ impl RelationToQueryTranslator for HiveTranslator {
     /// CONVERT can be also used as CONVERT(expr, SIGNED)
     /// however st::DataType doesn't support SIGNED [INTEGER].
     /// We fix it by creating a function CONVERT(expr, SIGNED).
-    fn cast_as_integer(&self,expr:ast::Expr) -> ast::Expr {
-        let signed = ast::Expr::Identifier(ast::Ident{value: "SIGNED".to_string(), quote_style: None});
+    fn cast_as_integer(&self, expr: ast::Expr) -> ast::Expr {
+        let signed = ast::Expr::Identifier(ast::Ident {
+            value: "SIGNED".to_string(),
+            quote_style: None,
+        });
         function_builder("CONVERT", vec![expr, signed], false)
     }
 }
-
 
 impl QueryToRelationTranslator for HiveTranslator {
     type D = HiveDialect;

@@ -415,8 +415,6 @@ fn test_on_bigquery() {
     }
 }
 
-
-
 #[cfg(feature = "mysql")]
 #[test]
 fn test_on_mysql() {
@@ -427,13 +425,13 @@ fn test_on_mysql() {
     for tab in database.tables() {
         println!("schema {} = {}", tab, tab.schema());
     }
-    
-    for &query in MYSQL_QUERIES {//.iter().chain(QUERIES) {
+
+    for &query in MYSQL_QUERIES {
+        //.iter().chain(QUERIES) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, MySqlTranslator);
     }
 }
-
 
 #[test]
 fn test_distinct_aggregates() {

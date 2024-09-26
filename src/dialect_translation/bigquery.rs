@@ -55,7 +55,7 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             kind: ast::CastKind::Cast,
         }
     }
-    fn cast_as_float(&self,expr:ast::Expr) -> ast::Expr {
+    fn cast_as_float(&self, expr: ast::Expr) -> ast::Expr {
         ast::Expr::Cast {
             expr: Box::new(expr),
             data_type: ast::DataType::Float64,
@@ -99,7 +99,7 @@ impl RelationToQueryTranslator for BigQueryTranslator {
     }
     /// It converts EXTRACT(epoch FROM column) into
     /// UNIX_SECONDS(CAST(col AS TIMESTAMP))
-    fn extract_epoch(&self, expr:ast::Expr) -> ast::Expr {
+    fn extract_epoch(&self, expr: ast::Expr) -> ast::Expr {
         let cast = ast::Expr::Cast {
             expr: Box::new(expr),
             data_type: ast::DataType::Timestamp(None, ast::TimezoneInfo::None),

@@ -1,7 +1,12 @@
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator, Result};
+use crate::{
+    data_type::DataTyped as _,
+    expr::{self},
+    hierarchy::Hierarchy,
+    relation::{Table, Variant as _},
+    DataType, WithoutContext as _,
+};
 use sqlparser::{ast, dialect::MySqlDialect};
-use crate::{data_type::DataTyped as _, expr::{self}, hierarchy::Hierarchy, relation::{Table, Variant as _}, DataType, WithoutContext as _};
-
 
 #[derive(Clone, Copy)]
 pub struct MySqlTranslator;
@@ -46,11 +51,7 @@ impl RelationToQueryTranslator for MySqlTranslator {
                 body: Box::new(ast::SetExpr::Values(ast::Values {
                     explicit_row: false,
                     rows: vec![(1..=table.schema().len())
-                        .map(|_| {
-                            ast::Expr::Value(ast::Value::Placeholder(format!(
-                                "{prefix}"
-                            )))
-                        })
+                        .map(|_| ast::Expr::Value(ast::Value::Placeholder(format!("{prefix}"))))
                         .collect()],
                 })),
                 order_by: vec![],
@@ -139,7 +140,7 @@ impl RelationToQueryTranslator for MySqlTranslator {
             kind: ast::CastKind::Cast,
         }
     }
-    fn extract_epoch(&self,expr:ast::Expr) -> ast::Expr {
+    fn extract_epoch(&self, expr: ast::Expr) -> ast::Expr {
         function_builder("UNIX_TIMESTAMP", vec![expr], false)
     }
     /// For mysql CAST(expr AS INTEGER) should be converted to
@@ -147,42 +148,59 @@ impl RelationToQueryTranslator for MySqlTranslator {
     /// CONVERT can be also used as CONVERT(expr, SIGNED)
     /// however st::DataType doesn't support SIGNED [INTEGER].
     /// We fix it by creating a function CONVERT(expr, SIGNED).
-    fn cast_as_integer(&self,expr:ast::Expr) -> ast::Expr {
-        let signed = ast::Expr::Identifier(ast::Ident{value: "SIGNED".to_string(), quote_style: None});
+    fn cast_as_integer(&self, expr: ast::Expr) -> ast::Expr {
+        let signed = ast::Expr::Identifier(ast::Ident {
+            value: "SIGNED".to_string(),
+            quote_style: None,
+        });
         function_builder("CONVERT", vec![expr, signed], false)
     }
 
     // encode(source, 'escape') -> source
     // encode(source, 'hex') -> hex(source)
     // encode(source, 'base64') -> to_base64(source)
-    fn encode(&self,exprs:Vec<ast::Expr>) -> ast::Expr {
+    fn encode(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert_eq!(exprs.len(), 2);
         let source = exprs[0].clone();
         match &exprs[1] {
-            ast::Expr::Value(ast::Value::SingleQuotedString( s)) if s == &"hex".to_string() => function_builder("HEX", vec![source], false),
-            ast::Expr::Value(ast::Value::SingleQuotedString(s)) if s == &"base64".to_string()=> function_builder("TO_BASE64", vec![source], false),
-            _ => source
+            ast::Expr::Value(ast::Value::SingleQuotedString(s)) if s == &"hex".to_string() => {
+                function_builder("HEX", vec![source], false)
+            }
+            ast::Expr::Value(ast::Value::SingleQuotedString(s)) if s == &"base64".to_string() => {
+                function_builder("TO_BASE64", vec![source], false)
+            }
+            _ => source,
         }
     }
 
     // decode(source, 'hex') -> CONVERT(unhex(source) USING utf8mb4)
     // decode(source, 'escape') -> CONVERT(source USING utf8mb4)
     // decode(source, 'base64') -> CONVERT(from_base64(source) USING utf8mb4)
-    fn decode(&self,exprs:Vec<ast::Expr>) -> ast::Expr {
+    fn decode(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert_eq!(exprs.len(), 2);
         let source = exprs[0].clone();
         let binary_expr = match &exprs[1] {
-            ast::Expr::Value(ast::Value::SingleQuotedString( s)) if s == &"hex".to_string() => function_builder("UNHEX", vec![source], false),
-            ast::Expr::Value(ast::Value::SingleQuotedString(s)) if s == &"base64".to_string()=> function_builder("FROM_BASE64", vec![source], false),
-            _ => source
+            ast::Expr::Value(ast::Value::SingleQuotedString(s)) if s == &"hex".to_string() => {
+                function_builder("UNHEX", vec![source], false)
+            }
+            ast::Expr::Value(ast::Value::SingleQuotedString(s)) if s == &"base64".to_string() => {
+                function_builder("FROM_BASE64", vec![source], false)
+            }
+            _ => source,
         };
-        let char_enc = ast::ObjectName(vec![ast::Ident{value: "utf8mb4".to_string(), quote_style: None}]);
-        ast::Expr::Convert { expr: Box::new(binary_expr), data_type: None, charset: Some(char_enc), target_before_value: false, styles: vec![] }
+        let char_enc = ast::ObjectName(vec![ast::Ident {
+            value: "utf8mb4".to_string(),
+            quote_style: None,
+        }]);
+        ast::Expr::Convert {
+            expr: Box::new(binary_expr),
+            data_type: None,
+            charset: Some(char_enc),
+            target_before_value: false,
+            styles: vec![],
+        }
     }
-
-
 }
-
 
 impl QueryToRelationTranslator for MySqlTranslator {
     type D = MySqlDialect;
@@ -216,7 +234,6 @@ impl QueryToRelationTranslator for MySqlTranslator {
     }
 }
 
-
 // method to override DataType -> ast::DataType
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
@@ -232,7 +249,7 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
 }
 enum EncodeDecodeFormat {
     Hex,
-    Base64
+    Base64,
 }
 
 // unhex(source) -> encode(decode(source, 'hex'), 'escape')
@@ -267,17 +284,28 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::{Ready, With}, dialect_translation::{postgresql::PostgreSqlTranslator, RelationWithTranslator}, display::Dot, io::{mysql, postgresql, Database as _}, namer, relation::{schema::Schema, Relation}, sql::{self, parse, relation::QueryWithRelations}
+        builder::{Ready, With},
+        dialect_translation::{postgresql::PostgreSqlTranslator, RelationWithTranslator},
+        display::Dot,
+        io::{mysql, postgresql, Database as _},
+        namer,
+        relation::{schema::Schema, Relation},
+        sql::{self, parse, relation::QueryWithRelations},
     };
 
-
-    fn try_from_mssql_query(mysql_query: &str, relations: Hierarchy<std::sync::Arc<Relation>>) -> Relation {
-        let parsed_query = sql::relation::parse_with_dialect(mysql_query, MySqlTranslator.dialect()).unwrap();
+    fn try_from_mssql_query(
+        mysql_query: &str,
+        relations: Hierarchy<std::sync::Arc<Relation>>,
+    ) -> Relation {
+        let parsed_query =
+            sql::relation::parse_with_dialect(mysql_query, MySqlTranslator.dialect()).unwrap();
         // let parsed_query = parse(mysql_query).unwrap();
-        let query_with_translator = (QueryWithRelations::new(&parsed_query, &relations), MySqlTranslator);
+        let query_with_translator = (
+            QueryWithRelations::new(&parsed_query, &relations),
+            MySqlTranslator,
+        );
         Relation::try_from(query_with_translator).unwrap()
     }
-
 
     #[test]
     fn test_unhex() {
@@ -303,7 +331,7 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .join("\n");
-        
+
         let res_mysql = mysql_database
             .query(mysql_query)
             .unwrap()
@@ -326,7 +354,7 @@ mod tests {
         let mut mysql_database = mysql::test_database();
         let mut psql_database = postgresql::test_database();
         let relations = mysql_database.relations();
-        
+
         let initial_mysql_query = "SELECT hex('Private') FROM table_2 LIMIT 1";
         let rel = try_from_mssql_query(initial_mysql_query, relations);
 
@@ -345,7 +373,7 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .join("\n");
-        
+
         let res_mysql = mysql_database
             .query(mysql_query)
             .unwrap()
@@ -368,7 +396,7 @@ mod tests {
         let mut mysql_database = mysql::test_database();
         let mut psql_database = postgresql::test_database();
         let relations = mysql_database.relations();
-        
+
         let initial_mysql_query = "SELECT from_base64('YWJj') FROM table_2 LIMIT 1";
         let rel = try_from_mssql_query(initial_mysql_query, relations);
 
@@ -387,7 +415,7 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .join("\n");
-        
+
         let res_mysql = mysql_database
             .query(mysql_query)
             .unwrap()
@@ -410,7 +438,7 @@ mod tests {
         let mut mysql_database = mysql::test_database();
         let mut psql_database = postgresql::test_database();
         let relations = mysql_database.relations();
-        
+
         let initial_mysql_query = "SELECT TO_BASE64('abc') FROM table_2 LIMIT 1";
         let rel = try_from_mssql_query(initial_mysql_query, relations);
 
@@ -429,7 +457,7 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .join("\n");
-        
+
         let res_mysql = mysql_database
             .query(mysql_query)
             .unwrap()

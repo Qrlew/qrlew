@@ -52,7 +52,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         function_builder("RAND", vec![check_sum], false)
     }
 
-    fn char_length(&self, expr:ast::Expr) -> ast::Expr {
+    fn char_length(&self, expr: ast::Expr) -> ast::Expr {
         function_builder("LEN", vec![expr], false)
     }
 
@@ -135,11 +135,11 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         function_builder("DATEDIFF", vec![second, unix, expr], false)
     }
 
-    fn concat(&self, exprs:Vec<ast::Expr>) -> ast::Expr {
+    fn concat(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         let literal = ast::Expr::Value(ast::Value::SingleQuotedString("".to_string()));
         let expanded_exprs: Vec<_> = exprs
             .iter()
-            .cloned()  
+            .cloned()
             .chain(std::iter::once(literal))
             .collect();
         function_builder("CONCAT", expanded_exprs, false)
@@ -163,8 +163,11 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             quantity: Some(ast::TopQuantity::Expr(e)),
         });
 
-        let translated_projection: Vec<ast::SelectItem> = projection.iter().map(case_from_not).collect();
-        let translated_selection: Option<ast::Expr> = selection.and_then(none_from_where_random).and_then(boolean_expr_from_identifier);
+        let translated_projection: Vec<ast::SelectItem> =
+            projection.iter().map(case_from_not).collect();
+        let translated_selection: Option<ast::Expr> = selection
+            .and_then(none_from_where_random)
+            .and_then(boolean_expr_from_identifier);
 
         ast::Query {
             with: (!with.is_empty()).then_some(ast::With {
@@ -377,16 +380,21 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
 // It converts a `NOT (col IS NULL)` in the SELECT items into a CASE expression
 fn case_from_not(select_item: &ast::SelectItem) -> ast::SelectItem {
     match select_item {
-        ast::SelectItem::ExprWithAlias { expr, alias } => ast::SelectItem::ExprWithAlias { expr: case_from_not_expr(expr), alias: alias.clone() },
-        ast::SelectItem::UnnamedExpr(expr) => ast::SelectItem::UnnamedExpr(case_from_not_expr(expr)),
-        _ =>  select_item.clone()
+        ast::SelectItem::ExprWithAlias { expr, alias } => ast::SelectItem::ExprWithAlias {
+            expr: case_from_not_expr(expr),
+            alias: alias.clone(),
+        },
+        ast::SelectItem::UnnamedExpr(expr) => {
+            ast::SelectItem::UnnamedExpr(case_from_not_expr(expr))
+        }
+        _ => select_item.clone(),
     }
 }
 
 fn case_from_not_expr(expr: &ast::Expr) -> ast::Expr {
     match expr {
         ast::Expr::UnaryOp { op, expr } => case_from_not_unary_op(op, expr),
-        _ => expr.clone()
+        _ => expr.clone(),
     }
 }
 
@@ -395,7 +403,7 @@ fn case_from_not_unary_op(op: &ast::UnaryOperator, expr: &Box<ast::Expr>) -> ast
         ast::UnaryOperator::Not => {
             // NOT( some_bool_expr ) -> CASE WHEN some_bool_expr THEN 0 ELSE 1
             let when_expr = vec![expr.as_ref().clone()];
-            let then_expr  = vec![ast::Expr::Value(ast::Value::Number("0".to_string(), false))];
+            let then_expr = vec![ast::Expr::Value(ast::Value::Number("0".to_string(), false))];
             let else_expr = Box::new(ast::Expr::Value(ast::Value::Number("1".to_string(), false)));
             ast::Expr::Case {
                 operand: None,
@@ -403,8 +411,11 @@ fn case_from_not_unary_op(op: &ast::UnaryOperator, expr: &Box<ast::Expr>) -> ast
                 results: then_expr,
                 else_result: Some(else_expr),
             }
+        }
+        _ => ast::Expr::UnaryOp {
+            op: op.clone(),
+            expr: expr.clone(),
         },
-        _ => ast::Expr::UnaryOp {op: op.clone(), expr: expr.clone()}
     }
 }
 
@@ -413,7 +424,7 @@ fn case_from_not_unary_op(op: &ast::UnaryOperator, expr: &Box<ast::Expr>) -> ast
 /// Often sampling queries uses WHERE RAND(CHECKSUM(NEWID())) < x but in mssql
 /// this doesn't associate a random value for each row.
 /// Use ruther this approach to sample:
-/// https://www.sqlservercentral.com/forums/topic/whats-the-best-way-to-get-a-sample-set-of-a-big-table-without-primary-key#post-1948778 
+/// https://www.sqlservercentral.com/forums/topic/whats-the-best-way-to-get-a-sample-set-of-a-big-table-without-primary-key#post-1948778
 /// Careful!! If RAND function is found the WHERE will be set to None.
 fn none_from_where_random(expr: ast::Expr) -> Option<ast::Expr> {
     if has_rand_func(&expr) {
@@ -427,13 +438,13 @@ fn none_from_where_random(expr: ast::Expr) -> Option<ast::Expr> {
 fn has_rand_func(expr: &ast::Expr) -> bool {
     match expr {
         ast::Expr::Function(func) => {
-            let ast::Function {name, ..} = func;
+            let ast::Function { name, .. } = func;
             let rand_func_name = ast::ObjectName(vec![ast::Ident::from("RAND")]);
             &rand_func_name == name
-        },
-        ast::Expr::BinaryOp { left , .. } => has_rand_func(left.as_ref()),
+        }
+        ast::Expr::BinaryOp { left, .. } => has_rand_func(left.as_ref()),
         ast::Expr::Nested(expr) => has_rand_func(expr.as_ref()),
-        _ => false
+        _ => false,
     }
 }
 
@@ -441,8 +452,12 @@ fn has_rand_func(expr: &ast::Expr) -> bool {
 // This function converts WHERE col -> WHERE col=1
 fn boolean_expr_from_identifier(expr: ast::Expr) -> Option<ast::Expr> {
     match expr {
-        ast::Expr::Identifier(_) => Some(ast::Expr::BinaryOp { left: Box::new(expr), op: ast::BinaryOperator::Eq, right: Box::new(ast::Expr::Value(ast::Value::Number("1".to_string(), false))) }),
-        _ => Some(expr)
+        ast::Expr::Identifier(_) => Some(ast::Expr::BinaryOp {
+            left: Box::new(expr),
+            op: ast::BinaryOperator::Eq,
+            right: Box::new(ast::Expr::Value(ast::Value::Number("1".to_string(), false))),
+        }),
+        _ => Some(expr),
     }
 }
 
@@ -465,7 +480,15 @@ fn translate_data_type(dtype: DataType) -> ast::DataType {
 mod tests {
     use super::*;
     use crate::{
-        builder::{Ready, With}, data_type::DataType, dialect_translation::RelationWithTranslator, display::Dot, expr::Expr, io::{mssql, Database as _}, namer, relation::{schema::Schema, Relation}, sql::parse
+        builder::{Ready, With},
+        data_type::DataType,
+        dialect_translation::RelationWithTranslator,
+        display::Dot,
+        expr::Expr,
+        io::{mssql, Database as _},
+        namer,
+        relation::{schema::Schema, Relation},
+        sql::parse,
     };
     use std::sync::Arc;
 
@@ -503,7 +526,9 @@ mod tests {
     #[test]
     fn test_not() {
         // let mut database = mssql::test_database();
-        let schema: Schema = vec![("a", DataType::optional(DataType::float()))].into_iter().collect();
+        let schema: Schema = vec![("a", DataType::optional(DataType::float()))]
+            .into_iter()
+            .collect();
         let table: Arc<Relation> = Arc::new(
             Relation::table()
                 .name("table_2")
