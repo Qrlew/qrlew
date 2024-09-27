@@ -426,8 +426,7 @@ fn test_on_mysql() {
         println!("schema {} = {}", tab, tab.schema());
     }
 
-    for &query in MYSQL_QUERIES {
-        //.iter().chain(QUERIES) {
+    for &query in MYSQL_QUERIES.iter().chain(QUERIES) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, MySqlTranslator);
     }
