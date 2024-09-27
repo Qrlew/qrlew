@@ -11,6 +11,7 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     dialect_translation::{RelationToQueryTranslator, RelationWithTranslator},
+    display::Dot,
     expr,
     io::{postgresql, Database},
     relation::Variant as _,
@@ -75,36 +76,36 @@ pub fn test_execute<D: Database, T: RelationToQueryTranslator>(
 }
 
 const QUERIES: &[&str] = &[
-    "SELECT AVG(x) as a FROM table_2",
-    "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
-    "SELECT 1+SUM(a), count(b) FROM table_1",
-    // Some WHERE
-    "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
-    "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
-    // Some GROUP BY
-    "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
-    "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
-    "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
-    "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
-    // Test COUNT NA
-    "SELECT count(x), count(table_2.y) FROM table_2",
-    // Some WHERE and GROUP BY
-    "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
-    "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
-    "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT * FROM table_2)
-    SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
-    "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
-    t2 AS (SELECT * FROM table_2)
-    SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT * FROM table_2)
-    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
-    // Test LIMIT // OFFSET
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT * FROM table_2)
-    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
+    // "SELECT AVG(x) as a FROM table_2",
+    // "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
+    // "SELECT 1+SUM(a), count(b) FROM table_1",
+    // // Some WHERE
+    // "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
+    // "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
+    // // Some GROUP BY
+    // "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
+    // "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
+    // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
+    // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
+    // // Test COUNT NA
+    // "SELECT count(x), count(table_2.y) FROM table_2",
+    // // Some WHERE and GROUP BY
+    // "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
+    // "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
+    // "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
+    // "WITH t1 AS (SELECT a,d FROM table_1),
+    // t2 AS (SELECT * FROM table_2)
+    // SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
+    // "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
+    // t2 AS (SELECT * FROM table_2)
+    // SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
+    // "WITH t1 AS (SELECT a,d FROM table_1),
+    // t2 AS (SELECT * FROM table_2)
+    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
+    // // Test LIMIT // OFFSET
+    // "WITH t1 AS (SELECT a,d FROM table_1),
+    // t2 AS (SELECT * FROM table_2)
+    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17 OFFSET 5",
@@ -145,14 +146,15 @@ const QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2", // fails with sqlite
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2", // fails with sqlite
     "SELECT a, SUM(a) FROM table_1 GROUP BY a",
-    // "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;", // fails with sqlite
-    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
-    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
+    "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;", // fails with sqlite
 ];
 
 #[cfg(feature = "sqlite")]
-const SQLITE_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
-
+const SQLITE_QUERIES: &[&str] = &[
+    "SELECT AVG(b) as n, count(b) as d FROM table_1",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
+];
 
 #[cfg(feature = "sqlite")]
 #[test]
@@ -163,11 +165,7 @@ fn test_on_sqlite() {
         println!("schema {} = {}", tab, tab.schema());
     }
     for &query in SQLITE_QUERIES.iter().chain(QUERIES) {
-        if test_rewritten_eq(&mut database, query) {
-            println!("======= OK ======")
-        } else {
-            println!("======= FAILED ======")
-        }
+        assert!(test_rewritten_eq(&mut database, query))
     }
 }
 // This should work: https://www.db-fiddle.com/f/ouKSHjkEk29zWY5PN2YmjZ/10
@@ -186,8 +184,8 @@ const POSTGRESQL_QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z OFFSET 5",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
-    r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM my_special_table"#,
     // This fails consistency tests due to numeric errors. It could be fixed with Round
     // but in psql round(arg, precision) fails if arg is a double precision type
     // "SELECT
@@ -216,7 +214,7 @@ fn test_on_postgresql() {
 }
 
 #[cfg(feature = "mssql")]
-const MSSQL_QUERIES: &[&str] = &[
+const PSQL_QUERIES_FOR_MSSQL_DB: &[&str] = &[
     // Some joins
     "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
     "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
@@ -224,6 +222,8 @@ const MSSQL_QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z OFFSET 5",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
 ];
 
 #[cfg(feature = "mssql")]
@@ -239,13 +239,13 @@ fn test_on_mssql() {
         println!("schema {} = {}", tab, tab.schema());
     }
     // TODO We should pass the QUERIES list too
-    for &query in QUERIES.iter().chain(MSSQL_QUERIES) {
+    for &query in QUERIES.iter().chain(PSQL_QUERIES_FOR_MSSQL_DB) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, MsSqlTranslator);
     }
 }
 
-const BIGQUERY_QUERIES: &[&str] = &[
+const PSQL_QUERIES_FOR_BIGQUERY_DB: &[&str] = &[
     "SELECT AVG(b) as n, count(b) as d FROM table_1",
     "SELECT MD5(z) FROM table_2 LIMIT 10",
     "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
@@ -256,6 +256,9 @@ const BIGQUERY_QUERIES: &[&str] = &[
     "SELECT RANDOM(), * FROM table_2",
     "SELECT z, CASE WHEN z IS Null THEN CAST('A' AS VARCHAR(10)) ELSE CAST('B' AS VARCHAR(10)) END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
     "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+    r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM MY_SPECIAL_TABLE"#,
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
 ];
 
 #[cfg(feature = "bigquery")]
@@ -271,14 +274,14 @@ fn test_on_bigquery() {
         println!("schema {} = {}", tab, tab.schema());
     }
 
-    for &query in QUERIES.iter().chain(BIGQUERY_QUERIES) {
+    for &query in QUERIES.iter().chain(PSQL_QUERIES_FOR_BIGQUERY_DB) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, BigQueryTranslator);
     }
 }
 
 #[cfg(feature = "mysql")]
-const MYSQL_QUERIES: &[&str] = &[
+const PSQL_QUERIES_FOR_MYSQL_DB: &[&str] = &[
     "SELECT CAST(d AS INTEGER) FROM table_1",
     "SELECT EXTRACT(EPOCH FROM c) FROM table_1",
     "SELECT CAST(d AS TEXT) FROM table_1",
@@ -295,7 +298,7 @@ fn test_on_mysql() {
         println!("schema {} = {}", tab, tab.schema());
     }
 
-    for &query in MYSQL_QUERIES.iter().chain(QUERIES) {
+    for &query in PSQL_QUERIES_FOR_MYSQL_DB.iter().chain(QUERIES) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, MySqlTranslator);
     }

@@ -171,6 +171,13 @@ impl Database {
                     Schema::empty()
                         .with(("a", DataType::float_interval(0., 10.)))
                         .with(("b", DataType::optional(DataType::float_interval(-1., 1.))))
+                        .with((
+                            "c",
+                            DataType::text_values([
+                                "12/04/2001 13:03:43".into(),
+                                "12/05/2011 13:03:43".into(),
+                            ]),
+                        ))
                         .with(("d", DataType::integer_interval(0, 10))),
                 )
                 .build(),
@@ -182,7 +189,7 @@ impl Database {
                     Schema::empty()
                         .with(("x", DataType::integer_interval(0, 100)))
                         .with(("y", DataType::optional(DataType::text())))
-                        .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))), //Can't push these? why?
+                        .with(("z", DataType::text_values(["Foo".into(), "Bar".into()]))),
                 )
                 .build(),
             TableBuilder::new()

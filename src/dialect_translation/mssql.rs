@@ -157,14 +157,32 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         limit: Option<ast::Expr>,
         offset: Option<ast::Offset>,
     ) -> ast::Query {
-        let top = limit.map(|e| ast::Top {
+        // A TOP can not be used
+        // in the same query or sub-query as a OFFSET.
+        let top = limit.filter(|_| offset.is_none()).map(|e| ast::Top {
             with_ties: false,
             percent: false,
             quantity: Some(ast::TopQuantity::Expr(e)),
         });
 
-        let translated_projection: Vec<ast::SelectItem> =
-            projection.iter().map(case_from_not).collect();
+        // ORDER BY clause is invalid in views, inline functions, derived tables,
+        // subqueries, and common table expressions, unless TOP, OFFSET or
+        // FOR XML is also specified.
+        let new_offset = match (order_by.is_empty(), &offset, &top) {
+            (false, None, None) => Some(ast::Offset {
+                value: ast::Expr::Value(ast::Value::Number("0".to_string(), false)),
+                rows: ast::OffsetRows::Rows,
+            }),
+            _ => offset.map(|o| ast::Offset {
+                value: o.value,
+                rows: ast::OffsetRows::Rows,
+            }),
+        };
+
+        let translated_projection: Vec<ast::SelectItem> = projection
+            .iter()
+            .map(case_from_boolean_select_item)
+            .collect();
         let translated_selection: Option<ast::Expr> = selection
             .and_then(none_from_where_random)
             .and_then(boolean_expr_from_identifier);
@@ -195,7 +213,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             }))),
             order_by,
             limit: None,
-            offset: offset,
+            offset: new_offset,
             fetch: None,
             locks: vec![],
             limit_by: vec![],
@@ -378,22 +396,23 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
 }
 
 // It converts a `NOT (col IS NULL)` in the SELECT items into a CASE expression
-fn case_from_not(select_item: &ast::SelectItem) -> ast::SelectItem {
+fn case_from_boolean_select_item(select_item: &ast::SelectItem) -> ast::SelectItem {
     match select_item {
         ast::SelectItem::ExprWithAlias { expr, alias } => ast::SelectItem::ExprWithAlias {
-            expr: case_from_not_expr(expr),
+            expr: case_from_boolean_expr(expr),
             alias: alias.clone(),
         },
         ast::SelectItem::UnnamedExpr(expr) => {
-            ast::SelectItem::UnnamedExpr(case_from_not_expr(expr))
+            ast::SelectItem::UnnamedExpr(case_from_boolean_expr(expr))
         }
         _ => select_item.clone(),
     }
 }
 
-fn case_from_not_expr(expr: &ast::Expr) -> ast::Expr {
+fn case_from_boolean_expr(expr: &ast::Expr) -> ast::Expr {
     match expr {
         ast::Expr::UnaryOp { op, expr } => case_from_not_unary_op(op, expr),
+        ast::Expr::BinaryOp { op, left, right } => case_from_bool_binary_op(op, left, right),
         _ => expr.clone(),
     }
 }
@@ -416,6 +435,43 @@ fn case_from_not_unary_op(op: &ast::UnaryOperator, expr: &Box<ast::Expr>) -> ast
             op: op.clone(),
             expr: expr.clone(),
         },
+    }
+}
+
+// converting any boolean binray operation into CASE WHEN expr THEN 1 ELSE 0
+fn case_from_bool_binary_op(
+    op: &ast::BinaryOperator,
+    left: &Box<ast::Expr>,
+    right: &Box<ast::Expr>,
+) -> ast::Expr {
+    let expr = ast::Expr::BinaryOp {
+        left: left.clone(),
+        op: op.clone(),
+        right: right.clone(),
+    };
+    let when_expr = vec![expr.clone()];
+    let true_expr = vec![ast::Expr::Value(ast::Value::Number("1".to_string(), false))];
+    let false_expr = Box::new(ast::Expr::Value(ast::Value::Number("0".to_string(), false)));
+
+    match op {
+        ast::BinaryOperator::Gt
+        | ast::BinaryOperator::Lt
+        | ast::BinaryOperator::GtEq
+        | ast::BinaryOperator::LtEq
+        | ast::BinaryOperator::Eq
+        | ast::BinaryOperator::NotEq
+        | ast::BinaryOperator::And
+        | ast::BinaryOperator::Or
+        | ast::BinaryOperator::Xor
+        | ast::BinaryOperator::BitwiseOr
+        | ast::BinaryOperator::BitwiseAnd
+        | ast::BinaryOperator::BitwiseXor => ast::Expr::Case {
+            operand: None,
+            conditions: when_expr,
+            results: true_expr,
+            else_result: Some(false_expr),
+        },
+        _ => expr,
     }
 }
 
