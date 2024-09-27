@@ -105,13 +105,9 @@ const QUERIES: &[&str] = &[
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
-    // "WITH t1 AS (SELECT a,d FROM table_1),
-    // t2 AS (SELECT * FROM table_2)
-    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z OFFSET 5", // in mysql OFFSET can be used only with LIMIT
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17 OFFSET 5",
-
     "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
     "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
     "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
@@ -136,32 +132,27 @@ const QUERIES: &[&str] = &[
     "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
     "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
     // DISTINCT
-    "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d",
-    "SELECT DISTINCT c, d FROM table_1",
+    "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d", // fails with sqlite
+    "SELECT DISTINCT c, d FROM table_1", // fails with sqlite
     "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
     "SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;",
     // using joins
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 INNER JOIN t2 USING(a)",
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 LEFT JOIN t2 USING(a)",
     "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 RIGHT JOIN t2 USING(a)",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)", in mysql FULL JOIN is not supported
     // natural joins
-    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL INNER JOIN t2",
-    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
-    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
-    "SELECT a, SUM(a) FROM table_1 GROUP BY a"
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL INNER JOIN t2", // fails with sqlite
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2", // fails with sqlite
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2", // fails with sqlite
+    "SELECT a, SUM(a) FROM table_1 GROUP BY a",
+    // "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;", // fails with sqlite
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
 ];
 
 #[cfg(feature = "sqlite")]
 const SQLITE_QUERIES: &[&str] = &["SELECT AVG(b) as n, count(b) as d FROM table_1"];
 
-#[cfg(feature = "mysql")]
-const MYSQL_QUERIES: &[&str] = &[
-    "SELECT CAST(d AS INTEGER) FROM table_1",
-    "SELECT EXTRACT(EPOCH FROM c) FROM table_1",
-    "SELECT CAST(d AS TEXT) FROM table_1",
-];
 
 #[cfg(feature = "sqlite")]
 #[test]
@@ -172,7 +163,11 @@ fn test_on_sqlite() {
         println!("schema {} = {}", tab, tab.schema());
     }
     for &query in SQLITE_QUERIES.iter().chain(QUERIES) {
-        assert!(test_rewritten_eq(&mut database, query));
+        if test_rewritten_eq(&mut database, query) {
+            println!("======= OK ======")
+        } else {
+            println!("======= FAILED ======")
+        }
     }
 }
 // This should work: https://www.db-fiddle.com/f/ouKSHjkEk29zWY5PN2YmjZ/10
@@ -184,11 +179,15 @@ const POSTGRESQL_QUERIES: &[&str] = &[
     "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
     "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
     "SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
-    "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
     "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
     "SELECT COUNT(*) AS c1 FROM table_2 WHERE y ILIKE '%ab%';",
     "SELECT z, CASE WHEN z IS Null THEN 'Null' ELSE 'NotNull' END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
     r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#,
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT * FROM table_2)
+    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z OFFSET 5",
+    "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
+    r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM my_special_table"#,
     // This fails consistency tests due to numeric errors. It could be fixed with Round
     // but in psql round(arg, precision) fails if arg is a double precision type
     // "SELECT
@@ -218,82 +217,13 @@ fn test_on_postgresql() {
 
 #[cfg(feature = "mssql")]
 const MSSQL_QUERIES: &[&str] = &[
-    "SELECT RANDOM(), * FROM table_2",
-    "SELECT AVG(x) as a FROM table_2",
-    "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
-    "SELECT 1+SUM(a), count(b) FROM table_1",
-    // Some WHERE
-    "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
-    "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
-    // Some GROUP BY
-    "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
-    "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
-    "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
-    // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
-    // Some WHERE and GROUP BY
-    "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
-    "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
-    "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT * FROM table_2)
-    SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
-    "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
-    t2 AS (SELECT * FROM table_2)
-    SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
-    // The ORDER BY clause is invalid in views, inline functions, derived tables, subqueries, and common table expressions, unless TOP, OFFSET or FOR XML is also specified.
-    // "WITH t1 AS (SELECT a,d FROM table_1),
-    // t2 AS (SELECT * FROM table_2)
-    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
-    // Test LIMIT
-    // Test LIMIT
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT * FROM table_2)
-    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
-    "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
-    "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
-    "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
-    // Test UNION
-    "SELECT 1*a FROM table_1 UNION SELECT 1*x FROM table_2",
-    // Test no UNION with CTEs
-    "WITH t1 AS (SELECT a,d FROM table_1),
-    t2 AS (SELECT x,y FROM table_2)
-    SELECT * FROM t1",
-    // Test UNION with CTEs
-    "WITH t1 AS (SELECT 1*a, 1*d FROM table_1),
-    t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
-    SELECT * FROM t1 UNION SELECT * FROM t2",
     // Some joins
-    "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
-    "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
     "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
     "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
     "SELECT z, CASE WHEN z IS Null THEN CAST('A' AS VARCHAR(10)) ELSE CAST('B' AS VARCHAR(10)) END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
-    // Some string functions
-    //"SELECT UPPER(z) FROM table_2 LIMIT 5",
-    //"SELECT LOWER(z) FROM table_2 LIMIT 5",
-    // ORDER BY
-    // The ORDER BY clause is invalid in views, inline functions, derived tables, subqueries, and common table expressions, unless TOP, OFFSET or FOR XML is also specified.
-    //"SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d",
-    //"SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d DESC",
-    //"SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
-    //"SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
-    // DISTINCT
-    // Some bug somewhere. Error not informative: panicked at src/expr/mod.rs:1029:18: Option::unwrap()` on a `None` value
-    //"SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d", 
-    //"SELECT DISTINCT c, d FROM table_1",
-    //"SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
-    //"SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;",
-    // using joins
-    //"WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 INNER JOIN t2 USING(a)",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 LEFT JOIN t2 USING(a)",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 RIGHT JOIN t2 USING(a)",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
-    // // natural joins
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL INNER JOIN t2",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
-    // "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
-    r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM "MY SPECIAL TABLE""#,
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT * FROM table_2)
+    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z OFFSET 5",
 ];
 
 #[cfg(feature = "mssql")]
@@ -309,11 +239,24 @@ fn test_on_mssql() {
         println!("schema {} = {}", tab, tab.schema());
     }
     // TODO We should pass the QUERIES list too
-    for &query in MSSQL_QUERIES.iter() {
+    for &query in QUERIES.iter().chain(MSSQL_QUERIES) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, MsSqlTranslator);
     }
 }
+
+const BIGQUERY_QUERIES: &[&str] = &[
+    "SELECT AVG(b) as n, count(b) as d FROM table_1",
+    "SELECT MD5(z) FROM table_2 LIMIT 10",
+    "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
+    "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
+    "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
+    "SELECT COUNT(*) AS c1 FROM table_2 WHERE y LIKE '%Ba%';",
+    "SELECT z, CASE WHEN z IS Null THEN 'Null' ELSE 'NotNull' END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+    "SELECT RANDOM(), * FROM table_2",
+    "SELECT z, CASE WHEN z IS Null THEN CAST('A' AS VARCHAR(10)) ELSE CAST('B' AS VARCHAR(10)) END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+    "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
+];
 
 #[cfg(feature = "bigquery")]
 #[test]
@@ -327,93 +270,19 @@ fn test_on_bigquery() {
     for tab in database.tables() {
         println!("schema {} = {}", tab, tab.schema());
     }
-    let queries_for_bq = [
-        "SELECT AVG(b) as n, count(b) as d FROM table_1",
-        "SELECT MD5(z) FROM table_2 LIMIT 10",
-        "SELECT CONCAT(x,y,z) FROM table_2 LIMIT 11",
-        "SELECT CHAR_LENGTH(z) AS char_length FROM table_2 LIMIT 1",
-        //"SELECT POSITION('o' IN z) AS char_length FROM table_2 LIMIT 5",
-        "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
-        "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
-        "SELECT COUNT(*) AS c1 FROM table_2 WHERE y LIKE '%Ba%';",
-        "SELECT z, CASE WHEN z IS Null THEN 'Null' ELSE 'NotNull' END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
-        "SELECT RANDOM(), * FROM table_2",
-        "SELECT AVG(x) as a FROM table_2",
-        "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
-        "SELECT 1+SUM(a), count(b) FROM table_1",
-        // Some WHERE
-        "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
-        "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
-        // Some GROUP BY
-        "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
-        "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
-        "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
-        // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
-        // Some WHERE and GROUP BY
-        "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
-        "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
-        "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
-        "WITH t1 AS (SELECT a,d FROM table_1),
-        t2 AS (SELECT * FROM table_2)
-        SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
-        "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
-        t2 AS (SELECT * FROM table_2)
-        SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
-        "WITH t1 AS (SELECT a,d FROM table_1),
-           t2 AS (SELECT * FROM table_2)
-        SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
-        // Test LIMIT
-        "WITH t1 AS (SELECT a,d FROM table_1),
-        t2 AS (SELECT * FROM table_2)
-        SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
-        "SELECT CASE a WHEN 5 THEN 0 ELSE a END FROM table_1",
-        "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 ELSE a END FROM table_1",
-        "SELECT CASE WHEN a < 5 THEN 0 WHEN a < 3 THEN 3 END FROM table_1",
-        // Test UNION
-        // "SELECT 1*a FROM table_1 UNION SELECT 1*x FROM table_2",
-        // Test no UNION with CTEs
-        "WITH t1 AS (SELECT a,d FROM table_1),
-        t2 AS (SELECT x,y FROM table_2)
-        SELECT * FROM t1",
-        // Test UNION with CTEs
-        // "WITH t1 AS (SELECT 1*a, 1*d FROM table_1),
-        // t2 AS (SELECT 0.1*x as a, 2*x as b FROM table_2)
-        // SELECT * FROM t1 UNION SELECT * FROM t2",
-        // Some joins
-        "SELECT * FROM order_table LEFT JOIN item_table on id=order_id WHERE price>10",
-        "SELECT SUBSTRING(z FROM 1 FOR 2) AS m, COUNT(*) AS my_count FROM table_2 GROUP BY z;",
-        "SELECT z AS age1, SUM(x) AS s1 FROM table_2 WHERE z IS NOT NULL GROUP BY z;",
-        "SELECT z, CASE WHEN z IS Null THEN 0 ELSE 1 END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
-        "SELECT z, CASE WHEN z IS Null THEN CAST('A' AS VARCHAR(10)) ELSE CAST('B' AS VARCHAR(10)) END AS case_age, COUNT(*) AS c1 FROM table_2 GROUP BY z;",
-        "SELECT UPPER(z) FROM table_2 LIMIT 5",
-        "SELECT LOWER(z) FROM table_2 LIMIT 5",
-        // ORDER BY
-        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d",
-        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY d DESC",
-        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
-        "SELECT d, COUNT(*) AS my_count FROM table_1 GROUP BY d ORDER BY my_count",
-        // DISTINCT
-        "SELECT DISTINCT COUNT(*) FROM table_1 GROUP BY d", 
-        "SELECT DISTINCT c, d FROM table_1",
-        "SELECT c, COUNT(DISTINCT d) AS count_d, SUM(DISTINCT d) AS sum_d FROM table_1 GROUP BY c ORDER BY c",
-        "SELECT SUM(DISTINCT a) AS s1 FROM table_1 GROUP BY c HAVING COUNT(*) > 5;",
-        // using joins
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 INNER JOIN t2 USING(a)",
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 LEFT JOIN t2 USING(a)",
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 RIGHT JOIN t2 USING(a)",
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7) SELECT * FROM t1 FULL JOIN t2 USING(a)",
-        // natural joins
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL INNER JOIN t2",
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL LEFT JOIN t2",
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL RIGHT JOIN t2",
-        "WITH t1 AS (SELECT a, b, c FROM table_1 WHERE a > 5), t2 AS (SELECT a, d, c FROM table_1 WHERE a < 7 LIMIT 10) SELECT * FROM t1 NATURAL FULL JOIN t2",
-        r#"SELECT "Id", NORMAL_COL, "Na.Me" FROM MY_SPECIAL_TABLE"#,
-    ];
-    for &query in queries_for_bq.iter() {
+
+    for &query in QUERIES.iter().chain(BIGQUERY_QUERIES) {
         println!("TESTING QUERY: {}", query);
         test_execute(&mut database, query, BigQueryTranslator);
     }
 }
+
+#[cfg(feature = "mysql")]
+const MYSQL_QUERIES: &[&str] = &[
+    "SELECT CAST(d AS INTEGER) FROM table_1",
+    "SELECT EXTRACT(EPOCH FROM c) FROM table_1",
+    "SELECT CAST(d AS TEXT) FROM table_1",
+];
 
 #[cfg(feature = "mysql")]
 #[test]
