@@ -146,7 +146,7 @@ impl RelationToQueryTranslator for MySqlTranslator {
     /// For mysql CAST(expr AS INTEGER) should be converted to
     /// CAST(expr AS SIGNED [INTEGER]) which produces a BigInt value.
     /// CONVERT can be also used as CONVERT(expr, SIGNED)
-    /// however st::DataType doesn't support SIGNED [INTEGER].
+    /// however ast::DataType doesn't support SIGNED [INTEGER].
     /// We fix it by creating a function CONVERT(expr, SIGNED).
     fn cast_as_integer(&self, expr: ast::Expr) -> ast::Expr {
         let signed = ast::Expr::Identifier(ast::Ident {

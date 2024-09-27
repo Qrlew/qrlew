@@ -914,8 +914,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelation
     }
 }
 
-struct FullyQualifiedTableNames(Vec<Identifier>);
-
 /// Implement conversion to Identifier
 impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(&'a ast::ObjectName, T)>
     for Identifier
@@ -940,6 +938,8 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(&'a ast::ObjectNa
     }
 }
 
+struct FullyQualifiedTableNames(Vec<Identifier>);
+
 impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(&'a str, T)>
     for FullyQualifiedTableNames
 {
@@ -947,10 +947,10 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(&'a str, T)>
 
     fn try_from(value: (&str, T)) -> result::Result<Self, Self::Error> {
         let (query, translator) = value;
-        // Visit the query to get query names
         let parsed_query = parse_with_dialect(query, translator.dialect())?;
+        // Visit the query to get query names
         let query_names = parsed_query.accept(IntoQueryNamesVisitor);
-        // Visit for conversion
+        // get only base tables names
         let tables_names: Result<Vec<Identifier>> = query_names
             .iter()
             .filter_map(|((_, object_name), pointed_query)| {
@@ -1005,6 +1005,8 @@ pub fn parse(query: &str) -> Result<ast::Query> {
     parse_with_dialect(query, GenericDialect)
 }
 
+/// Given a query and a translator it provides the prefix of base tables in the
+/// query. It fails if tables identifiers are wrongly quoted.
 pub fn tables_prefix<T: QueryToRelationTranslator + Copy + Clone>(
     query: &str,
     translator: T,

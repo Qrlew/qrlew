@@ -204,21 +204,4 @@ mod tests {
         let query_names = query.accept(visitor);
         println!("{}", query_names);
     }
-
-    #[test]
-    fn test_query_names_visitor_2() {
-        let query_str = r#"
-        WITH my_tab1 AS (SELECT * FROM my_db.my_sch.my_tab),
-        my_tab2 AS (SELECT * FROM my_tab1),
-        my_tab3 AS (SELECT * FROM my_tab2),
-        my_tab4 AS (SELECT * FROM my_tab3)
-        SELECT * FROM my_tab4
-        "#;
-        let query = relation::parse(query_str).unwrap();
-        println!("Query = {}", query.to_string().blue());
-        let visitor = IntoQueryNamesVisitor;
-        let query_names = query.accept(visitor);
-        println!("{}", query_names);
-        println!("{:?}", query_names);
-    }
 }
