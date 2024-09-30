@@ -582,20 +582,9 @@ mod tests {
     #[test]
     fn test_not() {
         let mut database = mssql::test_database();
-        let schema: Schema = vec![("a", DataType::optional(DataType::float()))]
-            .into_iter()
-            .collect();
-        let table: Arc<Relation> = Arc::new(
-            Relation::table()
-                .name("table_2")
-                .schema(schema.clone())
-                .size(100)
-                .build(),
-        );
+        let relations = database.relations();
 
-        let relations = Hierarchy::from([(vec!["table_2"], table)]);
-
-        let query = "SELECT NOT (a IS NULL) AS col FROM table_2";
+        let query = "SELECT NOT (a IS NULL) AS col FROM table_1";
 
         let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
         relation.display_dot().unwrap();
@@ -609,20 +598,9 @@ mod tests {
     #[test]
     fn test_where_rand() {
         let mut database = mssql::test_database();
-        let schema: Schema = vec![("a", DataType::optional(DataType::float()))]
-            .into_iter()
-            .collect();
-        let table: Arc<Relation> = Arc::new(
-            Relation::table()
-                .name("table_2")
-                .schema(schema.clone())
-                .size(100)
-                .build(),
-        );
+        let relations = database.relations();
 
-        let relations = Hierarchy::from([(vec!["table_2"], table)]);
-
-        let query = "SELECT * FROM new_tab WHERE RANDOM()) < (0.5)";
+        let query = "SELECT * FROM table_2 WHERE RANDOM()) < (0.5)";
 
         let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
         relation.display_dot().unwrap();

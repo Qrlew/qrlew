@@ -11,7 +11,6 @@ use qrlew::io::sqlite;
 use qrlew::{
     ast,
     dialect_translation::{RelationToQueryTranslator, RelationWithTranslator},
-    display::Dot,
     expr,
     io::{postgresql, Database},
     relation::Variant as _,
@@ -245,6 +244,7 @@ fn test_on_mssql() {
     }
 }
 
+#[cfg(feature = "bigquery")]
 const PSQL_QUERIES_FOR_BIGQUERY_DB: &[&str] = &[
     "SELECT AVG(b) as n, count(b) as d FROM table_1",
     "SELECT MD5(z) FROM table_2 LIMIT 10",
