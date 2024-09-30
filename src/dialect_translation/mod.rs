@@ -769,6 +769,8 @@ pub trait QueryToRelationTranslator {
 
     fn dialect(&self) -> Self::D;
 
+    // It checks that the identifier is conform to the dialect and returns and
+    // returns a result with expr::Identifier.
     fn try_identifier(&self, ident: &ast::Ident) -> Result<expr::Identifier> {
         if let Some(quote_style) = ident.quote_style {
             assert!(self.dialect().is_delimited_identifier_start(quote_style));
@@ -780,6 +782,11 @@ pub trait QueryToRelationTranslator {
     fn try_expr(&self, expr: &ast::Expr, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
         match expr {
             ast::Expr::Function(func) => self.try_function(func, context),
+            ast::Expr::Identifier(ident) => {
+                // checking the identifier
+                let _ = self.try_identifier(ident)?;
+                expr::Expr::try_from(expr.with(context))
+            },
             _ => expr::Expr::try_from(expr.with(context)),
         }
     }

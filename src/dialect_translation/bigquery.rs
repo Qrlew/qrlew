@@ -158,7 +158,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::{Ready, With}, data_type::DataType, dialect_translation::RelationWithTranslator, expr::Expr, io::{postgresql, Database as _}, namer, relation::{schema::Schema, Relation}, sql::{parse_with_dialect, relation::QueryWithRelations}
+        builder::{Ready, With}, data_type::DataType, dialect_translation::RelationWithTranslator, expr::Expr, namer, relation::{schema::Schema, Relation},
     };
     use std::sync::Arc;
 
