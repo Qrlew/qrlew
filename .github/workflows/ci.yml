@@ -50,11 +50,11 @@ jobs:
             mysql:
                 image: mysql:8.0
                 env:
-                # The MySQL docker container requires these environment variables to be set
-                # so we can create and migrate the test database.
-                # See: https://hub.docker.com/_/mysql
-                MYSQL_DATABASE: qrlew_mysql_test
-                MYSQL_ROOT_PASSWORD: qrlew_test
+                    # The MySQL docker container requires these environment variables to be set
+                    # so we can create and migrate the test database.
+                    # See: https://hub.docker.com/_/mysql
+                    MYSQL_DATABASE: qrlew_mysql_test
+                    MYSQL_ROOT_PASSWORD: qrlew_test
                 ports:
                     # Opens port 3306 on service container and host
                     # https://docs.github.com/en/actions/using-containerized-services/about-service-containers
