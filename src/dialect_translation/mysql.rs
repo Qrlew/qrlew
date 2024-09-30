@@ -225,7 +225,6 @@ impl QueryToRelationTranslator for MySqlTranslator {
             "from_base64" => try_encode_decode(converted, EncodeDecodeFormat::Base64),
             "hex" => try_encode(converted, EncodeDecodeFormat::Hex),
             "to_base64" => try_encode(converted, EncodeDecodeFormat::Base64),
-            "rand" => Ok(expr::Expr::random(0)),
             _ => {
                 let expr = ast::Expr::Function(func.clone());
                 expr::Expr::try_from(expr.with(context))
@@ -279,18 +278,14 @@ fn try_encode(exprs: Vec<expr::Expr>, format: EncodeDecodeFormat) -> Result<expr
 #[cfg(test)]
 #[cfg(feature = "mysql")]
 mod tests {
-    use base64::display;
     use itertools::Itertools as _;
 
     use super::*;
     use crate::{
-        builder::{Ready, With},
         dialect_translation::{postgresql::PostgreSqlTranslator, RelationWithTranslator},
-        display::Dot,
         io::{mysql, postgresql, Database as _},
-        namer,
-        relation::{schema::Schema, Relation},
-        sql::{self, parse, relation::QueryWithRelations},
+        relation::Relation,
+        sql::{self, relation::QueryWithRelations},
     };
 
     fn try_from_mssql_query(

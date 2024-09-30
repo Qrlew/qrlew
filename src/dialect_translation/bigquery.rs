@@ -116,12 +116,11 @@ impl RelationToQueryTranslator for BigQueryTranslator {
         left: ast::Select,
         right: ast::Select,
     ) -> ast::Query {
-
         // UNION in big query must use a quantifier that can be either
         // ALL or Distinct.
         let translated_quantifier = match quantifier {
             ast::SetQuantifier::All => ast::SetQuantifier::All,
-            _ => ast::SetQuantifier::Distinct
+            _ => ast::SetQuantifier::Distinct,
         };
         ast::Query {
             with: (!with.is_empty()).then_some(ast::With {
@@ -158,7 +157,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::{Ready, With}, data_type::DataType, dialect_translation::RelationWithTranslator, expr::Expr, namer, relation::{schema::Schema, Relation},
+        builder::{Ready, With},
+        data_type::DataType,
+        dialect_translation::RelationWithTranslator,
+        expr::Expr,
+        namer,
+        relation::{schema::Schema, Relation},
     };
     use std::sync::Arc;
 

@@ -1,4 +1,8 @@
-use crate::{expr::{self, Identifier}, hierarchy::Hierarchy, WithoutContext as _};
+use crate::{
+    expr::{self, Identifier},
+    hierarchy::Hierarchy,
+    WithoutContext as _,
+};
 
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
 use crate::sql::{Error, Result};
@@ -109,19 +113,13 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
         let function_name: &str = &func.name.0.iter().next().unwrap().value.to_lowercase()[..];
 
         match function_name {
-            "rand" |
-            "unhex" |
-            "from_hex" |
-            "choose" |
-            "newid" |
-            "dayname" |
-            "date_format" |
-            "quarter" |
-            "datetime_diff" |
-            "date" |
-            "from_unixtime" |
-            "unix_timestamp"
-             => Err(Error::ParsingError(format!("`{}` is not a postgres function", function_name.to_uppercase()))),
+            "rand" | "unhex" | "from_hex" | "choose" | "newid" | "dayname" | "date_format"
+            | "quarter" | "datetime_diff" | "date" | "from_unixtime" | "unix_timestamp" => {
+                Err(Error::ParsingError(format!(
+                    "`{}` is not a postgres function",
+                    function_name.to_uppercase()
+                )))
+            }
             _ => {
                 let expr = ast::Expr::Function(func.clone());
                 expr::Expr::try_from(expr.with(context))

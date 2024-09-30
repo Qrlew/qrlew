@@ -91,7 +91,6 @@ fn select_from_query(query: ast::Query) -> ast::Select {
     }
 }
 
-
 impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationVisitor<T> {
     fn table(&self, table: &'a Table) -> ast::Query {
         self.translator.query(

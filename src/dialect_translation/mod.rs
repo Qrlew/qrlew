@@ -786,7 +786,7 @@ pub trait QueryToRelationTranslator {
                 // checking the identifier
                 let _ = self.try_identifier(ident)?;
                 expr::Expr::try_from(expr.with(context))
-            },
+            }
             _ => expr::Expr::try_from(expr.with(context)),
         }
     }
