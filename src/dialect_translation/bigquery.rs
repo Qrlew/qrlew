@@ -108,6 +108,41 @@ impl RelationToQueryTranslator for BigQueryTranslator {
         };
         function_builder("UNIX_SECONDS", vec![cast], false)
     }
+    fn set_operation(
+        &self,
+        with: Vec<ast::Cte>,
+        operator: ast::SetOperator,
+        quantifier: ast::SetQuantifier,
+        left: ast::Select,
+        right: ast::Select,
+    ) -> ast::Query {
+
+        // UNION in big query must use a quantifier that can be either
+        // ALL or Distinct.
+        let translated_quantifier = match quantifier {
+            ast::SetQuantifier::All => ast::SetQuantifier::All,
+            _ => ast::SetQuantifier::Distinct
+        };
+        ast::Query {
+            with: (!with.is_empty()).then_some(ast::With {
+                recursive: false,
+                cte_tables: with,
+            }),
+            body: Box::new(ast::SetExpr::SetOperation {
+                op: operator,
+                set_quantifier: translated_quantifier,
+                left: Box::new(ast::SetExpr::Select(Box::new(left))),
+                right: Box::new(ast::SetExpr::Select(Box::new(right))),
+            }),
+            order_by: vec![],
+            limit: None,
+            offset: None,
+            fetch: None,
+            locks: vec![],
+            limit_by: vec![],
+            for_clause: None,
+        }
+    }
 }
 
 impl QueryToRelationTranslator for BigQueryTranslator {
@@ -123,12 +158,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        builder::{Ready, With},
-        data_type::DataType,
-        dialect_translation::RelationWithTranslator,
-        expr::Expr,
-        namer,
-        relation::{schema::Schema, Relation},
+        builder::{Ready, With}, data_type::DataType, dialect_translation::RelationWithTranslator, expr::Expr, io::{postgresql, Database as _}, namer, relation::{schema::Schema, Relation}, sql::{parse_with_dialect, relation::QueryWithRelations}
     };
     use std::sync::Arc;
 

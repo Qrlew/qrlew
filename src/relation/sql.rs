@@ -91,34 +91,6 @@ fn select_from_query(query: ast::Query) -> ast::Select {
     }
 }
 
-/// Build a set operation
-fn set_operation(
-    with: Vec<ast::Cte>,
-    operator: ast::SetOperator,
-    quantifier: ast::SetQuantifier,
-    left: ast::Select,
-    right: ast::Select,
-) -> ast::Query {
-    ast::Query {
-        with: (!with.is_empty()).then_some(ast::With {
-            recursive: false,
-            cte_tables: with,
-        }),
-        body: Box::new(ast::SetExpr::SetOperation {
-            op: operator,
-            set_quantifier: quantifier,
-            left: Box::new(ast::SetExpr::Select(Box::new(left))),
-            right: Box::new(ast::SetExpr::Select(Box::new(right))),
-        }),
-        order_by: vec![],
-        limit: None,
-        offset: None,
-        fetch: None,
-        locks: vec![],
-        limit_by: vec![],
-        for_clause: None,
-    }
-}
 
 impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationVisitor<T> {
     fn table(&self, table: &'a Table) -> ast::Query {
@@ -341,7 +313,7 @@ impl<'a, T: RelationToQueryTranslator> Visitor<'a, ast::Query> for FromRelationV
                     .iter()
                     .map(|field| self.translator.identifier(&(field.name().into()))[0].clone())
                     .collect(),
-                set_operation(
+                self.translator.set_operation(
                     vec![],
                     set.operator.clone().into(),
                     set.quantifier.clone().into(),
