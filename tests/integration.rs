@@ -75,36 +75,36 @@ pub fn test_execute<D: Database, T: RelationToQueryTranslator>(
 }
 
 const QUERIES: &[&str] = &[
-    // "SELECT AVG(x) as a FROM table_2",
-    // "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
-    // "SELECT 1+SUM(a), count(b) FROM table_1",
-    // // Some WHERE
-    // "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
-    // "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
-    // // Some GROUP BY
-    // "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
-    // "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
-    // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
-    // "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
-    // // Test COUNT NA
-    // "SELECT count(x), count(table_2.y) FROM table_2",
-    // // Some WHERE and GROUP BY
-    // "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
-    // "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
-    // "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
-    // "WITH t1 AS (SELECT a,d FROM table_1),
-    // t2 AS (SELECT * FROM table_2)
-    // SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
-    // "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
-    // t2 AS (SELECT * FROM table_2)
-    // SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
-    // "WITH t1 AS (SELECT a,d FROM table_1),
-    // t2 AS (SELECT * FROM table_2)
-    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
-    // // Test LIMIT // OFFSET
-    // "WITH t1 AS (SELECT a,d FROM table_1),
-    // t2 AS (SELECT * FROM table_2)
-    // SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
+    "SELECT AVG(x) as a FROM table_2",
+    "SELECT 1+count(y) as a, sum(1+x) as b FROM table_2",
+    "SELECT 1+SUM(a), count(b) FROM table_1",
+    // Some WHERE
+    "SELECT 1+SUM(a), count(b) FROM table_1 WHERE a>4",
+    "SELECT SUM(a), count(b) FROM table_1 WHERE a>4",
+    // Some GROUP BY
+    "SELECT 1+SUM(a), count(b) FROM table_1 GROUP BY d",
+    "SELECT count(b) FROM table_1 GROUP BY CEIL(d)",
+    "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY CEIL(d)",
+    "SELECT CEIL(d) AS d_ceiled, count(b) FROM table_1 GROUP BY d_ceiled",
+    // Test COUNT NA
+    "SELECT count(x), count(table_2.y) FROM table_2",
+    // Some WHERE and GROUP BY
+    "SELECT 1+SUM(a), count(b) FROM table_1 WHERE d>4 GROUP BY d",
+    "SELECT 1+SUM(a), count(b), d FROM table_1 GROUP BY d",
+    "SELECT sum(a) FROM table_1 JOIN table_2 ON table_1.d = table_2.x",
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT * FROM table_2)
+    SELECT sum(a) FROM t1 JOIN t2 ON t1.d = t2.x",
+    "WITH t1 AS (SELECT a,d FROM table_1 WHERE a>4),
+    t2 AS (SELECT * FROM table_2)
+    SELECT max(a), sum(d) FROM t1 INNER JOIN t2 ON t1.d = t2.x CROSS JOIN table_2",
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT * FROM table_2)
+    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z",
+    // Test LIMIT // OFFSET
+    "WITH t1 AS (SELECT a,d FROM table_1),
+    t2 AS (SELECT * FROM table_2)
+    SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17",
     "WITH t1 AS (SELECT a,d FROM table_1),
     t2 AS (SELECT * FROM table_2)
     SELECT * FROM t1 INNER JOIN t2 ON t1.d = t2.x INNER JOIN table_2 ON t1.d=table_2.x ORDER BY t1.a, t2.x, t2.y, t2.z LIMIT 17 OFFSET 5",
