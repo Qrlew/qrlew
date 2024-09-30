@@ -273,6 +273,18 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             options: None,
         }
     }
+
+    fn format_float_value(&self, value: f64) -> ast::Expr {
+        let max_precision = 37;
+        let formatted = if value.abs() < 1e-10 || value.abs() > 1e10 {
+            // If the value is too small or too large, switch to scientific notation
+            format!("{:.precision$e}", value, precision = max_precision)
+        } else {
+            // Otherwise, use the default float formatting with the specified precision
+            format!("{}", value)
+        };
+        ast::Expr::Value(ast::Value::Number(formatted, false))
+    }
 }
 
 impl QueryToRelationTranslator for MsSqlTranslator {
