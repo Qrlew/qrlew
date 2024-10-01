@@ -1,7 +1,7 @@
 [package]
 authors = ["Nicolas Grislain <ng@sarus.tech>"]
 name = "qrlew"
-version = "0.9.23"
+version = "0.9.24"
 edition = "2021"
 description = "Sarus Qrlew Engine"
 documentation = "https://docs.rs/qrlew"
@@ -42,10 +42,15 @@ wiremock = { version = "0.6", optional = true }
 tempfile = { version = "3.6.0", optional = true }
 yup-oauth2 = { version = "9.0", optional = true }
 
+# mysql dependencies
+mysql = { version = "25.0.1", optional = true }
+r2d2_mysql = { version = "25.0.0", optional = true }
+
 [features]
 # Use SQLite for tests and examples
 sqlite = ["dep:rusqlite"]
 mssql = ["dep:sqlx", "dep:tokio"]
+mysql = ["dep:mysql", "dep:r2d2_mysql"]
 bigquery = ["dep:gcp-bigquery-client", "dep:wiremock", "dep:tempfile", "dep:yup-oauth2", "dep:tokio"]
 # Tests
 checked_injections = []

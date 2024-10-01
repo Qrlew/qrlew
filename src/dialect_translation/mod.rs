@@ -23,10 +23,12 @@ use crate::{
 use paste::paste;
 
 pub mod bigquery;
+pub mod databricks;
 pub mod hive;
 pub mod mssql;
 pub mod mysql;
 pub mod postgresql;
+pub mod redshiftsql;
 pub mod sqlite;
 
 // TODO: Add translatio errors
@@ -268,6 +270,36 @@ macro_rules! relation_to_query_translator_trait_constructor {
                 })
             }
 
+            /// Build a set operation
+            fn set_operation(
+                &self,
+                with: Vec<ast::Cte>,
+                operator: ast::SetOperator,
+                quantifier: ast::SetQuantifier,
+                left: ast::Select,
+                right: ast::Select,
+            ) -> ast::Query {
+                ast::Query {
+                    with: (!with.is_empty()).then_some(ast::With {
+                        recursive: false,
+                        cte_tables: with,
+                    }),
+                    body: Box::new(ast::SetExpr::SetOperation {
+                        op: operator,
+                        set_quantifier: quantifier,
+                        left: Box::new(ast::SetExpr::Select(Box::new(left))),
+                        right: Box::new(ast::SetExpr::Select(Box::new(right))),
+                    }),
+                    order_by: vec![],
+                    limit: None,
+                    offset: None,
+                    fetch: None,
+                    locks: vec![],
+                    limit_by: vec![],
+                    for_clause: None,
+                }
+            }
+
             fn cte(
                 &self,
                 name: ast::Ident,
@@ -358,9 +390,7 @@ macro_rules! relation_to_query_translator_trait_constructor {
                         ast::Expr::Value(ast::Value::Number(format!("{}", **i), false))
                     }
                     expr::Value::Enum(_) => todo!(),
-                    expr::Value::Float(f) => {
-                        ast::Expr::Value(ast::Value::Number(format!("{}", **f), false))
-                    }
+                    expr::Value::Float(f) => self.format_float_value(**f),
                     expr::Value::Text(t) => {
                         ast::Expr::Value(ast::Value::SingleQuotedString(format!("{}", **t)))
                     }
@@ -386,6 +416,10 @@ macro_rules! relation_to_query_translator_trait_constructor {
                     expr::Value::Id(_) => todo!(),
                     expr::Value::Function(_) => todo!(),
                 }
+            }
+
+            fn format_float_value(&self, value: f64) -> ast::Expr {
+                ast::Expr::Value(ast::Value::Number(format!("{}", value), false))
             }
 
             fn function(
@@ -735,10 +769,24 @@ pub trait QueryToRelationTranslator {
 
     fn dialect(&self) -> Self::D;
 
+    // It checks that the identifier is conform to the dialect and returns and
+    // returns a result with expr::Identifier.
+    fn try_identifier(&self, ident: &ast::Ident) -> Result<expr::Identifier> {
+        if let Some(quote_style) = ident.quote_style {
+            assert!(self.dialect().is_delimited_identifier_start(quote_style));
+        }
+        Ok(expr::Identifier::from(ident))
+    }
+
     // It converts ast Expressions to sarus expressions
     fn try_expr(&self, expr: &ast::Expr, context: &Hierarchy<Identifier>) -> Result<expr::Expr> {
         match expr {
             ast::Expr::Function(func) => self.try_function(func, context),
+            ast::Expr::Identifier(ident) => {
+                // checking the identifier
+                let _ = self.try_identifier(ident)?;
+                expr::Expr::try_from(expr.with(context))
+            }
             _ => expr::Expr::try_from(expr.with(context)),
         }
     }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.24] - 2024-09-27
+### Fixed
+- mssql and bigquery translator
+### Added
+- mysql, databricks, hive, redshift translators
+- mysql io connection for testing
+- tool to get tables prefix
+
 ## [0.9.23] - 2024-07-9
 ### Fixed
 - fixing noise multiplier of the gaussian dp event which should be independent from the sensitivity.

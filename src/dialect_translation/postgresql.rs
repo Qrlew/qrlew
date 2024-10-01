@@ -1,5 +1,15 @@
+use crate::{
+    expr::{self, Identifier},
+    hierarchy::Hierarchy,
+    WithoutContext as _,
+};
+
 use super::{function_builder, QueryToRelationTranslator, RelationToQueryTranslator};
-use sqlparser::{ast, dialect::PostgreSqlDialect};
+use crate::sql::{Error, Result};
+use sqlparser::{
+    ast,
+    dialect::{Dialect, PostgreSqlDialect},
+};
 
 #[derive(Clone, Copy)]
 pub struct PostgreSqlTranslator;
@@ -79,6 +89,42 @@ impl QueryToRelationTranslator for PostgreSqlTranslator {
 
     fn dialect(&self) -> Self::D {
         PostgreSqlDialect {}
+    }
+
+    fn try_identifier(&self, ident: &ast::Ident) -> Result<expr::Identifier> {
+        if let Some(quote_style) = ident.quote_style {
+            let identifier_quote_style = self.dialect().identifier_quote_style("");
+            if identifier_quote_style != Some(quote_style) {
+                return Err(Error::Other(format!(
+                    "Wrong quoting of {} Identifier",
+                    ident
+                )));
+            };
+        }
+        Ok(expr::Identifier::from(ident))
+    }
+
+    // Fail if non postgres functions
+    fn try_function(
+        &self,
+        func: &ast::Function,
+        context: &Hierarchy<Identifier>,
+    ) -> Result<expr::Expr> {
+        let function_name: &str = &func.name.0.iter().next().unwrap().value.to_lowercase()[..];
+
+        match function_name {
+            "rand" | "unhex" | "from_hex" | "choose" | "newid" | "dayname" | "date_format"
+            | "quarter" | "datetime_diff" | "date" | "from_unixtime" | "unix_timestamp" => {
+                Err(Error::ParsingError(format!(
+                    "`{}` is not a postgres function",
+                    function_name.to_uppercase()
+                )))
+            }
+            _ => {
+                let expr = ast::Expr::Function(func.clone());
+                expr::Expr::try_from(expr.with(context))
+            }
+        }
     }
 }
 

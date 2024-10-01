@@ -55,6 +55,14 @@ impl RelationToQueryTranslator for BigQueryTranslator {
             kind: ast::CastKind::Cast,
         }
     }
+    fn cast_as_float(&self, expr: ast::Expr) -> ast::Expr {
+        ast::Expr::Cast {
+            expr: Box::new(expr),
+            data_type: ast::DataType::Float64,
+            format: None,
+            kind: ast::CastKind::Cast,
+        }
+    }
     fn substr(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 2);
         function_builder("SUBSTR", exprs, false)
@@ -88,6 +96,51 @@ impl RelationToQueryTranslator for BigQueryTranslator {
                 alias: field.name().into(),
             })
             .collect()
+    }
+    /// It converts EXTRACT(epoch FROM column) into
+    /// UNIX_SECONDS(CAST(col AS TIMESTAMP))
+    fn extract_epoch(&self, expr: ast::Expr) -> ast::Expr {
+        let cast = ast::Expr::Cast {
+            expr: Box::new(expr),
+            data_type: ast::DataType::Timestamp(None, ast::TimezoneInfo::None),
+            format: None,
+            kind: ast::CastKind::Cast,
+        };
+        function_builder("UNIX_SECONDS", vec![cast], false)
+    }
+    fn set_operation(
+        &self,
+        with: Vec<ast::Cte>,
+        operator: ast::SetOperator,
+        quantifier: ast::SetQuantifier,
+        left: ast::Select,
+        right: ast::Select,
+    ) -> ast::Query {
+        // UNION in big query must use a quantifier that can be either
+        // ALL or Distinct.
+        let translated_quantifier = match quantifier {
+            ast::SetQuantifier::All => ast::SetQuantifier::All,
+            _ => ast::SetQuantifier::Distinct,
+        };
+        ast::Query {
+            with: (!with.is_empty()).then_some(ast::With {
+                recursive: false,
+                cte_tables: with,
+            }),
+            body: Box::new(ast::SetExpr::SetOperation {
+                op: operator,
+                set_quantifier: translated_quantifier,
+                left: Box::new(ast::SetExpr::Select(Box::new(left))),
+                right: Box::new(ast::SetExpr::Select(Box::new(right))),
+            }),
+            order_by: vec![],
+            limit: None,
+            offset: None,
+            fetch: None,
+            locks: vec![],
+            limit_by: vec![],
+            for_clause: None,
+        }
     }
 }
 
