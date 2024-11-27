@@ -2192,8 +2192,8 @@ impl Id {
         self.unique
     }
 
-    pub fn attributes(&self) -> BTreeMap<String, String> {
-        self.attributes.clone()
+    pub fn attributes(&self) -> &BTreeMap<String, String> {
+        &self.attributes
     }
 }
 
@@ -2274,7 +2274,7 @@ impl Variant for Id {
     }
 
     fn maximal_superset(&self) -> Result<Self> {
-        Ok(Id::new(None, false, self.attributes()))
+        Ok(Id::new(None, false, self.attributes().clone()))
     }
 }
 
