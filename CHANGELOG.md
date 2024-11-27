@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.24] - 2024-11-27
+### Added
+- Add attributes to data_type::Id
+
 ## [0.9.24] - 2024-09-27
 ### Fixed
 - mssql and bigquery translator
