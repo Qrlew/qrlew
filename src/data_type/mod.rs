@@ -2172,8 +2172,16 @@ pub struct Id {
 }
 
 impl Id {
-    pub fn new(reference: Option<Arc<Id>>, unique: bool, attributes: BTreeMap<String, String> ) -> Id {
-        Id { reference, unique, attributes }
+    pub fn new(
+        reference: Option<Arc<Id>>,
+        unique: bool,
+        attributes: BTreeMap<String, String>,
+    ) -> Id {
+        Id {
+            reference,
+            unique,
+            attributes,
+        }
     }
 
     pub fn reference(&self) -> Option<&Id> {
@@ -2226,13 +2234,15 @@ impl Variant for Id {
         true
     }
 
-    // 
+    //
     fn super_union(&self, other: &Self) -> Result<Self> {
-        let attributes: BTreeMap<String, String> = self.attributes.iter()
+        let attributes: BTreeMap<String, String> = self
+            .attributes
+            .iter()
             .filter(|(key, value)| other.attributes.get(*key).map_or(false, |v| v == *value))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
-        
+
         Ok(Id::new(
             if self.reference == other.reference {
                 self.reference.clone()
@@ -2240,12 +2250,14 @@ impl Variant for Id {
                 None
             },
             false,
-            attributes
+            attributes,
         ))
     }
     // if attributes are equal
     fn super_intersection(&self, other: &Self) -> Result<Self> {
-        let attributes: BTreeMap<String, String> = self.attributes.iter()
+        let attributes: BTreeMap<String, String> = self
+            .attributes
+            .iter()
             .filter(|(key, value)| other.attributes.get(*key).map_or(false, |v| v == *value))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
@@ -2257,7 +2269,7 @@ impl Variant for Id {
                 None
             },
             self.unique && other.unique,
-            attributes
+            attributes,
         ))
     }
 
@@ -4590,7 +4602,11 @@ mod tests {
 
     #[test]
     fn test_id() {
-        let id = Id::new(None, false,  BTreeMap::from([("base".to_string(), "string".to_string())]));
+        let id = Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "string".to_string())]),
+        );
         let left = DataType::Id(id.clone());
         let right = DataType::Id(id);
 
@@ -4602,26 +4618,44 @@ mod tests {
         println!("left ∩ left = {}", intersection);
         assert_eq!(intersection, left);
 
-        let left = DataType::Id(Id::new(None, false,  BTreeMap::from([("base".to_string(), "string".to_string())])));
-        let right = DataType::Id(Id::new(None, false,  BTreeMap::from([("base".to_string(), "int".to_string())])));
+        let left = DataType::Id(Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "string".to_string())]),
+        ));
+        let right = DataType::Id(Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "int".to_string())]),
+        ));
 
         let union = left.super_union(&right).unwrap();
         println!("left ∪ right = {}", union);
-        assert_eq!(union, DataType::Id(Id::new(None, false,  BTreeMap::new())));
+        assert_eq!(union, DataType::Id(Id::new(None, false, BTreeMap::new())));
 
         let intersection = left.super_intersection(&right).unwrap();
         println!("left ∩ right = {}", intersection);
-        assert_eq!(intersection, DataType::Id(Id::new(None, false,  BTreeMap::new())));
+        assert_eq!(
+            intersection,
+            DataType::Id(Id::new(None, false, BTreeMap::new()))
+        );
 
-        let left = DataType::Id(Id::new(None, false,  BTreeMap::from([("base".to_string(), "string".to_string())])));
-        let right = DataType::Id(Id::new(None, false,  BTreeMap::new()));
+        let left = DataType::Id(Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "string".to_string())]),
+        ));
+        let right = DataType::Id(Id::new(None, false, BTreeMap::new()));
 
         let union = left.super_union(&right).unwrap();
         println!("left ∪ right = {}", union);
-        assert_eq!(union, DataType::Id(Id::new(None, false,  BTreeMap::new())));
+        assert_eq!(union, DataType::Id(Id::new(None, false, BTreeMap::new())));
 
         let intersection = left.super_intersection(&right).unwrap();
         println!("left ∩ right = {}", intersection);
-        assert_eq!(intersection, DataType::Id(Id::new(None, false,  BTreeMap::new())));
-    } 
+        assert_eq!(
+            intersection,
+            DataType::Id(Id::new(None, false, BTreeMap::new()))
+        );
+    }
 }
