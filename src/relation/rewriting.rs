@@ -1834,6 +1834,7 @@ mod tests {
         // table
         let rel = table.public_values_column("b").unwrap();
         let rel_values: Relation = Relation::values().name("b").values([1, 2, 5]).build();
+        println!("Query from VALUES: {}", rel_values.to_string());
         rel.display_dot().unwrap();
         assert_eq!(rel, rel_values);
         assert!(table.public_values_column("a").is_err());
