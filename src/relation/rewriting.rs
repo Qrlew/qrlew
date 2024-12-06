@@ -721,7 +721,7 @@ impl Relation {
     }
 
     /// Returns a Relation whose fields have unique values
-    fn unique(self, columns: &[&str]) -> Relation {
+    pub fn unique(self, columns: &[&str]) -> Relation {
         let named_columns: Vec<(&str, Expr)> =
             columns.iter().copied().map(|c| (c, Expr::col(c))).collect();
 
