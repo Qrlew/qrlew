@@ -2,7 +2,6 @@ use super::Error;
 use crate::{
     builder::{Ready, With, WithIterator},
     differential_privacy::{dp_event, DpEvent, DpRelation, Result},
-    display::Dot as _,
     expr::Expr,
     hierarchy::Hierarchy,
     namer::{self, name_from_content},
@@ -22,7 +21,7 @@ impl Reduce {
         &self,
         epsilon: f64,
         delta: f64,
-        cu: u64,
+        max_user_groups: u64,
     ) -> Result<DpRelation> {
         if self.group_by().is_empty() {
             Err(Error::GroupingKeysError(format!("No grouping keys")))
@@ -44,7 +43,7 @@ impl Reduce {
                 ))
                 .input(self.input().clone())
                 .build();
-            PupRelation::try_from(relation)?.dp_values(epsilon, delta, cu)
+            PupRelation::try_from(relation)?.dp_values(epsilon, delta, max_user_groups)
         }
     }
 }
@@ -54,7 +53,12 @@ impl PupRelation {
     ///     - `relation` outputs the (epsilon, delta)-DP values
     /// (found by tau-thresholding) of the fields of the current `Relation`
     ///     - `dp_event` stores the invoked DP mechanisms
-    fn tau_thresholding_values(self, epsilon: f64, delta: f64, cu: u64) -> Result<DpRelation> {
+    fn tau_thresholding_values(
+        self,
+        epsilon: f64,
+        delta: f64,
+        max_user_groups: u64,
+    ) -> Result<DpRelation> {
         // It limits the PU contribution to at most cu random groups
         // It counts distinct PUs
         // It applies tau-thresholding
@@ -135,7 +139,7 @@ impl PupRelation {
             .with_iter(columns_and_pu.iter().map(|f| (*f, Expr::col(*f))))
             .filter(Expr::lt_eq(
                 Expr::col(PU_CONTRIBUTION_INDEX),
-                Expr::val(cu as f64),
+                Expr::val(max_user_groups as f64),
             ))
             .input(red)
             .build();
@@ -161,19 +165,18 @@ impl PupRelation {
         // Apply noise
         let name_sigmas = vec![(
             COUNT_DISTINCT_PID,
-            dp_event::gaussian_noise(epsilon, delta, cu as f64),
+            dp_event::gaussian_noise(epsilon, delta, max_user_groups as f64),
         )];
         let rel = rel.add_gaussian_noise(&name_sigmas);
 
         // Returns a `Relation::Map` with the right field names and with `COUNT(DISTINCT PID) > tau`
-        let tau = dp_event::gaussian_tau(epsilon, delta, cu as f64);
+        let tau = dp_event::gaussian_tau(epsilon, delta, max_user_groups as f64);
         let filter_column = [(COUNT_DISTINCT_PID, (Some(tau.into()), None, vec![]))]
             .into_iter()
             .collect();
         let relation = rel
             .filter_columns(filter_column)
             .filter_fields(|f| columns_and_pu.contains(&f));
-        relation.display_dot().unwrap();
         Ok(DpRelation::new(
             relation,
             DpEvent::epsilon_delta(epsilon, delta),
@@ -188,7 +191,7 @@ impl PupRelation {
     ///     - Using the propagated public values of the grouping columns when they exist
     ///     - Applying tau-thresholding mechanism with the (epsilon, delta) privacy parameters for t
     /// he columns that do not have public values
-    pub fn dp_values(self, epsilon: f64, delta: f64, cu: u64) -> Result<DpRelation> {
+    pub fn dp_values(self, epsilon: f64, delta: f64, max_user_groups: u64) -> Result<DpRelation> {
         // TODO this code is super-ugly rewrite it
         let public_columns: Vec<String> = self
             .schema()
@@ -205,7 +208,7 @@ impl PupRelation {
         if public_columns.is_empty() {
             let name = namer::name_from_content("FILTER_", &self.name());
             self.with_name(name)?
-                .tau_thresholding_values(epsilon, delta, cu)
+                .tau_thresholding_values(epsilon, delta, max_user_groups)
         } else if all_columns_are_public {
             Ok(DpRelation::new(
                 self.with_public_values(&public_columns)?,
@@ -216,7 +219,7 @@ impl PupRelation {
                 .clone()
                 .with_name(namer::name_from_content("FILTER_", &self.name()))?
                 .filter_fields(|f| !public_columns.contains(&f.to_string()))?
-                .tau_thresholding_values(epsilon, delta, cu)?
+                .tau_thresholding_values(epsilon, delta, max_user_groups)?
                 .into();
             let relation = self
                 .with_public_values(&public_columns)?
