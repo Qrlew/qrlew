@@ -135,7 +135,7 @@ impl Reduce {
                 .differentially_private_group_by(
                     parameters.epsilon * parameters.tau_thresholding_share,
                     parameters.delta * parameters.tau_thresholding_share,
-                    parameters.cu
+                    parameters.cu,
                 )?
                 .into();
             let input_relation_with_privacy_tracked_group_by = self

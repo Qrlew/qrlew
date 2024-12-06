@@ -14,7 +14,7 @@ pub struct DpParameters {
     /// The max_multiplicity in terms of the dataset size
     pub privacy_unit_max_multiplicity_share: f64,
     /// the maximum number of groups a user can contribute to.
-    pub cu: u64
+    pub cu: u64,
 }
 
 impl DpParameters {
@@ -32,7 +32,7 @@ impl DpParameters {
             tau_thresholding_share,
             privacy_unit_max_multiplicity,
             privacy_unit_max_multiplicity_share,
-            cu
+            cu,
         }
     }
 
