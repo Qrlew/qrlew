@@ -5,6 +5,7 @@ use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, function::Function, DataType, DataTyped, Variant as _},
+    display::Dot,
     expr::{self, aggregate, Aggregate, Expr, Identifier, Value},
     hierarchy::Hierarchy,
     io,
@@ -733,6 +734,70 @@ impl Relation {
                     .map(|(name, col)| (name, Expr::first(col))),
             )
             .input(self)
+            .build()
+    }
+
+    /// It limits the contribution of a column max_contributions randomly.
+    /// If the column is not in the relation the relation is returned
+    pub fn limit_col_contributions(self, column: &str, max_contributions: u64) -> Relation {
+        let random_col: &str = "_RANDOM_";
+        let contribution_index_col: &str = "_CONTRIBUTION_INDEX_";
+
+        let columns: Vec<&str> = self.schema().iter().map(|f| f.name()).collect();
+
+        let left = self.clone().with_field(random_col, Expr::random(0));
+        let right = left.clone();
+
+        let join_names: Hierarchy<String> = left
+            .schema()
+            .iter()
+            .flat_map(|f| {
+                [
+                    ([Join::left_name(), f.name()], f.name().to_string()),
+                    (
+                        [Join::right_name(), f.name()],
+                        format!("r_{}", f.name().to_string()),
+                    ),
+                ]
+            })
+            .collect();
+
+        let joined: Relation = Relation::join()
+            .left(left)
+            .right(right)
+            .on(Expr::eq(
+                Expr::qcol(Join::left_name(), column),
+                Expr::qcol(Join::right_name(), column),
+            ))
+            .and(Expr::lt_eq(
+                Expr::qcol(Join::left_name(), random_col),
+                Expr::qcol(Join::right_name(), random_col),
+            ))
+            .names(join_names)
+            .build();
+
+        // Build the reduce with a row number (contribution_index_col)
+        let mut aggregates: Vec<(&str, Expr)> =
+            vec![(contribution_index_col, Expr::count(Expr::col(random_col)))];
+        let mut groups: Vec<Expr> = vec![];
+        columns.iter().for_each(|c| {
+            let col = Expr::col(*c);
+            aggregates.push((c, Expr::first(col.clone())));
+            groups.push(col);
+        });
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates)
+            .group_by_iter(groups)
+            .input(joined)
+            .build();
+
+        Relation::map()
+            .with_iter(columns.into_iter().map(|f| (f, Expr::col(f))))
+            .filter(Expr::lt_eq(
+                Expr::col(contribution_index_col),
+                Expr::val(max_contributions as f64),
+            ))
+            .input(red)
             .build()
     }
 

@@ -3,7 +3,6 @@ use crate::{
     builder::{Ready, With, WithIterator},
     differential_privacy::{dp_event, DpEvent, DpRelation, Result},
     expr::Expr,
-    hierarchy::Hierarchy,
     namer::{self, name_from_content},
     privacy_unit_tracking::{PrivacyUnit, PupRelation},
     relation::{Join, Reduce, Relation, Variant as _},
@@ -85,64 +84,9 @@ impl PupRelation {
             .chain(std::iter::once(self.privacy_unit()))
             .collect();
         let red = Relation::from(self.clone()).unique(&columns_and_pu);
-        let left = red.with_field(RANDOM, Expr::random(0));
-        let right = left.clone();
 
-        // Build an auto join to emulate a window function.
-        let columns_and_pu_and_rand: Vec<_> = columns_and_pu
-            .iter()
-            .cloned()
-            .chain(std::iter::once(RANDOM))
-            .collect();
-
-        let join_names: Hierarchy<String> = columns_and_pu_and_rand
-            .iter()
-            .flat_map(|f| {
-                [
-                    ([Join::left_name(), f], f.to_string()),
-                    ([Join::right_name(), f], format!("r_{}", f.to_string())),
-                ]
-            })
-            .collect();
-
-        let joined: Relation = Relation::join()
-            .left(left.clone())
-            .right(right.clone())
-            .on(Expr::eq(
-                Expr::qcol(Join::left_name(), self.privacy_unit()),
-                Expr::qcol(Join::right_name(), self.privacy_unit()),
-            ))
-            .and(Expr::lt_eq(
-                Expr::qcol(Join::left_name(), RANDOM),
-                Expr::qcol(Join::right_name(), RANDOM),
-            ))
-            .names(join_names)
-            .build();
-
-        // Build the reduce with a row number (PU_CONTRIBUTION_INDEX) per each PU
-        let mut columns_and_pu_aggs: Vec<(&str, Expr)> =
-            vec![(PU_CONTRIBUTION_INDEX, Expr::count(Expr::col(RANDOM)))];
-        let mut columns_and_pu_groups: Vec<Expr> = vec![];
-        columns_and_pu.iter().for_each(|c| {
-            let col = Expr::col(*c);
-            columns_and_pu_aggs.push((c, Expr::first(col.clone())));
-            columns_and_pu_groups.push(col);
-        });
-        let red: Relation = Relation::reduce()
-            .with_iter(columns_and_pu_aggs)
-            .group_by_iter(columns_and_pu_groups)
-            .input(joined)
-            .build();
-
-        // Build a map where we limit the PU contribution across groups
-        let filtered_rel: Relation = Relation::map()
-            .with_iter(columns_and_pu.iter().map(|f| (*f, Expr::col(*f))))
-            .filter(Expr::lt_eq(
-                Expr::col(PU_CONTRIBUTION_INDEX),
-                Expr::val(max_privacy_unit_groups as f64),
-            ))
-            .input(red)
-            .build();
+        let rel_with_limited_pu_contributions =
+            red.limit_col_contributions(self.privacy_unit(), max_privacy_unit_groups);
 
         let mut columns_aggs: Vec<(&str, Expr)> = vec![(
             COUNT_DISTINCT_PID,
@@ -159,7 +103,7 @@ impl PupRelation {
         let rel: Relation = Relation::reduce()
             .with_iter(columns_aggs)
             .group_by_iter(columns_groups)
-            .input(filtered_rel)
+            .input(rel_with_limited_pu_contributions)
             .build();
 
         // Apply noise
@@ -337,7 +281,7 @@ mod tests {
             .tau_thresholding_values(1., 0.003, 1)
             .unwrap()
             .into();
-        // rel.display_dot().unwrap();
+        rel.display_dot().unwrap();
         assert_eq!(
             rel.data_type(),
             DataType::structured([

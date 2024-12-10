@@ -13,7 +13,8 @@ pub struct DpParameters {
     pub privacy_unit_max_multiplicity: f64,
     /// The max_multiplicity in terms of the dataset size
     pub privacy_unit_max_multiplicity_share: f64,
-    /// the maximum number of groups a user can contribute to.
+    /// the maximum number of groups a privacy unit can contribute to.
+    /// Is the Cu parameter in the wilson paper.
     pub max_privacy_unit_groups: u64,
 }
 
