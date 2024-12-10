@@ -9,8 +9,6 @@ use crate::{
 };
 
 pub const COUNT_DISTINCT_PID: &str = "_COUNT_DISTINCT_PID_";
-pub const RANDOM: &str = "_RANDOM_";
-pub const PU_CONTRIBUTION_INDEX: &str = "_PU_CONTRIBUTION_INDEX_";
 
 impl Reduce {
     /// Returns a `DPRelation` whose:
@@ -58,7 +56,7 @@ impl PupRelation {
         delta: f64,
         max_privacy_unit_groups: u64,
     ) -> Result<DpRelation> {
-        // It limits the PU contribution to at most cu random groups
+        // It limits the PU contribution to at most max_privacy_unit_groups random groups
         // It counts distinct PUs
         // It applies tau-thresholding
         if epsilon == 0. || delta == 0. {
