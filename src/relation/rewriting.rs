@@ -5,7 +5,6 @@ use super::{Join, Map, Reduce, Relation, Set, Table, Values, Variant as _};
 use crate::{
     builder::{Ready, With, WithIterator},
     data_type::{self, function::Function, DataType, DataTyped, Variant as _},
-    display::Dot,
     expr::{self, aggregate, Aggregate, Expr, Identifier, Value},
     hierarchy::Hierarchy,
     io,
