@@ -736,8 +736,7 @@ impl Relation {
             .build()
     }
 
-    /// It limits the contribution of a column max_contributions randomly.
-    /// If the column is not in the relation the relation is returned
+    /// It limits the contribution of a column to max_contributions randomly.
     pub fn limit_col_contributions(self, column: &str, max_contributions: u64) -> Relation {
         let random_col: &str = "_RANDOM_";
         let contribution_index_col: &str = "_CONTRIBUTION_INDEX_";
