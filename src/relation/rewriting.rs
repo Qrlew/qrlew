@@ -961,6 +961,8 @@ impl With<(&str, Expr)> for Relation {
 
 #[cfg(test)]
 mod tests {
+    use data_type::value;
+
     use super::*;
     use crate::{
         ast,
@@ -2166,5 +2168,48 @@ mod tests {
         if let Relation::Reduce(red) = distinct_relation {
             assert_eq!(red.group_by.len(), relation.schema().len())
         }
+    }
+
+    #[test]
+    fn test_limit_col_contribution() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        // relation with reduce
+        let relation = Relation::try_from(
+            parse("SELECT id, city FROM user_table")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        relation.display_dot().unwrap();
+
+        let with_limited_d = relation.limit_col_contributions("id", 1);
+        with_limited_d.display_dot().unwrap();
+        let query = &ast::Query::from(&with_limited_d);
+        println!("\n{}", query);
+        _ = database.query(&query.to_string()).unwrap();
+        let aggregates: Vec<(&str, Expr)> = vec![
+            ("group_count", Expr::count(Expr::col("city"))),
+            ("id", Expr::first(Expr::col("id"))),
+        ];
+        let groups: Vec<Expr> = vec![Expr::col("id")];
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates)
+            .group_by_iter(groups)
+            .input(with_limited_d)
+            .build();
+        let max_contr: Relation = Relation::reduce()
+            .with_iter(vec![(
+                "max_group_count",
+                Expr::max(Expr::col("group_count")),
+            )])
+            .input(red)
+            .build();
+
+        let query = &ast::Query::from(&max_contr);
+        let res = database.query(&query.to_string()).unwrap();
+        let val = value::Value::integer(1);
+        assert!(res[0][0] == val)
     }
 }
