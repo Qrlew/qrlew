@@ -68,6 +68,7 @@ impl<'a> TableWithJoins<'a> {
 }
 
 fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> {
+    println!("SET EXPR: {}", set_expr);
     match set_expr {
         ast::SetExpr::Select(select) => select
             .from
@@ -75,7 +76,11 @@ fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> 
             .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries())
             .collect(),
         ast::SetExpr::SetOperation { .. } => vec![],
-        ast::SetExpr::Values(_values) => todo!(),
+        ast::SetExpr::Values(_values) => {
+            println!("queries_from_set_expr VALUES: {}", _values);
+            vec![]
+            // todo!()
+        },
         _ => todo!(), // Not implemented
     }
 }
