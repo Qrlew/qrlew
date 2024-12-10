@@ -2184,11 +2184,7 @@ mod tests {
         .unwrap();
         relation.display_dot().unwrap();
 
-        let with_limited_d = relation.limit_col_contributions("id", 1);
-        with_limited_d.display_dot().unwrap();
-        let query = &ast::Query::from(&with_limited_d);
-        println!("\n{}", query);
-        _ = database.query(&query.to_string()).unwrap();
+        // Compute id contribution of the relation
         let aggregates: Vec<(&str, Expr)> = vec![
             ("group_count", Expr::count(Expr::col("city"))),
             ("id", Expr::first(Expr::col("id"))),
@@ -2197,7 +2193,38 @@ mod tests {
         let red: Relation = Relation::reduce()
             .with_iter(aggregates)
             .group_by_iter(groups)
-            .input(with_limited_d)
+            .input(relation.clone())
+            .build();
+        let max_contr: Relation = Relation::reduce()
+            .with_iter(vec![(
+                "max_group_count",
+                Expr::max(Expr::col("group_count")),
+            )])
+            .input(red)
+            .build();
+
+        let query = &ast::Query::from(&max_contr);
+        let res = database.query(&query.to_string()).unwrap();
+        let val = value::Value::integer(1);
+        assert!(res[0][0] != val);
+
+        let with_limited_contr = relation.limit_col_contributions("id", 1);
+        with_limited_contr.display_dot().unwrap();
+        let query = &ast::Query::from(&with_limited_contr);
+
+        println!("\n{}", query);
+        _ = database.query(&query.to_string()).unwrap();
+
+        // Compute id contribution of the with_limited_d
+        let aggregates: Vec<(&str, Expr)> = vec![
+            ("group_count", Expr::count(Expr::col("city"))),
+            ("id", Expr::first(Expr::col("id"))),
+        ];
+        let groups: Vec<Expr> = vec![Expr::col("id")];
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates)
+            .group_by_iter(groups)
+            .input(with_limited_contr)
             .build();
         let max_contr: Relation = Relation::reduce()
             .with_iter(vec![(
