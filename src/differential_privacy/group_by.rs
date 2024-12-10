@@ -21,7 +21,7 @@ impl Reduce {
         &self,
         epsilon: f64,
         delta: f64,
-        max_user_groups: u64,
+        max_privacy_unit_groups: u64,
     ) -> Result<DpRelation> {
         if self.group_by().is_empty() {
             Err(Error::GroupingKeysError(format!("No grouping keys")))
@@ -43,7 +43,7 @@ impl Reduce {
                 ))
                 .input(self.input().clone())
                 .build();
-            PupRelation::try_from(relation)?.dp_values(epsilon, delta, max_user_groups)
+            PupRelation::try_from(relation)?.dp_values(epsilon, delta, max_privacy_unit_groups)
         }
     }
 }
@@ -57,7 +57,7 @@ impl PupRelation {
         self,
         epsilon: f64,
         delta: f64,
-        max_user_groups: u64,
+        max_privacy_unit_groups: u64,
     ) -> Result<DpRelation> {
         // It limits the PU contribution to at most cu random groups
         // It counts distinct PUs
@@ -139,7 +139,7 @@ impl PupRelation {
             .with_iter(columns_and_pu.iter().map(|f| (*f, Expr::col(*f))))
             .filter(Expr::lt_eq(
                 Expr::col(PU_CONTRIBUTION_INDEX),
-                Expr::val(max_user_groups as f64),
+                Expr::val(max_privacy_unit_groups as f64),
             ))
             .input(red)
             .build();
@@ -165,12 +165,12 @@ impl PupRelation {
         // Apply noise
         let name_sigmas = vec![(
             COUNT_DISTINCT_PID,
-            dp_event::gaussian_noise(epsilon, delta, max_user_groups as f64),
+            dp_event::gaussian_noise(epsilon, delta, max_privacy_unit_groups as f64),
         )];
         let rel = rel.add_gaussian_noise(&name_sigmas);
 
         // Returns a `Relation::Map` with the right field names and with `COUNT(DISTINCT PID) > tau`
-        let tau = dp_event::gaussian_tau(epsilon, delta, max_user_groups as f64);
+        let tau = dp_event::gaussian_tau(epsilon, delta, max_privacy_unit_groups as f64);
         let filter_column = [(COUNT_DISTINCT_PID, (Some(tau.into()), None, vec![]))]
             .into_iter()
             .collect();
@@ -191,7 +191,12 @@ impl PupRelation {
     ///     - Using the propagated public values of the grouping columns when they exist
     ///     - Applying tau-thresholding mechanism with the (epsilon, delta) privacy parameters for t
     /// he columns that do not have public values
-    pub fn dp_values(self, epsilon: f64, delta: f64, max_user_groups: u64) -> Result<DpRelation> {
+    pub fn dp_values(
+        self,
+        epsilon: f64,
+        delta: f64,
+        max_privacy_unit_groups: u64,
+    ) -> Result<DpRelation> {
         // TODO this code is super-ugly rewrite it
         let public_columns: Vec<String> = self
             .schema()
@@ -208,7 +213,7 @@ impl PupRelation {
         if public_columns.is_empty() {
             let name = namer::name_from_content("FILTER_", &self.name());
             self.with_name(name)?
-                .tau_thresholding_values(epsilon, delta, max_user_groups)
+                .tau_thresholding_values(epsilon, delta, max_privacy_unit_groups)
         } else if all_columns_are_public {
             Ok(DpRelation::new(
                 self.with_public_values(&public_columns)?,
@@ -219,7 +224,7 @@ impl PupRelation {
                 .clone()
                 .with_name(namer::name_from_content("FILTER_", &self.name()))?
                 .filter_fields(|f| !public_columns.contains(&f.to_string()))?
-                .tau_thresholding_values(epsilon, delta, max_user_groups)?
+                .tau_thresholding_values(epsilon, delta, max_privacy_unit_groups)?
                 .into();
             let relation = self
                 .with_public_values(&public_columns)?

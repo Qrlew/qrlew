@@ -135,7 +135,7 @@ impl Reduce {
                 .differentially_private_group_by(
                     parameters.epsilon * parameters.tau_thresholding_share,
                     parameters.delta * parameters.tau_thresholding_share,
-                    parameters.max_user_groups,
+                    parameters.max_privacy_unit_groups,
                 )?
                 .into();
             let input_relation_with_privacy_tracked_group_by = self
@@ -365,7 +365,8 @@ mod tests {
             .unwrap()
             .deref()
             .clone();
-        let parameters = DpParameters::from_epsilon_delta(100., 1e-3).with_max_user_groups(10);
+        let parameters =
+            DpParameters::from_epsilon_delta(100., 1e-3).with_max_privacy_unit_groups(10);
 
         // privacy track the inputs
         let privacy_unit_tracking = PrivacyUnitTracking::from((

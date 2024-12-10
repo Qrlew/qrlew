@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.26] - 2024-12-05
 ### Fixed
-- Limit the user contribution to at most max_user_groups when applying tau_thresholding.
+- Limit the user contribution to at most max_privacy_unit_groups when applying tau_thresholding.
 
 ## [0.9.25] - 2024-11-27
 ### Added
