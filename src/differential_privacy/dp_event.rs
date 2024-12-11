@@ -1,8 +1,5 @@
 use itertools::Itertools;
-use statrs::{
-    distribution::{ContinuousCDF, Normal},
-    prec::F64_PREC,
-};
+use statrs::distribution::{ContinuousCDF, Normal};
 use std::fmt;
 
 /// An object inspired by Google's [DPEvent](https://github.com/google/differential-privacy/blob/main/python/dp_accounting/dp_event.py)
