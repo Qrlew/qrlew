@@ -169,9 +169,9 @@ pub fn gaussian_noise_multiplier(epsilon: f64, delta: f64) -> f64 {
     ((2. * (1.25_f64 / delta).ln()).sqrt() / epsilon).clamp(0.0, f64::MAX)
 }
 
-pub fn gaussian_tau(epsilon: f64, delta: f64, sensitivity: f64) -> f64 {
+pub fn gaussian_tau(epsilon: f64, delta: f64, max_privacy_unit_groups: f64) -> f64 {
     let dist = Normal::new(0.0, 1.0).unwrap();
-    let scale = gaussian_noise(epsilon, delta, sensitivity);
+    let scale = gaussian_noise(epsilon, delta, max_privacy_unit_groups.sqrt());
     // TODO: we want to overestimate tau
-    1. + scale * dist.inverse_cdf((1. - delta / 2.).powf(1. / sensitivity)) + F64_PREC
+    1. + scale * dist.inverse_cdf((1. - delta).powf(1. / max_privacy_unit_groups))
 }
