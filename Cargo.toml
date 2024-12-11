@@ -1,7 +1,7 @@
 [package]
 authors = ["Nicolas Grislain <ng@sarus.tech>"]
 name = "qrlew"
-version = "0.9.26"
+version = "0.9.27"
 edition = "2021"
 description = "Sarus Qrlew Engine"
 documentation = "https://docs.rs/qrlew"
