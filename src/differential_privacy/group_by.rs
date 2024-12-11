@@ -107,7 +107,7 @@ impl PupRelation {
         // Apply noise
         let name_sigmas = vec![(
             COUNT_DISTINCT_PID,
-            dp_event::gaussian_noise(epsilon, delta, max_privacy_unit_groups as f64),
+            dp_event::gaussian_noise(epsilon, delta, (max_privacy_unit_groups as f64).sqrt()),
         )];
         let rel = rel.add_gaussian_noise(&name_sigmas);
 
