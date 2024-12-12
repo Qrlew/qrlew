@@ -9,22 +9,10 @@ use super::{
     Error, Result,
 };
 use crate::{
-    ast,
-    builder::{Ready, With, WithIterator, WithoutContext},
-    dialect::{Dialect, GenericDialect},
-    dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator},
-    expr::{Expr, Identifier, Reduce, Split},
-    hierarchy::{Hierarchy, Path},
-    namer::{self, FIELD},
-    parser::Parser,
-    relation::{
+    ast, builder::{Ready, With, WithIterator, WithoutContext}, dialect::{Dialect, GenericDialect}, dialect_translation::{postgresql::PostgreSqlTranslator, QueryToRelationTranslator}, display::Dot, expr::{Expr, Identifier, Reduce, Split, Value}, hierarchy::{Hierarchy, Path}, namer::{self, FIELD}, parser::Parser, relation::{
         Join, JoinOperator, MapBuilder, Relation, SetOperator, SetQuantifier, Variant as _,
         WithInput, LEFT_INPUT_NAME, RIGHT_INPUT_NAME,
-    },
-    sql::query_aliases::IntoQueryAliasesVisitor,
-    tokenizer::Tokenizer,
-    types::And,
-    visitor::{Acceptor, Dependencies, Visited},
+    }, sql::query_aliases::IntoQueryAliasesVisitor, tokenizer::Tokenizer, types::And, visitor::{Acceptor, Dependencies, Visited}
 };
 
 use itertools::Itertools;
@@ -463,7 +451,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // It stores the update for the column mapping:
         // (old name in columns, new name forced by the select)
         let mut renamed_columns: Vec<(Identifier, Identifier)> = vec![];
-
+        println!("IDENTIFIERS:\n {}", columns);
         for select_item in select_items {
             match select_item {
                 ast::SelectItem::UnnamedExpr(expr) => {
@@ -603,7 +591,6 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
         // Prepare the WHERE
         let filter: Option<Expr> = selection
             .as_ref()
-            // todo. Use pass the expression through the translator
             .map(|e| self.translator.try_expr(e, columns))
             .map_or(Ok(None), |r| r.map(Some))?;
 
@@ -738,6 +725,7 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
             offset,
             ..
         } = query;
+        println!("try_from_query");
         match body.as_ref() {
             ast::SetExpr::Select(select) => {
                 let RelationWithColumns(relation, columns) =
@@ -775,7 +763,9 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                             Ok(builder?.offset(self.try_from_offset(offset)?))
                         });
                     // Build a relation with ORDER BY and LIMIT
-                    Ok(Arc::new(relation_builder?.try_build()?))
+                    let rel = relation_builder?.try_build()?;
+                    println!("ast::SetExpr::Select: \n {}", rel);
+                    Ok(Arc::new(rel))
                 }
             }
             ast::SetExpr::SetOperation {
@@ -795,9 +785,25 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> VisitedQueryRelations<'a, 
                         .left(left_relation)
                         .right(right_relation);
                     // Build a Relation from set operation
-                    Ok(Arc::new(relation_builder.try_build()?))
+                    let rel = relation_builder.try_build()?;
+                    println!("ast::SetExpr::SetOperation: \n {}", rel);
+                    Ok(Arc::new(rel))
                 }
                 _ => panic!("We only support set operations over SELECTs"),
+            },
+            ast::SetExpr::Values(values) => {
+                let translated_values = values.rows
+                    .iter()
+                    .map(|row| row.iter().map(|ast_expr| {
+                            let expr = self.translator.try_expr(ast_expr, &Hierarchy::empty())?;
+                            let val = Value::try_from(expr)?;
+                            Ok(val)
+                        })
+                    .collect::<Result<Vec<Value>>>()
+                ).collect::<Result<Vec<Vec<Value>>>>()?;
+                let rel: Relation = Relation::values().values(translated_values).build();
+                println!("ast::SetExpr::Value: \n {}", rel);
+                Ok(Arc::new(rel))
             },
             _ => todo!(),
         }
@@ -1584,7 +1590,6 @@ mod tests {
         relation.display_dot().unwrap();
     }
 
-    #[ignore]
     #[test]
     fn test_values() {
         let query = parse("SELECT a FROM (VALUES (1), (2), (3)) AS t1 (a) ;").unwrap();
@@ -2130,5 +2135,34 @@ mod tests {
             );
             assert_eq!(s[3], Arc::new(DataType::optional(DataType::float())));
         }
+    }
+
+    #[test]
+    fn test_values_bis() {
+        let table_1: Relation = Relation::table()
+            .name("table_1")
+            .schema(
+                vec![
+                    ("a", DataType::integer_interval(0, 10)),
+                    ("b", DataType::float_interval(20., 50.)),
+                    ("d", DataType::float_interval(-10., 50.)),
+                ]
+                .into_iter()
+                .collect::<Schema>(),
+            )
+            .size(100)
+            .build();
+        let relations = Hierarchy::from([
+            (["schema", "table_1"], Arc::new(table_1)),
+        ]);
+        let query = parse(r#"SELECT * FROM (VALUES (1), (2), (3), (4), (5)) AS "order_id" ("order_id")"#).unwrap();
+        let relation = Relation::try_from(QueryWithRelations::new(
+            &query,
+            &relations,
+        )).unwrap();
+        relation.display_dot().unwrap();
+        let q = ast::Query::from(&relation);
+        println!("query = {q}");
+
     }
 }

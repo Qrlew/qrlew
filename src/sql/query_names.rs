@@ -101,6 +101,7 @@ impl<'a> fmt::Display for QueryNames<'a> {
 pub struct IntoQueryNamesVisitor;
 
 fn names_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::ObjectName> {
+    println!("names_from_set_expr:\n{}", set_expr);
     match set_expr {
         ast::SetExpr::Select(select) => select
             .from
@@ -111,6 +112,7 @@ fn names_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::ObjectNam
             .into_iter()
             .chain(names_from_set_expr(right.as_ref()))
             .collect(),
+        ast::SetExpr::Values(_values) => vec![],
         _ => todo!(),
     }
 }

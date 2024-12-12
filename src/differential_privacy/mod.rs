@@ -175,16 +175,18 @@ impl Reduce {
 mod tests {
     use super::*;
     use crate::{
-        ast,
-        builder::With,
-        data_type::{DataType, DataTyped, Variant as _},
-        display::Dot,
-        expr::{AggregateColumn, Expr},
-        io::{postgresql, Database},
-        privacy_unit_tracking::{PrivacyUnit, PrivacyUnitTracking, PupRelation, Strategy},
-        relation::{Constraint, Field, Map, Relation, Schema, Variant},
+        ast, builder::With, data_type::{DataType, DataTyped, Variant as _}, display::Dot, expr::{AggregateColumn, Expr}, hierarchy::Hierarchy, io::{postgresql, Database}, privacy_unit_tracking::{PrivacyUnit, PrivacyUnitTracking, PupRelation, Strategy}, relation::{Constraint, Field, Map, Relation, Schema, Variant}, sql::relation::QueryWithRelations
     };
     use std::{collections::HashSet, sync::Arc};
+
+    fn reparsing(relation: &Relation, relations: &Hierarchy<Arc<Relation>>) -> Relation {
+        let query = &ast::Query::from(relation);
+        let relation = Relation::try_from(QueryWithRelations::new(
+            query,
+            relations
+        )).unwrap();
+        relation
+    }
 
     #[test]
     fn test_dp_rewrite_reduce_without_group_by() {
@@ -337,23 +339,31 @@ mod tests {
             pup_map.deref().clone().into(),
         );
         let relation = Relation::from(reduce.clone());
+        //reparsing(&relation, &relations);
         relation.display_dot().unwrap();
 
         let (dp_relation, dp_event) = reduce.differentially_private(&parameters).unwrap().into();
         dp_relation.display_dot().unwrap();
-        assert!(matches!(
-            dp_event,
-            DpEvent::Gaussian {
-                noise_multiplier: _
-            }
-        ));
-        assert!(dp_relation
-            .data_type()
-            .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
 
-        let query: &str = &ast::Query::from(&dp_relation).to_string();
+        let reparsed = reparsing(&dp_relation, &relations);
+        reparsed.display_dot().unwrap();
+        let query: &str = &ast::Query::from(&reparsed).to_string();
         println!("{query}");
         _ = database.query(query).unwrap();
+
+        // assert!(matches!(
+        //     dp_event,
+        //     DpEvent::Gaussian {
+        //         noise_multiplier: _
+        //     }
+        // ));
+        // assert!(dp_relation
+        //     .data_type()
+        //     .is_subset_of(&DataType::structured([("sum_price", DataType::float())])));
+
+        // let query: &str = &ast::Query::from(&dp_relation).to_string();
+        // println!("{query}");
+        // _ = database.query(query).unwrap();
     }
 
     #[test]

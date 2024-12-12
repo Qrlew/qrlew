@@ -68,16 +68,21 @@ impl<'a> TableWithJoins<'a> {
 }
 
 fn queries_from_set_expr<'a>(set_expr: &'a ast::SetExpr) -> Vec<&'a ast::Query> {
-    match set_expr {
+    let vq = match set_expr {
         ast::SetExpr::Select(select) => select
             .from
             .iter()
             .flat_map(|table_with_joins| TableWithJoins(table_with_joins).queries())
             .collect(),
         ast::SetExpr::SetOperation { .. } => vec![],
-        ast::SetExpr::Values(_values) => todo!(),
+        ast::SetExpr::Values(_) => vec![],
         _ => todo!(), // Not implemented
-    }
+    };
+    // println!("Extracted Queries.");
+    // for q in &vq {
+    //     println!("{}", q);
+    // }
+    vq
 }
 
 /// Implement the Acceptor trait

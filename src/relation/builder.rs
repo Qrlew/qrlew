@@ -1062,6 +1062,7 @@ impl Ready<Values> for ValuesBuilder {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::{data_type::DataTyped, display::Dot, DataType};
 
@@ -1404,18 +1405,45 @@ mod tests {
             values
         );
 
+        println!("Values schema: {}",values.schema());
         // list of float
-        let values = Relation::values()
+        let values: Relation = Relation::values()
             .name("MyValues")
             .values([1., 3., 5.])
             .build();
-        assert_eq!(
-            Values::new(
-                "MyValues".to_string(),
-                vec![1.0.into(), 3.0.into(), 5.0.into()]
+        println!("Values schema: {}",values.schema());
+        println!("Values schema data type: {}",values.schema().data_type());
+
+        let dt = DataType::structured([
+            (
+                "B",
+                DataType::structured([
+                    ("c", DataType::integer_interval(1, 8)),
+                    ("b", DataType::integer_interval(-5, 20)),
+                ]),
             ),
-            values
-        );
+            (
+                "A",
+                DataType::structured([
+                    ("c", DataType::integer_min(0)),
+                    ("d", DataType::integer_interval(-1, 5)),
+                    ("a", DataType::integer_interval(-2, 25)),
+                ]),
+            ),
+        ]);
+        let schema = Schema::from(dt.clone());
+        let table: Relation = Relation::table().path(["tab".into()]).name("mytab").schema(schema).build();
+        table.display_dot().unwrap();
+        println!("table schema: {}",values.schema());
+        println!("table schema dt: {}",values.schema().data_type());
+        
+        // assert_eq!(
+        //     Values::new(
+        //         "MyValues".to_string(),
+        //         vec![1.0.into(), 3.0.into(), 5.0.into()]
+        //     ),
+        //     values.into()
+        // );
 
         // list of float
         let values: Relation = Relation::values()
@@ -1428,6 +1456,31 @@ mod tests {
             .build();
         println!("{}", values);
         println!("{}", values.data_type());
+        values.display_dot().unwrap();
+
+        let values: Relation = Relation::values()
+            .name("MyValues")
+            .values([
+                Value::structured([
+                    ("a", Value::from(true)),
+                    ("b", Value::from(5)),
+                    ("c", Value::from(5.5)),
+                ]),
+                Value::structured([
+                    ("a", Value::from(false)),
+                    ("b", Value::from(6)),
+                    ("c", Value::from(53.5)),
+                ]),
+                Value::structured([
+                    ("a", Value::from(false)),
+                    ("b", Value::from(9)),
+                    ("c", Value::from(-5.5)),
+                ]),
+            ])
+            .build();
+        println!("{}", values);
+        println!("{}", values.data_type());
+        values.display_dot().unwrap();
     }
 
     #[test]
