@@ -34,7 +34,7 @@ jobs:
                     - 5432:5432
 
             mssql:
-                image: mcr.microsoft.com/mssql/server:2019-latest
+                image: mcr.microsoft.com/mssql/server:2019-CU28-ubuntu-20.04
                 env:
                     # Set the SA password
                     SA_PASSWORD: "Strong@Passw0rd"
@@ -43,14 +43,27 @@ jobs:
                 ports:
                     - 1433:1433
                 options: >-
-                    --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P 'Strong@Passw0rd' -Q 'SELECT 1'"
+                    --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U SA -P 'Strong@Passw0rd' -Q 'SELECT 1'"
                     --health-interval 10s
                     --health-timeout 5s
                     --health-retries 5
-
+            mysql:
+                image: mysql:8.0
+                env:
+                    # The MySQL docker container requires these environment variables to be set
+                    # so we can create and migrate the test database.
+                    # See: https://hub.docker.com/_/mysql
+                    MYSQL_DATABASE: qrlew_mysql_test
+                    MYSQL_ROOT_PASSWORD: qrlew_test
+                ports:
+                    # Opens port 3306 on service container and host
+                    # https://docs.github.com/en/actions/using-containerized-services/about-service-containers
+                    - 3306:3306
+                # Before continuing, verify the mysql container is reachable from the ubuntu host
+                options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
         steps:
             - uses: actions/checkout@v3
             - name: Build
-              run: cargo build --features mssql,bigquery --verbose
+              run: cargo build --features mssql,bigquery,mysql --verbose
             - name: Run tests
-              run: cargo test --features mssql,bigquery --verbose
+              run: cargo test --features mssql,bigquery,mysql --verbose

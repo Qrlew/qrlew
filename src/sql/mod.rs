@@ -102,11 +102,17 @@ impl From<crate::expr::Error> for Error {
     }
 }
 
+impl From<crate::expr::Error> for Error {
+    fn from(err: crate::expr::Error) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
 pub type Result<T> = result::Result<T, Error>;
 
 // Import a few functions
 pub use expr::{parse_expr, parse_expr_with_dialect};
-pub use relation::{parse, parse_with_dialect};
+pub use relation::{parse, parse_with_dialect, tables_prefix};
 
 #[cfg(test)]
 mod tests {

@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.9.27] - 2024-12-11
+### Fixed
+- Fix gaussian tau.
+
+
+## [0.9.26] - 2024-12-05
+### Fixed
+- Limit the privacy unit contribution to at most max_privacy_unit_groups when applying tau_thresholding.
+
+## [0.9.25] - 2024-11-27
+### Added
+- Add attributes to data_type::Id
+
+## [0.9.24] - 2024-09-27
+### Fixed
+- mssql and bigquery translator
+### Added
+- mysql, databricks, hive, redshift translators
+- mysql io connection for testing
+- tool to get tables prefix
+
+## [0.9.23] - 2024-07-9
+### Fixed
+- fixing noise multiplier of the gaussian dp event which should be independent from the sensitivity.
+
+## [0.9.22] - 2024-07-9
+### Changed
+- When translating relations to queries transform all nested CASE expressions into a single CASE
+
+## [0.9.21] - 2024-06-27
+### Changed
+- Add integer domains to few boolean functions to reduce timing of fun.super_image
+- Break equality for some datatype by changing DataType's is_subset_of during the Variant trait implementation.  
+
 ## [0.9.20] - 2024-06-20
 ### Added
 - support for extract_epoch function

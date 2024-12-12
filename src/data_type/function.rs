@@ -1448,6 +1448,10 @@ pub fn pi() -> impl Function {
 pub fn gt() -> impl Function {
     Polymorphic::default()
         .with(PartitionnedMonotonic::bivariate(
+            (data_type::Integer::default(), data_type::Integer::default()),
+            |a, b| (a > b),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
             |a, b| (a > b),
         ))
@@ -1474,6 +1478,10 @@ pub fn gt() -> impl Function {
 
 pub fn lt() -> impl Function {
     Polymorphic::default()
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Integer::default(), data_type::Integer::default()),
+            |a, b| (a < b),
+        ))
         .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
             |a, b| (a < b),
@@ -1502,6 +1510,10 @@ pub fn lt() -> impl Function {
 pub fn gt_eq() -> impl Function {
     Polymorphic::default()
         .with(PartitionnedMonotonic::bivariate(
+            (data_type::Integer::default(), data_type::Integer::default()),
+            |a, b| (a >= b),
+        ))
+        .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
             |a, b| (a >= b),
         ))
@@ -1528,6 +1540,10 @@ pub fn gt_eq() -> impl Function {
 
 pub fn lt_eq() -> impl Function {
     Polymorphic::default()
+        .with(PartitionnedMonotonic::bivariate(
+            (data_type::Integer::default(), data_type::Integer::default()),
+            |a, b| (a <= b),
+        ))
         .with(PartitionnedMonotonic::bivariate(
             (data_type::Float::default(), data_type::Float::default()),
             |a, b| (a <= b),
@@ -1947,9 +1963,16 @@ pub fn extract_year() -> impl Function {
 pub fn extract_epoch() -> impl Function {
     Polymorphic::default()
         .with(PartitionnedMonotonic::univariate(
+            data_type::Date::default(),
+            |a| {
+                (a.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as i64)
+                    .clamp(<i64 as Bound>::min(), <i64 as Bound>::max())
+            },
+        ))
+        .with(PartitionnedMonotonic::univariate(
             data_type::DateTime::default(),
             |a| {
-                (a.and_utc().timestamp() as i64).clamp(<i64 as Bound>::min(), <i64 as Bound>::max())
+                (a.and_utc().timestamp() as f64).clamp(<f64 as Bound>::min(), <f64 as Bound>::max())
             },
         ))
         .with(PartitionnedMonotonic::univariate(
@@ -2804,6 +2827,24 @@ mod tests {
         let arg = Value::float(1.) & Value::float(1.);
         let val = fun.value(&arg).unwrap();
         assert_eq!(val, Value::from(true));
+    }
+
+    #[test]
+    fn test_gt_large_int_interval() {
+        println!("Test gt");
+        let fun = gt();
+        println!("type = {}", fun);
+        println!("domain = {}", fun.domain());
+        println!("co_domain = {}", fun.co_domain());
+
+        let set = DataType::from(Struct::from_data_types([
+            DataType::from(data_type::Integer::from_interval(1, 100000)),
+            DataType::from(data_type::Integer::from_interval(1, 100000)),
+        ]));
+
+        // let set = DataType::integer_interval(1, 100000);
+        let im = fun.super_image(&set).unwrap();
+        println!("\nim({}) = {}", set, im);
     }
 
     #[test]
@@ -4351,7 +4392,7 @@ mod tests {
 
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
-        assert!(im == DataType::integer_values([1467969011, 1783502111]));
+        assert!(im == DataType::float_values([1467969011.0, 1783502111.0]));
 
         let set = DataType::duration_values([
             chrono::Duration::hours(24),
@@ -4360,6 +4401,15 @@ mod tests {
         let im = fun.super_image(&set).unwrap();
         println!("im({}) = {}", set, im);
         assert!(im == DataType::integer_values([86400, 100]));
+
+        let set = DataType::date_values([
+            chrono::NaiveDate::from_ymd_opt(1980, 12, 06).unwrap(),
+            chrono::NaiveDate::from_ymd_opt(1981, 4, 20).unwrap(),
+        ]);
+
+        let im = fun.super_image(&set).unwrap();
+        println!("im({}) = {}", set, im);
+        assert!(im == DataType::integer_values([344908800, 356572800]));
 
         // year
         println!("\nTest extract_year");

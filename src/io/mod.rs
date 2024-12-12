@@ -11,6 +11,8 @@
 pub mod bigquery;
 #[cfg(feature = "mssql")]
 pub mod mssql;
+#[cfg(feature = "mysql")]
+pub mod mysql;
 pub mod postgresql;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;

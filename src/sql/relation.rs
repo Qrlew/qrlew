@@ -920,6 +920,58 @@ impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(QueryWithRelation
     }
 }
 
+/// Implement conversion to Identifier
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(&'a ast::ObjectName, T)>
+    for Identifier
+{
+    type Error = Error;
+
+    fn try_from(value: (&'a ast::ObjectName, T)) -> result::Result<Self, Self::Error> {
+        let (object_name, translator) = value;
+        let checked_identifiers: Result<Vec<String>> = object_name
+            .0
+            .iter()
+            .map(|i| {
+                let binding = translator.try_identifier(i)?;
+                let head = binding.head()?;
+                Ok(head.to_string())
+            })
+            .collect();
+        let checked_identifiers = checked_identifiers?;
+        Ok(checked_identifiers
+            .iter()
+            .fold(Identifier::empty(), |acc, x| acc.with(x.to_string())))
+    }
+}
+
+struct FullyQualifiedTableNames(Vec<Identifier>);
+
+impl<'a, T: QueryToRelationTranslator + Copy + Clone> TryFrom<(&'a str, T)>
+    for FullyQualifiedTableNames
+{
+    type Error = Error;
+
+    fn try_from(value: (&str, T)) -> result::Result<Self, Self::Error> {
+        let (query, translator) = value;
+        let parsed_query = parse_with_dialect(query, translator.dialect())?;
+        // Visit the query to get query names
+        let query_names = parsed_query.accept(IntoQueryNamesVisitor);
+        // get only base tables names
+        let tables_names: Result<Vec<Identifier>> = query_names
+            .iter()
+            .filter_map(|((_, object_name), pointed_query)| {
+                if pointed_query.is_none() {
+                    Some(object_name)
+                } else {
+                    None
+                }
+            })
+            .map(|object_name| Identifier::try_from((object_name, translator)))
+            .collect();
+        Ok(FullyQualifiedTableNames(tables_names?))
+    }
+}
+
 /// It creates a new hierarchy with Identifier for which the last part of their
 /// path is not ambiguous. The new hierarchy will contain one-element paths
 fn last(columns: &Hierarchy<Identifier>) -> Hierarchy<Identifier> {
@@ -959,20 +1011,95 @@ pub fn parse(query: &str) -> Result<ast::Query> {
     parse_with_dialect(query, GenericDialect)
 }
 
+/// Given a query and a translator it provides the prefix of base tables in the
+/// query. It fails if tables identifiers are wrongly quoted.
+pub fn tables_prefix<T: QueryToRelationTranslator + Copy + Clone>(
+    query: &str,
+    translator: T,
+) -> Result<Vec<String>> {
+    let tables = FullyQualifiedTableNames::try_from((query, translator))?;
+    tables.0.iter().map(|f| Ok(f.head()?.to_string())).collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use colored::Colorize;
-
     use super::*;
     use crate::{
         builder::Ready,
         data_type::{DataType, DataTyped, Variant},
+        dialect_translation::{bigquery::BigQueryTranslator, mssql::MsSqlTranslator},
         display::Dot,
         io::{postgresql, Database},
         relation::schema::Schema,
     };
+    use colored::Colorize;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_tables_prefix() {
+        let query_str = "SELECT * FROM my_db.my_sch.my_tab";
+        let tables = tables_prefix(query_str, PostgreSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = r#"SELECT * FROM "my_db"."my_sch"."my_tab""#;
+        let tables = tables_prefix(query_str, PostgreSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = r#"SELECT * FROM `my_db`.`my_sch`.`my_tab`"#;
+        let tables = tables_prefix(query_str, PostgreSqlTranslator);
+
+        assert!(tables.is_err());
+
+        let query_str = r#"SELECT * FROM `my_db`.`my_sch`.`my_tab`"#;
+        let tables = tables_prefix(query_str, MsSqlTranslator);
+        assert!(tables.is_err());
+
+        let query_str = r#"SELECT * FROM `my_db`.`my_sch`.`my_tab`"#;
+        let tables = tables_prefix(query_str, BigQueryTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = r#"SELECT * FROM "my_db"."my_sch"."my_tab""#;
+        let tables = tables_prefix(query_str, MsSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = r#"SELECT * FROM [my_db].[my_sch].[my_tab]"#;
+        let tables = tables_prefix(query_str, MsSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = "SELECT * FROM a.b.c.d.e.f";
+        let tables = tables_prefix(query_str, PostgreSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["a".to_string()]);
+
+        let query_str = "SELECT * FROM (SELECT * FROM my_db.my_sch.my_tab) AS t1";
+        let tables = tables_prefix(query_str, PostgreSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = r#"
+        SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM my_db.my_sch.my_tab) AS my_tab1) AS my_tab2) AS my_tab3) AS my_tab4
+        "#;
+        let tables = tables_prefix(query_str, PostgreSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = r#"
+        WITH my_tab1 AS (SELECT * FROM my_db.my_sch.my_tab),
+        my_tab2 AS (SELECT * FROM my_tab1),
+        my_tab3 AS (SELECT * FROM my_tab2),
+        my_tab4 AS (SELECT * FROM my_tab3)
+        SELECT * FROM my_tab4
+        "#;
+        let tables = tables_prefix(query_str, PostgreSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string()]);
+
+        let query_str = r#"
+        WITH my_tab1 AS (SELECT * FROM my_db.my_sch.my_tab),
+        my_tab2 AS (SELECT * FROM my_tab1),
+        my_tab3 AS (SELECT * FROM my_tab2),
+        my_tab4 AS (SELECT * FROM my_other_db.my_other_sch.my_other_tab)
+        SELECT * FROM my_tab3 JOIN my_tab4 USING(id)
+        "#;
+        let tables = tables_prefix(query_str, PostgreSqlTranslator).unwrap();
+        assert_eq!(tables, vec!["my_db".to_string(), "my_other_db".to_string()]);
+    }
 
     #[test]
     fn test_map_from_query() {

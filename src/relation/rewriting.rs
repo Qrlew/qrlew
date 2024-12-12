@@ -721,7 +721,7 @@ impl Relation {
     }
 
     /// Returns a Relation whose fields have unique values
-    fn unique(self, columns: &[&str]) -> Relation {
+    pub fn unique(self, columns: &[&str]) -> Relation {
         let named_columns: Vec<(&str, Expr)> =
             columns.iter().copied().map(|c| (c, Expr::col(c))).collect();
 
@@ -733,6 +733,69 @@ impl Relation {
                     .map(|(name, col)| (name, Expr::first(col))),
             )
             .input(self)
+            .build()
+    }
+
+    /// It limits the contribution of a column to max_contributions randomly.
+    pub fn limit_col_contributions(self, column: &str, max_contributions: u64) -> Relation {
+        let random_col: &str = "_RANDOM_";
+        let contribution_index_col: &str = "_CONTRIBUTION_INDEX_";
+
+        let columns: Vec<&str> = self.schema().iter().map(|f| f.name()).collect();
+
+        let left = self.clone().with_field(random_col, Expr::random(0));
+        let right = left.clone();
+
+        let join_names: Hierarchy<String> = left
+            .schema()
+            .iter()
+            .flat_map(|f| {
+                [
+                    ([Join::left_name(), f.name()], f.name().to_string()),
+                    (
+                        [Join::right_name(), f.name()],
+                        format!("r_{}", f.name().to_string()),
+                    ),
+                ]
+            })
+            .collect();
+
+        let joined: Relation = Relation::join()
+            .left(left)
+            .right(right)
+            .on(Expr::eq(
+                Expr::qcol(Join::left_name(), column),
+                Expr::qcol(Join::right_name(), column),
+            ))
+            .and(Expr::lt_eq(
+                Expr::qcol(Join::left_name(), random_col),
+                Expr::qcol(Join::right_name(), random_col),
+            ))
+            .names(join_names)
+            .build();
+
+        // Build the reduce with a row number (contribution_index_col)
+        let mut aggregates: Vec<(&str, Expr)> =
+            vec![(contribution_index_col, Expr::count(Expr::col(random_col)))];
+        let mut groups: Vec<Expr> = vec![];
+        columns.iter().for_each(|c| {
+            let col = Expr::col(*c);
+            aggregates.push((c, Expr::first(col.clone())));
+            groups.push(col);
+        });
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates)
+            .group_by_iter(groups)
+            .input(joined)
+            .build();
+
+        Relation::map()
+            .with_iter(columns.into_iter().map(|f| (f, Expr::col(f))))
+            .filter(Expr::lt_eq(
+                Expr::col(contribution_index_col),
+                Expr::val(max_contributions as f64),
+            ))
+            .input(red)
             .build()
     }
 
@@ -898,6 +961,8 @@ impl With<(&str, Expr)> for Relation {
 
 #[cfg(test)]
 mod tests {
+    use data_type::value;
+
     use super::*;
     use crate::{
         ast,
@@ -2104,5 +2169,75 @@ mod tests {
         if let Relation::Reduce(red) = distinct_relation {
             assert_eq!(red.group_by.len(), relation.schema().len())
         }
+    }
+
+    #[test]
+    fn test_limit_col_contribution() {
+        let mut database = postgresql::test_database();
+        let relations = database.relations();
+
+        // relation with reduce
+        let relation = Relation::try_from(
+            parse("SELECT id, city FROM user_table")
+                .unwrap()
+                .with(&relations),
+        )
+        .unwrap();
+        relation.display_dot().unwrap();
+
+        // Compute id contribution of the relation
+        let aggregates: Vec<(&str, Expr)> = vec![
+            ("group_count", Expr::count(Expr::col("city"))),
+            ("id", Expr::first(Expr::col("id"))),
+        ];
+        let groups: Vec<Expr> = vec![Expr::col("id")];
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates)
+            .group_by_iter(groups)
+            .input(relation.clone())
+            .build();
+        let max_contr: Relation = Relation::reduce()
+            .with_iter(vec![(
+                "max_group_count",
+                Expr::max(Expr::col("group_count")),
+            )])
+            .input(red)
+            .build();
+
+        let query = &ast::Query::from(&max_contr);
+        let res = database.query(&query.to_string()).unwrap();
+        let val = value::Value::integer(1);
+        assert!(res[0][0] != val);
+
+        let with_limited_contr = relation.limit_col_contributions("id", 1);
+        with_limited_contr.display_dot().unwrap();
+        let query = &ast::Query::from(&with_limited_contr);
+
+        println!("\n{}", query);
+        _ = database.query(&query.to_string()).unwrap();
+
+        // Compute id contribution of the with_limited_d
+        let aggregates: Vec<(&str, Expr)> = vec![
+            ("group_count", Expr::count(Expr::col("city"))),
+            ("id", Expr::first(Expr::col("id"))),
+        ];
+        let groups: Vec<Expr> = vec![Expr::col("id")];
+        let red: Relation = Relation::reduce()
+            .with_iter(aggregates)
+            .group_by_iter(groups)
+            .input(with_limited_contr)
+            .build();
+        let max_contr: Relation = Relation::reduce()
+            .with_iter(vec![(
+                "max_group_count",
+                Expr::max(Expr::col("group_count")),
+            )])
+            .input(red)
+            .build();
+
+        let query = &ast::Query::from(&max_contr);
+        let res = database.query(&query.to_string()).unwrap();
+        let val = value::Value::integer(1);
+        assert!(res[0][0] == val)
     }
 }

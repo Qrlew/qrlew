@@ -253,7 +253,11 @@ impl<'a, T: Clone + fmt::Display, V: Visitor<'a, T>> dot::Labeller<'a, Node<'a, 
                     | JoinOperator::LeftOuter(expr)
                     | JoinOperator::RightOuter(expr)
                     | JoinOperator::FullOuter(expr) => {
-                        format!("<br/>{} ON {}", join.operator.to_string(), expr)
+                        format!(
+                            "<br/>{} ON {}",
+                            join.operator.to_string(),
+                            dot::escape_html(&expr.to_string())
+                        )
                     }
                     JoinOperator::Cross => format!("<br/>{}", join.operator.to_string()),
                 };

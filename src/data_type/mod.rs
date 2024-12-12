@@ -51,7 +51,7 @@ use itertools::Itertools;
 use paste::paste;
 use std::{
     cmp,
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     convert::Infallible,
     error, fmt, hash,
     marker::Copy,
@@ -1503,7 +1503,7 @@ impl Index<usize> for Union {
 }
 
 /// Optional variant
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct Optional {
     data_type: Arc<DataType>,
 }
@@ -1535,13 +1535,6 @@ impl From<Arc<DataType>> for Optional {
 impl From<DataType> for Optional {
     fn from(data_type: DataType) -> Self {
         Optional::from_data_type(data_type)
-    }
-}
-
-#[allow(clippy::derive_hash_xor_eq)]
-impl hash::Hash for Optional {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.data_type.hash(state);
     }
 }
 
@@ -2174,11 +2167,21 @@ pub struct Id {
     reference: Option<Arc<Id>>,
     /// If entries are unique
     unique: bool,
+    /// Id attributes stored in a BTreeMap in order to be hashable (required by the Hash trait).
+    attributes: BTreeMap<String, String>,
 }
 
 impl Id {
-    pub fn new(reference: Option<Arc<Id>>, unique: bool) -> Id {
-        Id { reference, unique }
+    pub fn new(
+        reference: Option<Arc<Id>>,
+        unique: bool,
+        attributes: BTreeMap<String, String>,
+    ) -> Id {
+        Id {
+            reference,
+            unique,
+            attributes,
+        }
     }
 
     pub fn reference(&self) -> Option<&Id> {
@@ -2188,19 +2191,23 @@ impl Id {
     pub fn unique(&self) -> bool {
         self.unique
     }
+
+    pub fn attributes(&self) -> &BTreeMap<String, String> {
+        &self.attributes
+    }
 }
 
 impl From<(Option<Arc<Id>>, bool)> for Id {
     fn from(ref_unique: (Option<Arc<Id>>, bool)) -> Self {
         let (reference, unique) = ref_unique;
-        Id::new(reference, unique)
+        Id::new(reference, unique, BTreeMap::new())
     }
 }
 
 impl From<(Option<Id>, bool)> for Id {
     fn from(ref_unique: (Option<Id>, bool)) -> Self {
         let (reference, unique) = ref_unique;
-        Id::new(reference.map(Arc::new), unique)
+        Id::new(reference.map(Arc::new), unique, BTreeMap::new())
     }
 }
 
@@ -2227,7 +2234,15 @@ impl Variant for Id {
         true
     }
 
+    //
     fn super_union(&self, other: &Self) -> Result<Self> {
+        let attributes: BTreeMap<String, String> = self
+            .attributes
+            .iter()
+            .filter(|(key, value)| other.attributes.get(*key).map_or(false, |v| v == *value))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+
         Ok(Id::new(
             if self.reference == other.reference {
                 self.reference.clone()
@@ -2235,10 +2250,18 @@ impl Variant for Id {
                 None
             },
             false,
+            attributes,
         ))
     }
-
+    // if attributes are equal
     fn super_intersection(&self, other: &Self) -> Result<Self> {
+        let attributes: BTreeMap<String, String> = self
+            .attributes
+            .iter()
+            .filter(|(key, value)| other.attributes.get(*key).map_or(false, |v| v == *value))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+
         Ok(Id::new(
             if self.reference == other.reference {
                 self.reference.clone()
@@ -2246,11 +2269,12 @@ impl Variant for Id {
                 None
             },
             self.unique && other.unique,
+            attributes,
         ))
     }
 
     fn maximal_superset(&self) -> Result<Self> {
-        Ok(Id::new(None, false))
+        Ok(Id::new(None, false, self.attributes().clone()))
     }
 }
 
@@ -2558,10 +2582,78 @@ impl Variant for DataType {
                     (DataType::Bytes(_), DataType::Bytes(_)) => true,
                     (_, DataType::Any) => true,
                     (DataType::Any, _) => false,
-                    (s, o) => s
+                    (s, DataType::Text(o)) => {
+                        let o = DataType::Text(o.clone());
+                        s.clone()
+                            .into_data_type(&o)
+                            .map_or(false, |s| s.is_subset_of(&o))
+                    }
+                    (s, DataType::Null) => s
                         .clone()
-                        .into_data_type(o)
-                        .map_or(false, |s| s.is_subset_of(o)),
+                        .into_data_type(&DataType::Null)
+                        .map_or(false, |s| s.is_subset_of(&DataType::Null)),
+                    (DataType::Float(s), DataType::Integer(o)) => {
+                        let left = DataType::Float(s.clone());
+                        let right = DataType::Integer(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Integer(s), DataType::Float(o)) => {
+                        let left = DataType::Integer(s.clone());
+                        let right = DataType::Float(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Boolean(s), DataType::Float(o)) => {
+                        let left = DataType::Boolean(s.clone());
+                        let right = DataType::Float(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Float(s), DataType::Boolean(o)) => {
+                        let left = DataType::Float(s.clone());
+                        let right = DataType::Boolean(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Boolean(s), DataType::Integer(o)) => {
+                        let left = DataType::Boolean(s.clone());
+                        let right = DataType::Integer(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Integer(s), DataType::Boolean(o)) => {
+                        let left = DataType::Integer(s.clone());
+                        let right = DataType::Boolean(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::Date(s), DataType::DateTime(o)) => {
+                        let left = DataType::Date(s.clone());
+                        let right = DataType::DateTime(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (DataType::DateTime(s), DataType::Date(o)) => {
+                        let left = DataType::DateTime(s.clone());
+                        let right = DataType::Date(o.clone());
+                        left.into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (s, DataType::Union(o)) => {
+                        let right = DataType::Union(o.clone());
+                        s.clone()
+                            .into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    (s, DataType::Optional(o)) => {
+                        let right = DataType::Optional(o.clone());
+                        s.clone()
+                            .into_data_type(&right)
+                            .map_or(false, |left| left.is_subset_of(&right))
+                    }
+                    // let's try to be conservative. For any other combination return false
+                    _ => false,
                 }
             }
         )
@@ -4505,6 +4597,65 @@ mod tests {
                 ("bool", DataType::from(Boolean::empty())),
                 ("struct", dt.try_empty().unwrap()),
             ])
+        );
+    }
+
+    #[test]
+    fn test_id() {
+        let id = Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "string".to_string())]),
+        );
+        let left = DataType::Id(id.clone());
+        let right = DataType::Id(id);
+
+        let union = left.super_union(&right).unwrap();
+        println!("left ∪ right = {}", union);
+        assert_eq!(union, left);
+
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("left ∩ left = {}", intersection);
+        assert_eq!(intersection, left);
+
+        let left = DataType::Id(Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "string".to_string())]),
+        ));
+        let right = DataType::Id(Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "int".to_string())]),
+        ));
+
+        let union = left.super_union(&right).unwrap();
+        println!("left ∪ right = {}", union);
+        assert_eq!(union, DataType::Id(Id::new(None, false, BTreeMap::new())));
+
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("left ∩ right = {}", intersection);
+        assert_eq!(
+            intersection,
+            DataType::Id(Id::new(None, false, BTreeMap::new()))
+        );
+
+        let left = DataType::Id(Id::new(
+            None,
+            false,
+            BTreeMap::from([("base".to_string(), "string".to_string())]),
+        ));
+        let right = DataType::Id(Id::new(None, false, BTreeMap::new()));
+
+        let union = left.super_union(&right).unwrap();
+        println!("left ∪ right = {}", union);
+        assert_eq!(union, DataType::Id(Id::new(None, false, BTreeMap::new())));
+
+        let intersection = left.super_intersection(&right).unwrap();
+        println!("left ∩ right = {}", intersection);
+        assert_eq!(
+            intersection,
+            DataType::Id(Id::new(None, false, BTreeMap::new()))
         );
     }
 }

@@ -24,29 +24,25 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             .collect()
     }
 
-    fn first(&self, expr: &expr::Expr) -> ast::Expr {
-        ast::Expr::from(expr)
+    fn first(&self, expr: ast::Expr) -> ast::Expr {
+        expr
     }
 
-    fn mean(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("AVG", vec![arg], false)
+    fn mean(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("AVG", vec![expr], false)
     }
 
-    fn std(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("STDEV", vec![arg], false)
+    fn std(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("STDEV", vec![expr], false)
     }
 
     /// Converting LN to LOG
-    fn ln(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("LOG", vec![arg], false)
+    fn ln(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("LOG", vec![expr], false)
     }
     /// Converting LOG to LOG10
-    fn log(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("LOG10", vec![arg], false)
+    fn log(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("LOG10", vec![expr], false)
     }
 
     /// Converting RANDOM to RAND(CHECKSUM(NEWID()))
@@ -56,16 +52,17 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         function_builder("RAND", vec![check_sum], false)
     }
 
-    /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
-    fn md5(&self, expr: &expr::Expr) -> ast::Expr {
-        let ast_expr = self.expr(expr);
+    fn char_length(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("LEN", vec![expr], false)
+    }
 
+    /// Converting MD5(X) to CONVERT(VARCHAR(MAX), HASHBYTES('MD5', X), 2)
+    fn md5(&self, expr: ast::Expr) -> ast::Expr {
         // Construct HASHBYTES('MD5', X)
         let md5_literal = ast::Expr::Value(ast::Value::SingleQuotedString("MD5".to_string()));
         let md5_literal_as_function_arg =
             ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(md5_literal));
-        let ast_expr_as_function_arg =
-            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(ast_expr));
+        let ast_expr_as_function_arg = ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr));
 
         let func_args_list = ast::FunctionArgumentList {
             duplicate_treatment: None,
@@ -91,17 +88,15 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         }
     }
 
-    fn cast_as_boolean(&self, expr: &expr::Expr) -> ast::Expr {
+    fn cast_as_boolean(&self, expr: ast::Expr) -> ast::Expr {
         // It should be CAST(expr AS BIT) but BIT is not a valid ast::DataType
         // So we cast it to INT
-        let casted_to_integer = expr::Expr::cast_as_integer(expr.clone());
-        ast::Expr::from(&casted_to_integer)
+        self.cast_as_integer(expr)
     }
 
-    fn cast_as_text(&self, expr: &expr::Expr) -> ast::Expr {
-        let ast_expr = self.expr(expr);
+    fn cast_as_text(&self, expr: ast::Expr) -> ast::Expr {
         ast::Expr::Cast {
-            expr: Box::new(ast_expr),
+            expr: Box::new(expr),
             data_type: ast::DataType::Nvarchar(Some(ast::CharacterLength::IntegerLength {
                 length: 255,
                 unit: None,
@@ -110,53 +105,45 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             kind: ast::CastKind::Cast,
         }
     }
-    fn substr(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn substr(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 3);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
         ast::Expr::Substring {
-            expr: Box::new(ast_exprs[0].clone()),
-            substring_from: Some(Box::new(ast_exprs[1].clone())),
-            substring_for: Some(Box::new(ast_exprs[2].clone())),
+            expr: Box::new(exprs[0].clone()),
+            substring_from: Some(Box::new(exprs[1].clone())),
+            substring_for: Some(Box::new(exprs[2].clone())),
             special: true,
         }
     }
-    fn substr_with_size(&self, exprs: Vec<&expr::Expr>) -> ast::Expr {
+    fn substr_with_size(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
         assert!(exprs.len() == 3);
-        let ast_exprs: Vec<ast::Expr> = exprs.into_iter().map(|expr| self.expr(expr)).collect();
         ast::Expr::Substring {
-            expr: Box::new(ast_exprs[0].clone()),
-            substring_from: Some(Box::new(ast_exprs[1].clone())),
-            substring_for: Some(Box::new(ast_exprs[2].clone())),
+            expr: Box::new(exprs[0].clone()),
+            substring_from: Some(Box::new(exprs[1].clone())),
+            substring_for: Some(Box::new(exprs[2].clone())),
             special: true,
         }
     }
-    fn ceil(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
-        function_builder("CEILING", vec![arg], false)
+    fn ceil(&self, expr: ast::Expr) -> ast::Expr {
+        function_builder("CEILING", vec![expr], false)
     }
-
-    fn extract_epoch(&self, expr: &expr::Expr) -> ast::Expr {
-        let arg = self.expr(expr);
+    fn extract_epoch(&self, expr: ast::Expr) -> ast::Expr {
         let second = ast::Expr::Identifier(ast::Ident {
             value: "SECOND".to_string(),
             quote_style: None,
         });
         let unix = ast::Expr::Value(ast::Value::SingleQuotedString("19700101".to_string()));
-        function_builder("DATEDIFF", vec![second, unix, arg], false)
+        function_builder("DATEDIFF", vec![second, unix, expr], false)
     }
 
-    // used during onboarding in order to have datetime with a proper format.
-    // This is not needed when we will remove the cast in string of the datetime
-    // during the onboarding
-    // CAST(col AS VARCHAR/TEXT) -> CONVERT(VARCHAR, col, 126)
-
-    // TODO: some functions are not supported yet.
-    // EXTRACT(epoch FROM column) -> DATEDIFF(SECOND, '19700101', column)
-    // Concat(a, b) has to take at least 2 args, it can take empty string as well.
-    // onboarding, charset query: SELECT DISTINCT REGEXP_SPLIT_TO_TABLE(anon_2.name ,'') AS "regexp_split" ...
-    // onboarding, sampling, remove WHERE RAND().
-    // onboarding CAST(col AS Boolean) -> CAST(col AS BIT)
-    // onboarding Literal True/Fale -> 1/0.
+    fn concat(&self, exprs: Vec<ast::Expr>) -> ast::Expr {
+        let literal = ast::Expr::Value(ast::Value::SingleQuotedString("".to_string()));
+        let expanded_exprs: Vec<_> = exprs
+            .iter()
+            .cloned()
+            .chain(std::iter::once(literal))
+            .collect();
+        function_builder("CONCAT", expanded_exprs, false)
+    }
 
     /// MSSQL queries don't support LIMIT but TOP in the SELECT statement instated
     fn query(
@@ -170,11 +157,36 @@ impl RelationToQueryTranslator for MsSqlTranslator {
         limit: Option<ast::Expr>,
         offset: Option<ast::Offset>,
     ) -> ast::Query {
-        let top = limit.map(|e| ast::Top {
+        // A TOP can not be used
+        // in the same query or sub-query as a OFFSET.
+        let top = limit.filter(|_| offset.is_none()).map(|e| ast::Top {
             with_ties: false,
             percent: false,
             quantity: Some(ast::TopQuantity::Expr(e)),
         });
+
+        // ORDER BY clause is invalid in views, inline functions, derived tables,
+        // subqueries, and common table expressions, unless TOP, OFFSET or
+        // FOR XML is also specified.
+        let new_offset = match (order_by.is_empty(), &offset, &top) {
+            (false, None, None) => Some(ast::Offset {
+                value: ast::Expr::Value(ast::Value::Number("0".to_string(), false)),
+                rows: ast::OffsetRows::Rows,
+            }),
+            _ => offset.map(|o| ast::Offset {
+                value: o.value,
+                rows: ast::OffsetRows::Rows,
+            }),
+        };
+
+        let translated_projection: Vec<ast::SelectItem> = projection
+            .iter()
+            .map(case_from_boolean_select_item)
+            .collect();
+        let translated_selection: Option<ast::Expr> = selection
+            .and_then(none_from_where_random)
+            .and_then(boolean_expr_from_identifier);
+
         ast::Query {
             with: (!with.is_empty()).then_some(ast::With {
                 recursive: false,
@@ -183,11 +195,11 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             body: Box::new(ast::SetExpr::Select(Box::new(ast::Select {
                 distinct: None,
                 top,
-                projection,
+                projection: translated_projection,
                 into: None,
                 from: vec![from],
                 lateral_views: vec![],
-                selection,
+                selection: translated_selection,
                 group_by,
                 cluster_by: vec![],
                 distribute_by: vec![],
@@ -201,7 +213,7 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             }))),
             order_by,
             limit: None,
-            offset: offset,
+            offset: new_offset,
             fetch: None,
             locks: vec![],
             limit_by: vec![],
@@ -260,6 +272,18 @@ impl RelationToQueryTranslator for MsSqlTranslator {
             cluster_by: None,
             options: None,
         }
+    }
+
+    fn format_float_value(&self, value: f64) -> ast::Expr {
+        let max_precision = 37;
+        let formatted = if value.abs() < 1e-10 || value.abs() > 1e10 {
+            // If the value is too small or too large, switch to scientific notation
+            format!("{:.precision$e}", value, precision = max_precision)
+        } else {
+            // Otherwise, use the default float formatting with the specified precision
+            format!("{}", value)
+        };
+        ast::Expr::Value(ast::Value::Number(formatted, false))
     }
 }
 
@@ -383,6 +407,128 @@ fn extract_hashbyte_expression_if_valid(func_arg: &ast::FunctionArg) -> Option<a
     }
 }
 
+// It converts a `NOT (col IS NULL)` in the SELECT items into a CASE expression
+fn case_from_boolean_select_item(select_item: &ast::SelectItem) -> ast::SelectItem {
+    match select_item {
+        ast::SelectItem::ExprWithAlias { expr, alias } => ast::SelectItem::ExprWithAlias {
+            expr: case_from_boolean_expr(expr),
+            alias: alias.clone(),
+        },
+        ast::SelectItem::UnnamedExpr(expr) => {
+            ast::SelectItem::UnnamedExpr(case_from_boolean_expr(expr))
+        }
+        _ => select_item.clone(),
+    }
+}
+
+fn case_from_boolean_expr(expr: &ast::Expr) -> ast::Expr {
+    match expr {
+        ast::Expr::UnaryOp { op, expr } => case_from_not_unary_op(op, expr),
+        ast::Expr::BinaryOp { op, left, right } => case_from_bool_binary_op(op, left, right),
+        _ => expr.clone(),
+    }
+}
+
+fn case_from_not_unary_op(op: &ast::UnaryOperator, expr: &Box<ast::Expr>) -> ast::Expr {
+    match op {
+        ast::UnaryOperator::Not => {
+            // NOT( some_bool_expr ) -> CASE WHEN some_bool_expr THEN 0 ELSE 1
+            let when_expr = vec![expr.as_ref().clone()];
+            let then_expr = vec![ast::Expr::Value(ast::Value::Number("0".to_string(), false))];
+            let else_expr = Box::new(ast::Expr::Value(ast::Value::Number("1".to_string(), false)));
+            ast::Expr::Case {
+                operand: None,
+                conditions: when_expr,
+                results: then_expr,
+                else_result: Some(else_expr),
+            }
+        }
+        _ => ast::Expr::UnaryOp {
+            op: op.clone(),
+            expr: expr.clone(),
+        },
+    }
+}
+
+// converting any boolean binray operation into CASE WHEN expr THEN 1 ELSE 0
+fn case_from_bool_binary_op(
+    op: &ast::BinaryOperator,
+    left: &Box<ast::Expr>,
+    right: &Box<ast::Expr>,
+) -> ast::Expr {
+    let expr = ast::Expr::BinaryOp {
+        left: left.clone(),
+        op: op.clone(),
+        right: right.clone(),
+    };
+    let when_expr = vec![expr.clone()];
+    let true_expr = vec![ast::Expr::Value(ast::Value::Number("1".to_string(), false))];
+    let false_expr = Box::new(ast::Expr::Value(ast::Value::Number("0".to_string(), false)));
+
+    match op {
+        ast::BinaryOperator::Gt
+        | ast::BinaryOperator::Lt
+        | ast::BinaryOperator::GtEq
+        | ast::BinaryOperator::LtEq
+        | ast::BinaryOperator::Eq
+        | ast::BinaryOperator::NotEq
+        | ast::BinaryOperator::And
+        | ast::BinaryOperator::Or
+        | ast::BinaryOperator::Xor
+        | ast::BinaryOperator::BitwiseOr
+        | ast::BinaryOperator::BitwiseAnd
+        | ast::BinaryOperator::BitwiseXor => ast::Expr::Case {
+            operand: None,
+            conditions: when_expr,
+            results: true_expr,
+            else_result: Some(false_expr),
+        },
+        _ => expr,
+    }
+}
+
+// WHERE expretion modifications:
+
+/// Often sampling queries uses WHERE RAND(CHECKSUM(NEWID())) < x but in mssql
+/// this doesn't associate a random value for each row.
+/// Use ruther this approach to sample:
+/// https://www.sqlservercentral.com/forums/topic/whats-the-best-way-to-get-a-sample-set-of-a-big-table-without-primary-key#post-1948778
+/// Careful!! If RAND function is found the WHERE will be set to None.
+fn none_from_where_random(expr: ast::Expr) -> Option<ast::Expr> {
+    if has_rand_func(&expr) {
+        None
+    } else {
+        Some(expr)
+    }
+}
+
+// It checks recursively if the Expr is RAND function.
+fn has_rand_func(expr: &ast::Expr) -> bool {
+    match expr {
+        ast::Expr::Function(func) => {
+            let ast::Function { name, .. } = func;
+            let rand_func_name = ast::ObjectName(vec![ast::Ident::from("RAND")]);
+            &rand_func_name == name
+        }
+        ast::Expr::BinaryOp { left, .. } => has_rand_func(left.as_ref()),
+        ast::Expr::Nested(expr) => has_rand_func(expr.as_ref()),
+        _ => false,
+    }
+}
+
+// In Mssql WHERE col is not accepted.
+// This function converts WHERE col -> WHERE col=1
+fn boolean_expr_from_identifier(expr: ast::Expr) -> Option<ast::Expr> {
+    match expr {
+        ast::Expr::Identifier(_) => Some(ast::Expr::BinaryOp {
+            left: Box::new(expr),
+            op: ast::BinaryOperator::Eq,
+            right: Box::new(ast::Expr::Value(ast::Value::Number("1".to_string(), false))),
+        }),
+        _ => Some(expr),
+    }
+}
+
 // method to override DataType -> ast::DataType
 fn translate_data_type(dtype: DataType) -> ast::DataType {
     match dtype {
@@ -405,6 +551,7 @@ mod tests {
         builder::{Ready, With},
         data_type::DataType,
         dialect_translation::RelationWithTranslator,
+        display::Dot,
         expr::Expr,
         io::{mssql, Database as _},
         namer,
@@ -412,6 +559,21 @@ mod tests {
         sql::parse,
     };
     use std::sync::Arc;
+
+    #[test]
+    fn test_coalesce() {
+        let mut database = mssql::test_database();
+        let relations = database.relations();
+
+        let query = "SELECT COALESCE(a) FROM table_1 LIMIT 30";
+
+        let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
+        relation.display_dot().unwrap();
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
+        let translated_query = &ast::Query::from(rel_with_traslator).to_string()[..];
+        println!("{}", translated_query);
+        let _ = database.query(translated_query).unwrap();
+    }
 
     #[test]
     fn test_limit() {
@@ -427,6 +589,38 @@ mod tests {
         println!("{}", translated_query);
 
         let _ = database.query(translated_query).unwrap();
+    }
+
+    #[test]
+    fn test_not() {
+        let mut database = mssql::test_database();
+        let relations = database.relations();
+
+        let query = "SELECT NOT (a IS NULL) AS col FROM table_1";
+
+        let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
+        relation.display_dot().unwrap();
+
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
+        let translated_query = ast::Query::from(rel_with_traslator);
+        println!("{}", translated_query);
+        let _ = database.query(&translated_query.to_string()[..]).unwrap();
+    }
+
+    #[test]
+    fn test_where_rand() {
+        let mut database = mssql::test_database();
+        let relations = database.relations();
+
+        let query = "SELECT * FROM table_2 WHERE RANDOM()) < (0.5)";
+
+        let relation = Relation::try_from(With::with(&parse(query).unwrap(), &relations)).unwrap();
+        relation.display_dot().unwrap();
+
+        let rel_with_traslator = RelationWithTranslator(&relation, MsSqlTranslator);
+        let translated_query = ast::Query::from(rel_with_traslator);
+        println!("{}", translated_query);
+        let _ = database.query(&translated_query.to_string()).unwrap();
     }
 
     #[test]
