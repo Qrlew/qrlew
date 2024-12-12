@@ -39,7 +39,7 @@ impl DpParameters {
 
     pub fn from_epsilon_delta(epsilon: f64, delta: f64) -> DpParameters {
         // These default values are underestimating the bounds
-        DpParameters::new(epsilon, delta, 0.5, 100.0, 0.1, 1)
+        DpParameters::new(epsilon, delta, 0.5, 100.0, 0.1, 5)
     }
 
     pub fn with_tau_thresholding_share(self, tau_thresholding_share: f64) -> DpParameters {
